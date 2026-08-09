@@ -1,0 +1,727 @@
+-- ModelsBrowser/NPCRow.lua
+-- Lightweight, model-free row rendering for the NPC view of the Pet Models
+-- Browser: a sortable, column-toggleable text table. No PlayerModel widgets
+-- are created here on purpose -- that's the cost this view exists to avoid.
+
+local addonName = "PetStableManagement"
+_G.PSM = _G.PSM or {}
+local PSM = _G.PSM
+PSM.NPCRow = PSM.NPCRow or {}
+
+local ROW_HEIGHT    = 36
+local HEADER_HEIGHT = 22
+local ID_LINE_HEIGHT = 14 -- display-id pills wrap onto a second line at this height before "+N" kicks in
+
+PSM.NPCRow.ROW_HEIGHT    = ROW_HEIGHT
+PSM.NPCRow.HEADER_HEIGHT = HEADER_HEIGHT
+
+--------------------------------------------------------------------------------
+-- COLUMN DEFINITIONS
+--------------------------------------------------------------------------------
+
+PSM.NPCRow.COLUMNS = {
+    { key = "npcId",          label = "ID",           width = 42,  optional = true,  default = true  },
+    { key = "name",           label = "Name",         width = 150, optional = false, default = true  },
+    { key = "family",         label = "Family",       width = 90,  optional = true,  default = true  },
+    { key = "classification", label = "Class",        width = 70,  optional = true,  default = true  },
+    { key = "nameKeeper",     label = "NK",            width = 30,  optional = true,  default = true  },
+    { key = "zone",           label = "Zone",         width = 130, optional = true,  default = true  },
+    { key = "continent",      label = "Continent",    width = 110, optional = true,  default = false },
+    { key = "expansion",      label = "Expansion",    width = 90,  optional = true,  default = true  },
+    { key = "faction",        label = "A/H",           width = 40,  optional = true,  default = true  },
+    { key = "note",           label = "Note",         width = 28,  optional = true,  default = true  },
+    { key = "displayIds",     label = "Display IDs",  width = 120, optional = false, default = true  },
+}
+
+PSM.NPCRow.COLUMNS_BY_KEY = {}
+for _, c in ipairs(PSM.NPCRow.COLUMNS) do
+    PSM.NPCRow.COLUMNS_BY_KEY[c.key] = c
+end
+
+function PSM.NPCRow:GetDefaultVisibleColumns()
+    local t = {}
+    for _, col in ipairs(self.COLUMNS) do
+        if col.optional then t[col.key] = col.default end
+    end
+    return t
+end
+
+--------------------------------------------------------------------------------
+-- SORTING
+--------------------------------------------------------------------------------
+
+local CLASS_RANK  = { Normal = 1, Rare = 2, ["Rare Elite"] = 3, Elite = 4 }
+local CLASS_COLOR = {
+    Rare           = {0.85, 0.65, 0.13},
+    ["Rare Elite"] = {0.85, 0.30, 0.30},
+    Elite          = {0.85, 0.30, 0.30},
+}
+
+local function ParseFactionScore(react)
+    if not react then return -99 end
+    local a, h = react:match("%[([^,]*),([^%]]*)%]")
+    a = a and a ~= "null" and tonumber(a) or 0
+    h = h and h ~= "null" and tonumber(h) or 0
+    return a + h
+end
+
+local function FormatFaction(react)
+    if not react then return "" end
+    local a, h = react:match("%[([^,]*),([^%]]*)%]")
+    if not a or not h then return "" end
+    a = a ~= "null" and tonumber(a)
+    h = h ~= "null" and tonumber(h)
+    local function seg(v, letter)
+        if not v then return "" end
+        local color = v == -1 and {1,0,0} or v == 0 and {1,1,0} or {0,1,0}
+        return string.format("|cff%02x%02x%02x%s|r", color[1]*255, color[2]*255, color[3]*255, letter)
+    end
+    return seg(a, "A") .. seg(h, "H")
+end
+
+local function GetSortValue(panel, item, field)
+    if field == "npcId"          then return item.npcId or 0 end
+    if field == "classification" then return CLASS_RANK[item.classification] or 0 end
+    if field == "nameKeeper"     then return item.nameKeeper and 1 or 0 end
+    if field == "faction"        then return ParseFactionScore(item.react) end
+    if field == "displayIds"     then return (item.displayIds and item.displayIds[1]) or 0 end
+    if field == "note" then
+        local id = item.npcId
+        local hasUser = PSM_UserNotes and PSM_UserNotes[id] and PSM_UserNotes[id] ~= ""
+        local hasSeed = PSM.NotesData and PSM.NotesData[id]
+        return (hasUser or hasSeed) and 1 or 0
+    end
+    if field == "expansion" then
+        local order = PSM.ModelsDataLoader and PSM.ModelsDataLoader._EXPANSION_ORDER
+        return (order and order[item.expansion]) or 999
+    end
+    if field == "continent" then
+        local cont = panel and panel.locationContinents and panel.locationContinents[item.uiMapName]
+        return (cont or "\255"):lower()
+    end
+    local raw = item[field == "zone" and "uiMapName" or field]
+    return (raw or ""):lower()
+end
+
+-- Decorate-sort-undecorate: precompute sort keys once instead of recomputing
+-- them on every O(n log n) comparator call.
+function PSM.NPCRow:SortItems(panel, items)
+    local field = panel.npcSortField or "name"
+    local asc = panel.npcSortAsc
+    if asc == nil then asc = true end
+
+    local n = #items
+    local decorated = {}
+    for i = 1, n do
+        local item = items[i]
+        decorated[i] = { item = item, key = GetSortValue(panel, item, field), nameKey = (item.name or ""):lower() }
+    end
+
+    table.sort(decorated, function(a, b)
+        if a.key == b.key then
+            return a.nameKey < b.nameKey
+        end
+        if asc then return a.key < b.key else return a.key > b.key end
+    end)
+
+    for i = 1, n do
+        items[i] = decorated[i].item
+    end
+    return items
+end
+
+--------------------------------------------------------------------------------
+-- COLUMN LAYOUT
+--------------------------------------------------------------------------------
+
+function PSM.NPCRow:RecomputeColumnLayout(panel)
+    if not panel or not panel.petsFrame then return {} end
+
+    local totalWidth = panel.petsFrame:GetWidth() - 20
+    local visible = {}
+    for _, col in ipairs(self.COLUMNS) do
+        if not col.optional or (panel.npcVisibleColumns and panel.npcVisibleColumns[col.key]) then
+            table.insert(visible, col)
+        end
+    end
+
+    local widths = panel.npcColumnWidths or {}
+    local MIN_COLUMN_WIDTH = 30
+
+    local layout = {}
+    local x = 10
+    for _, col in ipairs(visible) do
+        local width
+        if col.key == "displayIds" then
+            -- Flex column: always absorbs whatever's left, which is what keeps
+            -- the overall table width constant while other columns resize.
+            width = math.max(80, totalWidth - (x - 10))
+        else
+            width = math.max(MIN_COLUMN_WIDTH, widths[col.key] or col.width)
+        end
+        table.insert(layout, { key = col.key, x = x, width = width })
+        x = x + width + 6
+    end
+
+    panel.npcColumnLayout = layout
+    return layout
+end
+
+--------------------------------------------------------------------------------
+-- COLUMN RESIZING
+--------------------------------------------------------------------------------
+
+-- Shared OnUpdate driver for column-boundary dragging (same pattern as the
+-- model rotate/move drivers in RowManager.lua).
+local ResizeDriver = CreateFrame("Frame")
+
+local function StopResize(handle)
+    ResizeDriver.active = nil
+    if handle.tex then handle.tex:SetColorTexture(1, 0.82, 0, 0) end
+    local panel = PSM.state.modelsPanel
+    if panel and panel.npcColumnWidths then
+        PetStableManagementDB.settings.npcViewColumnWidths = PSM.Utils.DeepCopy(panel.npcColumnWidths)
+    end
+end
+
+ResizeDriver:SetScript("OnUpdate", function(self)
+    local handle = self.active
+    if not handle then return end
+
+    -- The cursor is almost always off the (6px-wide) handle by the time the
+    -- button is released, so OnMouseUp on the handle can't be relied on to
+    -- end the drag -- poll button state directly instead.
+    if not IsMouseButtonDown("LeftButton") then
+        StopResize(handle)
+        return
+    end
+
+    local scale = UIParent:GetEffectiveScale()
+    local x = GetCursorPosition() / scale
+    local delta = x - (handle.lastX or x)
+    if delta ~= 0 then
+        local panel = PSM.state.modelsPanel
+        if panel then
+            panel.npcColumnWidths = panel.npcColumnWidths or {}
+            local col = PSM.NPCRow.COLUMNS_BY_KEY[handle.columnKey]
+            local current = panel.npcColumnWidths[handle.columnKey] or col.width
+            panel.npcColumnWidths[handle.columnKey] = math.max(30, current + delta)
+            PSM.NPCRow:ReflowVisibleRows(panel)
+        end
+        handle.lastX = x
+    end
+end)
+
+local function CreateResizeHandle(header, columnKey)
+    local handle = CreateFrame("Frame", nil, header)
+    handle:SetWidth(6)
+    handle:EnableMouse(true)
+    handle.columnKey = columnKey
+
+    local tex = handle:CreateTexture(nil, "OVERLAY")
+    tex:SetPoint("TOP", handle, "TOP", 0, 0)
+    tex:SetPoint("BOTTOM", handle, "BOTTOM", 0, 0)
+    tex:SetWidth(2)
+    tex:SetColorTexture(1, 0.82, 0, 0)
+    handle.tex = tex
+
+    handle:SetScript("OnEnter", function() tex:SetColorTexture(1, 0.82, 0, 0.6) end)
+    handle:SetScript("OnLeave", function()
+        if ResizeDriver.active ~= handle then tex:SetColorTexture(1, 0.82, 0, 0) end
+    end)
+    handle:SetScript("OnMouseDown", function(self, button)
+        if button ~= "LeftButton" then return end
+        local scale = UIParent:GetEffectiveScale()
+        self.lastX = GetCursorPosition() / scale
+        ResizeDriver.active = self
+        tex:SetColorTexture(1, 0.82, 0, 1)
+    end)
+    handle:SetScript("OnMouseUp", function(self)
+        if ResizeDriver.active == self then StopResize(self) end
+    end)
+
+    return handle
+end
+
+--------------------------------------------------------------------------------
+-- HEADER ROW
+--------------------------------------------------------------------------------
+
+function PSM.NPCRow:CreateHeaderRow(parent)
+    local header = CreateFrame("Frame", nil, parent)
+    header:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+    header:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
+    header:SetHeight(HEADER_HEIGHT)
+    header:SetClipsChildren(true)
+    header.labelButtons = {}
+    header.resizeHandles = {}
+
+    -- Golden/dark pill styling, matching the "Show Only" filter group header.
+    local bg = header:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BG))
+    local topLine = header:CreateTexture(nil, "BORDER")
+    topLine:SetPoint("TOPLEFT", header, "TOPLEFT", 0, 0)
+    topLine:SetPoint("TOPRIGHT", header, "TOPRIGHT", 0, 0)
+    topLine:SetHeight(1)
+    topLine:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BORDER))
+    local bottomLine = header:CreateTexture(nil, "BORDER")
+    bottomLine:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", 0, 0)
+    bottomLine:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", 0, 0)
+    bottomLine:SetHeight(1)
+    bottomLine:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BORDER))
+
+    for _, col in ipairs(self.COLUMNS) do
+        local btn = CreateFrame("Button", nil, header)
+        btn:SetHeight(HEADER_HEIGHT - 2)
+        local fs = btn:CreateFontString(nil, "OVERLAY")
+        fs:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
+        fs:SetPoint("LEFT", 4, 0)
+        fs:SetJustifyH("LEFT")
+        fs:SetTextColor(1, 0.82, 0)
+        btn.text = fs
+        btn.columnKey = col.key
+
+        btn:SetScript("OnClick", function()
+            local panel = PSM.state.modelsPanel
+            if not panel then return end
+            if panel.npcSortField == col.key then
+                panel.npcSortAsc = not panel.npcSortAsc
+            else
+                panel.npcSortField = col.key
+                panel.npcSortAsc = true
+            end
+            PetStableManagementDB.settings.npcViewSort = { field = panel.npcSortField, asc = panel.npcSortAsc }
+            PSM.NPCRow:UpdateHeaderRow(panel)
+            PSM.ModelsPanel:UpdateVisibleRows()
+        end)
+
+        header.labelButtons[col.key] = btn
+
+        if col.key ~= "displayIds" then
+            header.resizeHandles[col.key] = CreateResizeHandle(header, col.key)
+        end
+    end
+
+    header:Hide()
+    return header
+end
+
+function PSM.NPCRow:UpdateHeaderRow(panel)
+    local header = panel.npcHeaderRow
+    if not header then return end
+
+    local layout = self:RecomputeColumnLayout(panel)
+    for _, btn in pairs(header.labelButtons) do btn:Hide() end
+    for _, handle in pairs(header.resizeHandles) do handle:Hide() end
+
+    for _, colLayout in ipairs(layout) do
+        local col = self.COLUMNS_BY_KEY[colLayout.key]
+        local btn = header.labelButtons[colLayout.key]
+        if col and btn then
+            btn:ClearAllPoints()
+            btn:SetPoint("TOPLEFT", header, "TOPLEFT", colLayout.x, 0)
+            btn:SetSize(colLayout.width, HEADER_HEIGHT - 2)
+            local arrow = ""
+            if panel.npcSortField == colLayout.key then
+                arrow = panel.npcSortAsc and " ^" or " v"
+            end
+            btn.text:SetText(col.label .. arrow)
+            btn:Show()
+
+            local handle = header.resizeHandles[colLayout.key]
+            if handle then
+                handle:ClearAllPoints()
+                handle:SetPoint("TOP", header, "TOPLEFT", colLayout.x + colLayout.width + 3, 0)
+                handle:SetHeight(HEADER_HEIGHT)
+                handle:Show()
+            end
+        end
+    end
+end
+
+--------------------------------------------------------------------------------
+-- COLUMNS VISIBILITY PICKER
+--------------------------------------------------------------------------------
+
+function PSM.NPCRow:CreateColumnsPicker(panel, anchorTo)
+    local optionalCols = {}
+    for _, col in ipairs(self.COLUMNS) do
+        if col.optional then table.insert(optionalCols, col) end
+    end
+
+    local btn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    btn:SetPoint("TOPRIGHT", anchorTo, "TOPLEFT", -5, 0)
+    btn:SetSize(PSM.Config.PANEL_BUTTON_WIDTH, PSM.Config.PANEL_BUTTON_HEIGHT)
+    btn:SetText("Columns")
+    btn:SetNormalFontObject("GameFontNormalSmall")
+    PSM.UI:ApplyElvUISkin(btn, "button")
+
+    local popout = CreateFrame("Frame", nil, panel, "BackdropTemplate")
+    popout:SetSize(140, 10 + 18 * #optionalCols)
+    popout:SetPoint("TOPRIGHT", btn, "BOTTOMRIGHT", 0, -2)
+    popout:SetFrameStrata("DIALOG")
+    popout:SetBackdrop({
+        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 16,
+        insets = {left=4, right=4, top=4, bottom=4},
+    })
+    popout:SetBackdropColor(unpack(PSM.Config.COLORS.BACKGROUND))
+    popout:SetBackdropBorderColor(0.75, 0.75, 0.75, 1)
+    popout:Hide()
+
+    local y = -6
+    for _, col in ipairs(optionalCols) do
+        local cb = CreateFrame("CheckButton", nil, popout, "UICheckButtonTemplate")
+        cb:SetSize(16, 16)
+        cb:SetPoint("TOPLEFT", 6, y)
+        local label = cb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        label:SetPoint("LEFT", cb, "RIGHT", 2, 0)
+        label:SetText(col.label)
+        -- Extend the checkbox's clickable area rightward over the label text
+        -- (negative inset expands the hit rect) so clicking the name also toggles it.
+        cb:SetHitRectInsets(0, -114, 0, 0)
+        cb:SetChecked(panel.npcVisibleColumns and panel.npcVisibleColumns[col.key])
+        cb:SetScript("OnClick", function(self)
+            panel.npcVisibleColumns[col.key] = self:GetChecked() and true or false
+            PetStableManagementDB.settings.npcViewColumns = PSM.Utils.DeepCopy(panel.npcVisibleColumns)
+            PSM.NPCRow:UpdateHeaderRow(panel)
+            PSM.ModelsPanel:UpdateVisibleRows()
+        end)
+        PSM.UI:ApplyElvUISkin(cb, "checkbox")
+        y = y - 18
+    end
+
+    btn:SetScript("OnClick", function()
+        if popout:IsShown() then popout:Hide() else popout:Show() end
+    end)
+
+    -- Close on click-away. OnUpdate only ticks while popout is shown, so this
+    -- is a no-op cost otherwise; non-modal (doesn't swallow clicks) so a click
+    -- on another button both closes the picker and still performs that click.
+    popout:SetScript("OnUpdate", function(self)
+        if (IsMouseButtonDown("LeftButton") or IsMouseButtonDown("RightButton"))
+            and not self:IsMouseOver() and not btn:IsMouseOver() then
+            self:Hide()
+        end
+    end)
+
+    btn:Hide()
+    panel.npcColumnsButton  = btn
+    panel.npcColumnsPopout  = popout
+    return btn
+end
+
+--------------------------------------------------------------------------------
+-- DATA ROW
+--------------------------------------------------------------------------------
+
+local ID_LINK_COLOR        = {0.35, 0.62, 0.85} -- not owned: link blue
+local ID_LINK_HOVER        = {0.55, 0.75, 0.95}
+local ID_LINK_OWNED_COLOR  = {0.35, 0.9,  0.35} -- owned: green, matching ModelRow's owned convention
+local ID_LINK_OWNED_HOVER  = {0.6,  1,    0.6}
+
+-- Name opens the Wowhead NPC page, Zone opens TomTom waypoints -- both mirror
+-- the exact hyperlink actions already available in the Model Magnifier. Name
+-- always has an npcId to link to, so it's always styled as a link; Zone only
+-- has TomTom coordinate data for some NPCs, so it's only styled as a link
+-- (same blue as the Display ID pills) when that data actually exists --
+-- otherwise it stays the default neutral text color, matching that it isn't
+-- clickable.
+local CLICKABLE_CELL_COLUMNS = { name = true, zone = true }
+local CELL_NEUTRAL_COLOR = {0.79, 0.79, 0.76}
+
+function PSM.NPCRow:GetOrCreateIdLink(row, index)
+    if row.idLinks[index] then return row.idLinks[index] end
+
+    local link = CreateFrame("Button", nil, row.idContainer)
+    link:SetHeight(ID_LINE_HEIGHT)
+    local fs = link:CreateFontString(nil, "OVERLAY")
+    fs:SetFont("Fonts\\FRIZQT__.TTF", 9.5)
+    fs:SetPoint("LEFT", 0, 0)
+    fs:SetJustifyH("LEFT")
+    fs:SetTextColor(unpack(ID_LINK_COLOR))
+    link.text = fs
+    link.baseColor, link.hoverColor = ID_LINK_COLOR, ID_LINK_HOVER
+
+    link:SetScript("OnEnter", function(self) fs:SetTextColor(unpack(self.hoverColor)) end)
+    link:SetScript("OnLeave", function(self) fs:SetTextColor(unpack(self.baseColor)) end)
+    link:SetScript("OnClick", function()
+        if link.displayId then PSM.PopUpManager:ShowMagnificationPopup(link.displayId) end
+    end)
+
+    row.idLinks[index] = link
+    return link
+end
+
+function PSM.NPCRow:CreateNPCRow(parent)
+    local row = CreateFrame("Frame", nil, parent)
+    row:SetHeight(ROW_HEIGHT)
+    row:SetPoint("LEFT", parent, "LEFT", 0, 0)
+    row:SetPoint("RIGHT", parent, "RIGHT", 0, 0)
+    -- Clip anything (long text, many display-id links) that would otherwise
+    -- bleed past the row/panel edge instead of wrapping it to a second line.
+    row:SetClipsChildren(true)
+
+    row.bg = row:CreateTexture(nil, "BACKGROUND")
+    row.bg:SetAllPoints()
+    row.bg:SetColorTexture(1, 1, 1, 0)
+
+    row.cellTexts = {}
+    row.clickableCells = {}
+    for _, col in ipairs(self.COLUMNS) do
+        if col.key == "note" then
+            local btn = CreateFrame("Button", nil, row)
+            btn:SetHeight(ROW_HEIGHT)
+            local icon = btn:CreateTexture(nil, "OVERLAY")
+            icon:SetSize(14, 14)
+            icon:SetPoint("LEFT", btn, "LEFT", 2, 0)
+            btn.icon = icon
+            row.clickableCells.note = btn
+        elseif col.key ~= "displayIds" then
+            local fsParent = row
+            if CLICKABLE_CELL_COLUMNS[col.key] then
+                local btn = CreateFrame("Button", nil, row)
+                btn:SetHeight(ROW_HEIGHT)
+                row.clickableCells[col.key] = btn
+                fsParent = btn
+            end
+            local fs = fsParent:CreateFontString(nil, "OVERLAY")
+            fs:SetFont("Fonts\\FRIZQT__.TTF", 9.5)
+            fs:SetJustifyH("LEFT")
+            fs:SetWordWrap(false)
+            row.cellTexts[col.key] = fs
+        end
+    end
+
+    row.idContainer = CreateFrame("Frame", nil, row)
+    row.idContainer:SetHeight(ID_LINE_HEIGHT * 2)
+    row.idLinks = {}
+
+    row.idMoreText = row:CreateFontString(nil, "OVERLAY")
+    row.idMoreText:SetFont("Fonts\\FRIZQT__.TTF", 9.5)
+    row.idMoreText:SetJustifyH("LEFT")
+    row.idMoreText:SetTextColor(0.55, 0.55, 0.5)
+    row.idMoreText:Hide()
+
+    row:Hide()
+    return row
+end
+
+function PSM.NPCRow:UpdateItemRow(row, item, index)
+    if not item then row.currentItem = nil; row:Hide(); return end
+
+    local panel = PSM.state.modelsPanel
+    row.npcId = item.npcId
+    row.currentItem = item
+    row.lastIndex = index
+    row.bg:SetColorTexture(1, 1, 1, (index % 2 == 0) and 0.025 or 0)
+
+    local layout = (panel and panel.npcColumnLayout) or self:RecomputeColumnLayout(panel)
+
+    for _, fs in pairs(row.cellTexts) do fs:Hide() end
+    for _, link in pairs(row.idLinks) do link:Hide() end
+    for _, btn in pairs(row.clickableCells) do btn:Hide() end
+    row.idMoreText:Hide()
+
+    for _, colLayout in ipairs(layout) do
+        local key = colLayout.key
+        if key == "note" then
+            local btn = row.clickableCells.note
+            btn:ClearAllPoints()
+            btn:SetPoint("TOPLEFT", row, "TOPLEFT", colLayout.x, 0)
+            btn:SetSize(colLayout.width, ROW_HEIGHT)
+
+            local npcId = item.npcId
+            local userNote = PSM_UserNotes and PSM_UserNotes[npcId]
+            local hasUser = userNote and userNote ~= ""
+            local seedNote = PSM.NotesData and PSM.NotesData[npcId]
+            btn.icon:SetTexture((hasUser or seedNote)
+                and "Interface\\Buttons\\ui-guildbutton-officernote-up"
+                or  "Interface\\Buttons\\ui-guildbutton-officernote-disabled")
+
+            btn:SetScript("OnClick", function()
+                PSM.PopUpManager:ShowNoteEditor(npcId, item.name, nil, function()
+                    PSM.ModelsPanel:UpdateVisibleRows()
+                end)
+            end)
+            btn:SetScript("OnEnter", function(self)
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                if hasUser then
+                    GameTooltip:SetText("Your note:")
+                    GameTooltip:AddLine(userNote, 1, 1, 1, true)
+                elseif seedNote then
+                    GameTooltip:SetText("Info note:")
+                    GameTooltip:AddLine(seedNote, 1, 1, 1, true)
+                else
+                    GameTooltip:SetText("Click to add a note")
+                end
+                GameTooltip:Show()
+            end)
+            btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            btn:Show()
+        elseif key == "displayIds" then
+            row.idContainer:ClearAllPoints()
+            row.idContainer:SetSize(colLayout.width, ID_LINE_HEIGHT * 2)
+
+            local ids = item.displayIds or {}
+            local ownedSet = panel and panel.ownedDisplayIdSet
+
+            -- Pass 1: decide placement (which line, x offset) without moving
+            -- anything yet, so the actual number of lines used is known
+            -- before we vertically center the block within the row.
+            local placements = {}
+            local xOff, lineNum, shown = 0, 0, 0
+            for i, dispId in ipairs(ids) do
+                local link = self:GetOrCreateIdLink(row, i)
+                local suffix = ids[i + 1] and ", " or ""
+                link.text:SetText(tostring(dispId) .. suffix)
+                local linkWidth = link.text:GetStringWidth() + 2
+
+                if xOff > 0 and xOff + linkWidth > colLayout.width then
+                    if lineNum == 0 then
+                        -- Overflow to a second line before falling back to "+N".
+                        lineNum = 1
+                        xOff = 0
+                    else
+                        break
+                    end
+                end
+
+                table.insert(placements, { link = link, dispId = dispId, x = xOff, line = lineNum, width = linkWidth })
+                xOff = xOff + linkWidth
+                shown = shown + 1
+            end
+
+            local linesUsed = lineNum + 1
+            local blockHeight = linesUsed * ID_LINE_HEIGHT
+            local topOffset = -(ROW_HEIGHT - blockHeight) / 2
+            row.idContainer:SetPoint("TOPLEFT", row, "TOPLEFT", colLayout.x, topOffset)
+
+            -- Pass 2: apply the now-known, vertically-centered positions.
+            for _, p in ipairs(placements) do
+                local link = p.link
+                link:ClearAllPoints()
+                link:SetPoint("TOPLEFT", row.idContainer, "TOPLEFT", p.x, -(p.line * ID_LINE_HEIGHT))
+                link:SetWidth(p.width)
+                link.displayId = p.dispId
+                if ownedSet and ownedSet[p.dispId] then
+                    link.baseColor, link.hoverColor = ID_LINK_OWNED_COLOR, ID_LINK_OWNED_HOVER
+                else
+                    link.baseColor, link.hoverColor = ID_LINK_COLOR, ID_LINK_HOVER
+                end
+                link.text:SetTextColor(unpack(link.baseColor))
+                link:Show()
+            end
+
+            if shown < #ids then
+                row.idMoreText:ClearAllPoints()
+                row.idMoreText:SetPoint("TOPLEFT", row.idContainer, "TOPLEFT", xOff, -(lineNum * ID_LINE_HEIGHT))
+                row.idMoreText:SetText(string.format("+%d", #ids - shown))
+                row.idMoreText:Show()
+            end
+        else
+            local fs = row.cellTexts[key]
+            if fs then
+                fs:ClearAllPoints()
+                fs:SetPoint("TOPLEFT", row, "TOPLEFT", colLayout.x, -(ROW_HEIGHT / 2 - 5))
+                fs:SetWidth(colLayout.width)
+                fs:SetTextColor(unpack(CELL_NEUTRAL_COLOR))
+
+                local clickBtn = row.clickableCells[key]
+                if clickBtn then
+                    clickBtn:ClearAllPoints()
+                    clickBtn:SetPoint("TOPLEFT", row, "TOPLEFT", colLayout.x, 0)
+                    clickBtn:SetSize(colLayout.width, ROW_HEIGHT)
+                    clickBtn:Show()
+                end
+
+                if key == "npcId" then
+                    fs:SetText("#" .. tostring(item.npcId))
+                    fs:SetTextColor(0.5, 0.5, 0.47)
+                elseif key == "name" then
+                    fs:SetText(item.name)
+                    -- Always a valid link: an npcId is always available to build the Wowhead URL from.
+                    fs:SetTextColor(unpack(ID_LINK_COLOR))
+                    clickBtn:SetScript("OnEnter", function() fs:SetTextColor(unpack(ID_LINK_HOVER)) end)
+                    clickBtn:SetScript("OnLeave", function() fs:SetTextColor(unpack(ID_LINK_COLOR)) end)
+                    clickBtn:SetScript("OnClick", function()
+                        if item.npcId then
+                            PSM.PopUpManager:ShowURLPopup("https://www.wowhead.com/npc=" .. tostring(item.npcId))
+                        end
+                    end)
+                elseif key == "family" then
+                    fs:SetText(item.family or "")
+                elseif key == "classification" then
+                    fs:SetText(item.classification ~= "Normal" and item.classification or "")
+                    local c = CLASS_COLOR[item.classification]
+                    if c then fs:SetTextColor(c[1], c[2], c[3]) end
+                elseif key == "nameKeeper" then
+                    fs:SetText(item.nameKeeper and "Yes" or "")
+                    fs:SetTextColor(1, 0.82, 0)
+                elseif key == "zone" then
+                    fs:SetText(item.uiMapName or "")
+                    -- Only some NPCs have stored TomTom coordinate data; only
+                    -- style/wire this as a link when a click would actually do something.
+                    local waypoints = (item.npcId and item.uiMapId)
+                        and PSM.PopUpManager:GetCoordsWaypointText(item.npcId, item.uiMapId, item.name)
+                        or nil
+                    if waypoints then
+                        fs:SetTextColor(unpack(ID_LINK_COLOR))
+                        clickBtn:SetScript("OnEnter", function() fs:SetTextColor(unpack(ID_LINK_HOVER)) end)
+                        clickBtn:SetScript("OnLeave", function() fs:SetTextColor(unpack(ID_LINK_COLOR)) end)
+                        clickBtn:SetScript("OnClick", function()
+                            PSM.PopUpManager:ShowCoordsPopup(waypoints, item.name, item.uiMapName or tostring(item.uiMapId), item.displayIds and item.displayIds[1])
+                        end)
+                    else
+                        fs:SetTextColor(unpack(CELL_NEUTRAL_COLOR))
+                        clickBtn:SetScript("OnEnter", nil)
+                        clickBtn:SetScript("OnLeave", nil)
+                        clickBtn:SetScript("OnClick", nil)
+                    end
+                elseif key == "continent" then
+                    local cont = panel and panel.locationContinents and panel.locationContinents[item.uiMapName]
+                    fs:SetText(cont or "")
+                elseif key == "expansion" then
+                    fs:SetText(item.expansion or "")
+                elseif key == "faction" then
+                    fs:SetText(FormatFaction(item.react))
+                end
+                fs:Show()
+            end
+        end
+    end
+
+    row:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(item.name)
+        GameTooltip:AddLine("NPC ID: " .. tostring(item.npcId), 0.7, 0.7, 0.7)
+        GameTooltip:AddLine(string.format("%s - %s, %s",
+            item.family or "Unknown", item.uiMapName or "Unknown", item.expansion or "Unknown"), 0.7, 0.7, 0.7)
+        if item.displayIds and #item.displayIds > 0 then
+            local ownedSet = panel and panel.ownedDisplayIdSet
+            local parts = {}
+            for _, id in ipairs(item.displayIds) do
+                table.insert(parts, tostring(id) .. ((ownedSet and ownedSet[id]) and " (owned)" or ""))
+            end
+            GameTooltip:AddLine("Display IDs: " .. table.concat(parts, ", "), 0.55, 0.75, 0.95)
+        end
+        GameTooltip:Show()
+    end)
+    row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    row:Show()
+end
+
+-- Re-applies the current column layout to already-visible rows without
+-- re-sorting or re-paginating -- used while a column resize is in progress.
+function PSM.NPCRow:ReflowVisibleRows(panel)
+    if not panel or not panel.npcRows then return end
+    self:UpdateHeaderRow(panel)
+    for _, row in ipairs(panel.npcRows) do
+        if row:IsShown() and row.currentItem then
+            self:UpdateItemRow(row, row.currentItem, row.lastIndex or 1)
+        end
+    end
+end

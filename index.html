@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PSM — Feature Request</title>
+<style>
+  :root {
+    --bg: #2e2c29; --surface: #3a3835; --card: #444240;
+    --accent: #8b1a1a; --accent2: #c8960c;
+    --text: #f0ede8; --muted: #9a9590; --border: #5a5550;
+    --green: #2ecc71; --input-bg: #252320;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; min-height: 100vh; padding: 24px 16px; max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 1.3rem; color: #f5d060; margin-bottom: 4px; }
+  .subtitle { color: var(--muted); font-size: 0.85rem; margin-bottom: 24px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .05em; }
+  input, select, textarea {
+    width: 100%; background: var(--input-bg); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px; padding: 10px 12px; font-size: 0.9rem; outline: none;
+    transition: border-color .2s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: #c8960c; }
+  select option { background: var(--input-bg); }
+  textarea { resize: vertical; }
+
+  button {
+    background: linear-gradient(180deg, #a82020 0%, #6b0f0f 100%);
+    color: #f5d060; border: 1px solid #7a1515; border-radius: 6px;
+    padding: 10px 18px; font-size: 0.9rem; cursor: pointer; transition: opacity .2s;
+    white-space: nowrap; font-weight: bold; text-shadow: 0 1px 2px #0005;
+    min-width: 160px; height: 42px;
+  }
+  button:hover { opacity: .85; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button.secondary {
+    background: linear-gradient(180deg, #555250 0%, #3a3835 100%);
+    color: #c8960c; border-color: #5a5550;
+  }
+
+  .step-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .08em; color: #c8960c; margin-bottom: 10px; font-weight: bold; }
+  .hidden { display: none; }
+  .msg { padding: 10px 14px; border-radius: 6px; font-size: 0.88rem; margin-top: 8px; }
+  .msg.info { background: #333230; border: 1px solid #5a5550; }
+  .msg.error { background: #3a1a1a; border: 1px solid #8b1a1a; color: #f88; }
+  .msg.success { background: #1a3a2a; border: 1px solid var(--green); color: #7dffb3; }
+
+  .nav-row { display: flex; justify-content: space-between; margin-top: 14px; }
+  .field-gap { margin-bottom: 14px; }
+  small { color: var(--muted); font-size: 0.78rem; display: block; margin-top: 4px; }
+
+  .panel-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .panel-btn {
+    background: linear-gradient(180deg, #4a4845 0%, #333230 100%);
+    color: var(--text); border: 1px solid var(--border); border-radius: 6px;
+    padding: 10px 12px; font-size: 0.85rem; cursor: pointer; text-align: left;
+    transition: border-color .2s, background .2s;
+    min-width: unset; min-height: 52px; height: auto;
+    font-weight: normal; text-shadow: none;
+    white-space: normal; line-height: 1.3;
+    display: flex; align-items: center;
+  }
+  .panel-btn:hover { border-color: #c8960c; color: #f5d060; }
+  .panel-btn.selected {
+    background: linear-gradient(180deg, #a82020 0%, #6b0f0f 100%);
+    border-color: #c8960c; color: #f5d060; font-weight: bold;
+  }
+
+  .sub-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .sub-pill {
+    background: linear-gradient(135deg, #4a4845 0%, #333230 100%);
+    border: 1px solid #c8960c; border-radius: 20px;
+    padding: 4px 14px; font-size: 0.8rem; cursor: pointer;
+    color: #c8960c; transition: background .15s;
+  }
+  .sub-pill:hover { background: linear-gradient(135deg, #a82020 0%, #6b0f0f 100%); color: #f5d060; border-color: #a82020; }
+  .sub-pill.selected { background: linear-gradient(135deg, #a82020 0%, #6b0f0f 100%); color: #f5d060; border-color: #c8960c; font-weight: bold; }
+
+  .section-title { font-size: 0.78rem; color: #c8960c; margin: 12px 0 6px; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>🐾 PetStableManagement — Feature Request</h1>
+<p class="subtitle">Have an idea for improving PSM? Share it with us — we’re always exploring new ways to enhance the addon.</p>
+
+<!-- STEP 1: Panel -->
+<div class="card" id="step1">
+  <div class="step-label">Step 1 — Which part of the addon?</div>
+  <p style="font-size:0.85rem;color:var(--muted);margin-bottom:12px;">Select the panel or feature area your request relates to.</p>
+
+  <div class="panel-grid" id="panelGrid"></div>
+
+  <div id="subCatSection" class="hidden">
+    <div class="section-title">Which view within Owned Pets Panel?</div>
+    <div class="sub-pills" id="subPills"></div>
+  </div>
+
+  <div id="otherSection" class="hidden" style="margin-top:12px;">
+    <label>Please specify</label>
+    <input type="text" id="otherText" placeholder="Describe the area of the addon" />
+  </div>
+
+  <div class="nav-row" style="justify-content:flex-end;">
+    <button onclick="goToStep2()">Next →</button>
+  </div>
+  <div id="step1Msg" class="hidden"></div>
+</div>
+
+<!-- STEP 2: Request details -->
+<div class="card hidden" id="step2">
+  <div class="step-label">Step 2 — Describe your request</div>
+
+  <div class="field-gap">
+    <label>Feature title</label>
+    <input type="text" id="featureTitle" placeholder="Short summary of what you'd like" />
+    <small>Keep it concise — this becomes the issue title.</small>
+  </div>
+
+  <div class="field-gap">
+    <label>What would you like the addon to do?</label>
+    <textarea id="featureDesc" rows="4" placeholder="Describe the feature in as much detail as you like…"></textarea>
+  </div>
+
+  <div class="field-gap">
+    <label>Why would this be useful?</label>
+    <textarea id="featureWhy" rows="3" placeholder="What problem does it solve? What's your use case?"></textarea>
+    <small>Optional but helps prioritise your request.</small>
+  </div>
+
+  <div class="field-gap">
+    <label>Your in-game character name (optional)</label>
+    <input type="text" id="charName" placeholder="For credit and follow-up" />
+  </div>
+
+  <div class="field-gap">
+    <label>CurseForge username (optional)</label>
+    <input type="text" id="cfName" placeholder="So we can link back to any related comments" />
+  </div>
+
+  <div class="nav-row">
+    <button class="secondary" onclick="goBackToStep1()">← Back</button>
+    <button onclick="submitRequest()" style="width:auto;">Submit Request →</button>
+  </div>
+  <div id="submitMsg" class="hidden"></div>
+</div>
+
+<script>
+const REPO       = "ginutty-code/psm-addon";
+const ISSUES_URL = `https://github.com/${REPO}/issues/new`;
+
+const PANELS = [
+  { id: "owned_pets", label: "Owned Pets Panel", subs: ["List View", "Grid View", "Grouped View", "Export"] },
+  { id: "teams",      label: "Teams Panel" },
+  { id: "models",     label: "Models Browser Panel" },
+  { id: "roulette",   label: "Pet Roulette" },
+  { id: "magnifier",  label: "Model Magnifier" },
+  { id: "tomtom",     label: "TomTom Integration" },
+  { id: "abilities",  label: "Abilities Browser" },
+  { id: "special",    label: "Special Tames" },
+  { id: "options",    label: "Options Panel" },
+  { id: "minimap",    label: "Minimap" },
+  { id: "broker",     label: "Broker" },
+  { id: "other",      label: "Other" },
+];
+
+let selectedPanel = null, selectedSub = null;
+
+const grid = document.getElementById("panelGrid");
+PANELS.forEach(p => {
+  const btn = document.createElement("button");
+  btn.className = "panel-btn";
+  btn.dataset.id = p.id;
+  btn.textContent = p.label;
+  btn.onclick = () => selectPanel(p, btn);
+  grid.appendChild(btn);
+});
+
+function selectPanel(panel, btn) {
+  selectedPanel = panel;
+  selectedSub = null;
+  document.querySelectorAll(".panel-btn").forEach(b => b.classList.remove("selected"));
+  btn.classList.add("selected");
+
+  const subSec = document.getElementById("subCatSection");
+  if (panel.subs) {
+    subSec.classList.remove("hidden");
+    document.getElementById("subPills").innerHTML = panel.subs.map(s =>
+      `<span class="sub-pill" onclick="selectSub(this, '${s}')">${s}</span>`
+    ).join("");
+  } else {
+    subSec.classList.add("hidden");
+  }
+
+  document.getElementById("otherSection").classList.toggle("hidden", panel.id !== "other");
+  document.getElementById("step1Msg").classList.add("hidden");
+}
+
+function selectSub(el, sub) {
+  selectedSub = sub;
+  document.querySelectorAll(".sub-pill").forEach(p => p.classList.remove("selected"));
+  el.classList.add("selected");
+}
+
+function goToStep2() {
+  if (!selectedPanel) { showStep1Msg("Please select a panel or feature area.", "error"); return; }
+  if (selectedPanel.id === "other" && !document.getElementById("otherText").value.trim()) {
+    showStep1Msg("Please specify the area of the addon.", "error"); return;
+  }
+  document.getElementById("step1").classList.add("hidden");
+  document.getElementById("step2").classList.remove("hidden");
+  document.getElementById("submitMsg").classList.add("hidden");
+}
+
+function goBackToStep1() {
+  document.getElementById("step2").classList.add("hidden");
+  document.getElementById("step1").classList.remove("hidden");
+}
+
+function submitRequest() {
+  const title = document.getElementById("featureTitle").value.trim();
+  const desc  = document.getElementById("featureDesc").value.trim();
+  const why   = document.getElementById("featureWhy").value.trim();
+  const char  = document.getElementById("charName").value.trim();
+  const cf    = document.getElementById("cfName").value.trim();
+
+  if (!title) { showSubmitMsg("Please enter a feature title.", "error"); return; }
+  if (!desc)  { showSubmitMsg("Please describe what you'd like the addon to do.", "error"); return; }
+
+  let panelLabel = selectedPanel.label;
+  if (selectedPanel.id === "other") panelLabel = document.getElementById("otherText").value.trim();
+  if (selectedSub) panelLabel += ` → ${selectedSub}`;
+
+  const issueTitle = `[Feature] ${panelLabel} — ${title}`;
+  const body =
+`**Panel / Area:** ${panelLabel}
+**Feature:** ${title}
+
+**Description:**
+${desc}
+${why ? `\n**Why it would be useful:**\n${why}` : ""}
+${char ? `\n**In-game name:** ${char}` : ""}
+${cf   ? `**CurseForge username:** ${cf}` : ""}`;
+
+  window.open(`${ISSUES_URL}?title=${encodeURIComponent(issueTitle)}&body=${encodeURIComponent(body)}&labels=feature-request`, "_blank");
+  showSubmitMsg("✅ GitHub opened in a new tab — review and click 'Submit new issue' to file it.", "success");
+}
+
+function showStep1Msg(msg, type) {
+  const el = document.getElementById("step1Msg");
+  el.className = "msg " + type; el.textContent = msg; el.classList.remove("hidden");
+}
+function showSubmitMsg(msg, type) {
+  const el = document.getElementById("submitMsg");
+  el.className = "msg " + type; el.textContent = msg; el.classList.remove("hidden");
+}
+  </script>
+  <script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script>
+  <script type='text/javascript'>kofiwidget2.init('Support Pet Stable Management', '#72a4f2', 'U7D622NM2Q');kofiwidget2.draw();</script>
+</body>
+</html>
