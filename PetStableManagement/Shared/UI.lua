@@ -53,7 +53,7 @@ PSM.state = PSM.state or {
     sortBy = nil,
     exoticFilter = false, duplicatesOnlyFilter = false,
     selectedSpecs = {}, selectedFamilies = {}, selectedModelsFamilies = {},
-    favoriteModels = {}, specList = {}, familyList = {},
+    favoriteModels = {}, favoriteModelsLoaded = false, specList = {}, familyList = {},
     isStableOpen = false, minimapButton = nil, exportFrame = nil,
 }
 PSM.UI.state = PSM.state  -- backward-compat alias

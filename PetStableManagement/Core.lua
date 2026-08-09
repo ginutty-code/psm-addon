@@ -87,6 +87,7 @@ PSM.state = {
     stablePets = {},
     stablePetsSnapshot = {},
     favoriteModels = {},
+    favoriteModelsLoaded = false, -- guards SaveSettings from writing favoriteModels before it's loaded
     modelViews = {},
     popupZoom = 0.5,
     sortByDisplayID = false,

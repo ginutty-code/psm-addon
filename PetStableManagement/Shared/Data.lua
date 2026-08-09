@@ -132,7 +132,10 @@ function PSM.Data:SaveSettings()
     local savedPage = char.settings and char.settings.modelsPanelCurrentPage
 
     local aw = GetAccountWide()
-    aw.favoriteModels      = PSM.Utils.DeepCopy(PSM.state.favoriteModels) or {}
+    -- Don't overwrite favorites until they've actually been loaded this session.
+    if PSM.state.favoriteModelsLoaded then
+        aw.favoriteModels = PSM.Utils.DeepCopy(PSM.state.favoriteModels) or {}
+    end
     aw.modelViews          = PSM.Utils.DeepCopy(PSM.state.modelViews) or {}
     aw.popupZoom           = PSM.state.popupZoom or 0.25
     aw.globalModelRotation = PSM.state.globalModelRotation or math.pi * 2
@@ -242,6 +245,7 @@ function PSM.Data:LoadPersistentDataForDisplay(preserveCurrentData)
 
     local aw = GetAccountWide()
     PSM.state.favoriteModels = PSM.Utils.DeepCopy(aw.favoriteModels) or {}
+    PSM.state.favoriteModelsLoaded = true
 
     return true
 end
@@ -276,6 +280,7 @@ function PSM.Data:LoadSettingsOnly()
 
     local aw = GetAccountWide()
     PSM.state.favoriteModels      = PSM.Utils.DeepCopy(aw.favoriteModels) or {}
+    PSM.state.favoriteModelsLoaded = true
     PSM.state.modelViews          = PSM.Utils.DeepCopy(aw.modelViews) or {}
     PSM.state.popupZoom           = aw.popupZoom or 0.25
     PSM.state.globalModelRotation = aw.globalModelRotation or math.pi * 2
