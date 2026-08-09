@@ -1,8 +1,8 @@
-## Interface: 120007
+## Interface: 120007, 121000
 ## Title: Pet Stable Management
 ## Notes: Complementary pet stable panel for collection management (with advanced sorting, filtering, persistent pet data storage), and pet model browser panel for discovering next taming choices
 ## Author: Ginutty
-## Version: 12.3.2
+## Version: 12.4.1
 ## IconTexture: 132253
 ## SavedVariables: PetStableManagementDB PSM_UserNotes
 ## OptionalDeps: Blizzard_StableUI
