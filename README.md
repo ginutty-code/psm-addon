@@ -23,10 +23,9 @@ The main panel for viewing and managing your hunter's pet collection.
 
 #### Default/List View
 - **Advanced Sorting**: Sort pets by: family, model (display ID), slot, spec, tamer (owner)
-- **Powerful Filtering**: Filter by exotic status, duplicates, specs, families, and tamers (account-wide ownership tracking per hunter; while the Blizzard Stable window is open you can see only current hunter's pets)
+- **Powerful Filtering**: Filter by exotic status, duplicates, specs, families, and tamers — ownership is tracked account-wide across all your hunters, but while the Blizzard Stable window is open, the tamer filter locks to the current hunter
 - **Search Functionality**: Quickly find specific pets with real-time search by various criteria
 - **Persistent Data Storage**: Your pet data is saved across sessions
-- **Revised Data Provider Timing**: Addon waits for ScrollBox data provider to be ready before rendering pets, with retry logic on first open and updates
 - **Export Options**: Export your pet collection data as CSV with selectable columns
 - **Pet Reordering**: Reorganize pets using drag-and-drop or the move up/down buttons to change stable slots (only while the Blizzard Stable window is open)
 - **Detailed Abilities Display**: Search and view pet abilities by specialization, family, and pet-specific
@@ -74,10 +73,10 @@ A comprehensive browser for discovering all available pet models and planning yo
 - **Detailed NPC Information**: View comprehensive NPC data including classification (Elite, Rare, Rare Elite), location (with coordinates, where available), expansion, faction reaction, special notes from Petopia, and ability to add custom notes
 - **TomTom Integration**: Automatically generate waypoints for NPC locations when TomTom is installed. Click on Location in the Model Magnifier or Pet Roulette to see available coordinates and set your destination.
 - **Custom NPC Notes**: Add and save your own notes for any NPC in the Model Browser. NPCs with custom notes are marked with a green indicator for easy identification.
-- **Persistent Model Views**: 3D models in browser now remember custom rotation, zoom, and position settings across sessions
-- **Enhanced Pet Roulette**: Taming suggestions from all available models or filtered models, prefering not owned pets; includes a 'Try Again' button for quick rerolls without closing the popup
+- **Persistent Model Views**: 3D models in the browser remember custom rotation, zoom, and position settings across sessions
+- **Pet Roulette**: Taming suggestions from all available models or filtered models, preferring not-yet-owned pets; includes a 'Try Again' button for quick rerolls without closing the popup
 - **Ability Browser**: Browse hunter pet abilities by type and find which families to tame to cover a specific role (eg: damage reduction, crowd control, water walking, slow fall etc.)
-- **Special Tames**: New panel with filtering on available models by special taming requirements (skills or spawning conditions)
+- **Special Tames**: Panel listing exotic-family taming requirements (specialization, level, race, or unlock quest/item) with a live eligibility check against your current character, and checkbox filtering per requirement
 
 ### General Features
 
@@ -85,13 +84,12 @@ A comprehensive browser for discovering all available pet models and planning yo
 - **Model Magnifier**: Click magnifying glass button on models to open resizable detail popup (available in both owned pets and model browser)
 - **Floating Menu**: Optional floating menu for quick access to features
 - **Broker Support**: Integration with data broker addons for panel toggling
-- **Performance Optimized**: Efficient rendering and memory management
-- **GPU Optimization**: Model-level GPU call deduplication for camera distance scale
+- **Performance Optimized**: Efficient rendering, GPU-call deduplication, and memory management
 - **Minimap Integration**: Uses LibDBIcon when available, falling back to custom button
 - **ElvUI Support**: Optional skinning for ElvUI users
 - **Resizable Popups**: Pet Roulette and Magnifier windows can be resized with dynamic model scaling
 - **Selectable NPC Text**: Click NPC ID links to open a popup with the Wowhead URL for easy copying
-- **Coordinates and Map Integration**: Clickable location links in Pet Roulette and Model Magnifier windows that open the destination map for NPC coordinates (with TomTom waypoint generation if TomTom is available); only cca 93% of the npcs have both uiMapId and coordinates; data available if the Models Browser module is loaded
+- **Coordinates and Map Integration**: Clickable location links in Pet Roulette and Model Magnifier windows that open the destination map for NPC coordinates (with TomTom waypoint generation if TomTom is available); only ~93% of NPCs have both a map ID and coordinates; data available if the Models Browser module is loaded
 - **Notes Feature**: View curated notes from Petopia and add your own custom notes for any NPC to keep track of taming strategies or personal reminders.
 - **Combat Protection**: Panels automatically closing when entering combat and cannot be opened during combat to prevent errors
 
