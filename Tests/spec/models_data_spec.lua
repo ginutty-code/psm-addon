@@ -10,7 +10,7 @@ local T = ...
 local describe, it, eq, truthy, isType, count =
       T.describe, T.it, T.eq, T.truthy, T.isType, T.count
 
-dofile("PetStableManagement_Data/ModelsData.lua")
+dofile("PetStableManagement_ModelsBrowser/Data/ModelsData.lua")
 local M = _G.ModelsData
 
 -- Every per-record column, i.e. those keyed by denseIndex.

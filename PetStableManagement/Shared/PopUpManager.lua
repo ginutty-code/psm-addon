@@ -925,10 +925,10 @@ function PSM.PopUpManager:GetCoordsDataForLocation(npcId, location)
     local id = tonumber(npcId)
     if not id then return nil end
 
-    -- CoordsData ships in the LoadOnDemand data addon. Silent because this is also
-    -- called once per row while rendering the browser's NPC table, where the data is
+    -- CoordsData ships with the LoadOnDemand browser. Silent because this is also
+    -- called once per row while rendering the browser's NPC table, where the addon is
     -- already up and this collapses to a memoised boolean.
-    PSM.Loader:EnsureData(true)
+    PSM.Loader:EnsureBrowser(true)
     if not CoordsData then return nil end
 
     -- 1. Direct lookup if location is a numeric uiMapId
@@ -1203,13 +1203,13 @@ function PSM.PopUpManager:ShowMagnificationPopup(displayId, petData)
 
     displayId = tonumber(displayId)
 
-    -- The magnifier renders taming rules, Petopia notes, conditions and coordinates.
-    -- Those need the generated tables *and* the browser's own resolvers
-    -- (PSM.PetModels, PSM.TamingChecker), so this pulls the whole optional stack in
-    -- rather than data alone. Opened from Owned Pets it may well be the first thing
-    -- that loads it. Deliberately not bailing on failure: the 3D model itself needs
-    -- none of this, so a magnifier without the optional module still works, just
-    -- without the extra detail -- same as today when the module is disabled.
+    -- The magnifier renders taming rules, Petopia notes, conditions and coordinates,
+    -- which need the generated tables *and* the browser's own resolvers
+    -- (PSM.PetModels, PSM.TamingChecker). Opened from Owned Pets, this may well be
+    -- the first thing that loads the browser. Deliberately not bailing on failure:
+    -- the 3D model itself needs none of it, so a magnifier without the optional
+    -- module still works, just without the extra detail -- exactly as it does today
+    -- when the module is disabled.
     PSM.Loader:EnsureBrowser()
 
     if not PSM.state.modelMagnificationPopup then
@@ -1511,9 +1511,9 @@ end
 -- is an optional extra callback for callers (e.g. the NPC Browser list) that
 -- aren't backed by a popup's currentNPCs/BuildNPCRows refresh path.
 function PSM.PopUpManager:ShowNoteEditor(npcId, npcName, parentPopup, onSaved)
-    -- Seed notes (PSM.NotesData) live in the data addon; the user's own notes live in
+    -- Seed notes (PSM.NotesData) ship with the browser; the user's own notes live in
     -- PSM_UserNotes, a core SavedVariable, so the editor still works if this fails.
-    PSM.Loader:EnsureData()
+    PSM.Loader:EnsureBrowser()
 
     if not self.noteEditor then
         local f = CreateFrame("Frame", "PSMNoteEditor", UIParent, "BackdropTemplate")
