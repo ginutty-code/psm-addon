@@ -129,7 +129,7 @@ end)
 -- anyone reviving it knows exactly what they are getting.
 describe("Utils:SafeStringFormat", function()
     it("formats normally", function()
-        eq(U:SafeStringFormat("%s has %d pets", "Faunik", 5), "Faunik has 5 pets", "basic")
+        eq(U:SafeStringFormat("%s has %d pets", "Hunter", 5), "Hunter has 5 pets", "basic")
     end)
 
     it("coerces truthy non-string, non-number arguments", function()

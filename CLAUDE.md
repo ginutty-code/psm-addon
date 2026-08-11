@@ -48,9 +48,10 @@ Three rules that are easy to break:
 
 ## Repo layout gotcha
 
-`C:\Users\Gi\Dev\PSM` itself is **not** a git repo. `psm-addon` (this repo)
-and `psm-data` are two independent sibling git repos one level down. Check
-`git status` before assuming which repo you're committing to.
+The directory containing this repo (referred to below as the **PSM workspace
+root**) is itself **not** a git repo. `psm-addon` (this repo) and `psm-data` are
+two independent sibling git repos one level down. Check `git status` before
+assuming which repo you're committing to.
 
 For the full cross-repo picture — every `psm-data` pipeline stage, which
 `Manual/` CSV feeds which script, and the exact bridge point
@@ -68,9 +69,9 @@ panels.
 
 ## Symlinks
 
-Both addon folders are symlinked into the live WoW `Interface/AddOns`
-folder (`C:\Program Files (x86)\World of Warcraft\_retail_\Interface\AddOns`),
-already set up and working. Editing files here is enough — no build or copy step.
+Both addon folders are symlinked into the live WoW retail `Interface/AddOns`
+folder, already set up and working (exact local path in `CLAUDE.local.md`, which
+is untracked). Editing files here is enough — no build or copy step.
 **Live testing (reload UI, checking for Lua errors) is done by the user in-game,
 not by Claude.** Creating a new symlink needs an elevated shell, so if a future
 change adds an addon folder, hand the user the `New-Item -ItemType SymbolicLink`
@@ -152,12 +153,12 @@ until the layering work separates it.
 
 ## Linting
 
-`luacheck.exe` is installed at `C:\Users\Gi\Dev\tools\luacheck.exe` (not on
-PATH — invoke by full path, or add that folder to PATH if you want to run it
-directly). Run from the repo root:
+`luacheck` is installed outside this repo and is **not** on PATH — invoke it by
+full path, or add its folder to PATH to run it as `luacheck`. The exact local
+path is in `CLAUDE.local.md` (untracked). Run from the repo root:
 
 ```bash
-"C:\Users\Gi\Dev\tools\luacheck.exe" PetStableManagement PetStableManagement_ModelsBrowser Tests
+luacheck PetStableManagement PetStableManagement_ModelsBrowser Tests
 ```
 
 The current clean baseline is **70 warnings / 0 errors**. That count has been stable
