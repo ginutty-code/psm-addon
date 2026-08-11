@@ -2,6 +2,21 @@
 std = "lua51"
 max_line_length = false
 
+-- Tests/ runs in a real Lua 5.1 interpreter, not the WoW client, so it legitimately
+-- uses dofile/loadfile/os/io (absent or sandboxed in-game) and installs its own
+-- stand-ins for client globals. Scoping those here rather than widening the
+-- addon-wide lists keeps warning 113 doing its real job -- catching WoW API typos
+-- in addon code. This per-path form is the mechanism ARCHITECTURE_PLAN.md's A3
+-- generalises, to confine WoW API access to Core/Compat.lua.
+files["Tests/"] = {
+    globals = {
+        "PSM",           -- specs reset the namespace to prove modules self-create it
+        "ModelsData",    -- loaded by dofile from the data addon
+        -- installed by Tests/wow/stubs.lua
+        "strtrim", "strsplit", "GetTime", "date", "time",
+    },
+}
+
 -- 212/self, 432/self: WoW's `frame:SetScript("OnClick", function(self) ... end)`
 -- idiom means "self" goes unused or gets shadowed constantly and isn't a bug.
 -- 611/612: whitespace-only warnings, purely cosmetic, no behavioral signal.
