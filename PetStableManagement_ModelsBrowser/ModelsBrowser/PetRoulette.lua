@@ -113,6 +113,8 @@ end
 local function ClearGlobalCaches()
     PSM._modelsRenderCache  = nil
     PSM._modelsDebounceTimer = nil
+    PSM._npcRenderCache     = nil
+    PSM._npcDebounceTimer   = nil
 end
 
 function PetRoulette:CleanupPetRoulette()
@@ -207,10 +209,15 @@ function PetRoulette:ShowPetRoulettePopup(petData)
 
     local popup = PSM.state.petRoulettePopup
 
+    -- petData.npcs (built in _GetAllAvailableModels from GetFamilyModels) is a
+    -- bare denseIndex array -- resolve to full records so BuildNPCRows/
+    -- CreateNPCRow get the npc.name etc. shape they expect.
+    local resolvedNpcs = PSM.PetModels:ResolveNpcRecords(petData.npcs)
+
     -- Pet data
     popup.currentPetData   = petData
     popup.currentDisplayId = petData.displayId
-    popup.currentNPCs      = petData.npcs or {}
+    popup.currentNPCs      = resolvedNpcs
     PSM.PopUpManager:UpdatePopupBackground(popup, petData.displayId, petData)
 
     -- Model (deferred)
@@ -220,7 +227,7 @@ function PetRoulette:ShowPetRoulettePopup(petData)
     popup.SetFavTexCoord(popup.favoritesButton, PSM.state.favoriteModels[petData.displayId])
 
     -- Populate taming and NPC info
-    PSM.PopUpManager:PopulateModelPopup(popup, petData.displayId, petData, petData.npcs)
+    PSM.PopUpManager:PopulateModelPopup(popup, petData.displayId, petData, resolvedNpcs)
 
     popup:Show()
     popup:Raise()

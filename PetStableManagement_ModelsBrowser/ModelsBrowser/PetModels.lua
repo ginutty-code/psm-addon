@@ -6,16 +6,107 @@ _G.PSM = _G.PSM or {}
 local M = _G.PSM.PetModels or {}
 _G.PSM.PetModels = M
 
--- Family -> array of { npcIdKey, npcData }, built once and shared with
--- NPCDataLoader so ModelsData is only scanned once per session.
+-- ─── ModelsData accessors (structure-of-arrays schema) ─────────────────────
+-- Shared access pattern for the columnar ModelsData shape -- see
+-- ../../../DATA_STRUCTURE_OPTIMIZATION_PLAN.md, "Target schema for ModelsData".
+-- Hot loops (filtering/sorting across all records) should read columns
+-- directly -- e.g. ModelsData.Name[i] -- and iterate via
+-- `for i = 1, #ModelsData.NpcId do`, not pairs(), and not through
+-- GetModelsRecord below. GetModelsRecord is for cold, one-off lookups only;
+-- it allocates a new table and does several lookup-table joins per call.
+
+-- npcId -> denseIndex, or nil if npcId isn't in ModelsData.
+function M:GetModelsIndex(npcId)
+    local modelsData = _G.ModelsData
+    return modelsData and modelsData.Index[npcId]
+end
+
+-- Per-field resolvers for the columns that need a join through a lookup
+-- table (classification/expansion/location). Shared by ModelsDataLoader.lua
+-- and NPCDataLoader.lua so both views resolve these identically. Fields that
+-- are a single direct column read (Name, NpcId, NameKeeper, UiMapId, ReactA,
+-- ReactH) don't need a wrapper -- read ModelsData.<Column>[i] straight.
+function M.NpcClassification(i)
+    local modelsData = _G.ModelsData
+    return modelsData.Classifications[modelsData.ClassificationId[i]]
+end
+
+function M.NpcExpansion(i)
+    local modelsData = _G.ModelsData
+    return modelsData.Expansions[modelsData.ExpansionId[i]]
+end
+
+function M.NpcLocation(i)
+    local modelsData = _G.ModelsData
+    local uiMapId = modelsData.UiMapId[i]
+    return uiMapId and modelsData.UiMapNames[uiMapId] or "Unknown"
+end
+
+-- Resolves one full record by npcId into a small plain table, for call sites
+-- that want npcData.field-style ergonomics (e.g. PopUpManager's fallback
+-- lookup). location/factionReaction are kept as aliases of uiMapName/
+-- reactA+reactH for consumers still on that older field naming. Returns nil
+-- if npcId isn't in ModelsData. Don't call this from a per-record hot loop --
+-- read columns directly instead.
+function M:GetModelsRecord(npcId)
+    local modelsData = _G.ModelsData
+    if not modelsData then return nil end
+    local i = modelsData.Index[npcId]
+    if not i then return nil end
+
+    local rawDisplayIds = modelsData.DisplayIds[i]
+    local uiMapId = modelsData.UiMapId[i]
+    local uiMapName = uiMapId and modelsData.UiMapNames[uiMapId]
+    local reactA, reactH = modelsData.ReactA[i], modelsData.ReactH[i]
+
+    return {
+        npcId           = npcId,
+        name            = modelsData.Name[i],
+        displayIds      = type(rawDisplayIds) == "table" and rawDisplayIds or { rawDisplayIds },
+        uiMapId         = uiMapId,
+        uiMapName       = uiMapName,
+        location        = uiMapName or "Unknown",
+        family          = modelsData.Families[modelsData.FamilyId[i]],
+        expansion       = modelsData.Expansions[modelsData.ExpansionId[i]],
+        reactA          = reactA,
+        reactH          = reactH,
+        factionReaction = string.format("[%s,%s]", reactA, reactH),
+        classification  = modelsData.Classifications[modelsData.ClassificationId[i]],
+        nameKeeper      = modelsData.NameKeeper[i],
+        taming          = modelsData.Taming[i],
+    }
+end
+
+-- Resolves an array of denseIndex values (the shape GetFamilyModels/
+-- GetModelInfo's .npcs arrays store) to an array of full records, via
+-- GetModelsRecord. Shared by every consumer that hands a family's .npcs
+-- list to UI code expecting object-style npc.name/npc.classification access
+-- (PopUpManager's magnify popups, Pet Roulette).
+function M:ResolveNpcRecords(npcs)
+    local resolved = {}
+    local modelsData = _G.ModelsData
+    if not npcs or not modelsData then return resolved end
+    for _, npc in ipairs(npcs) do
+        local npcId = modelsData.NpcId[npc]
+        local record = npcId and self:GetModelsRecord(npcId)
+        if record then table.insert(resolved, record) end
+    end
+    return resolved
+end
+
+-- Family -> array of denseIndex, built once and shared with NPCDataLoader so
+-- ModelsData is only scanned once per session. Numeric for-loop over the
+-- dense NpcId/FamilyId columns instead of pairs() -- faster, and matches
+-- ModelsData's own iteration convention.
 function M:GetModelsDataByFamilyIndex()
-    if not self._modelsDataByFamily and _G.ModelsData and type(_G.ModelsData) == "table" then
+    if not self._modelsDataByFamily and _G.ModelsData then
+        local modelsData = _G.ModelsData
         local index = {}
-        for npcIdKey, npcData in pairs(_G.ModelsData) do
-            if type(npcData) == "table" and npcData.family then
-                local fam = npcData.family
-                index[fam] = index[fam] or {}
-                table.insert(index[fam], { npcIdKey = npcIdKey, npcData = npcData })
+        for i = 1, #modelsData.NpcId do
+            local familyName = modelsData.Families[modelsData.FamilyId[i]]
+            if familyName then
+                index[familyName] = index[familyName] or {}
+                table.insert(index[familyName], i)
             end
         end
         self._modelsDataByFamily = index
@@ -32,135 +123,39 @@ function M:GetFamilyModels(familyName)
         return self[familyName]
     end
 
+    local modelsData = _G.ModelsData
     local displayIdMap = {}
 
-    -- Helper to process a family subtable
-    local function processSubtable(rawTable, exp, cont)
-        for displayId, npcMap in pairs(rawTable) do
-            if displayId ~= "taming" and type(npcMap) == "table" then
-                local id = tonumber(displayId) or displayId
+    local famIndices = self:GetModelsDataByFamilyIndex()[familyName]
+    if famIndices and modelsData then
+        for _, i in ipairs(famIndices) do
+            local rawDisplayIds = modelsData.DisplayIds[i]
+            -- DisplayIds[i] is a bare number when there's exactly one, else a
+            -- table -- normalize to always-a-table for the loop below.
+            local dids = type(rawDisplayIds) == "table" and rawDisplayIds or { rawDisplayIds }
+
+            for _, did in ipairs(dids) do
+                local id = tonumber(did) or did
                 local entry = displayIdMap[id] or { displayId = id, npcs = {} }
                 displayIdMap[id] = entry
 
-                if npcMap.taming then
-                    entry.taming = npcMap.taming
-                end
-
-                for npcId, d in pairs(npcMap) do
-                    if npcId ~= "taming" then
-                        local npc
-                        if type(d) == "table" and d[1] ~= nil then
-                            -- Check if new 4-element tuple format: { name, classification, react, is_name_keeper }
-                            if #d == 4 and (d[2] == "Normal" or d[2] == "Elite" or d[2] == "Rare" or d[2] == "Rare Elite") then
-                                npc = {
-                                    npcId           = tonumber(npcId) or npcId,
-                                    name            = d[1],
-                                    classification  = d[2],
-                                    factionReaction = d[3],
-                                    nameKeeper      = d[4] or false,
-                                    expansion       = exp,
-                                    location        = cont,
-                                }
-                            else
-                                -- Legacy tuple format
-                                local factionReaction, classification
-                                if #d >= 4 then
-                                    if type(d[4]) == "string" and d[4]:sub(1,1) == "[" then
-                                        factionReaction = d[4]
-                                        classification  = nil
-                                    else
-                                        classification = d[4]
-                                        if #d >= 5 and type(d[5]) == "string" and d[5]:sub(1,1) == "[" then
-                                            factionReaction = d[5]
-                                        end
-                                    end
-                                end
-                                npc = {
-                                    npcId           = tonumber(npcId) or npcId,
-                                    name            = d[1],
-                                    location        = d[2] or cont,
-                                    expansion       = d[3] or exp,
-                                    classification  = classification or d[2],
-                                    factionReaction = factionReaction,
-                                    zones           = d.zones,
-                                    nameKeeper      = d[6] or false,
-                                    level           = d.level,
-                                }
-                            end
-                        else
-                            -- Legacy key-value format
-                            npc = {
-                                npcId           = tonumber(npcId) or npcId,
-                                name            = d and d.name,
-                                location        = d and (d.location or d.loc or cont),
-                                expansion       = d and (d.expansion or d.exp or exp),
-                                classification  = d and (d.classification or d.class),
-                                zones           = d and d.zones,
-                                nameKeeper      = d and (d.nameKeeper or d.name_keeper or false),
-                                level           = d and d.level,
-                            }
-                        end
-                        table.insert(entry.npcs, npc)
-                    end
-                end
-            end
-        end
-    end
-
-    -- 1. Check raw on self
-    if self[familyName] and type(self[familyName]) == "table" and not self[familyName].displayIds then
-        processSubtable(self[familyName], nil, nil)
-    end
-
-    -- 2. Check external PetData
-    if _G.PetData and _G.PetData[familyName] and type(_G.PetData[familyName]) == "table" then
-        processSubtable(_G.PetData[familyName], nil, nil)
-    end
-
-    -- 3. Check flat ModelsData[npcId] via family index
-    local famEntries = self:GetModelsDataByFamilyIndex()[familyName]
-    if famEntries then
-        for _, item in ipairs(famEntries) do
-            local npcIdKey, npcData = item.npcIdKey, item.npcData
-            local numNpcId = tonumber(npcIdKey) or npcIdKey
-            local dids = npcData.displayIds
-            if dids and type(dids) == "table" then
-                -- Built once per NPC, not per (NPC, displayId) pair -- 
-                -- Safe to share since nothing mutates these records in place.
-                local npcRecord = {
-                    npcId           = numNpcId,
-                    name            = npcData.name or ("NPC " .. tostring(numNpcId)),
-                    classification  = npcData.classification or "Normal",
-                    factionReaction = npcData.react,
-                    nameKeeper      = npcData.nameKeeper or false,
-                    expansion       = npcData.expansion or "Unknown",
-                    location        = npcData.uiMapName or "Unknown",
-                    uiMapId         = npcData.uiMapId,
-                    uiMapName       = npcData.uiMapName,
-                    taming          = npcData.taming,
-                    conditions      = npcData.conditions,
-                }
-
-                for _, did in ipairs(dids) do
-                    local id = tonumber(did) or did
-                    local entry = displayIdMap[id] or { displayId = id, npcs = {} }
-                    displayIdMap[id] = entry
-
-                    -- Aggregate taming at display entry level
-                    if npcData.taming and type(npcData.taming) == "table" then
-                        entry.taming = entry.taming or {}
-                        local existingSet = {}
-                        for _, t in ipairs(entry.taming) do existingSet[t] = true end
-                        for _, t in ipairs(npcData.taming) do
-                            if not existingSet[t] then
-                                existingSet[t] = true
-                                table.insert(entry.taming, t)
-                            end
+                -- Aggregate taming at display entry level
+                local npcTaming = modelsData.Taming[i]
+                if npcTaming then
+                    entry.taming = entry.taming or {}
+                    local existingSet = {}
+                    for _, t in ipairs(entry.taming) do existingSet[t] = true end
+                    for _, t in ipairs(npcTaming) do
+                        if not existingSet[t] then
+                            existingSet[t] = true
+                            table.insert(entry.taming, t)
                         end
                     end
-
-                    table.insert(entry.npcs, npcRecord)
                 end
+
+                -- Store the bare denseIndex, not a wrapper object -- readers
+                -- pull fields straight from ModelsData.<Column>[i].
+                table.insert(entry.npcs, i)
             end
         end
     end
@@ -181,55 +176,16 @@ end
 function M:GetAvailableFamilies()
     if self._availableFamiliesCache then return self._availableFamiliesCache end
 
-    local seen = {}
-
-    for name, v in pairs(self) do
-        -- Skip internal caches (e.g. self._modelsDataByFamily) — leading underscore is this
-        -- file's convention for "not a family name", and letting one through here inflates the
-        -- count GenerateFilterSummary compares selections against, so "Reset Filters" can never
-        -- actually match "everything selected".
-        local isInternal = type(name) == "string" and name:sub(1, 1) == "_"
-        if type(v) == "table" and name ~= "families" and not isInternal then
-            seen[name] = true
-        end
-    end
-
-    if _G.PetModelsData then
-        for name, v in pairs(_G.PetModelsData) do
-            if type(v) == "table" and name ~= "families" then
-                seen[name] = true
-            end
-        end
-    end
-
-    if _G.PetData then
-        for name in pairs(_G.PetData) do
-            if type(_G.PetData[name]) == "table" then
-                seen[name] = true
-            end
-        end
-    end
-
-    if _G.ModelsData then
-        for _, npcData in pairs(_G.ModelsData) do
-            if type(npcData) == "table" then
-                if npcData.family then
-                    seen[npcData.family] = true
-                else
-                    for cont, famTable in pairs(npcData) do
-                        if type(famTable) == "table" then
-                            for famName in pairs(famTable) do
-                                seen[famName] = true
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-
+    -- ModelsData.Families is already the complete, deduplicated id->name
+    -- lookup -- no need to scan all 7,700 records (or self's own cache, or
+    -- the legacy PetData/PetModelsData globals, which are never populated).
     local result = {}
-    for name in pairs(seen) do table.insert(result, name) end
+    local modelsData = _G.ModelsData
+    if modelsData and modelsData.Families then
+        for _, name in pairs(modelsData.Families) do
+            table.insert(result, name)
+        end
+    end
     table.sort(result)
     self._availableFamiliesCache = result
     return result
@@ -290,4 +246,8 @@ function M:ClearCache()
         self[name] = nil
     end
     self._availableFamiliesCache = nil
+    -- Description strings memoized in ModelsDataLoader.lua's _CalculateModelsData
+    -- (keyed by denseIndex, since indices can't hold fields the way the old
+    -- npcRecord wrapper objects could) -- kept alongside the family cache.
+    _G.PSM._modelsDescriptionCache = nil
 end

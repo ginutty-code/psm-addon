@@ -585,33 +585,22 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
     local families     = PSM.PetModels:GetAvailableFamilies()
     local allExpansions, allLocations = {}, {}
 
+    -- The `families` list above is already empty whenever ModelsData isn't
+    -- loaded (PetModels:GetAvailableFamilies), so a family-index-based
+    -- fallback here would never have anything to iterate either -- just the
+    -- one path, reading columns directly instead of scanning npcId-keyed
+    -- records.
     if _G.ModelsData and type(_G.ModelsData) == "table" then
-        for _, npcData in pairs(_G.ModelsData) do
-            if type(npcData) == "table" then
-                if npcData.expansion then
-                    allExpansions[npcData.expansion] = true
-                end
-                if npcData.uiMapName then
-                    allLocations[npcData.uiMapName] = true
-                end
+        local modelsData = _G.ModelsData
+        for i = 1, #modelsData.NpcId do
+            local expansion = PSM.PetModels.NpcExpansion(i)
+            if expansion then
+                allExpansions[expansion] = true
             end
-        end
-    else
-        for _, familyName in ipairs(families) do
-            local fd = PSM.PetModels:GetFamilyModels(familyName)
-            if fd and fd.displayIds then
-                for _, dd in ipairs(fd.displayIds) do
-                    if dd.npcs then
-                        for _, npc in ipairs(dd.npcs) do
-                            if npc.expansion then allExpansions[npc.expansion] = true end
-                            if npc.location  then
-                                for loc in string.gmatch(npc.location, "[^|]+") do
-                                    allLocations[strtrim(loc)] = true
-                                end
-                            end
-                        end
-                    end
-                end
+            local uiMapId = modelsData.UiMapId[i]
+            local uiMapName = uiMapId and modelsData.UiMapNames[uiMapId]
+            if uiMapName then
+                allLocations[uiMapName] = true
             end
         end
     end

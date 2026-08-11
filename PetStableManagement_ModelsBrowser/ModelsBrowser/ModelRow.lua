@@ -151,7 +151,8 @@ function PSM.ModelRow:UpdateItemRow(row, item, index, scale)
     local hasUserNote = false
     if npcs and #npcs > 0 then
         for _, npc in ipairs(npcs) do
-            if npc.npcId and PSM_UserNotes and PSM_UserNotes[npc.npcId] and PSM_UserNotes[npc.npcId] ~= "" then
+            local npcId = _G.ModelsData.NpcId[npc]
+            if npcId and PSM_UserNotes and PSM_UserNotes[npcId] and PSM_UserNotes[npcId] ~= "" then
                 hasUserNote = true
                 break
             end
@@ -184,7 +185,7 @@ function PSM.ModelRow:UpdateItemRow(row, item, index, scale)
     local totalNpcs = #npcs
     if npcs[1] then
         local first = row.npcTexts[1]
-        first:SetText(npcs[1]._cachedDescription)
+        first:SetText(_G.PSM._modelsDescriptionCache and _G.PSM._modelsDescriptionCache[npcs[1]])
         first:ClearAllPoints()
         first:SetPoint("TOPLEFT", row.nameText, "BOTTOMLEFT", 0, -5)
         first:Show()
@@ -210,8 +211,10 @@ function PSM.ModelRow:UpdateItemRow(row, item, index, scale)
             GameTooltip:AddLine(" ")
             GameTooltip:AddLine("NPCs:")
             for _, npc in ipairs(npcs) do
-                local npcLine = "  " .. npc._cachedDescription
-                if npc.npcId and PSM_UserNotes and PSM_UserNotes[npc.npcId] and PSM_UserNotes[npc.npcId] ~= "" then
+                local npcId = _G.ModelsData.NpcId[npc]
+                local desc = _G.PSM._modelsDescriptionCache and _G.PSM._modelsDescriptionCache[npc]
+                local npcLine = "  " .. (desc or "")
+                if npcId and PSM_UserNotes and PSM_UserNotes[npcId] and PSM_UserNotes[npcId] ~= "" then
                     npcLine = npcLine .. " |cff00ff00\226\151\143|r"
                 end
                 GameTooltip:AddLine(npcLine, 0.8, 0.8, 0.8, true)

@@ -427,6 +427,7 @@ end
 
 function PSM.ModelsPanel:InitializePerformanceOptimizations()
     PSM.ModelsDataLoader:CreateRenderCache()
+    PSM.NPCDataLoader:CreateRenderCache()
 end
 
 function PSM.ModelsPanel:AddModelsBrowserElements(panel)
@@ -708,6 +709,9 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     if PSM.ModelsDataLoader and PSM.ModelsDataLoader.CreateRenderCache then
         PSM.ModelsDataLoader:CreateRenderCache()
     end
+    if PSM.NPCDataLoader and PSM.NPCDataLoader.CreateRenderCache then
+        PSM.NPCDataLoader:CreateRenderCache()
+    end
 
     -- Now that pagination controls exist, position the NPC row pool if that's
     -- the persisted starting mode (UpdateNPCPanelLayout touches panel.prevButton etc).
@@ -829,6 +833,12 @@ function PSM.ModelsPanel:ShowMagnificationPopup(displayId)
     familyName = familyName or "Unknown"
     popup.infoText:SetText(string.format("%s - Display ID: %d", familyName, displayId))
 
+    -- modelData.npcs / info.npcs are denseIndex values (see PetModels.lua's
+    -- GetFamilyModels) -- resolve to full records before reading fields, and
+    -- before handing off to popup.currentNPCs, which PopUpManager.lua's
+    -- BuildNPCRows/CreateNPCRow also consume later (on resize or note-save)
+    -- expecting object-style field access.
+
     -- Build NPC lines
     local function BuildNPCLines(npcs)
         local lines = {}
@@ -849,14 +859,16 @@ function PSM.ModelsPanel:ShowMagnificationPopup(displayId)
 
     local npcLines = {}
     if modelData and modelData.npcs and #modelData.npcs > 0 then
-        npcLines = BuildNPCLines(modelData.npcs)
-        popup.currentNPCs = modelData.npcs
+        local resolvedNpcs = PSM.PetModels:ResolveNpcRecords(modelData.npcs)
+        npcLines = BuildNPCLines(resolvedNpcs)
+        popup.currentNPCs = resolvedNpcs
     elseif PSM.PetModels then
         for _, famName in ipairs(PSM.PetModels:GetAvailableFamilies()) do
             local info = PSM.PetModels:GetModelInfo(famName, displayId)
             if info and info.npcs and #info.npcs > 0 then
-                npcLines = BuildNPCLines(info.npcs)
-                popup.currentNPCs = info.npcs
+                local resolvedNpcs = PSM.PetModels:ResolveNpcRecords(info.npcs)
+                npcLines = BuildNPCLines(resolvedNpcs)
+                popup.currentNPCs = resolvedNpcs
                 break
             end
         end
@@ -867,7 +879,7 @@ function PSM.ModelsPanel:ShowMagnificationPopup(displayId)
     end
 
     local npcText = table.concat(npcLines, "\n")
-    popup.currentNPCs = modelData and modelData.npcs or popup.currentNPCs or {}
+    popup.currentNPCs = modelData and PSM.PetModels:ResolveNpcRecords(modelData.npcs or {}) or popup.currentNPCs or {}
     popup.npcPlainText = npcText
     popup:SetNPCText(npcText)
     popup.npcsScrollFrame:Show()

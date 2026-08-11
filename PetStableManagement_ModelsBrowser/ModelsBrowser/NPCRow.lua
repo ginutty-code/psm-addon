@@ -57,33 +57,26 @@ local CLASS_COLOR = {
     Elite          = {0.85, 0.30, 0.30},
 }
 
-local function ParseFactionScore(react)
-    if not react then return -99 end
-    local a, h = react:match("%[([^,]*),([^%]]*)%]")
-    a = a and a ~= "null" and tonumber(a) or 0
-    h = h and h ~= "null" and tonumber(h) or 0
-    return a + h
+-- ModelsData ships ReactA/ReactH pre-parsed as numbers -- no more
+-- string.match per sort pass / per row draw.
+local function ParseFactionScore(allianceReact, hordeReact)
+    return (allianceReact or 0) + (hordeReact or 0)
 end
 
-local function FormatFaction(react)
-    if not react then return "" end
-    local a, h = react:match("%[([^,]*),([^%]]*)%]")
-    if not a or not h then return "" end
-    a = a ~= "null" and tonumber(a)
-    h = h ~= "null" and tonumber(h)
+local function FormatFaction(allianceReact, hordeReact)
     local function seg(v, letter)
         if not v then return "" end
         local color = v == -1 and {1,0,0} or v == 0 and {1,1,0} or {0,1,0}
         return string.format("|cff%02x%02x%02x%s|r", color[1]*255, color[2]*255, color[3]*255, letter)
     end
-    return seg(a, "A") .. seg(h, "H")
+    return seg(allianceReact, "A") .. seg(hordeReact, "H")
 end
 
 local function GetSortValue(panel, item, field)
     if field == "npcId"          then return item.npcId or 0 end
     if field == "classification" then return CLASS_RANK[item.classification] or 0 end
     if field == "nameKeeper"     then return item.nameKeeper and 1 or 0 end
-    if field == "faction"        then return ParseFactionScore(item.react) end
+    if field == "faction"        then return ParseFactionScore(item.reactA, item.reactH) end
     if field == "displayIds"     then return (item.displayIds and item.displayIds[1]) or 0 end
     if field == "note" then
         local id = item.npcId
@@ -686,7 +679,7 @@ function PSM.NPCRow:UpdateItemRow(row, item, index)
                 elseif key == "expansion" then
                     fs:SetText(item.expansion or "")
                 elseif key == "faction" then
-                    fs:SetText(FormatFaction(item.react))
+                    fs:SetText(FormatFaction(item.reactA, item.reactH))
                 end
                 fs:Show()
             end

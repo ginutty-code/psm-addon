@@ -931,7 +931,7 @@ function PSM.PopUpManager:GetCoordsDataForLocation(npcId, location)
             return {
                 uiMapId  = numMapId,
                 zoneName = mapData.name or ("Map " .. numMapId),
-                coords   = mapData.npcs[id].coords or "",
+                coords   = mapData.npcs[id] or "",
             }
         end
     end
@@ -947,7 +947,7 @@ function PSM.PopUpManager:GetCoordsDataForLocation(npcId, location)
                     return {
                         uiMapId  = uiMapId,
                         zoneName = zName,
-                        coords   = mapData.npcs[id].coords or "",
+                        coords   = mapData.npcs[id] or "",
                     }
                 end
             end
@@ -960,7 +960,7 @@ function PSM.PopUpManager:GetCoordsDataForLocation(npcId, location)
             return {
                 uiMapId  = uiMapId,
                 zoneName = mapData.name or ("Map " .. uiMapId),
-                coords   = mapData.npcs[id].coords or "",
+                coords   = mapData.npcs[id] or "",
             }
         end
     end
@@ -980,7 +980,7 @@ function PSM.PopUpManager:BuildCoordsLocationLabel(npcId, fallbackLocation)
     for uiMapId, mapData in pairs(CoordsData) do
         if type(mapData) == "table" and mapData.npcs and mapData.npcs[id] then
             local zName = mapData.name or ("Map " .. uiMapId)
-            local coords = mapData.npcs[id].coords
+            local coords = mapData.npcs[id]
             local hasCoords = coords and strtrim(coords) ~= "" and coords ~= "[]"
 
             local key = uiMapId
@@ -1265,37 +1265,39 @@ function PSM.PopUpManager:ShowMagnificationPopup(displayId, petData)
         end
     end
 
+    -- The three branches above all source from GetFamilyModels/GetModelInfo
+    -- (or a petData built from the same), whose .npcs arrays are bare
+    -- denseIndex numbers -- resolve to full records here so BuildNPCRows/
+    -- CreateNPCRow (expect npc.name etc.) still work.
+    if #npcs > 0 and type(npcs[1]) == "number" and PSM.PetModels then
+        npcs = PSM.PetModels:ResolveNpcRecords(npcs)
+    end
+
     -- 4. Final Fallback: Direct lookup in ModelsData (crucial for magnification from Owned Pets panel)
     if #npcs == 0 and displayId and _G.ModelsData then
         local targetDisplayId = tonumber(displayId)
         if targetDisplayId then
-            for npcIdKey, npcData in pairs(_G.ModelsData) do
-                if type(npcData) == "table" then
-                    local dids = npcData.displayIds
-                    local matched = false
-                    if dids and type(dids) == "table" then
-                        for _, did in ipairs(dids) do
-                            if tonumber(did) == targetDisplayId then matched = true; break end
-                        end
-                    end
-                    if matched then
-                        if npcData.family then familyName = npcData.family end
-                        table.insert(npcs, {
-                            npcId           = tonumber(npcIdKey) or npcIdKey,
-                            name            = npcData.name or ("NPC " .. tostring(npcIdKey)),
-                            location        = npcData.uiMapName or "Unknown",
-                            uiMapId         = npcData.uiMapId,
-                            uiMapName       = npcData.uiMapName,
-                            expansion       = npcData.expansion or "Unknown",
-                            classification  = npcData.classification or "Normal",
-                            factionReaction = npcData.react,
-                            nameKeeper      = npcData.nameKeeper or false,
-                        })
+            local modelsData = _G.ModelsData
+            for i = 1, #modelsData.NpcId do
+                local rawDisplayIds = modelsData.DisplayIds[i]
+                local dids = type(rawDisplayIds) == "table" and rawDisplayIds or { rawDisplayIds }
+                local matched = false
+                for _, did in ipairs(dids) do
+                    if tonumber(did) == targetDisplayId then matched = true; break end
+                end
+                if matched then
+                    -- GetModelsRecord's shape already matches what this fallback used to
+                    -- build by hand (npcId/name/location/uiMapId/uiMapName/expansion/
+                    -- classification/factionReaction/nameKeeper), plus a few extra fields.
+                    local record = PSM.PetModels:GetModelsRecord(modelsData.NpcId[i])
+                    if record then
+                        if record.family then familyName = record.family end
+                        table.insert(npcs, record)
                     end
                 end
             end
-            table.sort(npcs, function(a, b) 
-                return tonumber(a.npcId or 0) < tonumber(b.npcId or 0) 
+            table.sort(npcs, function(a, b)
+                return tonumber(a.npcId or 0) < tonumber(b.npcId or 0)
             end)
         end
     end
@@ -1351,11 +1353,15 @@ function PSM.PopUpManager:PopulateModelPopup(popup, displayId, petData, npcs)
     if not tamingData and _G.ModelsData then
         local targetDisplayId = tonumber(displayId)
         if targetDisplayId then
-            for _, npcData in pairs(_G.ModelsData) do
-                if type(npcData) == "table" and npcData.displayIds and npcData.taming then
-                    for _, did in ipairs(npcData.displayIds) do
+            local modelsData = _G.ModelsData
+            for i = 1, #modelsData.NpcId do
+                local taming = modelsData.Taming[i]
+                if taming then
+                    local rawDisplayIds = modelsData.DisplayIds[i]
+                    local dids = type(rawDisplayIds) == "table" and rawDisplayIds or { rawDisplayIds }
+                    for _, did in ipairs(dids) do
                         if tonumber(did) == targetDisplayId then
-                            tamingData = npcData.taming
+                            tamingData = taming
                             break
                         end
                     end

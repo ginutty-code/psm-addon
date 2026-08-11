@@ -177,7 +177,8 @@ local function DisplayPassesFilters(panel, displayData, ownedSet)
     local isRare = false
     if displayData.npcs then
         for _, npc in ipairs(displayData.npcs) do
-            if npc.classification == "Rare" or npc.classification == "Rare Elite" then
+            local classification = PSM.PetModels.NpcClassification(npc)
+            if classification == "Rare" or classification == "Rare Elite" then
                 isRare = true; break
             end
         end
@@ -188,7 +189,7 @@ local function DisplayPassesFilters(panel, displayData, ownedSet)
     local isNameKeeper = false
     if displayData.npcs then
         for _, npc in ipairs(displayData.npcs) do
-            if npc.nameKeeper then
+            if _G.ModelsData.NameKeeper[npc] then
                 isNameKeeper = true; break
             end
         end
@@ -220,7 +221,7 @@ local function DisplayPassesFilters(panel, displayData, ownedSet)
                 -- Special Case: Nlyeth (Look at NPC-level ConditionsData instead of model-level)
                 if not isMatch and rKey == "Sliver of N'Zoth" and displayData.npcs then
                     for _, npc in ipairs(displayData.npcs) do
-                        local condList = PSM.ConditionsData and PSM.ConditionsData.Get(tonumber(npc.npcId))
+                        local condList = PSM.ConditionsData and PSM.ConditionsData.Get(_G.ModelsData.NpcId[npc])
                         if condList then
                             for _, cName in ipairs(condList) do
                                 if cName == "Sliver of N'Zoth" then isMatch = true; break end
@@ -254,7 +255,7 @@ local function DisplayPassesFilters(panel, displayData, ownedSet)
         local atLeastOneNpcPasses = false
         if displayData.npcs then
             for _, npc in ipairs(displayData.npcs) do
-                local npcID = tonumber(npc.npcId)
+                local npcID = _G.ModelsData.NpcId[npc]
                 if npcID then
                     local condList = PSM.ConditionsData and PSM.ConditionsData.Get(npcID)
                     local npcDisqualified = false
@@ -312,14 +313,16 @@ end
 function PSM.ModelsDataLoader:_IsZoneMatch(npc, playerMapId)
     if not npc or not playerMapId then return false end
 
+    local uiMapId = _G.ModelsData.UiMapId[npc]
+
     -- 1. Direct uiMapId match from metadata
-    if npc.uiMapId and tonumber(npc.uiMapId) == tonumber(playerMapId) then
+    if uiMapId and tonumber(uiMapId) == tonumber(playerMapId) then
         return true
     end
 
     -- 2. Lookup in CoordsData by map ID
     local numMapId = tonumber(playerMapId)
-    local numNpcId = npc.npcId and tonumber(npc.npcId)
+    local numNpcId = _G.ModelsData.NpcId[npc]
     if numMapId and numNpcId and _G.CoordsData and _G.CoordsData[numMapId] then
         local mapData = _G.CoordsData[numMapId]
         if type(mapData) == "table" and mapData.npcs then
@@ -331,12 +334,13 @@ function PSM.ModelsDataLoader:_IsZoneMatch(npc, playerMapId)
 
     -- Fallback: legacy zone name match if playerMapId happens to be string
     if type(playerMapId) == "string" then
-        if npc.location then
-            for loc in string.gmatch(npc.location, "[^|]+") do
-                if strtrim(loc) == playerMapId then return true end
-            end
+        -- NpcLocation() always returns a string ("Unknown" when absent), so
+        -- this loop is safe unguarded.
+        for loc in string.gmatch(PSM.PetModels.NpcLocation(npc), "[^|]+") do
+            if strtrim(loc) == playerMapId then return true end
         end
-        if npc.uiMapName and npc.uiMapName == playerMapId then
+        local uiMapName = uiMapId and _G.ModelsData.UiMapNames[uiMapId]
+        if uiMapName and uiMapName == playerMapId then
             return true
         end
     end
@@ -433,38 +437,37 @@ end
 -- DATA CALCULATION
 --------------------------------------------------------------------------------
 
--- Parses faction reaction string and returns colored faction indicators
-local function formatFactionIndicator(factionReaction)
-    if not factionReaction then return "" end
-    local alliance, horde = factionReaction:match("%[([^,]*),([^%]]*)%]")
-    if not alliance or not horde then return "" end
-    alliance = alliance ~= "null" and tonumber(alliance)
-    horde = horde ~= "null" and tonumber(horde)
+-- Returns colored faction indicators from ReactA/ReactH -- ModelsData ships
+-- these pre-parsed as numbers, no string.match needed.
+local function formatFactionIndicator(allianceReact, hordeReact)
     local result = ""
-    if alliance then
-        local color = alliance == -1 and {1,0,0} or alliance == 0 and {1,1,0} or {0,1,0}
+    if allianceReact then
+        local color = allianceReact == -1 and {1,0,0} or allianceReact == 0 and {1,1,0} or {0,1,0}
         result = result .. "|cff" .. string.format("%02x%02x%02x", color[1]*255, color[2]*255, color[3]*255) .. "A|r"
     end
-    if horde then
-        local color = horde == -1 and {1,0,0} or horde == 0 and {1,1,0} or {0,1,0}
+    if hordeReact then
+        local color = hordeReact == -1 and {1,0,0} or hordeReact == 0 and {1,1,0} or {0,1,0}
         result = result .. "|cff" .. string.format("%02x%02x%02x", color[1]*255, color[2]*255, color[3]*255) .. "H|r"
     end
     return result ~= "" and " " .. result or ""
 end
 
--- Formats an NPC descriptor string for tooltip / row display
+-- Formats an NPC descriptor string for tooltip / row display. npc is a
+-- denseIndex into ModelsData (see PetModels.lua's GetFamilyModels).
 local function npcDescription(npc)
-    local classification = (npc.classification and npc.classification ~= "Normal")
-        and string.format("%s, ", npc.classification)
+    local modelsData = _G.ModelsData
+    local classificationName = PSM.PetModels.NpcClassification(npc)
+    local classification = (classificationName and classificationName ~= "Normal")
+        and string.format("%s, ", classificationName)
         or  ""
-    local factionStr = formatFactionIndicator(npc.factionReaction)
+    local factionStr = formatFactionIndicator(modelsData.ReactA[npc], modelsData.ReactH[npc])
     local factionPart = factionStr ~= "" and ", " .. factionStr or ""
     return string.format("%s: %s%s, %s, %s%s",
-        npc.name,
+        modelsData.Name[npc],
         classification,
-        npc.npcId    or "?",
-        npc.location or "Unknown",
-        npc.expansion or "Unknown",
+        modelsData.NpcId[npc] or "?",
+        PSM.PetModels.NpcLocation(npc),
+        PSM.PetModels.NpcExpansion(npc) or "Unknown",
         factionPart)
 end
 
@@ -501,15 +504,20 @@ function PSM.ModelsDataLoader:_CalculateModelsData()
                 if not PSM.Config.EXCLUDED_DISPLAY_IDS[displayData.displayId]
                    and DisplayPassesFilters(panel, displayData, ownedSet) then
                      
-                     -- Cache NPC descriptions (memoized on the static NPC table, so this
-                     -- string is only built once per NPC ever, not once per render/filter pass)
+                     -- Cache NPC descriptions in a side-table keyed by denseIndex (npc is
+                     -- a bare index, not an object, so it can't hold its own field) so
+                     -- this string is only built once per NPC ever, not once per render/
+                     -- filter pass.
                      local nameSeen, nameList = {}, {}
                      if displayData.npcs then
+                         _G.PSM._modelsDescriptionCache = _G.PSM._modelsDescriptionCache or {}
+                         local descCache = _G.PSM._modelsDescriptionCache
                          for _, npc in ipairs(displayData.npcs) do
-                             npc._cachedDescription = npc._cachedDescription or npcDescription(npc)
-                             if npc.name and not nameSeen[npc.name] then
-                                 nameSeen[npc.name] = true
-                                 table.insert(nameList, npc.name)
+                             descCache[npc] = descCache[npc] or npcDescription(npc)
+                             local npcName = _G.ModelsData.Name[npc]
+                             if npcName and not nameSeen[npcName] then
+                                 nameSeen[npcName] = true
+                                 table.insert(nameList, npcName)
                              end
                          end
                      end
@@ -539,22 +547,20 @@ function PSM.ModelsDataLoader:_CalculateModelsData()
                        or (item.familyName and item.familyName:lower():find(searchLower, 1, true))
                        or (item.allNpcNamesString and item.allNpcNamesString:lower():find(searchLower, 1, true))
             if not found and item.npcs then
+                local modelsData = _G.ModelsData
                 for _, npc in ipairs(item.npcs) do
-                    if (npc.name       and npc.name:lower():find(searchLower, 1, true))
-                    or tostring(npc.npcId):lower():find(searchLower, 1, true)
-                    or (npc.location   and npc.location:lower():find(searchLower, 1, true))
-                    or (npc.expansion  and npc.expansion:lower():find(searchLower, 1, true))
-                    or (npc.classification and npc.classification:lower():find(searchLower, 1, true)) then
+                    local npcName = modelsData.Name[npc]
+                    local npcId = modelsData.NpcId[npc]
+                    local classification = PSM.PetModels.NpcClassification(npc)
+                    if (npcName and npcName:lower():find(searchLower, 1, true))
+                    or tostring(npcId):lower():find(searchLower, 1, true)
+                    or PSM.PetModels.NpcLocation(npc):lower():find(searchLower, 1, true)
+                    or (PSM.PetModels.NpcExpansion(npc) or ""):lower():find(searchLower, 1, true)
+                    or (classification and classification:lower():find(searchLower, 1, true)) then
                         found = true; break
                     end
-                    if not found and npc.zones then
-                        local zones = type(npc.zones) == "table" and npc.zones or {npc.zones}
-                        for _, zone in ipairs(zones) do
-                            if zone:lower():find(searchLower, 1, true) then found = true; break end
-                        end
-                    end
-                    if not found and npc.npcId then
-                        local zoneSet = self:GetNpcZoneNames(npc.npcId)
+                    if not found and npcId then
+                        local zoneSet = self:GetNpcZoneNames(npcId)
                         if zoneSet then
                             for zoneName in pairs(zoneSet) do
                                 if zoneName:lower():find(searchLower, 1, true) then
@@ -579,13 +585,14 @@ function PSM.ModelsDataLoader:_CalculateModelsData()
             local match = false
             if item.npcs then
                 for _, npc in ipairs(item.npcs) do
+                    local expansion = PSM.PetModels.NpcExpansion(npc)
                     if hasSelection then
-                        if npc.expansion and PSM.state.selectedExpansions[npc.expansion] then
+                        if expansion and PSM.state.selectedExpansions[expansion] then
                             match = true; break
                         end
                     else
                         -- "none selected" means exclude items that have expansion data
-                        if not npc.expansion then match = true; break end
+                        if not expansion then match = true; break end
                     end
                 end
             end
@@ -611,19 +618,21 @@ function PSM.ModelsDataLoader:_CalculateModelsData()
                 for _, npc in ipairs(item.npcs) do
                     if hasSelection then
                         local npcDisqualified, npcMatchedActive = false, false
-                        if npc.location then
-                            for loc in string.gmatch(npc.location, "[^|]+") do
-                                local state = PSM.state.selectedLocations[strtrim(loc)]
-                                if state == "inverted" then npcDisqualified = true; break end
-                                if state == true then npcMatchedActive = true end
-                            end
+                        -- NpcLocation() always returns a string ("Unknown" fallback),
+                        -- so no nil guard needed.
+                        for loc in string.gmatch(PSM.PetModels.NpcLocation(npc), "[^|]+") do
+                            local state = PSM.state.selectedLocations[strtrim(loc)]
+                            if state == "inverted" then npcDisqualified = true; break end
+                            if state == true then npcMatchedActive = true end
                         end
                         if not npcDisqualified and (not userHasActive or npcMatchedActive) then
                             match = true; break
                         end
-                    else
-                        if not npc.location then match = true; break end
                     end
+                    -- else: selectedLocations is present but empty ("Select None" was
+                    -- clicked) -- every NPC always resolves to a location string (even
+                    -- "Unknown" is a real, selectable filter value), so nothing should
+                    -- match; match stays false.
                 end
             end
             if match then table.insert(filtered, item) end
@@ -712,8 +721,8 @@ function PSM.ModelsDataLoader:GetAvailableFamiliesForFilters()
                    and DisplayPassesFilters(panel, displayData, ownedSet) then
                     if displayData.npcs then
                         for _, npc in ipairs(displayData.npcs) do
-                            local expOk = not hasExpFilter or self:_IsExpansionSelected(npc.expansion, selectedExpansions)
-                            local locOk = not hasLocFilter or self:_IsLocationSelected(npc.location, selectedLocations)
+                            local expOk = not hasExpFilter or self:_IsExpansionSelected(PSM.PetModels.NpcExpansion(npc), selectedExpansions)
+                            local locOk = not hasLocFilter or self:_IsLocationSelected(PSM.PetModels.NpcLocation(npc), selectedLocations)
                             local zoneOk = not (panel.showPetsInMyZone and panel.currentPlayerZone)
                                         or TristateMatch(panel.showPetsInMyZone, self:_IsZoneMatch(npc, panel.currentPlayerZone))
                             if expOk and locOk and zoneOk then matched = true; break end
@@ -770,12 +779,13 @@ function PSM.ModelsDataLoader:GetAvailableExpansionsForFilters()
                        and DisplayPassesFilters(panel, displayData, ownedSet) then
                         if displayData.npcs then
                             for _, npc in ipairs(displayData.npcs) do
-                                local locOk = not hasLocFilter or self:_IsLocationSelected(npc.location, selectedLocations)
+                                local locOk = not hasLocFilter or self:_IsLocationSelected(PSM.PetModels.NpcLocation(npc), selectedLocations)
                                 local zoneOk = not (panel.showPetsInMyZone and panel.currentPlayerZone)
                                             or TristateMatch(panel.showPetsInMyZone, self:_IsZoneMatch(npc, panel.currentPlayerZone))
-                                if locOk and zoneOk and npc.expansion and not seen[npc.expansion] then
-                                    seen[npc.expansion] = true
-                                    table.insert(result, npc.expansion)
+                                local expansion = PSM.PetModels.NpcExpansion(npc)
+                                if locOk and zoneOk and expansion and not seen[expansion] then
+                                    seen[expansion] = true
+                                    table.insert(result, expansion)
                                 end
                             end
                         end
@@ -826,7 +836,7 @@ function PSM.ModelsDataLoader:GetAvailableLocationsForFilters()
                        and DisplayPassesFilters(panel, displayData, ownedSet) then
                         if displayData.npcs then
                             for _, npc in ipairs(displayData.npcs) do
-                                local expOk = not hasExpFilter or self:_IsExpansionSelected(npc.expansion, selectedExpansions)
+                                local expOk = not hasExpFilter or self:_IsExpansionSelected(PSM.PetModels.NpcExpansion(npc), selectedExpansions)
                                 local inMyZone = panel.showPetsInMyZone and panel.currentPlayerZone
                                               and self:_IsZoneMatch(npc, panel.currentPlayerZone)
                                 local zoneOk = not (panel.showPetsInMyZone and panel.currentPlayerZone)
@@ -844,8 +854,8 @@ function PSM.ModelsDataLoader:GetAvailableLocationsForFilters()
                                             seen[zoneName] = true
                                             table.insert(result, zoneName)
                                         end
-                                    elseif npc.location then
-                                        for loc in string.gmatch(npc.location, "[^|]+") do
+                                    else
+                                        for loc in string.gmatch(PSM.PetModels.NpcLocation(npc), "[^|]+") do
                                             loc = strtrim(loc)
                                             if not seen[loc] then
                                                 seen[loc] = true

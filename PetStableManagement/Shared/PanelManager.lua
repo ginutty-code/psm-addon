@@ -298,6 +298,8 @@ function PSM.PanelManager:CleanupPanel(panel)
         PSM._debounceTimer      = nil
         PSM._modelsRenderCache  = nil
         PSM._modelsDebounceTimer = nil
+        PSM._npcRenderCache     = nil
+        PSM._npcDebounceTimer   = nil
 
         if PSM.PetModels and PSM.PetModels.ClearCache then
             PSM.PetModels:ClearCache()

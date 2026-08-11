@@ -842,6 +842,10 @@ function ST:ComputeMatchingFamilies(selectedRuleMap, selectedConditionNames)
     local hasConds = next(selectedConditionNames) ~= nil
     if not (hasRules or hasConds) then return nil end
 
+    -- displayData.npcs (from GetFamilyModels) is a bare denseIndex array --
+    -- resolve npcId via the ModelsData column, not npc.npcId.
+    local modelsData = _G.ModelsData
+
     local relevantFamilies = {}
     for _, familyName in ipairs(PSM.PetModels:GetAvailableFamilies()) do
         local familyData = PSM.PetModels:GetFamilyModels(familyName)
@@ -866,7 +870,7 @@ function ST:ComputeMatchingFamilies(selectedRuleMap, selectedConditionNames)
 
                             if not isMatch and rKey == "Sliver of N'Zoth" and displayData.npcs then
                                 for _, npc in ipairs(displayData.npcs) do
-                                    local npcID   = tonumber(npc.npcId)
+                                    local npcID   = modelsData and tonumber(modelsData.NpcId[npc])
                                     local condList = PSM.ConditionsData and PSM.ConditionsData.Get(npcID)
                                     if condList then
                                         for _, cName in ipairs(condList) do
@@ -892,7 +896,7 @@ function ST:ComputeMatchingFamilies(selectedRuleMap, selectedConditionNames)
 
                             if not isForbidden and rKey == "Sliver of N'Zoth" and displayData.npcs then
                                 for _, npc in ipairs(displayData.npcs) do
-                                    local npcID   = tonumber(npc.npcId)
+                                    local npcID   = modelsData and tonumber(modelsData.NpcId[npc])
                                     local condList = PSM.ConditionsData and PSM.ConditionsData.Get(npcID)
                                     if condList then
                                         for _, cName in ipairs(condList) do
@@ -919,7 +923,7 @@ function ST:ComputeMatchingFamilies(selectedRuleMap, selectedConditionNames)
 
                     local atLeastOneNpcPasses = false
                     for _, npc in ipairs(displayData.npcs) do
-                        local npcID   = tonumber(npc.npcId)
+                        local npcID   = modelsData and tonumber(modelsData.NpcId[npc])
                         local condList = PSM.ConditionsData and PSM.ConditionsData.Get(npcID)
                         local npcDisqualified  = false
                         local npcMatchedActive = false

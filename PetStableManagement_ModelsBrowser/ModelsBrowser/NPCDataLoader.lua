@@ -1,8 +1,8 @@
 -- ModelsBrowser/NPCDataLoader.lua
 -- Data loading and filtering for the NPC view of the Pet Models Browser.
--- Reads the flat ModelsData[npcId] table directly, so this is a plain text
--- pipeline (no model/display data joins) -- deliberately lighter than
--- ModelsDataLoader's display-ID pipeline.
+-- Reads ModelsData's columns directly (via PetModels.lua's shared family
+-- index), so this is a plain text pipeline (no model/display data joins) --
+-- deliberately lighter than ModelsDataLoader's display-ID pipeline.
 
 local addonName = "PetStableManagement"
 
@@ -10,6 +10,52 @@ _G.PSM = _G.PSM or {}
 local PSM = _G.PSM
 
 PSM.NPCDataLoader = PSM.NPCDataLoader or {}
+
+--------------------------------------------------------------------------------
+-- CACHE
+--------------------------------------------------------------------------------
+
+function PSM.NPCDataLoader:CreateRenderCache()
+    PSM._npcRenderCache   = nil
+    PSM._npcDebounceTimer = nil
+end
+
+-- Build a canonical string from a selected-values table (key=name, value=bool),
+-- mirroring ModelsDataLoader's SelectedMapKey.
+local function SelectedMapKey(map)
+    if not map or not next(map) then return "none," end
+    local parts = {}
+    for k, v in pairs(map) do if v then table.insert(parts, k) end end
+    table.sort(parts)
+    return table.concat(parts, ",") .. ","
+end
+
+function PSM.NPCDataLoader:GenerateCacheKey()
+    local panel = PSM.state.modelsPanel
+    if not panel then return "" end
+
+    local searchText  = panel.searchBox and panel.searchBox:GetText() or ""
+    local searchLower = searchText ~= "" and searchText:lower() or ""
+
+    local zoneKey = ""
+    if panel.showPetsInMyZone and panel.currentPlayerZone then
+        zoneKey = panel.currentPlayerZone .. (panel.showPetsInMyZone == "inverted" and "_inv," or ",")
+    end
+
+    return string.format("%s_%s_%s_%s_%s_%s_%s_%s_%s_%s_%d",
+        searchLower,
+        SelectedMapKey(PSM.state.selectedModelsFamilies),
+        SelectedMapKey(PSM.state.selectedExpansions),
+        SelectedMapKey(PSM.state.selectedLocations),
+        zoneKey,
+        tostring(panel.showRares or "none"),
+        tostring(panel.showNameKeepers or "none"),
+        tostring(panel.showFavorites or "none"),
+        tostring(panel.showHideOwned or "none"),
+        SelectedMapKey(PSM.state.favoriteModels),
+        #PSM.state.stablePets
+    )
+end
 
 --------------------------------------------------------------------------------
 -- FILTER HELPERS
@@ -63,7 +109,7 @@ end
 function PSM.NPCDataLoader:LoadNPCsForSelectedFamilies()
     if not PSM.state.modelsPanel then return end
     if PSM._npcDebounceTimer then PSM._npcDebounceTimer:Cancel() end
-    PSM._npcDebounceTimer = PSM.C_Timer.NewTimer(0.01, function()
+    PSM._npcDebounceTimer = PSM.C_Timer.NewTimer(0.15, function()
         PSM.NPCDataLoader:_LoadNPCsImmediate()
     end)
 end
@@ -72,7 +118,17 @@ function PSM.NPCDataLoader:_LoadNPCsImmediate()
     local panel = PSM.state.modelsPanel
     if not panel then return end
 
-    self:_ApplyNPCData(self:_CalculateNPCData())
+    -- Reuse the last computed item list for 0.2s if nothing filter-relevant
+    -- changed, mirroring ModelsDataLoader's render cache (ModelsDataLoader.lua:415-421).
+    local cacheKey = self:GenerateCacheKey()
+    if PSM._npcRenderCache and PSM._npcRenderCache.key == cacheKey
+       and GetTime() - PSM._npcRenderCache.timestamp < 0.2 then
+        self:_ApplyNPCData(PSM._npcRenderCache.data)
+    else
+        local items = self:_CalculateNPCData()
+        PSM._npcRenderCache = { key = cacheKey, timestamp = GetTime(), data = items }
+        self:_ApplyNPCData(items)
+    end
 
     if PSM.ModelsFilters then
         if PSM.ModelsFilters.UpdateFilterSummary  then PSM.ModelsFilters:UpdateFilterSummary()  end
@@ -108,23 +164,34 @@ function PSM.NPCDataLoader:_CalculateNPCData()
 
     -- Iterate only selected families via the shared family index instead of
     -- scanning all ~7700 ModelsData entries and rejecting non-matches.
+    -- byFamily[name] is an array of denseIndex values.
     local byFamily = PSM.PetModels:GetModelsDataByFamilyIndex()
+    local modelsData = _G.ModelsData
+    local PetModels = PSM.PetModels
 
     local items = {}
     for familyName, isSelected in pairs(selectedFamilies) do
         if isSelected and byFamily[familyName] then
-            for _, entry in ipairs(byFamily[familyName]) do
-                local npcId, npcData = entry.npcIdKey, entry.npcData
-                local displayIds = npcData.displayIds or {}
+            for _, i in ipairs(byFamily[familyName]) do
+                local npcId = modelsData.NpcId[i]
+                local name = modelsData.Name[i]
+                local family = modelsData.Families[modelsData.FamilyId[i]]
+                local classification = PetModels.NpcClassification(i)
+                local nameKeeper = modelsData.NameKeeper[i]
+                local uiMapId = modelsData.UiMapId[i]
+                local uiMapName = uiMapId and modelsData.UiMapNames[uiMapId]
+                local expansion = PetModels.NpcExpansion(i)
+                local rawDisplayIds = modelsData.DisplayIds[i]
+                local displayIds = type(rawDisplayIds) == "table" and rawDisplayIds or { rawDisplayIds }
 
                 local matchesSearch = true
                 if searchLower ~= "" then
                     matchesSearch =
-                        (npcData.name and npcData.name:lower():find(searchLower, 1, true))
+                        (name and name:lower():find(searchLower, 1, true))
                         or tostring(npcId):find(searchLower, 1, true)
-                        or (npcData.family and npcData.family:lower():find(searchLower, 1, true))
-                        or (npcData.uiMapName and npcData.uiMapName:lower():find(searchLower, 1, true))
-                        or (npcData.expansion and npcData.expansion:lower():find(searchLower, 1, true))
+                        or (family and family:lower():find(searchLower, 1, true))
+                        or (uiMapName and uiMapName:lower():find(searchLower, 1, true))
+                        or (expansion and expansion:lower():find(searchLower, 1, true))
                         or false
                     if not matchesSearch then
                         for _, id in ipairs(displayIds) do
@@ -133,36 +200,37 @@ function PSM.NPCDataLoader:_CalculateNPCData()
                     end
                 end
 
-                local isRare = npcData.classification == "Rare" or npcData.classification == "Rare Elite"
+                local isRare = classification == "Rare" or classification == "Rare Elite"
 
                 if matchesSearch
                    and TristateMatch(panel.showRares, isRare)
-                   and TristateMatch(panel.showNameKeepers, npcData.nameKeeper or false)
+                   and TristateMatch(panel.showNameKeepers, nameKeeper or false)
                    and TristateMatch(panel.showFavorites, IsAnyDisplayIdFavorite(displayIds))
                    and TristateMatch(panel.showHideOwned, not IsAnyDisplayIdOwned(displayIds, ownedSet))
                    and (not PSM.state.selectedExpansions or not next(PSM.state.selectedExpansions)
-                        or PSM.state.selectedExpansions[npcData.expansion])
-                   and IsLocationSelected(npcData.uiMapName, PSM.state.selectedLocations)
+                        or PSM.state.selectedExpansions[expansion])
+                   and IsLocationSelected(uiMapName, PSM.state.selectedLocations)
                 then
                     local zoneOk = true
                     if panel.showPetsInMyZone and panel.currentPlayerZone then
-                        local zoneMatch = PSM.ModelsDataLoader:_IsZoneMatch(
-                            { uiMapId = npcData.uiMapId, npcId = npcId, uiMapName = npcData.uiMapName },
-                            panel.currentPlayerZone)
+                        -- _IsZoneMatch reads columns via a denseIndex directly -- no need
+                        -- to build a temporary {uiMapId=, npcId=, uiMapName=} shim.
+                        local zoneMatch = PSM.ModelsDataLoader:_IsZoneMatch(i, panel.currentPlayerZone)
                         zoneOk = TristateMatch(panel.showPetsInMyZone, zoneMatch)
                     end
 
                     if zoneOk then
                         table.insert(items, {
-                            npcId          = tonumber(npcId) or npcId,
-                            name           = npcData.name or ("NPC " .. tostring(npcId)),
-                            family         = npcData.family,
-                            classification = npcData.classification or "Normal",
-                            nameKeeper     = npcData.nameKeeper or false,
-                            uiMapId        = npcData.uiMapId,
-                            uiMapName      = npcData.uiMapName or "Unknown",
-                            expansion      = npcData.expansion or "Unknown",
-                            react          = npcData.react,
+                            npcId          = npcId,
+                            name           = name or ("NPC " .. tostring(npcId)),
+                            family         = family,
+                            classification = classification or "Normal",
+                            nameKeeper     = nameKeeper or false,
+                            uiMapId        = uiMapId,
+                            uiMapName      = uiMapName or "Unknown",
+                            expansion      = expansion or "Unknown",
+                            reactA         = modelsData.ReactA[i],
+                            reactH         = modelsData.ReactH[i],
                             displayIds     = displayIds,
                             itemType       = "npc",
                         })
