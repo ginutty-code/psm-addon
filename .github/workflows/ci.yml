@@ -11,7 +11,7 @@ jobs:
     name: luacheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Lua 5.1 and luacheck
         run: |
@@ -39,7 +39,7 @@ jobs:
     name: tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Lua 5.1
         # The WoW client is Lua 5.1, which is why .luacheckrc sets std = "lua51".
