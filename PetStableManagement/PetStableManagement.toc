@@ -5,6 +5,10 @@
 ## Version: 12.4.1
 ## IconTexture: 132253
 ## SavedVariables: PetStableManagementDB PSM_UserNotes
+# Do NOT list PetStableManagement_Data / _ModelsBrowser here. OptionalDeps means
+# "load these before me if enabled", which both defeats their ## LoadOnDemand and
+# inverts the load order so they run before this addon creates _G.PSM.
+# They depend on us, not the other way round -- see their ## RequiredDeps.
 ## OptionalDeps: Blizzard_StableUI
 
 # Core modules (loaded first)
@@ -13,6 +17,7 @@ Core.lua
 # Shared modules
 Shared/Config.lua
 Shared/Utils.lua
+Shared/Loader.lua
 Shared/Events.lua
 Shared/UI.lua
 Shared/Dialogs.lua

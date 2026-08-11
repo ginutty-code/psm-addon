@@ -27,6 +27,7 @@ globals = {
 -- add to this list, don't disable W113, when a new Blizzard API is used.
 read_globals = {
     "CHECKBOX_INDENT_X",
+    "C_AddOns",
     "C_Map",
     "C_PetJournal",
     "C_QuestLog",
@@ -54,6 +55,7 @@ read_globals = {
     "InterfaceOptionsFrame",
     "InterfaceOptionsFrame_OpenToCategory",
     "InterfaceOptions_AddCategory",
+    "InCombatLockdown",
     "IsControlKeyDown",
     "IsMouseButtonDown",
     "IsPlayerSpell",

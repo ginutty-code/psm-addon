@@ -3,6 +3,12 @@
 -- These are read-only. User-edited notes are stored separately in PSM_UserNotes (SavedVariables).
 -- At runtime, seed notes and user notes are merged by the Notes UI layer.
 
+-- This file ships in the PetStableManagement_Data addon, a separate LoadOnDemand
+-- folder from the core addon that creates _G.PSM. Declare it rather than relying on
+-- cross-addon load order, matching every other .lua file in the project.
+_G.PSM = _G.PSM or {}
+local PSM = _G.PSM
+
 PSM.NotesData = {
     [462] = [[Vultros can appear a one of five places around the farmsteads of northern Westfall: (i) south of the Jansen Stead; (ii) south-east of Furlbrow's Pumpkin Farm; (iii) around the road between Furlbrow's Pumpkin Farm and the Molsen Farm; (iv) east of the Molsen Farm; and (v) just south-east of Saldean's Farm.]],
     [574] = [[Appears in a cave in the mountains that form the eastern border of the zone. The cave can be seen on the zone map, in an area roughly north-east of Tranquil Gardens Cemetery.]],

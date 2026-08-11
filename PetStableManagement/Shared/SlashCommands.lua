@@ -14,9 +14,9 @@ local function InCombat()
     end
 end
 
-local function ModulesMissing()
-    print("|cFFFF8800PetStableManagement: Models Browser module is not loaded. Enable 'Pet Stable Management: Models Browser' in your addon list.|r")
-end
+-- Models Browser and its data are LoadOnDemand; PSM.Loader pulls them in on first
+-- use and reports a precise reason (disabled / missing / in combat) if it can't,
+-- so callers below don't print a "module not loaded" message of their own.
 
 -- ============================================================
 -- /psm  /petstable
@@ -42,10 +42,8 @@ local PETSTABLE_COMMANDS = {
 
     models = function()
         if InCombat() then return end
-        if PSM.ModelsPanel and PSM.ModelsPanel.Toggle then
+        if PSM.Loader:EnsureBrowser() and PSM.ModelsPanel then
             PSM.ModelsPanel:Toggle()
-        else
-            ModulesMissing()
         end
     end,
 
@@ -59,10 +57,8 @@ local PETSTABLE_COMMANDS = {
     end,
 
     roulette = function()
-        if PSM.PetRoulette and PSM.PetRoulette.SelectPetRouletteFromCommand then
+        if PSM.Loader:EnsureBrowser() and PSM.PetRoulette then
             PSM.PetRoulette:SelectPetRouletteFromCommand()
-        else
-            ModulesMissing()
         end
     end,
 

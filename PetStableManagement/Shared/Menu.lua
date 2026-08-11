@@ -68,7 +68,11 @@ function menu:Create()
     -- Buttons
     local buttonWidth, buttonHeight, buttonSpacing = 160, 30, 10
 
-    local function AddButton(name, parent, anchorTo, label, onClick, disabledModule, disabledHint)
+    -- requiresBrowser gates on the browser being *available* (present and enabled),
+    -- not on its modules being loaded: it is LoadOnDemand, so PSM.ModelsPanel is
+    -- legitimately absent until first use and testing for it would disable these
+    -- buttons permanently.
+    local function AddButton(name, parent, anchorTo, label, onClick, requiresBrowser, disabledHint)
         local btn = CreateFrame("Button", nil, window, "UIPanelButtonTemplate")
         btn:SetSize(buttonWidth, buttonHeight)
         if anchorTo then
@@ -78,18 +82,18 @@ function menu:Create()
         end
         btn:SetText(label)
         btn:SetScript("OnClick", onClick)
-        if disabledModule and not _G.PSM[disabledModule] then
+        if requiresBrowser and not PSM.Loader:IsBrowserAvailable() then
             btn:Disable()
             btn:SetAlpha(0.5)
-            PSM.Utils:CreateButtonTooltipOverlay(btn, disabledModule, disabledHint)
+            PSM.Utils:CreateButtonTooltipOverlay(btn, "Models Browser", disabledHint)
         end
         PSM.UI:ApplyElvUISkin(btn, "button")
         return btn
     end
 
     window.ownedButton   = AddButton("owned",    window, nil,                   "Toggle Owned Pets",     function() PSM.Broker:ToggleOwnedPetsPanel() end)
-    window.modelsButton  = AddButton("models",   window, window.ownedButton,    "Toggle Models Browser", function() PSM.Broker:ToggleModelsBrowserPanel() end,  "ModelsPanel",  "Enable 'Pet Stable Management: Models Browser' in your addon list")
-    window.rouletteButton= AddButton("roulette", window, window.modelsButton,   "Toggle Pet Roulette",   function() PSM.Broker:TogglePetRoulette() end,          "PetRoulette",  "Enable 'Pet Stable Management: Models Browser' in your addon list")
+    window.modelsButton  = AddButton("models",   window, window.ownedButton,    "Toggle Models Browser", function() PSM.Broker:ToggleModelsBrowserPanel() end,  true,  "Enable 'Pet Stable Management: Models Browser' in your addon list")
+    window.rouletteButton= AddButton("roulette", window, window.modelsButton,   "Toggle Pet Roulette",   function() PSM.Broker:TogglePetRoulette() end,          true,  "Enable 'Pet Stable Management: Models Browser' in your addon list")
     window.teamsButton   = AddButton("teams",    window, window.rouletteButton, "Toggle Pet Teams",      function() PSM.Broker:TogglePetTeamsPanel() end)
     window.optionsButton = AddButton("options",  window, window.teamsButton,    "Toggle Options",        function() PSM.Broker:ToggleOptionsPanel() end)
     window.closeAllButton= AddButton("closeAll", window, window.optionsButton,  "Close All Panels",      function() PSM.Broker:CloseAllPanels() end)

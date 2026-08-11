@@ -26,24 +26,23 @@ function broker:ToggleOwnedPetsPanel()
     end
 end
 
+-- PSM.Loader pulls the LoadOnDemand browser in on first use and reports a precise
+-- reason if it can't, so these no longer print a "module not loaded" message.
 function broker:ToggleModelsBrowserPanel()
-    if PSM.ModelsPanel and PSM.ModelsPanel.Toggle then
+    if PSM.Loader:EnsureBrowser() and PSM.ModelsPanel then
         PSM.ModelsPanel:Toggle()
-    else
-        print("|cFFFF8800PetStableManagement: Models Browser module is not loaded. Enable 'Pet Stable Management: Models Browser' in your addon list.|r")
     end
 end
 
 function broker:TogglePetRoulette()
-    if PSM.PetRoulette and PSM.PetRoulette.SelectPetRouletteFromCommand then
-        local popup = PSM.state and PSM.state.petRoulettePopup
-        if popup and popup:IsVisible() then
-            popup:Hide()
-        else
-            PSM.PetRoulette:SelectPetRouletteFromCommand()
-        end
-    else
-        print("|cFFFF8800PetStableManagement: Models Browser module is not loaded. Enable 'Pet Stable Management: Models Browser' in your addon list.|r")
+    -- Hiding an open popup must not force a load, so check that before ensuring.
+    local popup = PSM.state and PSM.state.petRoulettePopup
+    if popup and popup:IsVisible() then
+        popup:Hide()
+        return
+    end
+    if PSM.Loader:EnsureBrowser() and PSM.PetRoulette then
+        PSM.PetRoulette:SelectPetRouletteFromCommand()
     end
 end
 

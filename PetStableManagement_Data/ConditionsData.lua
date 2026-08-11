@@ -2,6 +2,12 @@
 -- Maps NPC IDs to condition-specific taming requirements.
 -- These are used for filtering in the Special Tames panel.
 
+-- This file ships in the PetStableManagement_Data addon, a separate LoadOnDemand
+-- folder from the core addon that creates _G.PSM. Declare it rather than relying on
+-- cross-addon load order, matching every other .lua file in the project.
+_G.PSM = _G.PSM or {}
+local PSM = _G.PSM
+
 local conditions = {
     [1] = "Kyrian",
     [2] = "Necrolord",

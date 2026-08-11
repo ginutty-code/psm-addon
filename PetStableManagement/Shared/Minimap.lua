@@ -165,7 +165,10 @@ function PSM.Minimap:OnEnter(button)
     GameTooltip:ClearLines()
     GameTooltip:AddLine("Pet Stable Management")
     GameTooltip:AddLine("Left-click: Toggle Owned Pets Panel",      0.7, 0.7, 1)
-    if PSM.ModelsPanel and PSM.ModelsPanel.Toggle then
+    -- "Available", not "loaded": under LoadOnDemand the browser is normally unloaded
+    -- until first use, so keying the hint on IsBrowserLoaded would hide a working
+    -- action. This still omits it when the module is genuinely absent or disabled.
+    if PSM.Loader:IsBrowserAvailable() then
         GameTooltip:AddLine("Right-click: Toggle Pet Models Browser",   0.7, 0.7, 1)
     end
     GameTooltip:AddLine("Shift+Left-click: Toggle Menu",            0.7, 0.7, 1)
@@ -257,20 +260,16 @@ function PSM.Minimap:ShowContextMenu()
         {
             text = "Load Pet Model Browser", notCheckable = true,
             func = function()
-                if PSM.ModelsPanel and PSM.ModelsPanel.Toggle then
+                if PSM.Loader:EnsureBrowser() and PSM.ModelsPanel then
                     PSM.ModelsPanel:Toggle()
-                else
-                    print("|cFFFF8800PetStableManagement: Models Browser module is not loaded.|r")
                 end
             end,
         },
         {
             text = "Pet Roulette", notCheckable = true,
             func = function()
-                if PSM.PetRoulette and PSM.PetRoulette.SelectPetRouletteFromCommand then
+                if PSM.Loader:EnsureBrowser() and PSM.PetRoulette then
                     PSM.PetRoulette:SelectPetRouletteFromCommand()
-                else
-                    print("|cFFFF8800PetStableManagement: Models Browser module is not loaded.|r")
                 end
             end,
         },

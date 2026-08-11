@@ -4,14 +4,15 @@
 ## Author: Ginutty
 ## Version: 12.4.1
 ## IconTexture: 132253
-## RequiredDeps: PetStableManagement
+## RequiredDeps: PetStableManagement, PetStableManagement_Data
+## LoadOnDemand: 1
+
+# Data tables live in PetStableManagement_Data (declared above as a RequiredDep,
+# so loading this addon loads them first). Core can load that data on its own,
+# without this UI, for the Owned Pets magnifier's taming/notes/conditions display.
 
 # Models Browser feature
 ModelsBrowser/PetModels.lua
-ModelsBrowser/ModelsData.lua
-ModelsBrowser/AbilitiesData.lua
-ModelsBrowser/CoordsData.lua
-ModelsBrowser/NotesData.lua
 ModelsBrowser/ModelsDataLoader.lua
 ModelsBrowser/NPCDataLoader.lua
 ModelsBrowser/ModelsFilters.lua
@@ -22,5 +23,3 @@ ModelsBrowser/PetRoulette.lua
 ModelsBrowser/AbilityBrowser.lua
 ModelsBrowser/TamingChecker.lua
 ModelsBrowser/SpecialTames.lua
-ModelsBrowser/ConditionsData.lua
-
