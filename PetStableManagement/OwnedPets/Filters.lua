@@ -320,15 +320,6 @@ function PSM.UI:SetStableTamerSelection()
     self:ReinitializeTamerDropdown()
 end
 
-function PSM.UI:ResetTamerSelection()
-    if not PSM.state.panel or not PSM.state.panel.tamerDrop then return end
-    PSM.Utils:ClearTable(PSM.state.selectedTamers)
-    PSM.state.tamerSelectionInitialized = true
-    UIDropDownMenu_SetText(PSM.state.panel.tamerDrop, "All Hunters")
-    self:ReinitializeTamerDropdown()
-    PSM.C_Timer.After(0.1, function() PSM.UI:UpdatePanel() end)
-end
-
 function PSM.UI:ReinitializeTamerDropdown()
     if not PSM.state.panel or not PSM.state.panel.tamerDrop then return end
     PSM.Data:RebuildTamerList()

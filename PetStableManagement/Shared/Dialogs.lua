@@ -349,17 +349,6 @@ end
 -- UTILITY
 --------------------------------------------------------------------------------
 
-function PSM.TeamDialogs:CloseActiveDialog()
-    if self.activeDialog then
-        self.activeDialog:Hide()
-        self.activeDialog = nil
-    end
-end
-
-function PSM.TeamDialogs:IsDialogOpen()
-    return self.activeDialog ~= nil and self.activeDialog:IsVisible()
-end
-
 --------------------------------------------------------------------------------
 -- ADD TO TEAM DIALOG
 --------------------------------------------------------------------------------

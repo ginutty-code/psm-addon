@@ -35,16 +35,6 @@ function PSM.ModelsDataLoader:CreateRenderCache()
     PSM._modelsDebounceTimer  = nil
     PSM._lastModelsLayoutWidth  = nil
     PSM._lastModelsLayoutHeight = nil
-    PSM._dynamicFilterCache   = nil
-end
-
-function PSM.ModelsDataLoader:ClearDynamicFilterCache()
-    PSM._dynamicFilterCache = nil
-end
-
-local function CacheDynamic(key, value)
-    if not PSM._dynamicFilterCache then PSM._dynamicFilterCache = {} end
-    PSM._dynamicFilterCache[key] = value
 end
 
 --------------------------------------------------------------------------------
@@ -67,11 +57,6 @@ local function PanelFilterFragment(panel)
         zoneKey = panel.currentPlayerZone .. (panel.showPetsInMyZone == "inverted" and "_inv," or ",")
     end
 
-    local favKey = ""
-    if panel and panel.showFavorites then
-        favKey = (panel.showFavorites == "inverted" and "not_favorites," or "favorites,")
-    end
-
     local raresKey = ""
     if panel and panel.showRares then
         raresKey = (panel.showRares == "inverted" and "not_rares," or "rares,")
@@ -82,7 +67,7 @@ local function PanelFilterFragment(panel)
         nameKeepersKey = (panel.showNameKeepers == "inverted" and "not_namekeepers," or "namekeepers,")
     end
 
-    return zoneKey, favKey, raresKey, nameKeepersKey
+    return zoneKey, raresKey, nameKeepersKey
 end
 
 function PSM.ModelsDataLoader:GenerateCacheKey()
@@ -91,7 +76,7 @@ function PSM.ModelsDataLoader:GenerateCacheKey()
 
     local searchText = panel.searchBox:GetText() or ""
     local searchLower = searchText ~= "" and searchText:lower() or ""
-    local zoneKey, favKey, raresKey, nameKeepersKey = PanelFilterFragment(panel)
+    local zoneKey, raresKey, nameKeepersKey = PanelFilterFragment(panel)
 
     local favoritesKey = SelectedMapKey(PSM.state.favoriteModels)
 
@@ -124,25 +109,6 @@ function PSM.ModelsDataLoader:GenerateCacheKey()
         condKey,
         ownedKey,
         #PSM.state.stablePets
-    )
-end
-
-function PSM.ModelsDataLoader:_GenerateDynamicFilterCacheKey(filterType)
-    local panel = PSM.state.modelsPanel
-    local zoneKey, favKey, raresKey, nameKeepersKey = PanelFilterFragment(panel)
-
-    local searchKey = ""
-    if panel and panel.searchBox then
-        searchKey = (panel.searchBox:GetText() or ""):lower() .. ","
-    end
-
-    return string.format("dynamic_%s_%s_%s_%s_%s_%s_%s_%s_%s",
-        filterType,
-        SelectedMapKey(PSM.state.selectedModelsFamilies),
-        SelectedMapKey(PSM.state.selectedExpansions),
-        SelectedMapKey(PSM.state.selectedLocations),
-        zoneKey, favKey, raresKey, nameKeepersKey,
-        searchKey
     )
 end
 
@@ -280,10 +246,6 @@ local function DisplayPassesFilters(panel, displayData, ownedSet)
     end
 
     return true
-end
-
-function PSM.ModelsDataLoader:_IsFavoriteDisplay(displayId)
-    return displayId and PSM.state.favoriteModels and PSM.state.favoriteModels[displayId] or false
 end
 
 function PSM.ModelsDataLoader:GetNpcZoneNames(npcId)
@@ -677,14 +639,6 @@ end
 --------------------------------------------------------------------------------
 
 -- Iterate NPCs of a display entry, calling fn(npc) until it returns true.
-local function AnyNPC(displayData, fn)
-    if displayData.npcs then
-        for _, npc in ipairs(displayData.npcs) do
-            if fn(npc) then return true end
-        end
-    end
-    return false
-end
 
 
 

@@ -1338,6 +1338,5 @@ end
 function PSM.ModelsFilters:UpdateDynamicFilters()
     local panel = PSM.state.modelsPanel
     if not panel then return end
-    PSM.ModelsDataLoader:ClearDynamicFilterCache()
     PSM.ModelsFilters:PopulateUnifiedFilterCheckboxes(panel)
 end

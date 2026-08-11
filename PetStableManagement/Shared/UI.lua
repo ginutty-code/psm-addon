@@ -599,7 +599,7 @@ end
 -- PANEL MANAGEMENT
 --------------------------------------------------------------------------------
 
--- Shared data-loading logic for UpdatePanel / UpdatePanelWithSnapshot
+-- Shared data-loading logic for UpdatePanel
 local function EnsurePetData(collectSnapshot)
     if PSM.state.isStableOpen then
         if collectSnapshot then
@@ -634,20 +634,6 @@ function PSM.UI:UpdatePanel(showIfHidden)
     end
 end
 
-function PSM.UI:UpdatePanelWithSnapshot()
-    if not PSM.state.panel then self:BuildPanel() end
-
-    if not EnsurePetData(true) then
-        print(PSM.Config.MESSAGES.NO_SNAPSHOT)
-        return
-    end
-
-    self:RenderPanel()
-    self:UpdatePanelTitle()
-
-    if PSM.state.panel then PSM.state.panel:Show() end
-end
-
 function PSM.UI:UpdatePanelTitle()
     if not PSM.state.panel or not PSM.state.panel.title then return end
 
@@ -671,32 +657,6 @@ function PSM.UI:UpdatePanelTitle()
     end
     PSM.state.panel.title:SetText(text)
     PSM.state.panel.title:SetTextColor(unpack(color))
-end
-
-function PSM.UI:CreateOptimizedSizeChangedHandler()
-    if not PSM.state.panel then return end
-    PSM.state.panel:SetScript("OnSizeChanged", function(self, width, height)
-        local wDiff = math.abs((PSM._lastLayoutWidth  or 0) - width)
-        local hDiff = math.abs((PSM._lastLayoutHeight or 0) - height)
-        if wDiff < 10 and hDiff < 10 then return end
-
-        PSM._lastLayoutWidth  = width
-        PSM._lastLayoutHeight = height
-        if not PSM.state.scrollFrame or not PSM.state.content then return end
-
-        PSM.state.scrollFrame:SetWidth(width - 40)
-        PSM.state.content:SetWidth(PSM.state.scrollFrame:GetWidth())
-        PSM.state.content:ClearAllPoints()
-        PSM.state.content:SetPoint("TOPLEFT")
-        PSM.state.content:SetPoint("TOPRIGHT")
-
-        PSM._renderCache = nil
-        PSM.state.panel.isResizing = true
-        PSM.C_Timer.After(0.05, function()
-            PSM.state.panel.isResizing = false
-            if PSM.UI and PSM.UI.RenderPanel then PSM.UI:RenderPanel(true) end
-        end)
-    end)
 end
 
 PSM.UI:CreateRenderCache()

@@ -265,23 +265,3 @@ function PSM.TamingChecker.GetRuleStatus(ruleKey)
     return status
 end
 
--- Returns an array of {label, desc, itemID, status} for all taming requirements
--- on a model record. Pass the model's data record (expected to have .taming = {...}).
--- Returns an empty table if the model has no special taming requirements.
--- @param modelData table : record with optional modelData.taming = { "Direhorn", ... }
--- @return table          : array of { label, desc, itemID, status }
-function PSM.TamingChecker.GetModelStatus(modelData)
-    local result = {}
-    if not modelData or not modelData.taming then return result end
-    for _, ruleKey in ipairs(modelData.taming) do
-        local rule   = PSM.TamingRules[ruleKey]
-        local status = PSM.TamingChecker.GetRuleStatus(ruleKey)
-        result[#result + 1] = {
-            label  = rule and rule.label  or ruleKey,
-            desc   = rule and rule.desc   or "",
-            itemID = rule and rule.itemID or nil,
-            status = status,
-        }
-    end
-    return result
-end

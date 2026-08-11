@@ -129,13 +129,6 @@ function PSM.Teams:CompareWithTeam(teamId)
     return true, nil
 end
 
-function PSM.Teams:FindMatchingTeam()
-    for _, team in ipairs(TeamsArray()) do
-        if self:CompareWithTeam(team.id) then return team.id end
-    end
-    return nil
-end
-
 ----------------------------------------------------------------------------------------------------------------
 -- CRUD OPERATIONS
 ----------------------------------------------------------------------------------------------------------------
@@ -510,8 +503,6 @@ end
 ----------------------------------------------------------------------------------------------------------------
 
 function PSM.Teams:GetActiveTeamId()   return CharData().activeTeamId     end
-function PSM.Teams:SetActiveTeamId(id) CharData().activeTeamId = id       end
-function PSM.Teams:ClearActiveTeam()   CharData().activeTeamId = nil      end
 
 function PSM.Teams:HasActiveTeamChanged()
     local id = self:GetActiveTeamId()
@@ -523,26 +514,7 @@ end
 -- UTILITY
 ----------------------------------------------------------------------------------------------------------------
 
-function PSM.Teams:GetTeamSummary(teamId)
-    local _, team = FindTeam(teamId)
-    if not team then return "Unknown" end
-    local count = 0
-    for slot = 1, 6 do if team.slots[slot] then count = count + 1 end end
-    return count .. "/6 pets"
-end
-
 function PSM.Teams:FormatTimestamp(ts)
     return ts and date("%Y-%m-%d %H:%M", ts) or "Unknown"
 end
 
-function PSM.Teams:ValidateTeam(teamId)
-    local _, team = FindTeam(teamId)
-    if not team                                   then return false, "Team not found"        end
-    if not (team.id and team.name and team.slots) then return false, "Team data is corrupted" end
-    return true, nil
-end
-
-function PSM.Teams:ExportTeamData(teamId)
-    local _, team = FindTeam(teamId)
-    return team and PSM.Utils.DeepCopy(team) or nil
-end

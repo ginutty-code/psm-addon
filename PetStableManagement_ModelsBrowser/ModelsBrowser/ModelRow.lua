@@ -228,31 +228,3 @@ function PSM.ModelRow:UpdateItemRow(row, item, index, scale)
     row:Show()
 end
 
--- Right-click to edit notes for a display ID
-function PSM.ModelRow:SetupNoteEditing(row, item)
-    if not row or not item then return end
-    
-    row:EnableMouseWheel(true)
-    row:SetScript("OnMouseDown", function(self, button)
-        if button == "RightButton" then
-            if item.displayId then
-                local npcs = item.npcs or {}
-                local familyName = item.familyName or "Unknown"
-                local currentNote = PSM.NPCNotes and PSM.NPCNotes.GetUserNote(item.displayId) or ""
-                if PSM.PopUpManager and PSM.PopUpManager.CreateNoteEditor then
-                    PSM.PopUpManager:CreateNoteEditor(nil, function(text)
-                        if PSM.NPCNotes then PSM.NPCNotes.SetUserNote(item.displayId, text) end
-                        local hasNote = PSM.NPCNotes and PSM.NPCNotes.GetUserNote(item.displayId)
-                        if row.noteIndicator then
-                            if hasNote and hasNote ~= "" then
-                                row.noteIndicator:Show()
-                            else
-                                row.noteIndicator:Hide()
-                            end
-                        end
-                    end, currentNote, item.displayId, familyName, npcs)
-                end
-            end
-        end
-    end)
-end

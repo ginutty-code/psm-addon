@@ -425,11 +425,6 @@ end
 -- UI construction helpers
 -- ─────────────────────────────────────────────
 
-function PSM.ModelsPanel:InitializePerformanceOptimizations()
-    PSM.ModelsDataLoader:CreateRenderCache()
-    PSM.NPCDataLoader:CreateRenderCache()
-end
-
 function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     -- Filters
         -- Show Only filters frame

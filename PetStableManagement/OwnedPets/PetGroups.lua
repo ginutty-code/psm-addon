@@ -70,13 +70,6 @@ function PSM.PetGroups:GetGroups()
     return groups
 end
 
-function PSM.PetGroups:GetGroupCount()
-    local storage = EnsureStorage()
-    local count = 0
-    for _ in pairs(storage) do count = count + 1 end
-    return count
-end
-
 function PSM.PetGroups:GetGroupById(groupId)
     if not groupId then return nil end
     local storage, ungroupedStorage = EnsureStorage()
@@ -107,53 +100,6 @@ function PSM.PetGroups:CreateGroup(name, silent)
         print("|cFF00FF00PetStableManagement: Group '" .. name .. "' created successfully.|r")
     end
     return groupId, nil
-end
-
-function PSM.PetGroups:GetPetsInGroup(groupId)
-    if not groupId then return {} end
-    local allPets = PSM.state.stablePets or {}
-    local storage, ungroupedStorage = EnsureStorage()
-
-    -- Build GUID→pet lookup once.
-    local byGUID = {}
-    for _, pet in ipairs(allPets) do
-        if pet.guid then byGUID[pet.guid] = pet end
-    end
-
-    if groupId == UNGROUPED_ID then
-        -- Collect GUIDs belonging to custom groups.
-        local inGroup = {}
-        for _, group in pairs(storage) do
-            for _, guid in ipairs(group.pets or {}) do inGroup[guid] = true end
-        end
-
-        local result, seen = {}, {}
-        -- Respect stored ungrouped order first.
-        for _, guid in ipairs(ungroupedStorage) do
-            local pet = byGUID[guid]
-            if pet and not inGroup[guid] then
-                table.insert(result, pet)
-                seen[guid] = true
-            end
-        end
-        -- Append newly acquired pets (not yet in any list).
-        for _, pet in ipairs(allPets) do
-            if pet.guid and not inGroup[pet.guid] and not seen[pet.guid] then
-                table.insert(result, pet)
-            end
-        end
-        return result
-    end
-
-    local group = self:GetGroupById(groupId)
-    if not group then return {} end
-
-    local result = {}
-    for _, guid in ipairs(group.pets) do
-        local pet = byGUID[guid]
-        if pet then table.insert(result, pet) end
-    end
-    return result
 end
 
 function PSM.PetGroups:MovePetToGroup(petGUID, targetGroupId, targetPosition)

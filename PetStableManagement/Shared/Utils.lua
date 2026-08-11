@@ -28,18 +28,6 @@ function PSM.Utils:NormalizeSearchText(text)
     return strtrim(text):lower()
 end
 
-function PSM.Utils:SafeStringFormat(formatStr, ...)
-    if type(formatStr) ~= "string" then return "" end
-    local args = {...}
-    for i, arg in ipairs(args) do
-        if type(arg) ~= "string" and type(arg) ~= "number" then
-            args[i] = tostring(arg ~= nil and arg or "nil")
-        end
-    end
-    local ok, result = pcall(string.format, formatStr, unpack(args))
-    return ok and result or formatStr
-end
-
 function PSM.Utils:FormatColorText(text, color)
     if not text or not color then return text or "" end
     return string.format("|cff%02x%02x%02x%s|r",

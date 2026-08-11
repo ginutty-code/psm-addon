@@ -124,45 +124,6 @@ describe("Utils:NormalizeSearchText", function()
     end)
 end)
 
--- NOTE: SafeStringFormat currently has zero call sites anywhere in the addon.
--- These tests pin its actual behaviour rather than its apparent intent, so that
--- anyone reviving it knows exactly what they are getting.
-describe("Utils:SafeStringFormat", function()
-    it("formats normally", function()
-        eq(U:SafeStringFormat("%s has %d pets", "Hunter", 5), "Hunter has 5 pets", "basic")
-    end)
-
-    it("coerces truthy non-string, non-number arguments", function()
-        eq(U:SafeStringFormat("%s", true), "true", "boolean true")
-        truthy(U:SafeStringFormat("%s", {}):match("^table: "), "table renders via tostring")
-    end)
-
-    it("renders boolean false as 'nil' -- known quirk", function()
-        -- `tostring(arg ~= nil and arg or "nil")` is the classic Lua and/or ternary
-        -- trap: for arg == false the middle term is falsy, so the expression yields
-        -- the "nil" string. Distinguishing false from nil needs a real if/else.
-        eq(U:SafeStringFormat("%s", false), "nil", "false is indistinguishable from nil here")
-    end)
-
-    it("does NOT coerce nil arguments -- known limitation", function()
-        -- The implementation writes `tostring(arg ~= nil and arg or "nil")`, so it
-        -- clearly means to render nil as "nil". It cannot: `local args = {...}`
-        -- collapses trailing nils and `ipairs` halts at the first hole, so the
-        -- coercion loop never sees them. string.format then errors on the missing
-        -- value and the pcall fallback returns the raw format string.
-        -- Fixing it needs select("#", ...) for the true arity plus
-        -- unpack(args, 1, n). Not done here: the function is unused, and changing
-        -- dead code is a separate decision from building this harness.
-        eq(U:SafeStringFormat("%s", nil), "%s", "trailing nil falls back to format string")
-        eq(U:SafeStringFormat("%s-%s", nil, "x"), "%s-%s", "leading nil also falls back")
-    end)
-
-    it("returns the format string rather than erroring on bad input", function()
-        eq(U:SafeStringFormat(nil), "", "nil format")
-        eq(U:SafeStringFormat("%d", "not a number"), "%d", "unconvertible argument")
-    end)
-end)
-
 describe("Utils:FormatColorText", function()
     it("wraps text in a WoW colour escape", function()
         eq(U:FormatColorText("Rare", { 1, 0.82, 0 }), "|cffffd100Rare|r", "gold")
