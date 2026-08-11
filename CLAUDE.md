@@ -151,6 +151,19 @@ real API for the cases under test, or not exist.** A catch-all no-op frame that
 swallows every call turns real bugs into passing tests; leave such code untestable
 until the layering work separates it.
 
+## CI
+
+`.github/workflows/ci.yml` runs on every push and PR, in two parallel jobs:
+`luacheck` and the test suite (via `lua5.1 Tests/run.lua`, the primary entry point,
+so it doesn't only ever exercise the lupa fallback).
+
+The lint job **gates on errors, not warnings**. luacheck exits 1 for warnings and
+≥2 for errors; the project carries a stable warning baseline (70), so failing on any
+warning would fail every run. The count is printed in the job log — treat a change
+in it as something you caused, and account for it.
+
+There is no CI in `psm-data` yet. Its gate is `ruff check .`, run manually.
+
 ## Linting
 
 `luacheck` is installed outside this repo and is **not** on PATH — invoke it by
