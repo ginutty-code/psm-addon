@@ -96,6 +96,14 @@ Theme.BACKDROP = {
     SOLID = {
         bgFile = WHITE,
     },
+    -- No textures at all. A frame that needs BackdropTemplate so something can call
+    -- SetBackdropBorderColor on it later, but draws nothing of its own.
+    NONE = {},
+    -- Flat fill with a hairline border: cards and selectable rows, where the border
+    -- is recoloured on hover. Set both colours -- the border defaults to white.
+    SOLID_BORDERED = {
+        bgFile = WHITE, edgeFile = WHITE, edgeSize = 1,
+    },
 }
 
 -- Fill colours that go with the presets above, so a row's dark slate fill is

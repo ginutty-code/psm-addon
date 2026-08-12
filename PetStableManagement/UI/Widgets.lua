@@ -33,13 +33,15 @@ local COMMON_KEYS = { size = true, width = true, height = true, point = true, hi
 -- different factory, and is recorded in Widgets.unknownOptions rather than obeyed.
 local OPTIONS = {
     Frame       = { frameType = true, name = true, template = true, backdrop = true, backdropOverrides = true, color = true, borderColor = true, strata = true, level = true, allPoints = true, skin = true },
-    Label       = { fontSize = true, outline = true, color = true, justify = true, layer = true, text = true },
+    Label       = { fontSize = true, fontObject = true, outline = true, color = true, justify = true, layer = true, text = true, wordWrap = true, nonSpaceWrap = true },
     Button      = { name = true, template = true, text = true, fontObject = true, strata = true, level = true, onClick = true, tooltip = true, skin = true },
     IconButton  = { name = true, texture = true, highlight = true, pushed = true, alpha = true, level = true, onClick = true, tooltip = true, skin = true },
     CloseButton = { name = true, level = true, onClick = true, target = true },
     ResizeGrip  = { corner = true },
     EditBox     = { name = true, multiline = true, template = true, fontObject = true, autoFocus = true, textColor = true, text = true, onEscape = true, onEnter = true, closes = true },
     Line        = { layer = true, color = true },
+    Texture     = { layer = true, sublayer = true, allPoints = true, color = true, texture = true, atlas = true, texCoord = true, vertexColor = true },
+    CheckBox    = { name = true, template = true, checked = true, onClick = true, tooltip = true, label = true, labelFontObject = true, skin = true },
 }
 
 local function CheckOptions(factory, opts, allowed)
@@ -154,16 +156,32 @@ end
 -- TEXT
 --------------------------------------------------------------------------------
 
--- A font string. Text size is `fontSize` -- pass PSM.Theme.SIZE.LABEL explicitly so
--- it stays greppable at the call site. `size`, as everywhere else in this file, is
--- the {width, height} of the region; font strings rarely need it.
+-- A font string, in one of two mutually exclusive styles:
+--
+--   fontSize   = PSM.Theme.SIZE.LABEL   -- explicit font + size (+ optional outline)
+--   fontObject = "GameFontNormalSmall"  -- inherit a Blizzard font object
+--
+-- Pass the size explicitly rather than relying on the default, so it stays greppable
+-- at the call site. `size`, as everywhere else in this file, is the {width, height} of
+-- the region; font strings rarely need it.
 function Widgets.Label(parent, opts)
     opts = opts or {}
     CheckOptions("Label", opts, OPTIONS.Label)
-    local fs = parent:CreateFontString(nil, opts.layer or "OVERLAY")
-    fs:SetFont(PSM.Theme.FONT, opts.fontSize or PSM.Theme.SIZE.LABEL, opts.outline and "OUTLINE" or "")
-    if opts.color   then fs:SetTextColor(unpack(opts.color)) end
-    if opts.justify then fs:SetJustifyH(opts.justify)        end
+
+    if opts.fontObject and (opts.fontSize or opts.outline) then
+        error("PSM.Widgets.Label: `fontObject` and `fontSize`/`outline` are mutually exclusive", 2)
+    end
+
+    local fs = parent:CreateFontString(nil, opts.layer or "OVERLAY", opts.fontObject)
+    if not opts.fontObject then
+        fs:SetFont(PSM.Theme.FONT, opts.fontSize or PSM.Theme.SIZE.LABEL,
+                   opts.outline and "OUTLINE" or "")
+    end
+
+    if opts.color        then fs:SetTextColor(unpack(opts.color))     end
+    if opts.justify      then fs:SetJustifyH(opts.justify)            end
+    if opts.wordWrap ~= nil then fs:SetWordWrap(opts.wordWrap)        end
+    if opts.nonSpaceWrap    then fs:SetNonSpaceWrap(true)             end
     ApplyCommon(fs, opts)
     if opts.text then fs:SetText(opts.text) end
     return fs
@@ -303,9 +321,66 @@ end
 function Widgets.Line(parent, opts)
     opts = opts or {}
     CheckOptions("Line", opts, OPTIONS.Line)
-    local t = parent:CreateTexture(nil, opts.layer or "OVERLAY")
-    t:SetHeight(opts.height or 1)
-    ApplyPoints(t, opts.point)
-    t:SetColorTexture(unpack(opts.color or PSM.Theme.FILL.SEPARATOR))
+    return Widgets.Texture(parent, {
+        layer  = opts.layer  or "OVERLAY",
+        height = opts.height or 1,
+        color  = opts.color  or PSM.Theme.FILL.SEPARATOR,
+        point  = opts.point,
+        width  = opts.width,
+        hidden = opts.hidden,
+    })
+end
+
+-- A texture. Exactly one visual source: `color` (a flat SetColorTexture fill),
+-- `texture` (a file path), or `atlas`.
+function Widgets.Texture(parent, opts)
+    opts = opts or {}
+    CheckOptions("Texture", opts, OPTIONS.Texture)
+
+    local t = parent:CreateTexture(nil, opts.layer or "ARTWORK", nil, opts.sublayer)
+    if opts.allPoints then t:SetAllPoints() end
+    ApplyCommon(t, opts)
+
+    if opts.color   then t:SetColorTexture(unpack(opts.color)) end
+    if opts.texture then t:SetTexture(opts.texture)            end
+    if opts.atlas   then t:SetAtlas(opts.atlas)                end
+
+    if opts.texCoord    then t:SetTexCoord(unpack(opts.texCoord))       end
+    if opts.vertexColor then t:SetVertexColor(unpack(opts.vertexColor)) end
     return t
+end
+
+--------------------------------------------------------------------------------
+-- CHECKBOX
+--------------------------------------------------------------------------------
+
+-- A Blizzard check button, skinned. `label` adds the adjacent text these almost
+-- always carry; it comes back attached as `.label`.
+--
+-- Pass `skin = false` where the skin would cost legibility. SpecialTames' tri-state
+-- boxes are the case in point: ElvUI renders their "inverted" state as a grey filled
+-- square (grey tick on default UI), which doesn't read as "excluded" -- so they stay
+-- unskinned on purpose, gold tick for selected and a loot-pass X for inverted. That is
+-- a deliberate design decision, not an omission; see ARCHITECTURE_PLAN.md, A6.
+function Widgets.CheckBox(parent, opts)
+    opts = opts or {}
+    CheckOptions("CheckBox", opts, OPTIONS.CheckBox)
+
+    local c = CreateFrame("CheckButton", opts.name, parent, opts.template or "UICheckButtonTemplate")
+    ApplyCommon(c, opts)
+    if opts.checked then c:SetChecked(true)                   end
+    if opts.onClick then c:SetScript("OnClick", opts.onClick) end
+    if opts.tooltip then PSM.Tooltip.Attach(c, opts.tooltip)  end
+
+    if opts.label then
+        c.label = Widgets.Label(c, {
+            fontObject = opts.labelFontObject or "GameFontNormal",
+            justify    = "LEFT",
+            point      = { "LEFT", c, "RIGHT", 4, 0 },
+            text       = opts.label,
+        })
+    end
+
+    if opts.skin ~= false then PSM.Skin.Apply(c, "checkbox") end
+    return c
 end

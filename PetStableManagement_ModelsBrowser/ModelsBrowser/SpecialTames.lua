@@ -64,20 +64,16 @@ local RepopulateRows
 -- ─────────────────────────────────────────────
 
 local function CreateStatusIcon(parent, status)
-    local icon = CreateFrame("Frame", nil, parent)
-    icon:SetSize(CFG.STATUS_SIZE, CFG.STATUS_SIZE)
+    local Widgets = PSM.Widgets
 
-    local texture = icon:CreateTexture(nil, "ARTWORK")
-    texture:SetAllPoints()
-    texture:SetTexture("Interface\\RAIDFRAME\\ReadyCheck")
+    local icon = Widgets.Frame(parent, { size = { CFG.STATUS_SIZE, CFG.STATUS_SIZE } })
 
-    if status == "met" then
-        texture:SetTexCoord(0, 0.5, 0, 0.5)
-    else
-        texture:SetTexCoord(0.5, 1, 0.5, 1)
-    end
+    icon.texture = Widgets.Texture(icon, {
+        allPoints = true,
+        texture   = "Interface\\RAIDFRAME\\ReadyCheck",
+        texCoord  = (status == "met") and { 0, 0.5, 0, 0.5 } or { 0.5, 1, 0.5, 1 },
+    })
 
-    icon.texture = texture
     return icon
 end
 
@@ -98,10 +94,12 @@ local function UpdateCardHeaderVisual(card)
     elseif allInv then
         card.catLabel:SetTextColor(1, 0, 0)
         if not card.headerInvIcon then
-            card.headerInvIcon = card.header:CreateTexture(nil, "OVERLAY")
-            card.headerInvIcon:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
-            card.headerInvIcon:SetSize(14, 14)
-            card.headerInvIcon:SetPoint("LEFT", card.catLabel, "RIGHT", 5, 0)
+            card.headerInvIcon = PSM.Widgets.Texture(card.header, {
+                layer   = "OVERLAY",
+                texture = "Interface\\Buttons\\UI-GroupLoot-Pass-Up",
+                size    = { 14, 14 },
+                point   = { "LEFT", card.catLabel, "RIGHT", 5, 0 },
+            })
         end
         card.headerInvIcon:Show()
     elseif anyAct then
@@ -114,28 +112,35 @@ local function UpdateCardHeaderVisual(card)
 end
 
 local function CreateCategoryCard(parent, groupName, cardW)
-    local card = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    card:SetWidth(cardW)
-    card:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
+    local Widgets = PSM.Widgets
+
+    local card = Widgets.Frame(parent, {
+        width       = cardW,
+        backdrop    = "SOLID_BORDERED",
+        color       = { 0.05, 0.05, 0.05, 0.9 },
+        borderColor = { 0.2,  0.2,  0.2,  1   },
     })
-    card:SetBackdropColor(0.05, 0.05, 0.05, 0.9)
-    card:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
 
-    local header = CreateFrame("Button", nil, card)
-    header:SetPoint("TOPLEFT",  card, "TOPLEFT",  0, 0)
-    header:SetPoint("TOPRIGHT", card, "TOPRIGHT", 0, 0)
-    header:SetHeight(CFG.HEADER_H)
+    local header = Widgets.Frame(card, {
+        frameType = "Button",
+        height    = CFG.HEADER_H,
+        point     = {
+            { "TOPLEFT",  card, "TOPLEFT",  0, 0 },
+            { "TOPRIGHT", card, "TOPRIGHT", 0, 0 },
+        },
+    })
 
-    local hbg = header:CreateTexture(nil, "BACKGROUND")
-    hbg:SetAllPoints()
-    hbg:SetColorTexture(0.12, 0.12, 0.12, 1)
+    Widgets.Texture(header, {
+        layer     = "BACKGROUND",
+        allPoints = true,
+        color     = { 0.12, 0.12, 0.12, 1 },
+    })
 
-    local catLabel = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    catLabel:SetPoint("LEFT", header, "LEFT", CFG.CARD_PADDING, 0)
-    catLabel:SetText(groupName)
+    local catLabel = Widgets.Label(header, {
+        fontObject = "GameFontNormalSmall",
+        point      = { "LEFT", header, "LEFT", CFG.CARD_PADDING, 0 },
+        text       = groupName,
+    })
 
     card.header    = header
     card.catLabel  = catLabel
@@ -147,17 +152,15 @@ local function CreateCategoryCard(parent, groupName, cardW)
 end
 
 local function CreateRuleRow(parent, ruleKey, ruleData, yOffset)
-    local row = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    row:SetSize(CFG.PANEL_WIDTH - 2 * CFG.PADDING - 50, CFG.ROW_HEIGHT + CFG.CARD_PADDING * 2)
-    row:EnableMouse(true)
+    local Widgets = PSM.Widgets
 
-    row:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
+    local row = Widgets.Frame(parent, {
+        size        = { CFG.PANEL_WIDTH - 2 * CFG.PADDING - 50, CFG.ROW_HEIGHT + CFG.CARD_PADDING * 2 },
+        backdrop    = "SOLID_BORDERED",
+        color       = { 0.08, 0.08, 0.08, 0.85 },
+        borderColor = { 0.25, 0.25, 0.25, 1    },
     })
-    row:SetBackdropColor(0.08, 0.08, 0.08, 0.85)
-    row:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
+    row:EnableMouse(true)
 
     local P = CFG.CARD_PADDING
 
@@ -165,9 +168,14 @@ local function CreateRuleRow(parent, ruleKey, ruleData, yOffset)
     local statusIcon = CreateStatusIcon(row, status)
     statusIcon:SetPoint("LEFT", row, "LEFT", P, 0)
 
-    local checkbox = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
-    checkbox:SetSize(CFG.CHECKBOX_SIZE, CFG.CHECKBOX_SIZE)
-    checkbox:SetPoint("LEFT", statusIcon, "RIGHT", 10, 0)
+    -- skin = false on purpose: ElvUI's checkbox skin makes the inverted state
+    -- illegible (grey filled square). Gold tick = selected, loot-pass X = inverted.
+    -- See PSM.Widgets.CheckBox and ARCHITECTURE_PLAN.md A6 before changing this.
+    local checkbox = Widgets.CheckBox(row, {
+        skin  = false,
+        size  = { CFG.CHECKBOX_SIZE, CFG.CHECKBOX_SIZE },
+        point = { "LEFT", statusIcon, "RIGHT", 10, 0 },
+    })
 
     row.UpdateVisual = function()
         local state = selectedRules[ruleKey]
@@ -184,10 +192,12 @@ local function CreateRuleRow(parent, ruleKey, ruleData, yOffset)
             checkbox:SetChecked(true)
             check:SetAlpha(0)
             if not checkbox.invertedTexture then
-                checkbox.invertedTexture = checkbox:CreateTexture(nil, "OVERLAY")
-                checkbox.invertedTexture:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
-                checkbox.invertedTexture:SetSize(CFG.CHECKBOX_SIZE, CFG.CHECKBOX_SIZE)
-                checkbox.invertedTexture:SetPoint("CENTER", checkbox, "CENTER", 0, 0)
+                checkbox.invertedTexture = PSM.Widgets.Texture(checkbox, {
+                    layer   = "OVERLAY",
+                    texture = "Interface\\Buttons\\UI-GroupLoot-Pass-Up",
+                    size    = { CFG.CHECKBOX_SIZE, CFG.CHECKBOX_SIZE },
+                    point   = { "CENTER", checkbox, "CENTER", 0, 0 },
+                })
             end
             checkbox.invertedTexture:Show()
         end
@@ -256,31 +266,35 @@ local function CreateRuleRow(parent, ruleKey, ruleData, yOffset)
     parts[1] = color .. parts[1] .. "|r"
     local fullText = table.concat(parts, "")
 
-    local label = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    label:SetPoint("LEFT",  checkbox, "RIGHT",  10, 0)
-    label:SetPoint("RIGHT", row,      "RIGHT",  -P, 0)
-    label:SetJustifyH("LEFT")
-    label:SetText(fullText)
-    label:SetWordWrap(false)
+    local label = Widgets.Label(row, {
+        fontObject = "GameFontNormal",
+        justify    = "LEFT",
+        wordWrap   = false,
+        text       = fullText,
+        point      = {
+            { "LEFT",  checkbox, "RIGHT", 10, 0 },
+            { "RIGHT", row,      "RIGHT", -P, 0 },
+        },
+    })
 
     row:SetHyperlinksEnabled(true)
     row:SetScript("OnHyperlinkEnter", function(self, link)
         local rk   = link:match("psmtaming:(.+)")
         if not rk then return end
         local rule = PSM.TamingRules and PSM.TamingRules[rk]
-        if rule and rule.hint then
-            if rule.hint.itemID then
-                GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
-                GameTooltip:SetHyperlink("item:" .. rule.hint.itemID)
-                GameTooltip:Show()
-            elseif rule.hint.questID then
-                GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
-                GameTooltip:SetHyperlink("quest:" .. rule.hint.questID)
-                GameTooltip:Show()
-            end
+        if not (rule and rule.hint) then return end
+
+        local hyperlink
+        if rule.hint.itemID then
+            hyperlink = "item:" .. rule.hint.itemID
+        elseif rule.hint.questID then
+            hyperlink = "quest:" .. rule.hint.questID
+        end
+        if hyperlink then
+            PSM.Tooltip.Show(self, { anchor = "ANCHOR_CURSOR", hyperlink = hyperlink })
         end
     end)
-    row:SetScript("OnHyperlinkLeave", function() GameTooltip:Hide() end)
+    row:SetScript("OnHyperlinkLeave", PSM.Tooltip.Hide)
     row:SetScript("OnHyperlinkClick", function(self, link, text, button)
         local rk   = link:match("psmtaming:(.+)")
         if not rk then return end
@@ -294,17 +308,14 @@ local function CreateRuleRow(parent, ruleKey, ruleData, yOffset)
         end
     end)
 
-    row:SetScript("OnEnter", function(self)
-        self:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(ruleData.label, 1, 1, 1)
-        GameTooltip:AddLine(ruleData.desc, nil, nil, nil, true)
-        GameTooltip:Show()
-    end)
-    row:SetScript("OnLeave", function(self)
-        self:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
-        GameTooltip:Hide()
-    end)
+    PSM.Tooltip.Attach(row, {
+        title      = ruleData.label,
+        titleColor = PSM.Theme.COLOR.WHITE,
+        lines      = { { text = ruleData.desc, wrap = true } },
+    }, {
+        onEnter = function(self) self:SetBackdropBorderColor(0.5,  0.5,  0.5,  1) end,
+        onLeave = function(self) self:SetBackdropBorderColor(0.25, 0.25, 0.25, 1) end,
+    })
     row:SetScript("OnMouseUp", function(self, button)
         if button == "LeftButton" and self.checkbox then
             self.checkbox:Click()
@@ -319,19 +330,28 @@ local function CreateRuleRow(parent, ruleKey, ruleData, yOffset)
 end
 
 local function CreateConditionRow(parent, conditionName, width, card)
-    local row = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    row:SetSize(width, CFG.ROW_HEIGHT)
-    row:EnableMouse(true)
+    local Widgets = PSM.Widgets
 
-    row:SetBackdrop({ bgFile = nil, edgeFile = nil })
-    row:SetBackdropColor(0.08, 0.08, 0.08, 0.85)
-    row:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
+    -- Backdrop NONE, exactly as before: this row has no bgFile and no edgeFile, so the
+    -- colour calls below (and the hover recolour further down) have nothing to tint and
+    -- are inert. Preserved verbatim rather than cleaned up -- this migration is meant to
+    -- be behaviour-neutral, and the dead styling is A13's call, not this task's.
+    local row = Widgets.Frame(parent, {
+        size        = { width, CFG.ROW_HEIGHT },
+        backdrop    = "NONE",
+        color       = { 0.08, 0.08, 0.08, 0.85 },
+        borderColor = { 0.25, 0.25, 0.25, 1    },
+    })
+    row:EnableMouse(true)
 
     local P = CFG.CARD_PADDING
 
-    local checkbox = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
-    checkbox:SetSize(CFG.CHECKBOX_SIZE, CFG.CHECKBOX_SIZE)
-    checkbox:SetPoint("LEFT", row, "LEFT", P, 0)
+    -- skin = false on purpose: see CreateRuleRow.
+    local checkbox = Widgets.CheckBox(row, {
+        skin  = false,
+        size  = { CFG.CHECKBOX_SIZE, CFG.CHECKBOX_SIZE },
+        point = { "LEFT", row, "LEFT", P, 0 },
+    })
 
     row.UpdateVisual = function()
         local state = selectedConditions[conditionName]
@@ -348,10 +368,12 @@ local function CreateConditionRow(parent, conditionName, width, card)
             checkbox:SetChecked(true)
             check:SetAlpha(0)
             if not checkbox.invertedTexture then
-                checkbox.invertedTexture = checkbox:CreateTexture(nil, "OVERLAY")
-                checkbox.invertedTexture:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
-                checkbox.invertedTexture:SetSize(CFG.CHECKBOX_SIZE, CFG.CHECKBOX_SIZE)
-                checkbox.invertedTexture:SetPoint("CENTER", checkbox, "CENTER", 0, 0)
+                checkbox.invertedTexture = PSM.Widgets.Texture(checkbox, {
+                    layer   = "OVERLAY",
+                    texture = "Interface\\Buttons\\UI-GroupLoot-Pass-Up",
+                    size    = { CFG.CHECKBOX_SIZE, CFG.CHECKBOX_SIZE },
+                    point   = { "CENTER", checkbox, "CENTER", 0, 0 },
+                })
             end
             checkbox.invertedTexture:Show()
         end
@@ -378,12 +400,16 @@ local function CreateConditionRow(parent, conditionName, width, card)
         end
     end)
 
-    local label = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    label:SetPoint("LEFT",  checkbox, "RIGHT",  10, 0)
-    label:SetPoint("RIGHT", row,      "RIGHT",  -P, 0)
-    label:SetJustifyH("LEFT")
-    label:SetText("|cffffffff" .. conditionName .. "|r")
-    label:SetWordWrap(false)
+    Widgets.Label(row, {
+        fontObject = "GameFontNormal",
+        justify    = "LEFT",
+        wordWrap   = false,
+        text       = "|cffffffff" .. conditionName .. "|r",
+        point      = {
+            { "LEFT",  checkbox, "RIGHT", 10, 0 },
+            { "RIGHT", row,      "RIGHT", -P, 0 },
+        },
+    })
 
     row:SetScript("OnEnter", function(self)
         self:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
@@ -586,14 +612,18 @@ RepopulateRows = function(panel, query, activeTag)
                 end
 
                 -- "and X more" / "Show less" button
-                local moreBtn = CreateFrame("Button", nil, card)
-                moreBtn:SetSize(colWidth - 2 * CFG.CARD_PADDING, CFG.MORE_H)
-                moreBtn:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", CFG.CARD_PADDING, CFG.CARD_PADDING)
+                local moreBtn = PSM.Widgets.Frame(card, {
+                    frameType = "Button",
+                    size      = { colWidth - 2 * CFG.CARD_PADDING, CFG.MORE_H },
+                    point     = { "BOTTOMLEFT", card, "BOTTOMLEFT", CFG.CARD_PADDING, CFG.CARD_PADDING },
+                })
                 card.moreBtn = moreBtn
 
-                local moreLabel = moreBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-                moreLabel:SetPoint("CENTER")
-                moreLabel:SetTextColor(unpack(PSM.Config.COLORS.PRIMARY))
+                local moreLabel = PSM.Widgets.Label(moreBtn, {
+                    fontObject = "GameFontNormalSmall",
+                    color      = PSM.Config.COLORS.PRIMARY,
+                    point      = { "CENTER" },
+                })
                 moreBtn.label = moreLabel
 
                 if #matches > CFG.PARTIAL_ROWS then
@@ -696,10 +726,15 @@ end
 local PILL_TAGS = { "All Skills", "Unlocked Skills", "Locked Skills", "Conditions" }
 
 local function CreatePillBar(panel)
-    local pillBar = CreateFrame("Frame", nil, panel)
-    pillBar:SetHeight(24)
-    pillBar:SetPoint("TOPLEFT",  panel, "TOPLEFT",  20, -90)
-    pillBar:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -20, -90)
+    local Widgets = PSM.Widgets
+
+    local pillBar = Widgets.Frame(panel, {
+        height = 24,
+        point  = {
+            { "TOPLEFT",  panel, "TOPLEFT",   20, -90 },
+            { "TOPRIGHT", panel, "TOPRIGHT", -20, -90 },
+        },
+    })
 
     local pills = {}
     local xOff  = 0
@@ -715,38 +750,45 @@ local function CreatePillBar(panel)
     end
 
     for idx, tagName in ipairs(PILL_TAGS) do
-        local pill   = CreateFrame("Button", nil, pillBar)
         local labelW = #tagName * 7 + 16
-        pill:SetSize(labelW, 20)
-        pill:SetPoint("LEFT", pillBar, "LEFT", xOff, 0)
+        local pill = Widgets.Frame(pillBar, {
+            frameType = "Button",
+            size      = { labelW, 20 },
+            point     = { "LEFT", pillBar, "LEFT", xOff, 0 },
+        })
 
-        local tex = pill:CreateTexture(nil, "BACKGROUND")
-        tex:SetAllPoints()
-        tex:SetColorTexture(unpack(PSM.Config.TAB.INACTIVE_BG))
-        pill.tex = tex
+        pill.tex = Widgets.Texture(pill, {
+            layer     = "BACKGROUND",
+            allPoints = true,
+            color     = PSM.Config.TAB.INACTIVE_BG,
+        })
 
-        local label = pill:CreateFontString(nil, "OVERLAY")
-        label:SetFont("Fonts\\FRIZQT__.TTF", PSM.Config.FONT_SIZES.ABILITY_PILL)
-        label:SetPoint("CENTER")
-        label:SetText(tagName)
-        label:SetTextColor(unpack(PSM.Config.TAB.INACTIVE_TEXT))
-        pill.label = label
+        pill.label = Widgets.Label(pill, {
+            fontSize = PSM.Config.FONT_SIZES.ABILITY_PILL,
+            color    = PSM.Config.TAB.INACTIVE_TEXT,
+            point    = { "CENTER" },
+            text     = tagName,
+        })
 
-        local topLine = pill:CreateTexture(nil, "BORDER")
-        topLine:SetPoint("TOPLEFT",  pill, "TOPLEFT",  2, 0)
-        topLine:SetPoint("TOPRIGHT", pill, "TOPRIGHT", -2, 0)
-        topLine:SetHeight(1)
-        topLine:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BORDER))
-        topLine:Hide()
-        pill.topLine = topLine
+        pill.topLine = Widgets.Line(pill, {
+            layer  = "BORDER",
+            color  = PSM.Config.TAB.ACTIVE_BORDER,
+            hidden = true,
+            point  = {
+                { "TOPLEFT",  pill, "TOPLEFT",   2, 0 },
+                { "TOPRIGHT", pill, "TOPRIGHT", -2, 0 },
+            },
+        })
 
-        local bottomLine = pill:CreateTexture(nil, "BORDER")
-        bottomLine:SetPoint("BOTTOMLEFT",  pill, "BOTTOMLEFT",  2, 0)
-        bottomLine:SetPoint("BOTTOMRIGHT", pill, "BOTTOMRIGHT", -2, 0)
-        bottomLine:SetHeight(1)
-        bottomLine:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BORDER))
-        bottomLine:Hide()
-        pill.bottomLine = bottomLine
+        pill.bottomLine = Widgets.Line(pill, {
+            layer  = "BORDER",
+            color  = PSM.Config.TAB.ACTIVE_BORDER,
+            hidden = true,
+            point  = {
+                { "BOTTOMLEFT",  pill, "BOTTOMLEFT",   2, 0 },
+                { "BOTTOMRIGHT", pill, "BOTTOMRIGHT", -2, 0 },
+            },
+        })
 
         do
             local currentTag = tagName
@@ -1029,40 +1071,47 @@ end
 -- ─────────────────────────────────────────────
 
 local function CreateFooter(panel)
-    local footer = CreateFrame("Frame", nil, panel)
-    footer:SetHeight(36)
-    footer:SetPoint("BOTTOMLEFT",  panel, "BOTTOMLEFT",  20, 10)
-    footer:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -20, 10)
+    local Widgets = PSM.Widgets
 
-    local sep = footer:CreateTexture(nil, "BACKGROUND")
-    sep:SetHeight(1)
-    sep:SetPoint("TOPLEFT",  footer, "TOPLEFT",  0, 0)
-    sep:SetPoint("TOPRIGHT", footer, "TOPRIGHT", 0, 0)
-    sep:SetColorTexture(1, 1, 1, 0.08)
+    local footer = Widgets.Frame(panel, {
+        height = 36,
+        point  = {
+            { "BOTTOMLEFT",  panel, "BOTTOMLEFT",   20, 10 },
+            { "BOTTOMRIGHT", panel, "BOTTOMRIGHT", -20, 10 },
+        },
+    })
 
-    local note = footer:CreateFontString(nil, "OVERLAY")
-    note:SetFont("Fonts\\FRIZQT__.TTF", PSM.Config.FONT_SIZES.STATS)
-    note:SetTextColor(unpack(PSM.Config.COLORS.ABILITY_SELECTION_NOTE))
-    note:SetPoint("LEFT", footer, "LEFT", 0, -8)
-    note:SetText("0 items selected")
-    panel.selectionNote = note
+    Widgets.Line(footer, {
+        layer = "BACKGROUND",
+        color = PSM.Theme.FILL.HAIRLINE,
+        point = {
+            { "TOPLEFT",  footer, "TOPLEFT",  0, 0 },
+            { "TOPRIGHT", footer, "TOPRIGHT", 0, 0 },
+        },
+    })
 
-    local applyButton = CreateFrame("Button", nil, footer, "UIPanelButtonTemplate")
-    applyButton:SetSize(PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT)
-    applyButton:SetPoint("RIGHT", footer, "RIGHT", 0, -8)
-    applyButton:SetText("Apply Filters")
-    applyButton:SetNormalFontObject("GameFontNormalSmall")
-    applyButton:SetScript("OnClick", function() OnApplyClick(panel) end)
-    PSM.UI:ApplyElvUISkin(applyButton, "button")
+    panel.selectionNote = Widgets.Label(footer, {
+        fontSize = PSM.Config.FONT_SIZES.STATS,
+        color    = PSM.Config.COLORS.ABILITY_SELECTION_NOTE,
+        point    = { "LEFT", footer, "LEFT", 0, -8 },
+        text     = "0 items selected",
+    })
 
-    local selectAllButton = CreateFrame("Button", nil, footer, "UIPanelButtonTemplate")
-    selectAllButton:SetSize(PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT)
-    selectAllButton:SetPoint("RIGHT", applyButton, "LEFT", -8, 0)
-    selectAllButton:SetText("Select All")
-    selectAllButton:SetNormalFontObject("GameFontNormalSmall")
-    selectAllButton:SetScript("OnClick", function() OnSelectAllClick(panel) end)
-    PSM.UI:ApplyElvUISkin(selectAllButton, "button")
-    panel.selectAllBtn = selectAllButton
+    local applyButton = Widgets.Button(footer, {
+        size       = { PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT },
+        point      = { "RIGHT", footer, "RIGHT", 0, -8 },
+        text       = "Apply Filters",
+        fontObject = "GameFontNormalSmall",
+        onClick    = function() OnApplyClick(panel) end,
+    })
+
+    panel.selectAllBtn = Widgets.Button(footer, {
+        size       = { PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT },
+        point      = { "RIGHT", applyButton, "LEFT", -8, 0 },
+        text       = "Select All",
+        fontObject = "GameFontNormalSmall",
+        onClick    = function() OnSelectAllClick(panel) end,
+    })
 end
 
 -- ─────────────────────────────────────────────
@@ -1142,30 +1191,37 @@ function ST:CreateSpecialTamesPanel()
         end,
     })
 
-    local searchBox = CreateFrame("EditBox", nil, panel, "InputBoxTemplate")
-    searchBox:SetPoint("TOP", panel.title, "BOTTOM", 0, -10)
-    searchBox:SetSize(150, 20)
-    searchBox:SetAutoFocus(false)
-    searchBox:SetText("")
+    local Widgets = PSM.Widgets
+
+    local searchBox = Widgets.EditBox(panel, {
+        point    = { "TOP", panel.title, "BOTTOM", 0, -10 },
+        size     = { 150, 20 },
+        text     = "",
+        onEnter  = function(self) self:ClearFocus() end,
+        onEscape = function(self) self:ClearFocus() end,
+    })
     searchBox:SetScript("OnTextChanged", function(self)
         RepopulateRows(panel, self:GetText(), panel.activeTag)
     end)
-    searchBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
-    searchBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-    PSM.UI:ApplyElvUISkin(searchBox, "editbox")
     panel.searchBox = searchBox
 
     panel.activeTag = "All Skills"
     panel.pillBar   = CreatePillBar(panel)
 
-    local scrollFrame = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT",     panel, "TOPLEFT",     20, -120)
-    scrollFrame:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30,  56)
-    PSM.UI:ApplyElvUISkin(scrollFrame, "scrollframe")
-    PSM.UI:ApplyElvUISkin(scrollFrame.ScrollBar, "scrollbar")
+    local scrollFrame = Widgets.Frame(panel, {
+        frameType = "ScrollFrame",
+        template  = "UIPanelScrollFrameTemplate",
+        skin      = "scrollframe",
+        point     = {
+            { "TOPLEFT",     panel, "TOPLEFT",      20, -120 },
+            { "BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30,   56 },
+        },
+    })
+    PSM.Skin.Apply(scrollFrame.ScrollBar, "scrollbar")
 
-    local scrollChild = CreateFrame("Frame", nil, scrollFrame)
-    scrollChild:SetSize(CFG.PANEL_WIDTH - 50, 400)
+    local scrollChild = Widgets.Frame(scrollFrame, {
+        size = { CFG.PANEL_WIDTH - 50, 400 },
+    })
     scrollFrame:SetScrollChild(scrollChild)
 
     panel.scrollFrame = scrollFrame
