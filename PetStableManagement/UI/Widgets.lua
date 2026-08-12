@@ -253,7 +253,11 @@ function Widgets.ResizeGrip(frame, opts)
     grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
     grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
     grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
-    grip:SetScript("OnMouseDown", function() frame:StartSizing(opts.corner or "BOTTOMRIGHT") end)
+    -- Left button only. Two of the three hand-written grips this replaces started a
+    -- resize on *any* button, including right-click, which nobody wants.
+    grip:SetScript("OnMouseDown", function(_, button)
+        if button == "LeftButton" then frame:StartSizing(opts.corner or "BOTTOMRIGHT") end
+    end)
     grip:SetScript("OnMouseUp",   function() frame:StopMovingOrSizing() end)
     PSM.Skin.Apply(grip, "resizegrip")
     return grip
@@ -268,12 +272,19 @@ end
 -- The propagation dance matters: a frame with EnableKeyboard(true) swallows all
 -- keyboard input unless it re-propagates, which is how addons accidentally break
 -- the player's keybinds while a panel is open.
-function Widgets.CloseOnEscape(frame)
+-- `onEscape(frame)` runs after the frame hides, for dialogs that must report a
+-- cancellation. Escaping a dialog is a decision, and callers waiting on an answer
+-- need to hear about it -- a hand-written version that only hides is a silently
+-- dropped callback.
+function Widgets.CloseOnEscape(frame, onEscape)
     frame:EnableKeyboard(true)
     frame:SetPropagateKeyboardInput(true)
     frame:SetScript("OnKeyDown", function(self, key)
         self:SetPropagateKeyboardInput(key ~= "ESCAPE")
-        if key == "ESCAPE" then self:Hide() end
+        if key == "ESCAPE" then
+            self:Hide()
+            if onEscape then onEscape(self) end
+        end
     end)
     return frame
 end

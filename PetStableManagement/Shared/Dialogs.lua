@@ -19,75 +19,72 @@ PSM.TeamDialogs.activeDialog = nil
 -- BASE DIALOG CREATION
 --------------------------------------------------------------------------------
 
+-- Body text inside a dialog: the message/description lines every dialog has one or
+-- two of. Centralised here rather than repeated per dialog, so they can't drift.
+local function CreateDialogText(parent, opts)
+    return PSM.Widgets.Label(parent, {
+        fontSize = opts.fontSize or PSM.Theme.SIZE.BODY,
+        color    = opts.color or PSM.Theme.COLOR.WHITE,
+        justify  = opts.justify,
+        width    = opts.width,
+        point    = opts.point,
+        text     = opts.text,
+    })
+end
+
 -- Creates a styled dialog frame. Pass resizable=true for a resize handle.
 local function CreateBaseDialog(name, width, height, title, resizable)
     if PSM.TeamDialogs.activeDialog then
         PSM.TeamDialogs.activeDialog:Hide()
     end
 
-    local d = CreateFrame("Frame", name, UIParent, "BackdropTemplate")
-    d:SetSize(width or 350, height or 150)
-    d:SetPoint("CENTER", UIParent, "CENTER", 0, 100)
-    d:SetFrameStrata("DIALOG")
-    d:SetFrameLevel(100)
+    local Theme, Widgets = PSM.Theme, PSM.Widgets
+
+    local d = Widgets.MovableFrame(UIParent, {
+        name        = name,
+        size        = { width or 350, height or 150 },
+        point       = { "CENTER", UIParent, "CENTER", 0, 100 },
+        strata      = "DIALOG",
+        level       = 100,
+        backdrop    = "TOOLTIP",
+        color       = { 0.1, 0.1, 0.1, 0.95 },
+        borderColor = { 0.6, 0.6, 0.6, 1    },
+        -- No `skin` here on purpose: ElvUI's HandleFrame strips textures, and the
+        -- original applied it *after* the title/close/grip existed. Skinning at
+        -- construction would change what is in scope when it runs, so the call is
+        -- kept at the bottom of this function where it has always been.
+    })
     d:SetToplevel(true)
     d:SetClampedToScreen(true)
-    d:SetMovable(true)
     d:SetResizable(resizable or false)
-    d:EnableMouse(true)
-    d:RegisterForDrag("LeftButton")
-    d:SetScript("OnDragStart", d.StartMoving)
-    d:SetScript("OnDragStop",  d.StopMovingOrSizing)
 
-    d:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 16,
-        insets = {left=4, right=4, top=4, bottom=4},
+    d.title = Widgets.Label(d, {
+        fontSize = Theme.SIZE.HEADING,
+        outline  = true,
+        color    = Theme.COLOR.GOLD,
+        point    = { "TOP", 0, -15 },
+        text     = title or "Dialog",
     })
-    d:SetBackdropColor(0.1, 0.1, 0.1, 0.95)
-    d:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
 
-    d.title = d:CreateFontString(nil, "OVERLAY")
-    d.title:SetFont("Fonts\\FRIZQT__.TTF", 14, "OUTLINE")
-    d.title:SetPoint("TOP", 0, -15)
-    d.title:SetText(title or "Dialog")
-    d.title:SetTextColor(1, 0.82, 0)
-
-    d.closeButton = CreateFrame("Button", nil, d, "UIPanelCloseButton")
-    d.closeButton:SetPoint("TOPRIGHT", -2, -2)
-    d.closeButton:SetSize(24, 24)
-    d.closeButton:SetScript("OnClick", function()
-        d:Hide()
+    -- Closing a dialog by any route is a cancellation, and callers are waiting on
+    -- the answer -- so the X, Escape and the Cancel buttons all report it.
+    local function Cancel()
         if d.onCancel then d.onCancel() end
-    end)
-
-    if resizable then
-        local rh = CreateFrame("Button", nil, d)
-        rh:SetSize(16, 16)
-        rh:SetPoint("BOTTOMRIGHT", d, "BOTTOMRIGHT", -4, 4)
-        rh:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
-        rh:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
-        rh:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
-        rh:EnableMouse(true)
-        rh:SetScript("OnMouseDown", function(_, btn) if btn == "LeftButton" then d:StartSizing() end end)
-        rh:SetScript("OnMouseUp",   d.StopMovingOrSizing)
-        d.resizeHandle = rh
     end
 
-    d:SetScript("OnKeyDown", function(self, key)
-        if key == "ESCAPE" then
-            self:Hide()
-            if self.onCancel then self.onCancel() end
-            self:SetPropagateKeyboardInput(false)
-        else
-            self:SetPropagateKeyboardInput(true)
-        end
-    end)
-    d:EnableKeyboard(true)
+    d.closeButton = Widgets.CloseButton(d, {
+        point   = { "TOPRIGHT", -2, -2 },
+        size    = { 24, 24 },
+        onClick = function() d:Hide(); Cancel() end,
+    })
 
-    PSM.UI:ApplyElvUISkin(d, "frame")
-    PSM.UI:ApplyElvUISkin(d.closeButton, "closebutton")
+    if resizable then
+        d.resizeHandle = Widgets.ResizeGrip(d)
+    end
+
+    Widgets.CloseOnEscape(d, Cancel)
+
+    PSM.Skin.Apply(d, "frame")
 
     PSM.TeamDialogs.activeDialog = d
     d:SetScript("OnHide", function(self)
@@ -100,20 +97,18 @@ local function CreateBaseDialog(name, width, height, title, resizable)
 end
 
 local function CreateDialogButton(parent, text, width, height)
-    local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-    b:SetSize(width or 100, height or 25)
-    b:SetText(text)
-    b:SetNormalFontObject("GameFontNormal")
-    PSM.UI:ApplyElvUISkin(b, "button")
-    return b
+    return PSM.Widgets.Button(parent, {
+        size       = { width or 100, height or 25 },
+        text       = text,
+        fontObject = "GameFontNormal",
+    })
 end
 
 local function CreateDialogEditBox(parent, width, height)
-    local e = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
-    e:SetSize(width or 250, height or 25)
-    e:SetAutoFocus(false)
+    local e = PSM.Widgets.EditBox(parent, {
+        size = { width or 250, height or 25 },
+    })
     e:SetMaxLetters(50)
-    PSM.UI:ApplyElvUISkin(e, "editbox")
     return e
 end
 
@@ -126,11 +121,10 @@ function PSM.TeamDialogs:ShowNameInputDialog(options)
 
     local d = CreateBaseDialog("PSMTeamNameDialog", 350, 140, options.title or "Enter Team Name")
 
-    d.description = d:CreateFontString(nil, "OVERLAY")
-    d.description:SetFont("Fonts\\FRIZQT__.TTF", 11)
-    d.description:SetPoint("TOP", d.title, "BOTTOM", 0, -10)
-    d.description:SetText(options.description or "Enter a name for your pet team:")
-    d.description:SetTextColor(1, 1, 1)
+    d.description = CreateDialogText(d, {
+        point = { "TOP", d.title, "BOTTOM", 0, -10 },
+        text  = options.description or "Enter a name for your pet team:",
+    })
 
     d.editBox = CreateDialogEditBox(d, 140, 25)
     d.editBox:SetPoint("TOP", d.description, "BOTTOM", 0, -10)
@@ -138,9 +132,7 @@ function PSM.TeamDialogs:ShowNameInputDialog(options)
     d.editBox:SetFocus()
     if options.highlightText then d.editBox:HighlightText() end
 
-    local bc = CreateFrame("Frame", nil, d)
-    bc:SetSize(220, 30)
-    bc:SetPoint("BOTTOM", 0, 15)
+    local bc = PSM.Widgets.Frame(d, { size = { 220, 30 }, point = { "BOTTOM", 0, 15 } })
 
     d.confirmButton = CreateDialogButton(bc, options.confirmText or "Save", 100, 25)
     d.confirmButton:SetPoint("LEFT", 0, 0)
@@ -215,17 +207,14 @@ function PSM.TeamDialogs:ShowConfirmDialog(options)
 
     local d = CreateBaseDialog("PSMTeamConfirmDialog", 350, 130, options.title or "Confirm")
 
-    d.message = d:CreateFontString(nil, "OVERLAY")
-    d.message:SetFont("Fonts\\FRIZQT__.TTF", 11)
-    d.message:SetPoint("TOP", d.title, "BOTTOM", 0, -15)
-    d.message:SetWidth(300)
-    d.message:SetText(options.message or "Are you sure?")
-    d.message:SetTextColor(1, 1, 1)
-    d.message:SetJustifyH("CENTER")
+    d.message = CreateDialogText(d, {
+        point   = { "TOP", d.title, "BOTTOM", 0, -15 },
+        width   = 300,
+        justify = "CENTER",
+        text    = options.message or "Are you sure?",
+    })
 
-    local bc = CreateFrame("Frame", nil, d)
-    bc:SetSize(220, 30)
-    bc:SetPoint("BOTTOM", 0, 5)
+    local bc = PSM.Widgets.Frame(d, { size = { 220, 30 }, point = { "BOTTOM", 0, 5 } })
 
     d.confirmButton = CreateDialogButton(bc, options.confirmText or "Yes", 100, 25)
     d.confirmButton:SetPoint("LEFT", 0, 0)
@@ -302,17 +291,14 @@ function PSM.TeamDialogs:ShowSaveTeamDialog(options)
 
     local d = CreateBaseDialog("PSMTeamSaveDialog", 380, 180, "Save Pet Team")
 
-    d.message = d:CreateFontString(nil, "OVERLAY")
-    d.message:SetFont("Fonts\\FRIZQT__.TTF", 11)
-    d.message:SetPoint("TOP", d.title, "BOTTOM", 0, -10)
-    d.message:SetWidth(340)
-    d.message:SetText("Current slots differ from team '" .. options.existingTeamName .. "'.\nWhat would you like to do?")
-    d.message:SetTextColor(1, 1, 1)
-    d.message:SetJustifyH("CENTER")
+    d.message = CreateDialogText(d, {
+        point   = { "TOP", d.title, "BOTTOM", 0, -10 },
+        width   = 340,
+        justify = "CENTER",
+        text    = "Current slots differ from team '" .. options.existingTeamName .. "'.\nWhat would you like to do?",
+    })
 
-    local bc = CreateFrame("Frame", nil, d)
-    bc:SetSize(350, 70)
-    bc:SetPoint("BOTTOM", 0, 25)
+    local bc = PSM.Widgets.Frame(d, { size = { 350, 70 }, point = { "BOTTOM", 0, 25 } })
 
     d.updateButton = CreateDialogButton(bc, "Update '" .. options.existingTeamName .. "'", 160, 25)
     d.updateButton:SetPoint("TOP", 0, 0)
@@ -405,21 +391,22 @@ function PSM.TeamDialogs:ShowAddToTeamDialog(petData)
     local d = CreateBaseDialog("PSMAddToTeamDialog", dialogW,
         headerH + (needsScroll and maxBtnAreaH or btnAreaH) + footerH, "Add Pet to Team", true)
 
-    d.petInfoText = d:CreateFontString(nil, "OVERLAY")
-    d.petInfoText:SetFont("Fonts\\FRIZQT__.TTF", 12)
-    d.petInfoText:SetPoint("TOP", d.title, "BOTTOM", 0, -10)
-    d.petInfoText:SetTextColor(1, 0.82, 0)
-    d.petInfoText:SetText("Pet: " .. (petData.name or "Unknown"))
+    d.petInfoText = CreateDialogText(d, {
+        fontSize = PSM.Theme.SIZE.LABEL,
+        color    = PSM.Theme.COLOR.GOLD,
+        point    = { "TOP", d.title, "BOTTOM", 0, -10 },
+        text     = "Pet: " .. (petData.name or "Unknown"),
+    })
 
-    d.description = d:CreateFontString(nil, "OVERLAY")
-    d.description:SetFont("Fonts\\FRIZQT__.TTF", 11)
-    d.description:SetPoint("TOP", d.petInfoText, "BOTTOM", 0, -5)
-    d.description:SetTextColor(1, 1, 1)
+    d.description = CreateDialogText(d, {
+        point = { "TOP", d.petInfoText, "BOTTOM", 0, -5 },
+    })
 
     -- Bottom button area (shared by both branches)
-    local bottom = CreateFrame("Frame", nil, d)
-    bottom:SetSize(dialogW - 40, 60)
-    bottom:SetPoint("BOTTOM", d, "BOTTOM", 0, 10)
+    local bottom = PSM.Widgets.Frame(d, {
+        size  = { dialogW - 40, 60 },
+        point = { "BOTTOM", d, "BOTTOM", 0, 10 },
+    })
 
     d.createNewButton = CreateDialogButton(bottom, "Create New Team", 180, 25)
     d.createNewButton:SetScript("OnClick", function()
@@ -443,38 +430,45 @@ function PSM.TeamDialogs:ShowAddToTeamDialog(petData)
         local function PlaceTeamButtons(container)
             d.teamButtons = {}
             for i, team in ipairs(teams) do
-                local btn = CreateFrame("Button", nil, container, "UIPanelButtonTemplate")
-                btn:SetSize(btnW, btnH)
-                btn:SetText(team.name)
-                btn:SetNormalFontObject("GameFontNormalSmall")
-                PSM.UI:ApplyElvUISkin(btn, "button")
-
                 local col = (i-1) % cols
                 local row = math.floor((i-1) / cols)
-                btn:SetPoint("TOPLEFT", 5 + col*(btnW+spacing), -row*(btnH+spacing))
 
-                btn:SetScript("OnClick", function()
-                    d:Hide()
-                    PSM.TeamDialogs:ShowSelectSlotDialog(team, petData)
-                end)
+                local btn = PSM.Widgets.Button(container, {
+                    size       = { btnW, btnH },
+                    text       = team.name,
+                    fontObject = "GameFontNormalSmall",
+                    point      = { "TOPLEFT", 5 + col*(btnW+spacing), -row*(btnH+spacing) },
+                    onClick    = function()
+                        d:Hide()
+                        PSM.TeamDialogs:ShowSelectSlotDialog(team, petData)
+                    end,
+                })
                 table.insert(d.teamButtons, btn)
             end
         end
 
         if needsScroll then
-            local sf = CreateFrame("ScrollFrame", nil, d, "UIPanelScrollFrameTemplate")
-            sf:SetPoint("TOPLEFT",  d, "TOPLEFT",  20, -headerH)
-            sf:SetPoint("TOPRIGHT", d, "TOPRIGHT", -40, -headerH)
-            sf:SetPoint("BOTTOM",   d, "BOTTOM",    0, footerH + 10)
+            local sf = PSM.Widgets.Frame(d, {
+                frameType = "ScrollFrame",
+                template  = "UIPanelScrollFrameTemplate",
+                skin      = "scrollframe",
+                point     = {
+                    { "TOPLEFT",  d, "TOPLEFT",   20, -headerH },
+                    { "TOPRIGHT", d, "TOPRIGHT", -40, -headerH },
+                    { "BOTTOM",   d, "BOTTOM",     0, footerH + 10 },
+                },
+            })
 
-            local content = CreateFrame("Frame", nil, sf)
-            content:SetSize(sf:GetWidth() - 20, numRows * btnH + (numRows-1) * spacing)
+            local content = PSM.Widgets.Frame(sf, {
+                size = { sf:GetWidth() - 20, numRows * btnH + (numRows-1) * spacing },
+            })
             sf:SetScrollChild(content)
             PlaceTeamButtons(content)
         else
-            local frame = CreateFrame("Frame", nil, d)
-            frame:SetSize(dialogW - 40, btnAreaH)
-            frame:SetPoint("TOP", d.description, "BOTTOM", 0, -10)
+            local frame = PSM.Widgets.Frame(d, {
+                size  = { dialogW - 40, btnAreaH },
+                point = { "TOP", d.description, "BOTTOM", 0, -10 },
+            })
             PlaceTeamButtons(frame)
         end
     end
@@ -495,14 +489,13 @@ function PSM.TeamDialogs:ShowSelectSlotDialog(team, petData)
         for slot = 1, 6 do
             if team.slots[slot] and team.slots[slot].petNumber == petData.petNumber then
                 local d = CreateBaseDialog("PSMDuplicatePetWarning", 380, 150, "Duplicate Pet")
-                d.message = d:CreateFontString(nil, "OVERLAY")
-                d.message:SetFont("Fonts\\FRIZQT__.TTF", 11)
-                d.message:SetPoint("TOP", d.title, "BOTTOM", 0, -15)
-                d.message:SetWidth(340)
-                d.message:SetText("'" .. (petData.name or "Unknown") .. "' is already in team '" .. team.name ..
-                    "'\nat slot " .. slot .. ".\n\nEach pet can only appear once per team.")
-                d.message:SetTextColor(1, 1, 1)
-                d.message:SetJustifyH("CENTER")
+                d.message = CreateDialogText(d, {
+                    point   = { "TOP", d.title, "BOTTOM", 0, -15 },
+                    width   = 340,
+                    justify = "CENTER",
+                    text    = "'" .. (petData.name or "Unknown") .. "' is already in team '" .. team.name ..
+                        "'\nat slot " .. slot .. ".\n\nEach pet can only appear once per team.",
+                })
 
                 local ok = CreateDialogButton(d, "OK", 100, 25)
                 ok:SetPoint("BOTTOM", d, "BOTTOM", 0, 15)
@@ -515,23 +508,23 @@ function PSM.TeamDialogs:ShowSelectSlotDialog(team, petData)
 
     local d = CreateBaseDialog("PSMSelectSlotDialog", 420, 280, "Select Slot", true)
 
-    d.teamInfoText = d:CreateFontString(nil, "OVERLAY")
-    d.teamInfoText:SetFont("Fonts\\FRIZQT__.TTF", 12)
-    d.teamInfoText:SetPoint("TOP", d.title, "BOTTOM", 0, -10)
-    d.teamInfoText:SetTextColor(1, 0.82, 0)
-    d.teamInfoText:SetText("Team: " .. team.name)
+    d.teamInfoText = CreateDialogText(d, {
+        fontSize = PSM.Theme.SIZE.LABEL,
+        color    = PSM.Theme.COLOR.GOLD,
+        point    = { "TOP", d.title, "BOTTOM", 0, -10 },
+        text     = "Team: " .. team.name,
+    })
 
-    d.petInfoText = d:CreateFontString(nil, "OVERLAY")
-    d.petInfoText:SetFont("Fonts\\FRIZQT__.TTF", 11)
-    d.petInfoText:SetPoint("TOP", d.teamInfoText, "BOTTOM", 0, -5)
-    d.petInfoText:SetTextColor(1, 1, 1)
-    d.petInfoText:SetText("Pet: " .. (petData.name or "Unknown"))
+    d.petInfoText = CreateDialogText(d, {
+        point = { "TOP", d.teamInfoText, "BOTTOM", 0, -5 },
+        text  = "Pet: " .. (petData.name or "Unknown"),
+    })
 
-    d.description = d:CreateFontString(nil, "OVERLAY")
-    d.description:SetFont("Fonts\\FRIZQT__.TTF", 11)
-    d.description:SetPoint("TOP", d.petInfoText, "BOTTOM", 0, -5)
-    d.description:SetText("Select a slot to add this pet to:")
-    d.description:SetTextColor(0.8, 0.8, 0.8)
+    d.description = CreateDialogText(d, {
+        color = PSM.Theme.COLOR.MUTED,
+        point = { "TOP", d.petInfoText, "BOTTOM", 0, -5 },
+        text  = "Select a slot to add this pet to:",
+    })
 
     local btnSize = 55
     local gap     = 10
@@ -542,45 +535,47 @@ function PSM.TeamDialogs:ShowSelectSlotDialog(team, petData)
 
     d.slotButtons = {}
     for slot = 1, 6 do
-        local btn = CreateFrame("Button", nil, d, "BackdropTemplate")
-        btn:SetSize(btnSize, btnSize)
-
         local row = math.floor((slot-1) / cols)
         local col = (slot-1) % cols
-        btn:SetPoint("TOPLEFT", d, "TOPLEFT", startX + col*(btnSize+gap), startY - row*(btnSize+gap))
-
-        btn:SetBackdrop({
-            bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-            tile=true, tileSize=8, edgeSize=8,
-            insets={left=2, right=2, top=2, bottom=2},
-        })
-        btn:SetBackdropColor(unpack(PSM.Config.COLORS.BACKGROUND))
-
         local isOccupied = team.slots and team.slots[slot] ~= nil
-        btn:SetBackdropBorderColor(isOccupied and 0.3 or 0.3, isOccupied and 0.3 or 0.5, isOccupied and 0.3 or 0.3, 1)
 
-        local label = btn:CreateFontString(nil, "OVERLAY")
-        label:SetFont("Fonts\\FRIZQT__.TTF", 11)
-        label:SetPoint("CENTER")
-        label:SetText("Slot " .. slot)
-        label:SetTextColor(isOccupied and 0.8 or 0.5, isOccupied and 0.8 or 1.0, isOccupied and 0.8 or 0.5)
+        local btn = PSM.Widgets.Frame(d, {
+            frameType = "Button",
+            size      = { btnSize, btnSize },
+            point     = { "TOPLEFT", d, "TOPLEFT",
+                          startX + col*(btnSize+gap), startY - row*(btnSize+gap) },
+            backdrop  = "TOOLTIP",
+            backdropOverrides = {
+                tileSize = 8, edgeSize = 8,
+                insets = { left = 2, right = 2, top = 2, bottom = 2 },
+            },
+            color       = PSM.Config.COLORS.BACKGROUND,
+            borderColor = isOccupied and { 0.3, 0.3, 0.3, 1 } or { 0.3, 0.5, 0.3, 1 },
+        })
+
+        PSM.Widgets.Label(btn, {
+            fontSize = PSM.Theme.SIZE.BODY,
+            color    = isOccupied and { 0.8, 0.8, 0.8 } or { 0.5, 1.0, 0.5 },
+            point    = { "CENTER" },
+            text     = "Slot " .. slot,
+        })
 
         btn:SetScript("OnClick", function()
             d:Hide()
             PSM.TeamDialogs:ConfirmAddToTeam(team, petData, slot)
         end)
-        btn:SetScript("OnEnter", function()
-            GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
-            if isOccupied then
-                GameTooltip:SetText("Slot " .. slot .. " (Occupied)", 1, 0.82, 0)
-                GameTooltip:AddLine((team.slots[slot].name or "Unknown Pet"), 1, 1, 1)
-            else
-                GameTooltip:SetText("Slot " .. slot .. " (Available)", 0.5, 1, 0.5)
-            end
-            GameTooltip:Show()
-        end)
-        btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+        PSM.Tooltip.Attach(btn, isOccupied
+            and {
+                title      = "Slot " .. slot .. " (Occupied)",
+                titleColor = PSM.Theme.COLOR.GOLD,
+                lines      = { { text = team.slots[slot].name or "Unknown Pet",
+                                 color = PSM.Theme.COLOR.WHITE } },
+            }
+            or {
+                title      = "Slot " .. slot .. " (Available)",
+                titleColor = { 0.5, 1, 0.5 },
+            })
 
         table.insert(d.slotButtons, btn)
     end
@@ -681,16 +676,16 @@ function PSM.TeamDialogs:ShowRemoveFromTeamDialog(petData)
     local dialogH = 180 + (count > 0 and count * 35 or 0)
     local d = CreateBaseDialog("PSMRemoveFromTeamDialog", 420, dialogH, "Remove from Team", true)
 
-    d.petInfoText = d:CreateFontString(nil, "OVERLAY")
-    d.petInfoText:SetFont("Fonts\\FRIZQT__.TTF", 12)
-    d.petInfoText:SetPoint("TOP", d.title, "BOTTOM", 0, -10)
-    d.petInfoText:SetTextColor(1, 0.82, 0)
-    d.petInfoText:SetText("Pet: " .. (petData.name or "Unknown"))
+    d.petInfoText = CreateDialogText(d, {
+        fontSize = PSM.Theme.SIZE.LABEL,
+        color    = PSM.Theme.COLOR.GOLD,
+        point    = { "TOP", d.title, "BOTTOM", 0, -10 },
+        text     = "Pet: " .. (petData.name or "Unknown"),
+    })
 
-    d.description = d:CreateFontString(nil, "OVERLAY")
-    d.description:SetFont("Fonts\\FRIZQT__.TTF", 11)
-    d.description:SetPoint("TOP", d.petInfoText, "BOTTOM", 0, -5)
-    d.description:SetTextColor(1, 1, 1)
+    d.description = CreateDialogText(d, {
+        point = { "TOP", d.petInfoText, "BOTTOM", 0, -5 },
+    })
 
     if count == 0 then
         d.description:SetText("This pet is not in any of your saved teams.")
@@ -703,15 +698,16 @@ function PSM.TeamDialogs:ShowRemoveFromTeamDialog(petData)
         d.teamButtons = {}
         local btnW, btnH = 200, 28
         for i, match in ipairs(matches) do
-            local btn = CreateFrame("Button", nil, d, "UIPanelButtonTemplate")
-            btn:SetSize(btnW, btnH)
-            btn:SetText(match.team.name .. " (Slot " .. match.slot .. ")")
-            btn:SetNormalFontObject("GameFontNormalSmall")
-            btn:SetPoint("TOP", d, "TOP", 0, -100 - (i-1)*(btnH+5))
-            btn:SetScript("OnClick", function()
-                d:Hide()
-                PSM.TeamDialogs:ConfirmRemoveFromTeam(match.team, match.slot, petData.name)
-            end)
+            local btn = PSM.Widgets.Button(d, {
+                size       = { btnW, btnH },
+                text       = match.team.name .. " (Slot " .. match.slot .. ")",
+                fontObject = "GameFontNormalSmall",
+                point      = { "TOP", d, "TOP", 0, -100 - (i-1)*(btnH+5) },
+                onClick    = function()
+                    d:Hide()
+                    PSM.TeamDialogs:ConfirmRemoveFromTeam(match.team, match.slot, petData.name)
+                end,
+            })
             table.insert(d.teamButtons, btn)
         end
 
