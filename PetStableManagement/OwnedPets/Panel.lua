@@ -206,13 +206,20 @@ function PSM.UI:AddOwnedPetsElements(panel)
         btn:SetNormalFontObject("GameFontNormalSmall")
         btn:SetScript("OnClick", onClick)
         if tooltip then
-            btn:SetScript("OnEnter", function(self)
-                GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-                GameTooltip:SetText(tooltip.title)
-                if tooltip.body then GameTooltip:AddLine(tooltip.body, 1, 1, 1) end
-                GameTooltip:Show()
+            -- `body` may be a string or a function returning one -- the Pet Teams
+            -- button passes a function so its saved-team count is read at hover time,
+            -- not at panel build time. The previous version passed `body` straight to
+            -- AddLine, so a function body rendered nothing at all and that count line
+            -- has never appeared on this panel. Resolved per hover now.
+            PSM.Tooltip.Attach(btn, function()
+                local body = tooltip.body
+                if type(body) == "function" then body = body() end
+                return {
+                    anchor = "ANCHOR_BOTTOM",
+                    title  = tooltip.title,
+                    lines  = body and { { text = body, color = PSM.Theme.COLOR.WHITE } } or nil,
+                }
             end)
-            btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
         end
         PSM.UI:ApplyElvUISkin(btn, "button")
         return btn
