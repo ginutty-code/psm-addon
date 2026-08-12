@@ -27,6 +27,18 @@ local CFG = {
     -- Fixed row heights derived below in Layout block
 }
 
+-- The card's own greys. Deliberately kept here rather than folded into
+-- PSM.Theme.FILL: the theme's ROW and SEPARATOR are a shade bluer (0.08/0.08/0.12
+-- and 0.25/0.25/0.30) and swapping to them would restyle this panel, which is a
+-- look-and-feel decision (A13), not part of centralising construction.
+local CARD = {
+    BG        = { 0.08, 0.08, 0.08, 0.85 },
+    BORDER    = { 0.25, 0.25, 0.25, 1    },
+    HEADER_BG = { 0.14, 0.14, 0.14, 1    },
+    SEPARATOR = { 0.25, 0.25, 0.25, 1    },
+    HOVER     = { 1,    1,    1,    0.12 },  -- icon hover wash
+}
+
 -- ─────────────────────────────────────────────
 -- Derived layout values (computed once)
 -- ─────────────────────────────────────────────
@@ -241,78 +253,102 @@ end
 -- AddTooltipPostCall instead runs on every rebuild (including that async
 -- refresh), so the extra lines show up on the very first hover too.
 
-local function AppendAbilityTooltipLines(entry)
+local function AbilityTooltipLines(entry)
+    local Theme = PSM.Theme
+    local lines = {}
+
+    local function Add(text, color)
+        lines[#lines + 1] = color and { text = text, color = color } or text
+    end
+
     if entry.rank and entry.rank ~= "" then
-        GameTooltip:AddLine(" ")
-        GameTooltip:AddLine(entry.rank, unpack(PSM.Config.COLORS.PRIMARY))
+        Add(" ")
+        Add(entry.rank, PSM.Config.COLORS.PRIMARY)
     end
     if entry.specTier then
-        GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("Available from:", 0.6, 0.6, 0.6)
-        GameTooltip:AddLine("Any pet with " .. GetSpecName(entry.rank) .. " spec", 1, 1, 1)
+        Add(" ")
+        Add("Available from:", Theme.COLOR.GREY)
+        Add("Any pet with " .. GetSpecName(entry.rank) .. " spec", Theme.COLOR.WHITE)
     elseif #entry.families > 0 then
-        GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("Available from:", 0.6, 0.6, 0.6)
+        Add(" ")
+        Add("Available from:", Theme.COLOR.GREY)
         for _, family in ipairs(entry.families) do
-            GameTooltip:AddLine("" .. family.name, 1, 1, 1)
+            Add(family.name, Theme.COLOR.WHITE)
         end
     end
-    GameTooltip:Show()
+    return lines
 end
 
 if TooltipDataProcessor and Enum.TooltipDataType and not AB.tooltipHookInstalled then
     AB.tooltipHookInstalled = true
     TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Spell, function(tooltip)
+        -- The identity check stays: this fires for every spell tooltip in the game,
+        -- including ones other frames own, and only GameTooltip is ours to append to.
         if tooltip == GameTooltip and AB.hoveredAbilityEntry then
-            AppendAbilityTooltipLines(AB.hoveredAbilityEntry)
+            PSM.Tooltip.AddLines(AbilityTooltipLines(AB.hoveredAbilityEntry), tooltip)
         end
     end)
 end
 
 local function CreateAbilityIcon(parent, entry, panel)
-    local btn = CreateFrame("Button", nil, parent)
-    btn:SetSize(CFG.ICON_SIZE, CFG.ICON_SIZE)
+    local Widgets = PSM.Widgets
 
-    local iconTex = btn:CreateTexture(nil, "ARTWORK")
-    iconTex:SetAllPoints()
-    if entry.icon and entry.icon ~= "" then
-        iconTex:SetTexture("Interface\\Icons\\" .. entry.icon)
-    end
-    btn.iconTex = iconTex
+    local btn = Widgets.Frame(parent, {
+        frameType = "Button",
+        size      = { CFG.ICON_SIZE, CFG.ICON_SIZE },
+    })
 
-    local selBorder = btn:CreateTexture(nil, "OVERLAY")
-    selBorder:SetPoint("TOPLEFT",     btn, "TOPLEFT",     -1,  1)
-    selBorder:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT",  1, -1)
-    selBorder:SetColorTexture(unpack(PSM.Config.COLORS.ABILITY_HIGHLIGHT))
-    btn.selBorder = selBorder
+    btn.iconTex = Widgets.Texture(btn, {
+        layer     = "ARTWORK",
+        allPoints = true,
+        texture   = entry.icon and entry.icon ~= "" and ("Interface\\Icons\\" .. entry.icon) or nil,
+    })
 
-    local highlight = btn:CreateTexture(nil, "OVERLAY")
-    highlight:SetAllPoints()
-    highlight:SetColorTexture(1, 1, 1, 0.12)
-    highlight:Hide()
+    btn.selBorder = Widgets.Texture(btn, {
+        layer = "OVERLAY",
+        color = PSM.Config.COLORS.ABILITY_HIGHLIGHT,
+        point = {
+            { "TOPLEFT",     btn, "TOPLEFT",     -1,  1 },
+            { "BOTTOMRIGHT", btn, "BOTTOMRIGHT",  1, -1 },
+        },
+    })
+
+    local highlight = Widgets.Texture(btn, {
+        layer     = "OVERLAY",
+        allPoints = true,
+        color     = CARD.HOVER,
+        hidden    = true,
+    })
 
     SetIconAppearance(btn, AB.selectedAbilities[entry.spellId])
 
-    btn:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:ClearLines()
-        if entry.spellId then
-            AB.hoveredAbilityEntry = entry
-            GameTooltip:SetSpellByID(entry.spellId)
-            -- SetSpellByID may resolve async; AppendAbilityTooltipLines runs via
-            -- the TooltipDataProcessor post-call once data is ready (see above).
-        else
-            GameTooltip:AddLine(entry.name or "Unknown", 1, 1, 1)
-            AppendAbilityTooltipLines(entry)
-        end
-        GameTooltip:Show()
-        highlight:Show()
-    end)
-    btn:SetScript("OnLeave", function()
-        AB.hoveredAbilityEntry = nil
-        GameTooltip:Hide()
-        highlight:Hide()
-    end)
+    -- The spell tooltip is Blizzard's own; our extra "Available from" lines are
+    -- appended by the TooltipDataProcessor post-call above, which needs
+    -- hoveredAbilityEntry set *before* the tooltip is built. Attach runs onEnter
+    -- first, so that ordering holds.
+    PSM.Tooltip.Attach(btn,
+        function()
+            if entry.spellId then return { spellId = entry.spellId } end
+            return {
+                title      = entry.name or "Unknown",
+                titleColor = PSM.Theme.COLOR.WHITE,
+                lines      = AbilityTooltipLines(entry),
+            }
+        end,
+        {
+            onEnter = function()
+                -- Only claimed when there is a spell to hang the post-call off, so a
+                -- spell tooltip raised by anything else never picks up our lines.
+                AB.hoveredAbilityEntry = entry.spellId and entry or nil
+                highlight:Show()
+            end,
+            onLeave = function()
+                AB.hoveredAbilityEntry = nil
+                highlight:Hide()
+            end,
+        }
+    )
+
     btn:SetScript("OnClick", function()
         local newState = not AB.selectedAbilities[entry.spellId]
         AB.selectedAbilities[entry.spellId] = newState
@@ -358,69 +394,83 @@ end
 -- cardW         : width used in partial state (1/3 of scroll area)
 -- expandedInnerW: inner pixel width available when card is full-width
 local function CreateCard(parent, cat, entries, cardW, expandedInnerW, panel, onToggle)
+    local Widgets       = PSM.Widgets
     local hasMore       = #entries > CFG.PARTIAL_ICONS
     local hiddenCount   = math.max(0, #entries - CFG.PARTIAL_ICONS)
 
     -- Icons-per-row for expanded state, based on actual full inner width
     local expandedIconsPerRow = math.max(1, math.floor(expandedInnerW / CELL))
 
-    local card = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    card:SetWidth(cardW)
-    card:SetHeight(PARTIAL_CARD_H)   -- all partial cards identical height
+    local card = Widgets.Frame(parent, {
+        width       = cardW,
+        height      = PARTIAL_CARD_H,   -- all partial cards identical height
+        backdrop    = "SOLID_BORDERED",
+        color       = CARD.BG,
+        borderColor = CARD.BORDER,
+    })
     card.isExpanded = false
     card.entries    = entries
     card.cat        = cat
 
-    card:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-    })
-    card:SetBackdropColor(0.08, 0.08, 0.08, 0.85)
-    card:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
-
     -- ── Header ──
-    local header = CreateFrame("Button", nil, card)
-    header:SetPoint("TOPLEFT",  card, "TOPLEFT",  0, 0)
-    header:SetPoint("TOPRIGHT", card, "TOPRIGHT", 0, 0)
-    header:SetHeight(HEADER_H)
+    local header = Widgets.Frame(card, {
+        frameType = "Button",
+        height    = HEADER_H,
+        point     = {
+            { "TOPLEFT",  card, "TOPLEFT",  0, 0 },
+            { "TOPRIGHT", card, "TOPRIGHT", 0, 0 },
+        },
+    })
 
-    local headerBg = header:CreateTexture(nil, "BACKGROUND")
-    headerBg:SetAllPoints()
-    headerBg:SetColorTexture(0.14, 0.14, 0.14, 1)
+    Widgets.Texture(header, {
+        layer     = "BACKGROUND",
+        allPoints = true,
+        color     = CARD.HEADER_BG,
+    })
 
-    local catLabel = header:CreateFontString(nil, "OVERLAY")
-    catLabel:SetFont("Fonts\\FRIZQT__.TTF", PSM.Config.FONT_SIZES.ABILITY_CATEGORY)
-    catLabel:SetTextColor(unpack(PSM.Config.COLORS.ABILITY_CATEGORY_LABEL))
-    catLabel:SetPoint("LEFT", header, "LEFT", P, 0)
-    catLabel:SetText(cat)
+    local catLabel = Widgets.Label(header, {
+        fontSize = PSM.Config.FONT_SIZES.ABILITY_CATEGORY,
+        color    = PSM.Config.COLORS.ABILITY_CATEGORY_LABEL,
+        point    = { "LEFT", header, "LEFT", P, 0 },
+        text     = cat,
+    })
     card.catLabel = catLabel
 
-    local countLabel = header:CreateFontString(nil, "OVERLAY")
-    countLabel:SetFont("Fonts\\FRIZQT__.TTF", PSM.Config.FONT_SIZES.STATS)
-    countLabel:SetTextColor(0.5, 0.5, 0.5, 1)
-    countLabel:SetPoint("RIGHT", header, "RIGHT", -P, 0)
-    countLabel:SetText("(" .. #entries .. ")")
+    Widgets.Label(header, {
+        fontSize = PSM.Config.FONT_SIZES.STATS,
+        color    = PSM.Theme.COLOR.FAINT,
+        point    = { "RIGHT", header, "RIGHT", -P, 0 },
+        text     = "(" .. #entries .. ")",
+    })
 
-    local sep = card:CreateTexture(nil, "BACKGROUND")
-    sep:SetHeight(SEP_H)
-    sep:SetPoint("TOPLEFT",  card, "TOPLEFT",  0, -HEADER_H)
-    sep:SetPoint("TOPRIGHT", card, "TOPRIGHT", 0, -HEADER_H)
-    sep:SetColorTexture(0.25, 0.25, 0.25, 1)
+    Widgets.Line(card, {
+        layer  = "BACKGROUND",
+        height = SEP_H,
+        color  = CARD.SEPARATOR,
+        point  = {
+            { "TOPLEFT",  card, "TOPLEFT",  0, -HEADER_H },
+            { "TOPRIGHT", card, "TOPRIGHT", 0, -HEADER_H },
+        },
+    })
+
+    -- Both icon areas start below the header and span the card's inner width.
+    local function IconArea(height)
+        return Widgets.Frame(card, {
+            height = height,
+            point  = {
+                { "TOPLEFT",  card, "TOPLEFT",   P, -(HEADER_H + SEP_H + P) },
+                { "TOPRIGHT", card, "TOPRIGHT", -P, -(HEADER_H + SEP_H + P) },
+            },
+        })
+    end
 
     -- ── Partial icon area (always shown, 1 row of up to 5 icons) ──
-    local partialArea = CreateFrame("Frame", nil, card)
-    partialArea:SetPoint("TOPLEFT",  card, "TOPLEFT",  P, -(HEADER_H + SEP_H + P))
-    partialArea:SetPoint("TOPRIGHT", card, "TOPRIGHT", -P, -(HEADER_H + SEP_H + P))
-    partialArea:SetHeight(CELL)
+    local partialArea = IconArea(CELL)
     PlaceIconGrid(partialArea, entries, 1, CFG.PARTIAL_ICONS, CFG.PARTIAL_ICONS, panel)
 
     -- ── Expanded icon area (hidden until expanded; contains ALL icons) ──
     -- Uses full inner width so icons spread across the whole card.
-    local expandArea = CreateFrame("Frame", nil, card)
-    expandArea:SetPoint("TOPLEFT",  card, "TOPLEFT",  P, -(HEADER_H + SEP_H + P))
-    expandArea:SetPoint("TOPRIGHT", card, "TOPRIGHT", -P, -(HEADER_H + SEP_H + P))
-    expandArea:SetHeight(CFG.EXPANDED_ROWS * CELL)
+    local expandArea = IconArea(CFG.EXPANDED_ROWS * CELL)
     expandArea:Hide()
     card.expandArea  = expandArea
     card.partialArea = partialArea
@@ -429,16 +479,19 @@ local function CreateCard(parent, cat, entries, cardW, expandedInnerW, panel, on
     PlaceIconGrid(expandArea, entries, 1, #entries, expandedIconsPerRow, panel)
 
     -- ── "and X more" / "Show less" label — anchored bottom-right always ──
-    local moreBtn = CreateFrame("Button", nil, card)
-    moreBtn:SetSize(120, MORE_H)
-    moreBtn:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", -P, P)
+    local moreBtn = Widgets.Frame(card, {
+        frameType = "Button",
+        size      = { 120, MORE_H },
+        point     = { "BOTTOMRIGHT", card, "BOTTOMRIGHT", -P, P },
+    })
     card.moreBtn = moreBtn
 
-    local moreLabel = moreBtn:CreateFontString(nil, "OVERLAY")
-    moreLabel:SetFont("Fonts\\FRIZQT__.TTF", PSM.Config.FONT_SIZES.STATS)
-    moreLabel:SetTextColor(unpack(PSM.Config.COLORS.PRIMARY))
-    moreLabel:SetPoint("RIGHT", moreBtn, "RIGHT", 0, 0)
-    moreLabel:SetJustifyH("RIGHT")
+    local moreLabel = Widgets.Label(moreBtn, {
+        fontSize = PSM.Config.FONT_SIZES.STATS,
+        color    = PSM.Config.COLORS.PRIMARY,
+        justify  = "RIGHT",
+        point    = { "RIGHT", moreBtn, "RIGHT", 0, 0 },
+    })
     moreBtn.label = moreLabel
 
     -- Show label only if there are hidden icons
@@ -513,7 +566,7 @@ function AB:PopulateAbilities(panel, query, activeTag)
         panel.scrollChild = nil
     end
 
-    local scrollChild = CreateFrame("Frame", nil, scrollFrame)
+    local scrollChild = PSM.Widgets.Frame(scrollFrame, {})
     scrollFrame:SetScrollChild(scrollChild)
     panel.scrollChild  = scrollChild
     panel.abilityIcons = {}
@@ -626,63 +679,35 @@ end
 local PILL_TAGS = { "All", "Spec", "Utility", "Defense", "Damage", "Control", "Debuffs", "Fun" }
 
 local function CreatePillBar(panel)
-    local pillBar = CreateFrame("Frame", nil, panel)
-    pillBar:SetHeight(24)
-    pillBar:SetPoint("TOPLEFT",  panel, "TOPLEFT",  20, -90)
-    pillBar:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -20, -90)
+    local Widgets = PSM.Widgets
+
+    local pillBar = Widgets.Frame(panel, {
+        height = 24,
+        point  = {
+            { "TOPLEFT",  panel, "TOPLEFT",   20, -90 },
+            { "TOPRIGHT", panel, "TOPRIGHT", -20, -90 },
+        },
+    })
 
     local pills = {}
     local xOff  = 0
 
     local function SetActive(activeIdx)
         for i, pill in ipairs(pills) do
-            if i == activeIdx then
-                pill.tex:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BG))
-                pill.label:SetTextColor(unpack(PSM.Config.TAB.ACTIVE_TEXT))
-                if pill.topLine    then pill.topLine:Show()    end
-                if pill.bottomLine then pill.bottomLine:Show() end
-            else
-                pill.tex:SetColorTexture(unpack(PSM.Config.TAB.INACTIVE_BG))
-                pill.label:SetTextColor(unpack(PSM.Config.TAB.INACTIVE_TEXT))
-                if pill.topLine    then pill.topLine:Hide()    end
-                if pill.bottomLine then pill.bottomLine:Hide() end
-            end
+            pill:SetActive(i == activeIdx)
         end
     end
 
     for idx, tagName in ipairs(PILL_TAGS) do
-        local pill   = CreateFrame("Button", nil, pillBar)
         local labelW = #tagName * 7 + 16
-        pill:SetSize(labelW, 20)
-        pill:SetPoint("LEFT", pillBar, "LEFT", xOff, 0)
 
-        local tex = pill:CreateTexture(nil, "BACKGROUND")
-        tex:SetAllPoints()
-        tex:SetColorTexture(unpack(PSM.Config.TAB.INACTIVE_BG))
-        pill.tex = tex
-
-        local label = pill:CreateFontString(nil, "OVERLAY")
-        label:SetFont("Fonts\\FRIZQT__.TTF", PSM.Config.FONT_SIZES.ABILITY_PILL)
-        label:SetPoint("CENTER")
-        label:SetText(tagName)
-        label:SetTextColor(unpack(PSM.Config.TAB.INACTIVE_TEXT))
-        pill.label = label
-
-        local topLine = pill:CreateTexture(nil, "BORDER")
-        topLine:SetPoint("TOPLEFT",  pill, "TOPLEFT",  2, 0)
-        topLine:SetPoint("TOPRIGHT", pill, "TOPRIGHT", -2, 0)
-        topLine:SetHeight(1)
-        topLine:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BORDER))
-        topLine:Hide()
-        pill.topLine = topLine
-
-        local bottomLine = pill:CreateTexture(nil, "BORDER")
-        bottomLine:SetPoint("BOTTOMLEFT",  pill, "BOTTOMLEFT",  2, 0)
-        bottomLine:SetPoint("BOTTOMRIGHT", pill, "BOTTOMRIGHT", -2, 0)
-        bottomLine:SetHeight(1)
-        bottomLine:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BORDER))
-        bottomLine:Hide()
-        pill.bottomLine = bottomLine
+        local pill = Widgets.Tab(pillBar, {
+            frameType = "Button",
+            size      = { labelW, 20 },
+            point     = { "LEFT", pillBar, "LEFT", xOff, 0 },
+            fontSize  = PSM.Config.FONT_SIZES.ABILITY_PILL,
+            text      = tagName,
+        })
 
         local currentTag = tagName
         local currentIdx = idx
@@ -708,133 +733,149 @@ end
 -- Footer
 -- ─────────────────────────────────────────────
 
-local function CreateFooter(panel)
-    local footer = CreateFrame("Frame", nil, panel)
-    footer:SetHeight(36)
-    footer:SetPoint("BOTTOMLEFT",  panel, "BOTTOMLEFT",  20, 10)
-    footer:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -20, 10)
+-- Apply the ticked abilities as a family filter on the Models Browser.
+local function ApplyAbilityFilters(panel)
+    -- Deliberately leaves selectedTamingRules/selectedConditions untouched: those are
+    -- re-checked per display regardless of family selection (DisplayPassesFilters), so
+    -- Abilities and Special Tames compose instead of one replacing the other.
 
-    local sep = footer:CreateTexture(nil, "BACKGROUND")
-    sep:SetHeight(1)
-    sep:SetPoint("TOPLEFT",  footer, "TOPLEFT",  0, 0)
-    sep:SetPoint("TOPRIGHT", footer, "TOPRIGHT", 0, 0)
-    sep:SetColorTexture(1, 1, 1, 0.08)
+    -- Computed into a local first: an Apply with nothing selected must clear the
+    -- Abilities filter (see isActive below), not leave the old narrowing in place.
+    local abilityFamilies = {}
+    local appliedCount = 0
+    local hasSpecAbility = false
 
-    local note = footer:CreateFontString(nil, "OVERLAY")
-    note:SetFont("Fonts\\FRIZQT__.TTF", PSM.Config.FONT_SIZES.STATS)
-    note:SetTextColor(unpack(PSM.Config.COLORS.ABILITY_SELECTION_NOTE))
-    note:SetPoint("LEFT", footer, "LEFT", 0, -8)
-    note:SetText("0 abilities selected")
-    panel.selectionNote = note
-
-    local applyBtn = CreateFrame("Button", nil, footer, "UIPanelButtonTemplate")
-    applyBtn:SetSize(PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT)
-    applyBtn:SetPoint("RIGHT", footer, "RIGHT", 0, -8)
-    applyBtn:SetText("Apply Filters")
-    applyBtn:SetScript("OnClick", function()
-        -- Deliberately leaves selectedTamingRules/selectedConditions untouched: those are
-        -- re-checked per display regardless of family selection (DisplayPassesFilters), so
-        -- Abilities and Special Tames compose instead of one replacing the other.
-
-        -- Computed into a local first: an Apply with nothing selected must clear the
-        -- Abilities filter (see isActive below), not leave the old narrowing in place.
-        local abilityFamilies = {}
-        local appliedCount = 0
-        local hasSpecAbility = false
-
-        for spellId, isOn in pairs(AB.selectedAbilities or {}) do
-            if isOn and panel.visibleSpells and panel.visibleSpells[spellId] then
-                local entry = AB.abilityBySpell and AB.abilityBySpell[spellId]
-                if entry then
-                    if entry.specTier then
-                        hasSpecAbility = true
-                    else
-                        for _, family in ipairs(entry.families or {}) do
-                            if not abilityFamilies[family.name] then
-                                abilityFamilies[family.name] = true
-                                appliedCount = appliedCount + 1
-                            end
+    for spellId, isOn in pairs(AB.selectedAbilities or {}) do
+        if isOn and panel.visibleSpells and panel.visibleSpells[spellId] then
+            local entry = AB.abilityBySpell and AB.abilityBySpell[spellId]
+            if entry then
+                if entry.specTier then
+                    hasSpecAbility = true
+                else
+                    for _, family in ipairs(entry.families or {}) do
+                        if not abilityFamilies[family.name] then
+                            abilityFamilies[family.name] = true
+                            appliedCount = appliedCount + 1
                         end
                     end
                 end
             end
         end
+    end
 
-        if hasSpecAbility then
-            for familyId, familyData in pairs(_G.AbilitiesData or {}) do
-                if type(familyId) == "number" and familyData and familyData.name then
-                    if not abilityFamilies[familyData.name] then
-                        abilityFamilies[familyData.name] = true
-                        appliedCount = appliedCount + 1
-                    end
+    if hasSpecAbility then
+        for familyId, familyData in pairs(_G.AbilitiesData or {}) do
+            if type(familyId) == "number" and familyData and familyData.name then
+                if not abilityFamilies[familyData.name] then
+                    abilityFamilies[familyData.name] = true
+                    appliedCount = appliedCount + 1
                 end
             end
         end
+    end
 
-        local isActive = appliedCount > 0
-        PSM.state.familiesAppliedFromAbilities = isActive
-        -- Kept separate from selectedModelsFamilies (recompute below narrows that further
-        -- by any active Special Tames rules): this pure result is what a Special Tames
-        -- re-Apply intersects against, so switching rules replaces rather than ANDs.
-        PSM.state.abilitiesFamilySet = isActive and abilityFamilies or nil
+    local isActive = appliedCount > 0
+    PSM.state.familiesAppliedFromAbilities = isActive
+    -- Kept separate from selectedModelsFamilies (recompute below narrows that further
+    -- by any active Special Tames rules): this pure result is what a Special Tames
+    -- re-Apply intersects against, so switching rules replaces rather than ANDs.
+    PSM.state.abilitiesFamilySet = isActive and abilityFamilies or nil
 
-        PetStableManagementDB = PetStableManagementDB or {}
-        PetStableManagementDB.filters = PetStableManagementDB.filters or {}
-        PetStableManagementDB.filters.familiesAppliedFromAbilities  = isActive or nil
-        PetStableManagementDB.filters.selectedFamiliesFromAbilities = isActive and PSM.Utils.DeepCopy(abilityFamilies) or nil
+    PetStableManagementDB = PetStableManagementDB or {}
+    PetStableManagementDB.filters = PetStableManagementDB.filters or {}
+    PetStableManagementDB.filters.familiesAppliedFromAbilities  = isActive or nil
+    PetStableManagementDB.filters.selectedFamiliesFromAbilities = isActive and PSM.Utils.DeepCopy(abilityFamilies) or nil
 
-        -- Only the derived family set was saved before, so this panel's own checkboxes had
-        -- no way to know which abilities had been picked. Save just the ticked spell IDs,
-        -- not the whole selectedAbilities map (mostly false entries).
-        local selectedSpells = {}
-        for spellId, isOn in pairs(AB.selectedAbilities or {}) do
-            if isOn then selectedSpells[spellId] = true end
-        end
-        PetStableManagementDB.filters.selectedAbilitySpells = next(selectedSpells) and selectedSpells or nil
+    -- Only the derived family set was saved before, so this panel's own checkboxes had
+    -- no way to know which abilities had been picked. Save just the ticked spell IDs,
+    -- not the whole selectedAbilities map (mostly false entries).
+    local selectedSpells = {}
+    for spellId, isOn in pairs(AB.selectedAbilities or {}) do
+        if isOn then selectedSpells[spellId] = true end
+    end
+    PetStableManagementDB.filters.selectedAbilitySpells = next(selectedSpells) and selectedSpells or nil
 
-        -- Always recompute, even when cleared, so the family selection widens back out.
-        if PSM.ModelsFilters and PSM.ModelsFilters.RecomputeSmartFamilySelection then
-            PSM.ModelsFilters:RecomputeSmartFamilySelection()
-        end
+    -- Always recompute, even when cleared, so the family selection widens back out.
+    if PSM.ModelsFilters and PSM.ModelsFilters.RecomputeSmartFamilySelection then
+        PSM.ModelsFilters:RecomputeSmartFamilySelection()
+    end
 
-        if PSM.ModelsFilters and PSM.ModelsFilters.ReloadAndSummarise then
-            PSM.ModelsFilters:ReloadAndSummarise()
-        end
-        print(PSM.Utils:FormatColorText(
-            "PetStableManagement: Filter applied - " .. appliedCount .. " families from selected abilities.",
-            PSM.Config.COLORS.SUCCESS
-        ))
-    end)
-    PSM.UI:ApplyElvUISkin(applyBtn, "button")
+    if PSM.ModelsFilters and PSM.ModelsFilters.ReloadAndSummarise then
+        PSM.ModelsFilters:ReloadAndSummarise()
+    end
+    print(PSM.Utils:FormatColorText(
+        "PetStableManagement: Filter applied - " .. appliedCount .. " families from selected abilities.",
+        PSM.Config.COLORS.SUCCESS
+    ))
+end
 
-    local selectAllBtn = CreateFrame("Button", nil, footer, "UIPanelButtonTemplate")
-    selectAllBtn:SetSize(PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT)
-    selectAllBtn:SetPoint("RIGHT", applyBtn, "LEFT", -8, 0)
-    selectAllBtn:SetText("Select All")
-    selectAllBtn:SetScript("OnClick", function()
-        local anySelected = false
-        for spellId, isOn in pairs(AB.selectedAbilities or {}) do
-            if isOn and panel.visibleSpells and panel.visibleSpells[spellId] then
-                anySelected = true; break
-            end
+-- Select or unselect every currently visible ability. "Visible" is what the search
+-- box and the active tag pill leave on screen, not the whole ability list.
+local function ToggleSelectAll(panel)
+    local anySelected = false
+    for spellId, isOn in pairs(AB.selectedAbilities or {}) do
+        if isOn and panel.visibleSpells and panel.visibleSpells[spellId] then
+            anySelected = true; break
         end
-        local newState = not anySelected
-        for spellId in pairs(panel.visibleSpells or {}) do
-            AB.selectedAbilities[spellId] = newState
+    end
+
+    local newState = not anySelected
+    for spellId in pairs(panel.visibleSpells or {}) do
+        AB.selectedAbilities[spellId] = newState
+    end
+    for _, iconBtn in ipairs(panel.abilityIcons or {}) do
+        if iconBtn.spellId then
+            SetIconAppearance(iconBtn, newState)
         end
-        for _, iconBtn in ipairs(panel.abilityIcons or {}) do
-            if iconBtn.spellId then
-                SetIconAppearance(iconBtn, newState)
-            end
-        end
-        for _, card in ipairs(panel.cardList or {}) do
-            UpdateCardHeader(card)
-        end
-        UpdateSelectionNote(panel)
-        UpdateSelectAllButton(panel)
-    end)
-    PSM.UI:ApplyElvUISkin(selectAllBtn, "button")
-    panel.selectAllBtn = selectAllBtn
+    end
+    for _, card in ipairs(panel.cardList or {}) do
+        UpdateCardHeader(card)
+    end
+
+    UpdateSelectionNote(panel)
+    UpdateSelectAllButton(panel)
+end
+
+local function CreateFooter(panel)
+    local Widgets = PSM.Widgets
+
+    local footer = Widgets.Frame(panel, {
+        height = 36,
+        point  = {
+            { "BOTTOMLEFT",  panel, "BOTTOMLEFT",   20, 10 },
+            { "BOTTOMRIGHT", panel, "BOTTOMRIGHT", -20, 10 },
+        },
+    })
+
+    Widgets.Line(footer, {
+        layer = "BACKGROUND",
+        color = PSM.Theme.FILL.HAIRLINE,
+        point = {
+            { "TOPLEFT",  footer, "TOPLEFT",  0, 0 },
+            { "TOPRIGHT", footer, "TOPRIGHT", 0, 0 },
+        },
+    })
+
+    panel.selectionNote = Widgets.Label(footer, {
+        fontSize = PSM.Config.FONT_SIZES.STATS,
+        color    = PSM.Config.COLORS.ABILITY_SELECTION_NOTE,
+        point    = { "LEFT", footer, "LEFT", 0, -8 },
+        text     = "0 abilities selected",
+    })
+
+    local applyBtn = Widgets.Button(footer, {
+        size    = { PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT },
+        point   = { "RIGHT", footer, "RIGHT", 0, -8 },
+        text    = "Apply Filters",
+        onClick = function() ApplyAbilityFilters(panel) end,
+    })
+
+    panel.selectAllBtn = Widgets.Button(footer, {
+        size    = { PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT },
+        point   = { "RIGHT", applyBtn, "LEFT", -8, 0 },
+        text    = "Select All",
+        onClick = function() ToggleSelectAll(panel) end,
+    })
 end
 
 -- ─────────────────────────────────────────────
@@ -869,30 +910,37 @@ function AB:CreateAbilityBrowser()
         showMaximizeButton = false,
     })
 
-    local searchBox = CreateFrame("EditBox", nil, panel, "InputBoxTemplate")
-    searchBox:SetPoint("TOP", panel.title, "BOTTOM", 0, -10)
-    searchBox:SetSize(150, 20)
-    searchBox:SetAutoFocus(false)
-    searchBox:SetText("")
+    local Widgets = PSM.Widgets
+
+    local searchBox = Widgets.EditBox(panel, {
+        size     = { 150, 20 },
+        point    = { "TOP", panel.title, "BOTTOM", 0, -10 },
+        text     = "",
+        onEnter  = function(self) self:ClearFocus() end,
+        onEscape = function(self) self:ClearFocus() end,
+    })
     searchBox:SetScript("OnTextChanged", function(self)
         AB:PopulateAbilities(panel, self:GetText(), panel.activeTag or "")
         panel.scrollFrame:SetVerticalScroll(0)
     end)
-    searchBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
-    searchBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-    PSM.UI:ApplyElvUISkin(searchBox, "editbox")
     panel.searchBox = searchBox
 
     panel.pillBar = CreatePillBar(panel)
 
-    local scrollFrame = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT",     panel, "TOPLEFT",     20, -120)
-    scrollFrame:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30, 56)
-    PSM.UI:ApplyElvUISkin(scrollFrame, "scrollframe")
-    PSM.UI:ApplyElvUISkin(scrollFrame.ScrollBar, "scrollbar")
+    local scrollFrame = Widgets.Frame(panel, {
+        frameType = "ScrollFrame",
+        template  = "UIPanelScrollFrameTemplate",
+        skin      = "scrollframe",
+        point     = {
+            { "TOPLEFT",     panel, "TOPLEFT",      20, -120 },
+            { "BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30,   56 },
+        },
+    })
+    PSM.Skin.Apply(scrollFrame.ScrollBar, "scrollbar")
 
-    local scrollChild = CreateFrame("Frame", nil, scrollFrame)
-    scrollChild:SetSize(CFG.PANEL_WIDTH - 50, 400)
+    local scrollChild = Widgets.Frame(scrollFrame, {
+        size = { CFG.PANEL_WIDTH - 50, 400 },
+    })
     scrollFrame:SetScrollChild(scrollChild)
 
     panel.scrollFrame = scrollFrame

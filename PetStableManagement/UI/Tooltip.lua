@@ -19,6 +19,7 @@
 --       { text = "long explanation", color = PSM.Theme.COLOR.WHITE, wrap = true },
 --     },
 --     hyperlink = "item:12345",       -- mutually exclusive with title/lines
+--     spellId   = 883,                -- ditto: Blizzard's own spell tooltip
 --     toplevel = true,                -- for tooltips over TOOLTIP-strata popups
 --   }
 --
@@ -42,6 +43,24 @@ local function Resolve(spec, frame)
     return spec
 end
 
+-- The `lines` format, in one place, because two callers need it: Tooltip.Show
+-- building a tooltip from scratch, and Tooltip.AddLines appending to one that is
+-- already on screen.
+local function AddLines(tooltip, lines)
+    for _, line in ipairs(lines or {}) do
+        if type(line) == "string" then
+            tooltip:AddLine(line)
+        elseif line.text then
+            local c = line.color
+            if c then
+                tooltip:AddLine(line.text, c[1], c[2], c[3], line.wrap)
+            else
+                tooltip:AddLine(line.text, nil, nil, nil, line.wrap)
+            end
+        end
+    end
+end
+
 -- Build and show GameTooltip anchored to `owner`. Returns true if it was shown.
 function Tooltip.Show(owner, spec)
     spec = Resolve(spec, owner)
@@ -51,6 +70,11 @@ function Tooltip.Show(owner, spec)
 
     if spec.hyperlink then
         GameTooltip:SetHyperlink(spec.hyperlink)
+    elseif spec.spellId then
+        -- Blizzard fills the tooltip itself, possibly asynchronously the first time a
+        -- spell is seen. Anything added here would be discarded when the data arrives
+        -- and the tooltip is rebuilt -- see Tooltip.AddLines.
+        GameTooltip:SetSpellByID(spec.spellId)
     else
         if spec.title then
             local c = spec.titleColor
@@ -60,18 +84,7 @@ function Tooltip.Show(owner, spec)
                 GameTooltip:SetText(spec.title)
             end
         end
-        for _, line in ipairs(spec.lines or {}) do
-            if type(line) == "string" then
-                GameTooltip:AddLine(line)
-            elseif line.text then
-                local c = line.color
-                if c then
-                    GameTooltip:AddLine(line.text, c[1], c[2], c[3], line.wrap)
-                else
-                    GameTooltip:AddLine(line.text, nil, nil, nil, line.wrap)
-                end
-            end
-        end
+        AddLines(GameTooltip, spec.lines)
     end
 
     -- A tooltip owned by a frame in the TOOLTIP strata would otherwise render
@@ -87,6 +100,19 @@ end
 
 function Tooltip.Hide()
     GameTooltip:Hide()
+end
+
+-- Append lines to a tooltip that is already built, and re-show it so it resizes.
+--
+-- This exists for Blizzard's TooltipDataProcessor post-calls. When a data-driven
+-- tooltip (a spell, an item) resolves asynchronously, retail rebuilds the tooltip's
+-- lines internally, wiping out anything appended right after the Set* call. A
+-- post-call runs on every rebuild, including that late one, so extra lines survive.
+-- Same `lines` format as a spec, so a post-call and a spec describe theirs alike.
+function Tooltip.AddLines(lines, tooltip)
+    tooltip = tooltip or GameTooltip
+    AddLines(tooltip, lines)
+    tooltip:Show()
 end
 
 --------------------------------------------------------------------------------
