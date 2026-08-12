@@ -40,8 +40,9 @@ local OPTIONS = {
     ResizeGrip  = { corner = true },
     EditBox     = { name = true, multiline = true, template = true, fontObject = true, autoFocus = true, textColor = true, text = true, onEscape = true, onEnter = true, closes = true },
     Line        = { layer = true, color = true },
+    Tab         = { frameType = true, palette = true, fontSize = true, fontObject = true, text = true },
     Texture     = { layer = true, sublayer = true, allPoints = true, color = true, texture = true, atlas = true, texCoord = true, vertexColor = true },
-    CheckBox    = { name = true, template = true, checked = true, onClick = true, tooltip = true, label = true, labelFontObject = true, skin = true },
+    CheckBox    = { name = true, template = true, checked = true, onClick = true, tooltip = true, label = true, labelFontObject = true },
 }
 
 local function CheckOptions(factory, opts, allowed)
@@ -351,22 +352,93 @@ function Widgets.Texture(parent, opts)
 end
 
 --------------------------------------------------------------------------------
+-- TAB
+--------------------------------------------------------------------------------
+
+-- A tab/pill: flat background, a centred label, and top/bottom accent rules that
+-- appear only when active. Returns the frame with `.bg`, `.label`, `.topLine`,
+-- `.bottomLine` and a `:SetActive(bool)` method.
+--
+-- ModelsFilters' filter tabs and SpecialTames' pill bar were independent copies of
+-- this, including two separate hand-written "make this one look active" loops. The
+-- active-state visuals are the part worth sharing -- input handling is left to the
+-- caller, because those two differ deliberately (OnMouseDown vs OnClick).
+--
+-- `palette` defaults to PSM.Config.TAB and needs ACTIVE_BG / INACTIVE_BG /
+-- ACTIVE_TEXT / INACTIVE_TEXT / ACTIVE_BORDER.
+function Widgets.Tab(parent, opts)
+    opts = opts or {}
+    CheckOptions("Tab", opts, OPTIONS.Tab)
+
+    local palette = opts.palette or PSM.Config.TAB
+
+    local tab = Widgets.Frame(parent, {
+        frameType = opts.frameType or "Frame",
+        size      = opts.size,
+        point     = opts.point,
+    })
+    tab:EnableMouse(true)
+
+    tab.bg = Widgets.Texture(tab, {
+        layer     = "BACKGROUND",
+        allPoints = true,
+        color     = palette.INACTIVE_BG,
+    })
+
+    for _, edge in ipairs({ "TOP", "BOTTOM" }) do
+        local line = Widgets.Line(tab, {
+            layer  = "BORDER",
+            color  = palette.ACTIVE_BORDER,
+            hidden = true,
+            point  = {
+                { edge .. "LEFT",  tab, edge .. "LEFT",   2, 0 },
+                { edge .. "RIGHT", tab, edge .. "RIGHT", -2, 0 },
+            },
+        })
+        tab[edge == "TOP" and "topLine" or "bottomLine"] = line
+    end
+
+    tab.label = Widgets.Label(tab, {
+        fontObject = opts.fontObject,
+        fontSize   = opts.fontObject and nil or opts.fontSize,
+        color      = palette.INACTIVE_TEXT,
+        point      = { "CENTER" },
+        text       = opts.text,
+    })
+
+    function tab:SetActive(active)
+        self.bg:SetColorTexture(unpack(active and palette.ACTIVE_BG   or palette.INACTIVE_BG))
+        self.label:SetTextColor(unpack(active and palette.ACTIVE_TEXT or palette.INACTIVE_TEXT))
+        self.topLine:SetShown(active)
+        self.bottomLine:SetShown(active)
+    end
+
+    return tab
+end
+
+--------------------------------------------------------------------------------
 -- CHECKBOX
 --------------------------------------------------------------------------------
 
 -- A Blizzard check button, skinned. `label` adds the adjacent text these almost
 -- always carry; it comes back attached as `.label`.
 --
--- Pass `skin = false` where the skin would cost legibility. SpecialTames' tri-state
--- boxes are the case in point: ElvUI renders their "inverted" state as a grey filled
--- square (grey tick on default UI), which doesn't read as "excluded" -- so they stay
--- unskinned on purpose, gold tick for selected and a loot-pass X for inverted. That is
--- a deliberate design decision, not an omission; see ARCHITECTURE_PLAN.md, A6.
+-- Always skinned, and skinned *before this function returns* -- which is the ordering
+-- the tri-state boxes depend on. ElvUI's HandleCheckBox swaps in its own checked
+-- texture, so skinning after a caller has already rendered an "inverted" state would
+-- clobber it. Getting that right here means no caller has to remember it.
 function Widgets.CheckBox(parent, opts)
     opts = opts or {}
     CheckOptions("CheckBox", opts, OPTIONS.CheckBox)
 
     local c = CreateFrame("CheckButton", opts.name, parent, opts.template or "UICheckButtonTemplate")
+
+    -- Default to the canonical size rather than requiring one at every call site --
+    -- that is the difference between a kit that permits consistency and one that
+    -- produces it. Pass `size` only when a box genuinely needs to differ.
+    if not opts.size then
+        c:SetSize(PSM.Theme.CONTROL.CHECKBOX, PSM.Theme.CONTROL.CHECKBOX)
+    end
     ApplyCommon(c, opts)
     if opts.checked then c:SetChecked(true)                   end
     if opts.onClick then c:SetScript("OnClick", opts.onClick) end
@@ -381,6 +453,6 @@ function Widgets.CheckBox(parent, opts)
         })
     end
 
-    if opts.skin ~= false then PSM.Skin.Apply(c, "checkbox") end
+    PSM.Skin.Apply(c, "checkbox")
     return c
 end

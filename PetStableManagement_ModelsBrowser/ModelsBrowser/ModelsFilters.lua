@@ -33,20 +33,24 @@ end
 -- @param label       text shown next to the checkbox
 -- @param onChanged   function(triState) called after each state change
 local function CreateTristateCheckbox(parent, anchorTo, label, onChanged)
-    local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
-    cb:SetSize(20, 20)
+    local Widgets = PSM.Widgets
+
+    local point
     if anchorTo and anchorTo == parent.showOnlyFrame then
-        cb:SetPoint("TOPLEFT", anchorTo, "TOPLEFT", 8, -30)
+        point = { "TOPLEFT", anchorTo, "TOPLEFT", 8, -30 }
     elseif anchorTo then
-        cb:SetPoint("TOPLEFT", anchorTo, "BOTTOMLEFT", 0, -5)
+        point = { "TOPLEFT", anchorTo, "BOTTOMLEFT", 0, -5 }
     else
-        cb:SetPoint("TOPLEFT", 18, -19)
+        point = { "TOPLEFT", 18, -19 }
     end
 
-    cb.text = cb:CreateFontString(nil, "OVERLAY")
-    cb.text:SetFont("Fonts\\FRIZQT__.TTF", 10)
-    cb.text:SetPoint("LEFT", cb, "RIGHT", 5, 0)
-    cb.text:SetText(label)
+    local cb = Widgets.CheckBox(parent, { point = point })
+
+    cb.text = Widgets.Label(cb, {
+        fontSize = PSM.Theme.SIZE.SMALL,
+        point    = { "LEFT", cb, "RIGHT", 5, 0 },
+        text     = label,
+    })
     cb.triState = nil
     cb:SetHitRectInsets(0, -150, 0, 0)
 
@@ -62,10 +66,12 @@ local function CreateTristateCheckbox(parent, anchorTo, label, onChanged)
             self:SetChecked(true)
             check:SetAlpha(0)
             if not self.invertedTexture then
-                self.invertedTexture = self:CreateTexture(nil, "OVERLAY")
-                self.invertedTexture:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
-                self.invertedTexture:SetSize(16, 16)
-                self.invertedTexture:SetPoint("CENTER", self, "CENTER", 0, 0)
+                self.invertedTexture = PSM.Widgets.Texture(self, {
+                    layer   = "OVERLAY",
+                    texture = "Interface\\Buttons\\UI-GroupLoot-Pass-Up",
+                    size    = { PSM.Theme.CONTROL.CHECKBOX_MARK, PSM.Theme.CONTROL.CHECKBOX_MARK },
+                    point   = { "CENTER", self, "CENTER", 0, 0 },
+                })
             end
             self.invertedTexture:Show()
         else
@@ -77,7 +83,6 @@ local function CreateTristateCheckbox(parent, anchorTo, label, onChanged)
         if onChanged then onChanged(self.triState) end
     end)
 
-    PSM.UI:ApplyElvUISkin(cb, "checkbox")
     return cb
 end
 
@@ -98,10 +103,12 @@ local function InitTristateCheckboxFromState(checkbox, state)
     if state == "inverted" then
         checkbox:GetCheckedTexture():SetAlpha(0)
         if not checkbox.invertedTexture then
-            checkbox.invertedTexture = checkbox:CreateTexture(nil, "OVERLAY")
-            checkbox.invertedTexture:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
-            checkbox.invertedTexture:SetSize(16, 16)
-            checkbox.invertedTexture:SetPoint("CENTER", checkbox, "CENTER", 0, 0)
+            checkbox.invertedTexture = PSM.Widgets.Texture(checkbox, {
+                layer   = "OVERLAY",
+                texture = "Interface\\Buttons\\UI-GroupLoot-Pass-Up",
+                size    = { PSM.Theme.CONTROL.CHECKBOX_MARK, PSM.Theme.CONTROL.CHECKBOX_MARK },
+                point   = { "CENTER", checkbox, "CENTER", 0, 0 },
+            })
         end
         checkbox.invertedTexture:Show()
     else
@@ -320,60 +327,64 @@ end
 --------------------------------------------------------------------------------
 
 function PSM.ModelsFilters:CreatePetRouletteButton(panel)
-    panel.petRouletteButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    panel.petRouletteButton:SetPoint("TOPRIGHT", panel.searchBox, "TOPLEFT", -10, 0)
-    panel.petRouletteButton:SetSize(PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT)
-    panel.petRouletteButton:SetText("Pet Roulette")
-    panel.petRouletteButton:SetNormalFontObject("GameFontNormalSmall")
-    panel.petRouletteButton:SetScript("OnClick", function() PSM.PetRoulette:SelectPetRoulette() end)
-    PSM.UI:ApplyElvUISkin(panel.petRouletteButton, "button")
+    panel.petRouletteButton = PSM.Widgets.Button(panel, {
+        point      = { "TOPRIGHT", panel.searchBox, "TOPLEFT", -10, 0 },
+        size       = { PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT },
+        text       = "Pet Roulette",
+        fontObject = "GameFontNormalSmall",
+        onClick    = function() PSM.PetRoulette:SelectPetRoulette() end,
+    })
 end
 
 function PSM.ModelsFilters:CreateSpecialTamesButton(panel)
-    panel.specialTamesButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    panel.specialTamesButton:SetPoint("BOTTOMLEFT", panel.showOnlyFrame, "TOPLEFT", 0, 5)
-    panel.specialTamesButton:SetSize(PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT)
-    panel.specialTamesButton:SetText("Special Tames")
-    panel.specialTamesButton:SetNormalFontObject("GameFontNormalSmall")
-    panel.specialTamesButton:SetScript("OnClick", function()
-        if PSM.SpecialTames then PSM.SpecialTames:Toggle() end
-    end)
-    PSM.UI:ApplyElvUISkin(panel.specialTamesButton, "button")
+    panel.specialTamesButton = PSM.Widgets.Button(panel, {
+        point      = { "BOTTOMLEFT", panel.showOnlyFrame, "TOPLEFT", 0, 5 },
+        size       = { PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT },
+        text       = "Special Tames",
+        fontObject = "GameFontNormalSmall",
+        onClick    = function()
+            if PSM.SpecialTames then PSM.SpecialTames:Toggle() end
+        end,
+    })
 end
 
 function PSM.ModelsFilters:CreateAbilityBrowserButton(panel)
-    panel.abilityBrowserButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    panel.abilityBrowserButton:SetPoint("BOTTOMRIGHT", panel.showOnlyFrame, "TOPRIGHT", 0, 5)
-    panel.abilityBrowserButton:SetSize(PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT)
-    panel.abilityBrowserButton:SetText("Ability Browser")
-    panel.abilityBrowserButton:SetNormalFontObject("GameFontNormalSmall")
-    panel.abilityBrowserButton:SetScript("OnClick", function()
-        if PSM.AbilityBrowser then PSM.AbilityBrowser:Toggle() end
-    end)
-    PSM.UI:ApplyElvUISkin(panel.abilityBrowserButton, "button")
+    panel.abilityBrowserButton = PSM.Widgets.Button(panel, {
+        point      = { "BOTTOMRIGHT", panel.showOnlyFrame, "TOPRIGHT", 0, 5 },
+        size       = { PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT },
+        text       = "Ability Browser",
+        fontObject = "GameFontNormalSmall",
+        onClick    = function()
+            if PSM.AbilityBrowser then PSM.AbilityBrowser:Toggle() end
+        end,
+    })
 end
 
+local RESET_FILTERS_EFFECTS = {
+    "All Families selected", "All Expansions selected", "All Locations selected",
+    "Rares: OFF", "Favorites: OFF", "Pets in My Zone: OFF", "Owned: OFF",
+    "Clear search box", "Return to first page",
+}
+
 function PSM.ModelsFilters:CreateResetFiltersButton(panel)
-    panel.resetFiltersButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    panel.resetFiltersButton:SetPoint("TOPLEFT", panel.searchBox, "TOPRIGHT", 10, 0)
-    panel.resetFiltersButton:SetSize(PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT)
-    panel.resetFiltersButton:SetText("Reset Filters")
-    panel.resetFiltersButton:SetNormalFontObject("GameFontNormalSmall")
-    panel.resetFiltersButton:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
-        GameTooltip:SetText("Reset all filters", 1, 1, 1)
-        for _, line in ipairs({
-            "All Families selected", "All Expansions selected", "All Locations selected",
-            "Rares: OFF", "Favorites: OFF", "Pets in My Zone: OFF", "Owned: OFF",
-            "Clear search box", "Return to first page",
-        }) do GameTooltip:AddLine(line, 0.5, 0.5, 0.5) end
-        GameTooltip:Show()
-    end)
-    panel.resetFiltersButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    panel.resetFiltersButton:SetScript("OnClick", function()
-        PSM.ModelsFilters:ResetAllFilters(panel)
-    end)
-    PSM.UI:ApplyElvUISkin(panel.resetFiltersButton, "button")
+    local lines = {}
+    for _, text in ipairs(RESET_FILTERS_EFFECTS) do
+        lines[#lines + 1] = { text = text, color = PSM.Theme.COLOR.FAINT }
+    end
+
+    panel.resetFiltersButton = PSM.Widgets.Button(panel, {
+        point      = { "TOPLEFT", panel.searchBox, "TOPRIGHT", 10, 0 },
+        size       = { PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT },
+        text       = "Reset Filters",
+        fontObject = "GameFontNormalSmall",
+        tooltip    = {
+            anchor     = "ANCHOR_BOTTOMRIGHT",
+            title      = "Reset all filters",
+            titleColor = PSM.Theme.COLOR.WHITE,
+            lines      = lines,
+        },
+        onClick    = function() PSM.ModelsFilters:ResetAllFilters(panel) end,
+    })
 end
 
 --------------------------------------------------------------------------------
@@ -464,18 +475,20 @@ end
 --------------------------------------------------------------------------------
 
 function PSM.ModelsFilters:CreateInfoText(panel)
-    panel.infoText = panel:CreateFontString(nil, "OVERLAY")
-    panel.infoText:SetFont("Fonts\\FRIZQT__.TTF", 10)
-    panel.infoText:SetPoint("TOP", panel.searchBox, "BOTTOM", 0, -5)
-    panel.infoText:SetText("Loading...")
+    panel.infoText = PSM.Widgets.Label(panel, {
+        fontSize = PSM.Theme.SIZE.SMALL,
+        point    = { "TOP", panel.searchBox, "BOTTOM", 0, -5 },
+        text     = "Loading...",
+    })
 end
 
 function PSM.ModelsFilters:CreateFilterSummaryText(panel)
-    panel.filterSummaryText = panel:CreateFontString(nil, "OVERLAY")
-    panel.filterSummaryText:SetFont("Fonts\\FRIZQT__.TTF", 10)
-    panel.filterSummaryText:SetPoint("TOP", panel.infoText, "BOTTOM", 0, -2)
-    panel.filterSummaryText:SetText("")
-    panel.filterSummaryText:SetTextColor(0.5, 0.5, 0.5)
+    panel.filterSummaryText = PSM.Widgets.Label(panel, {
+        fontSize = PSM.Theme.SIZE.SMALL,
+        color    = PSM.Theme.COLOR.FAINT,
+        point    = { "TOP", panel.infoText, "BOTTOM", 0, -2 },
+        text     = "",
+    })
 end
 
 --------------------------------------------------------------------------------
@@ -524,8 +537,11 @@ end
 
 local function ShowContextMenu(menuList)
     if not PSM.state.contextDropDown then
-        PSM.state.contextDropDown = CreateFrame("Frame", "PSMContextMenuDropDown", UIParent, "UIDropDownMenuTemplate")
-        PSM.state.contextDropDown:Hide()
+        PSM.state.contextDropDown = PSM.Widgets.Frame(UIParent, {
+            name     = "PSMContextMenuDropDown",
+            template = "UIDropDownMenuTemplate",
+            hidden   = true,
+        })
     end
     UIDropDownMenu_Initialize(PSM.state.contextDropDown, function(self, level)
         for _, item in ipairs(menuList) do
@@ -641,22 +657,19 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
     panel.locationContinents  = locationContinents
 
         ---------- Filter frame ----------
-    panel.unifiedFilterFrame = CreateFrame("Frame", nil, panel, "BackdropTemplate")
-    panel.unifiedFilterFrame:SetPoint("TOPLEFT", panel.showOnlyFrame, "BOTTOMLEFT", 0, -5)
-    panel.unifiedFilterFrame:SetSize(180, 505)
-    panel.unifiedFilterFrame:SetBackdrop({
-        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile=true, tileSize=16, edgeSize=16,
-        insets={left=4, right=4, top=4, bottom=4},
+    panel.unifiedFilterFrame = PSM.Widgets.Frame(panel, {
+        point       = { "TOPLEFT", panel.showOnlyFrame, "BOTTOMLEFT", 0, -5 },
+        size        = { 180, 505 },
+        backdrop    = "TOOLTIP",
+        color       = PSM.Config.COLORS.BACKGROUND,
+        borderColor = { 0.75, 0.75, 0.75, 1 },  -- silver
     })
-    panel.unifiedFilterFrame:SetBackdropColor(unpack(PSM.Config.COLORS.BACKGROUND))
-    panel.unifiedFilterFrame:SetBackdropBorderColor(0.75, 0.75, 0.75, 1) -- silver border
 
     ---------- Tab buttons ----------
-    local tabFrame = CreateFrame("Frame", nil, panel.unifiedFilterFrame)
-    tabFrame:SetPoint("TOPLEFT", panel.unifiedFilterFrame, "TOPLEFT", 5, -5)
-    tabFrame:SetSize(150, 20)
+    local tabFrame = PSM.Widgets.Frame(panel.unifiedFilterFrame, {
+        point = { "TOPLEFT", panel.unifiedFilterFrame, "TOPLEFT", 5, -5 },
+        size  = { 150, 20 },
+    })
 
     local tabDefs = {
         { key="families",   label="Families"   },
@@ -672,15 +685,7 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
     -- Visual update helper for tabs
     local function UpdateTabVisuals()
         for key, btn in pairs(tabs) do
-            local active = (panel.currentFilterType == key)
-            if btn.bg then
-                btn.bg:SetColorTexture(unpack(active and PSM.Config.TAB.ACTIVE_BG or PSM.Config.TAB.INACTIVE_BG))
-            end
-            if btn.label then
-                btn.label:SetTextColor(unpack(active and PSM.Config.TAB.ACTIVE_TEXT or PSM.Config.TAB.INACTIVE_TEXT))
-            end
-            if btn.topLine then    btn.topLine:SetShown(active)    end
-            if btn.bottomLine then btn.bottomLine:SetShown(active) end
+            btn:SetActive(panel.currentFilterType == key)
         end
     end
 
@@ -694,50 +699,21 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
     end
 
     for _, def in ipairs(tabDefs) do
-        local t = CreateFrame("Frame", nil, tabFrame)
-        t:SetSize(55, 20)
-        if prevTab then t:SetPoint("LEFT", prevTab, "RIGHT", 3, 0)
-        else            t:SetPoint("LEFT", tabFrame, "LEFT", 0, 0) end
+        local t = PSM.Widgets.Tab(tabFrame, {
+            size       = { 55, 20 },
+            fontObject = "GameFontHighlightSmall",
+            text       = def.label,
+            point      = prevTab
+                and { "LEFT", prevTab,  "RIGHT", 3, 0 }
+                or  { "LEFT", tabFrame, "LEFT",  0, 0 },
+        })
         prevTab = t
-
-        -- Enable mouse for button-like behavior
-        t:EnableMouse(true)
-
-        -- Background (inactive by default)
-        local bg = t:CreateTexture(nil, "BACKGROUND")
-        bg:SetAllPoints()
-        bg:SetColorTexture(unpack(PSM.Config.TAB.INACTIVE_BG))
-        t.bg = bg
-
-        -- Top/bottom border lines (visible when active)
-        local topLine = t:CreateTexture(nil, "BORDER")
-        topLine:SetPoint("TOPLEFT", t, "TOPLEFT", 2, 0)
-        topLine:SetPoint("TOPRIGHT", t, "TOPRIGHT", -2, 0)
-        topLine:SetHeight(1)
-        topLine:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BORDER))
-        topLine:Hide()
-        t.topLine = topLine
-
-        local bottomLine = t:CreateTexture(nil, "BORDER")
-        bottomLine:SetPoint("BOTTOMLEFT", t, "BOTTOMLEFT", 2, 0)
-        bottomLine:SetPoint("BOTTOMRIGHT", t, "BOTTOMRIGHT", -2, 0)
-        bottomLine:SetHeight(1)
-        bottomLine:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BORDER))
-        bottomLine:Hide()
-        t.bottomLine = bottomLine
-
-        -- Label
-        local label = t:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        label:SetPoint("CENTER")
-        label:SetText(def.label)
-        label:SetTextColor(unpack(PSM.Config.TAB.INACTIVE_TEXT))
-        t.label = label
 
         -- Capture values for closure to avoid loop variable reuse
         do
             local key = def.key
             local hideEx = (def.key ~= "families")
-            local lbl = label
+            local lbl = t.label
 
             -- Click handler
             t:SetScript("OnMouseDown", function(self)
@@ -764,31 +740,30 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
 
     ---------- All / None / Exotic buttons ----------
     local function MakeFilterButton(label, anchor, onClick)
-        local b = CreateFrame("Button", nil, panel.unifiedFilterFrame, "UIPanelButtonTemplate")
-        b:SetPoint("LEFT", anchor, "RIGHT", 5, 0)
-        b:SetSize(50, 20)
-        b:SetText(label)
-        b:SetNormalFontObject("GameFontNormalSmall")
-        b:SetScript("OnClick", onClick)
-        PSM.UI:ApplyElvUISkin(b, "button")
-        return b
+        return PSM.Widgets.Button(panel.unifiedFilterFrame, {
+            point      = { "LEFT", anchor, "RIGHT", 5, 0 },
+            size       = { 50, 20 },
+            text       = label,
+            fontObject = "GameFontNormalSmall",
+            onClick    = onClick,
+        })
     end
 
-    local selectAllBtn = CreateFrame("Button", nil, panel.unifiedFilterFrame, "UIPanelButtonTemplate")
-    selectAllBtn:SetPoint("TOPLEFT", tabFrame, "BOTTOMLEFT", 5, -5)
-    selectAllBtn:SetSize(50, 20)
-    selectAllBtn:SetText("All")
-    selectAllBtn:SetNormalFontObject("GameFontNormalSmall")
-    selectAllBtn:SetScript("OnClick", function()
-        if     panel.currentFilterType == "families"   then SelectAll(PSM.state.selectedModelsFamilies, families)
-        elseif panel.currentFilterType == "expansions" then SelectAll(PSM.state.selectedExpansions, expansionList)
-        elseif panel.currentFilterType == "locations"  then SelectAll(PSM.state.selectedLocations,  locationList)
-        end
-        PSM.ModelsFilters:PopulateUnifiedFilterCheckboxes(panel)
-        ReloadAndSummarise()
-        PSM.ModelsFilters:UpdateDynamicFilters()
-    end)
-    PSM.UI:ApplyElvUISkin(selectAllBtn, "button")
+    local selectAllBtn = PSM.Widgets.Button(panel.unifiedFilterFrame, {
+        point      = { "TOPLEFT", tabFrame, "BOTTOMLEFT", 5, -5 },
+        size       = { 50, 20 },
+        text       = "All",
+        fontObject = "GameFontNormalSmall",
+        onClick    = function()
+            if     panel.currentFilterType == "families"   then SelectAll(PSM.state.selectedModelsFamilies, families)
+            elseif panel.currentFilterType == "expansions" then SelectAll(PSM.state.selectedExpansions, expansionList)
+            elseif panel.currentFilterType == "locations"  then SelectAll(PSM.state.selectedLocations,  locationList)
+            end
+            PSM.ModelsFilters:PopulateUnifiedFilterCheckboxes(panel)
+            ReloadAndSummarise()
+            PSM.ModelsFilters:UpdateDynamicFilters()
+        end,
+    })
 
     local selectNoneBtn = MakeFilterButton("None", selectAllBtn, function()
         if     panel.currentFilterType == "families"   then PSM.state.selectedModelsFamilies = {}
@@ -862,12 +837,20 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
     end)
 
     ---------- Scroll frame for checkboxes ----------
-    local filterScrollFrame = CreateFrame("ScrollFrame", nil, panel.unifiedFilterFrame, "UIPanelScrollFrameTemplate")
-    filterScrollFrame:SetPoint("TOPLEFT",   selectAllBtn,           "BOTTOMLEFT",  0, -5)
-    filterScrollFrame:SetPoint("BOTTOMRIGHT", panel.unifiedFilterFrame, "BOTTOMRIGHT", 0,  5)
-    
-    local filterContent = CreateFrame("Frame", nil, filterScrollFrame)
-    filterContent:SetSize(filterScrollFrame:GetWidth() - 25, 100)
+    local filterScrollFrame = PSM.Widgets.Frame(panel.unifiedFilterFrame, {
+        frameType = "ScrollFrame",
+        template  = "UIPanelScrollFrameTemplate",
+        skin      = "scrollframe",
+        point     = {
+            { "TOPLEFT",     selectAllBtn,             "BOTTOMLEFT",  0, -5 },
+            { "BOTTOMRIGHT", panel.unifiedFilterFrame, "BOTTOMRIGHT", 0,  5 },
+        },
+    })
+    PSM.Skin.Apply(filterScrollFrame.ScrollBar, "scrollbar")
+
+    local filterContent = PSM.Widgets.Frame(filterScrollFrame, {
+        size = { filterScrollFrame:GetWidth() - 25, 100 },
+    })
     filterScrollFrame:SetScrollChild(filterContent)
 
     panel.filterScrollFrame  = filterScrollFrame
@@ -876,11 +859,7 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
     panel.filterHeaders      = {}
     panel.currentFilterType  = "families"
 
-    -- Apply ElvUI skin to scroll bar
-    if PSM.UI and PSM.UI.ApplyElvUISkin then
-        PSM.UI:ApplyElvUISkin(filterScrollFrame.ScrollBar, "scrollbar")
-    end
-    
+
     ---------- Initial population ----------
     RepopulateAllTabs(panel)
     UpdateTabVisuals()
@@ -898,16 +877,15 @@ local function GetPooledFilterCheckbox(panel, index)
     panel._filterCheckboxPool = panel._filterCheckboxPool or {}
     local cb = panel._filterCheckboxPool[index]
     if not cb then
-        cb = CreateFrame("CheckButton", nil, panel.filterContent, "UICheckButtonTemplate")
-        cb:SetSize(20, 20)
-        cb.text = cb:CreateFontString(nil, "OVERLAY")
-        cb.text:SetFont("Fonts\\FRIZQT__.TTF", 10)
-        cb.text:SetPoint("LEFT", cb, "RIGHT", 5, 0)
-        cb.text:SetWordWrap(true)
-        cb.text:SetWidth(140)
-        cb.text:SetJustifyH("LEFT")
+        cb = PSM.Widgets.CheckBox(panel.filterContent)
+        cb.text = PSM.Widgets.Label(cb, {
+            fontSize = PSM.Theme.SIZE.SMALL,
+            justify  = "LEFT",
+            wordWrap = true,
+            width    = 140,
+            point    = { "LEFT", cb, "RIGHT", 5, 0 },
+        })
         cb:SetHitRectInsets(0, -150, 0, 0)
-        PSM.UI:ApplyElvUISkin(cb, "checkbox")
         panel._filterCheckboxPool[index] = cb
     end
     return cb
@@ -979,19 +957,18 @@ local function GetPooledLocationRow(panel, index)
     panel._locationRowPool = panel._locationRowPool or {}
     local cb = panel._locationRowPool[index]
     if not cb then
-        cb = CreateFrame("CheckButton", nil, panel.filterContent, "UICheckButtonTemplate")
-        cb:SetSize(20, 20)
-        cb.text = cb:CreateFontString(nil, "OVERLAY")
-        cb.text:SetFont("Fonts\\FRIZQT__.TTF", 10)
-        cb.text:SetPoint("LEFT", cb, "RIGHT", 5, 0)
-        cb.text:SetWordWrap(true)
-        cb.text:SetWidth(126)
-        cb.text:SetJustifyH("LEFT")
+        -- PSM.Widgets.CheckBox skins before it returns, which is what this row needs:
+        -- ElvUI's HandleCheckBox swaps in its own checked texture, and doing that after
+        -- the first tristate render would clobber the alpha-0 + red-X "inverted" look.
+        cb = PSM.Widgets.CheckBox(panel.filterContent)
+        cb.text = PSM.Widgets.Label(cb, {
+            fontSize = PSM.Theme.SIZE.SMALL,
+            justify  = "LEFT",
+            wordWrap = true,
+            width    = 126,
+            point    = { "LEFT", cb, "RIGHT", 5, 0 },
+        })
         cb:SetHitRectInsets(0, -150, 0, 0)
-        -- Skin before the first tristate render, not after: ElvUI's HandleCheckBox swaps in its
-        -- own checked texture, which would otherwise clobber the alpha-0 + red-X "inverted" look
-        -- set below (this is also why every other tristate checkbox in the addon skins first).
-        PSM.UI:ApplyElvUISkin(cb, "checkbox")
         panel._locationRowPool[index] = cb
     end
     return cb
@@ -1012,10 +989,12 @@ local function CreateLocationRow(panel, index, item, yOffset)
             cb:SetChecked(true)
             check:SetAlpha(0)
             if not cb.invertedTexture then
-                cb.invertedTexture = cb:CreateTexture(nil, "OVERLAY")
-                cb.invertedTexture:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
-                cb.invertedTexture:SetSize(16, 16)
-                cb.invertedTexture:SetPoint("CENTER", cb, "CENTER", 0, 0)
+                cb.invertedTexture = PSM.Widgets.Texture(cb, {
+                    layer   = "OVERLAY",
+                    texture = "Interface\\Buttons\\UI-GroupLoot-Pass-Up",
+                    size    = { PSM.Theme.CONTROL.CHECKBOX_MARK, PSM.Theme.CONTROL.CHECKBOX_MARK },
+                    point   = { "CENTER", cb, "CENTER", 0, 0 },
+                })
             end
             cb.invertedTexture:Show()
         elseif state == true then
@@ -1055,27 +1034,32 @@ local function GetPooledContinentHeader(panel, index)
     panel._continentHeaderPool = panel._continentHeaderPool or {}
     local header = panel._continentHeaderPool[index]
     if not header then
-        header = CreateFrame("Frame", nil, panel.filterContent)
-        header:SetHeight(LOCATION_HEADER_H)
+        local Widgets = PSM.Widgets
+
+        header = Widgets.Frame(panel.filterContent, { height = LOCATION_HEADER_H })
         header:EnableMouse(true)
 
-        header.bg = header:CreateTexture(nil, "BACKGROUND")
-        header.bg:SetAllPoints()
+        header.bg = Widgets.Texture(header, { layer = "BACKGROUND", allPoints = true })
 
-        header.expandBtn = CreateFrame("Button", nil, header)
-        header.expandBtn:SetSize(14, 14)
-        header.expandBtn:SetPoint("LEFT", header, "LEFT", 4, 0)
-        header.expandBtn:SetFrameLevel(header:GetFrameLevel() + 1)
-        PSM.UI:ApplyElvUISkin(header.expandBtn, "collapsebutton")
+        header.expandBtn = Widgets.IconButton(header, {
+            size  = { 14, 14 },
+            point = { "LEFT", header, "LEFT", 4, 0 },
+            level = header:GetFrameLevel() + 1,
+            skin  = "collapsebutton",
+        })
 
-        header.label = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        header.label:SetPoint("LEFT", header.expandBtn, "RIGHT", 4, 0)
-        header.label:SetJustifyH("LEFT")
+        header.label = Widgets.Label(header, {
+            fontObject = "GameFontNormalSmall",
+            justify    = "LEFT",
+            point      = { "LEFT", header.expandBtn, "RIGHT", 4, 0 },
+        })
 
-        header.invIcon = header:CreateTexture(nil, "OVERLAY")
-        header.invIcon:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
-        header.invIcon:SetSize(12, 12)
-        header.invIcon:SetPoint("LEFT", header.label, "RIGHT", 4, 0)
+        header.invIcon = Widgets.Texture(header, {
+            layer   = "OVERLAY",
+            texture = "Interface\\Buttons\\UI-GroupLoot-Pass-Up",
+            size    = { 12, 12 },
+            point   = { "LEFT", header.label, "RIGHT", 4, 0 },
+        })
 
         panel._continentHeaderPool[index] = header
     end
@@ -1094,7 +1078,7 @@ local function CreateContinentHeader(panel, index, continentName, locs, yOffset)
     header.invIcon:Hide()
 
     local collapsed = IsContinentCollapsed(continentName)
-    local tex = collapsed and PSM.UI.ElvUITexture("PlusButton") or PSM.UI.ElvUITexture("MinusButton")
+    local tex = collapsed and PSM.Skin.Texture("PlusButton") or PSM.Skin.Texture("MinusButton")
     header.expandBtn:SetNormalTexture(tex)
     header.expandBtn:SetPushedTexture(tex)
     header.expandBtn:SetScript("OnClick", function()

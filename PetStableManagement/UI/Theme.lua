@@ -56,6 +56,23 @@ Theme.COLOR = {
 }
 
 --------------------------------------------------------------------------------
+-- CONTROL SIZES
+--------------------------------------------------------------------------------
+
+-- Canonical sizes for controls that have exactly one right size, so the widget
+-- factories can *default* to them. A factory that takes size at every call site
+-- lets consistency drift; a factory with a default makes matching the rest of the
+-- addon the path of least resistance, and differing a deliberate act.
+--
+-- CHECKBOX is 20 because that is what most of the addon already used (Owned Pets
+-- filters, and all three Models Browser filter lists); SpecialTames' 16 was the
+-- outlier and read as visibly smaller once both were skinned the same way.
+Theme.CONTROL = {
+    CHECKBOX      = 20,
+    CHECKBOX_MARK = 16,  -- the loot-pass glyph drawn over a checkbox when inverted
+}
+
+--------------------------------------------------------------------------------
 -- BACKDROP PRESETS
 --------------------------------------------------------------------------------
 

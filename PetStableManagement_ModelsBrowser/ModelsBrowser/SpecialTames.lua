@@ -16,7 +16,6 @@ local CFG = {
     PANEL_WIDTH    = 800,
     PANEL_HEIGHT   = 600,
     ROW_HEIGHT     = 22,
-    CHECKBOX_SIZE  = 16,
     STATUS_SIZE    = 16,
     BUTTON_HEIGHT  = 25,
     BUTTON_WIDTH   = 100,
@@ -168,12 +167,7 @@ local function CreateRuleRow(parent, ruleKey, ruleData, yOffset)
     local statusIcon = CreateStatusIcon(row, status)
     statusIcon:SetPoint("LEFT", row, "LEFT", P, 0)
 
-    -- skin = false on purpose: ElvUI's checkbox skin makes the inverted state
-    -- illegible (grey filled square). Gold tick = selected, loot-pass X = inverted.
-    -- See PSM.Widgets.CheckBox and ARCHITECTURE_PLAN.md A6 before changing this.
     local checkbox = Widgets.CheckBox(row, {
-        skin  = false,
-        size  = { CFG.CHECKBOX_SIZE, CFG.CHECKBOX_SIZE },
         point = { "LEFT", statusIcon, "RIGHT", 10, 0 },
     })
 
@@ -195,7 +189,7 @@ local function CreateRuleRow(parent, ruleKey, ruleData, yOffset)
                 checkbox.invertedTexture = PSM.Widgets.Texture(checkbox, {
                     layer   = "OVERLAY",
                     texture = "Interface\\Buttons\\UI-GroupLoot-Pass-Up",
-                    size    = { CFG.CHECKBOX_SIZE, CFG.CHECKBOX_SIZE },
+                    size    = { PSM.Theme.CONTROL.CHECKBOX_MARK, PSM.Theme.CONTROL.CHECKBOX_MARK },
                     point   = { "CENTER", checkbox, "CENTER", 0, 0 },
                 })
             end
@@ -346,10 +340,7 @@ local function CreateConditionRow(parent, conditionName, width, card)
 
     local P = CFG.CARD_PADDING
 
-    -- skin = false on purpose: see CreateRuleRow.
     local checkbox = Widgets.CheckBox(row, {
-        skin  = false,
-        size  = { CFG.CHECKBOX_SIZE, CFG.CHECKBOX_SIZE },
         point = { "LEFT", row, "LEFT", P, 0 },
     })
 
@@ -371,7 +362,7 @@ local function CreateConditionRow(parent, conditionName, width, card)
                 checkbox.invertedTexture = PSM.Widgets.Texture(checkbox, {
                     layer   = "OVERLAY",
                     texture = "Interface\\Buttons\\UI-GroupLoot-Pass-Up",
-                    size    = { CFG.CHECKBOX_SIZE, CFG.CHECKBOX_SIZE },
+                    size    = { PSM.Theme.CONTROL.CHECKBOX_MARK, PSM.Theme.CONTROL.CHECKBOX_MARK },
                     point   = { "CENTER", checkbox, "CENTER", 0, 0 },
                 })
             end
@@ -741,53 +732,18 @@ local function CreatePillBar(panel)
 
     local function SetActive(activeIdx)
         for i, pill in ipairs(pills) do
-            local active = (i == activeIdx)
-            pill.tex:SetColorTexture(unpack(active and PSM.Config.TAB.ACTIVE_BG or PSM.Config.TAB.INACTIVE_BG))
-            pill.label:SetTextColor(unpack(active and PSM.Config.TAB.ACTIVE_TEXT or PSM.Config.TAB.INACTIVE_TEXT))
-            if pill.topLine    then pill.topLine:SetShown(active)    end
-            if pill.bottomLine then pill.bottomLine:SetShown(active) end
+            pill:SetActive(i == activeIdx)
         end
     end
 
     for idx, tagName in ipairs(PILL_TAGS) do
         local labelW = #tagName * 7 + 16
-        local pill = Widgets.Frame(pillBar, {
+        local pill = Widgets.Tab(pillBar, {
             frameType = "Button",
             size      = { labelW, 20 },
+            fontSize  = PSM.Config.FONT_SIZES.ABILITY_PILL,
+            text      = tagName,
             point     = { "LEFT", pillBar, "LEFT", xOff, 0 },
-        })
-
-        pill.tex = Widgets.Texture(pill, {
-            layer     = "BACKGROUND",
-            allPoints = true,
-            color     = PSM.Config.TAB.INACTIVE_BG,
-        })
-
-        pill.label = Widgets.Label(pill, {
-            fontSize = PSM.Config.FONT_SIZES.ABILITY_PILL,
-            color    = PSM.Config.TAB.INACTIVE_TEXT,
-            point    = { "CENTER" },
-            text     = tagName,
-        })
-
-        pill.topLine = Widgets.Line(pill, {
-            layer  = "BORDER",
-            color  = PSM.Config.TAB.ACTIVE_BORDER,
-            hidden = true,
-            point  = {
-                { "TOPLEFT",  pill, "TOPLEFT",   2, 0 },
-                { "TOPRIGHT", pill, "TOPRIGHT", -2, 0 },
-            },
-        })
-
-        pill.bottomLine = Widgets.Line(pill, {
-            layer  = "BORDER",
-            color  = PSM.Config.TAB.ACTIVE_BORDER,
-            hidden = true,
-            point  = {
-                { "BOTTOMLEFT",  pill, "BOTTOMLEFT",   2, 0 },
-                { "BOTTOMRIGHT", pill, "BOTTOMRIGHT", -2, 0 },
-            },
         })
 
         do
