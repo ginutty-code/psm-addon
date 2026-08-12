@@ -110,22 +110,57 @@ frame. They know nothing about pets; they take a parent and an options table.
 - **`Tooltip.lua`** — `PSM.Tooltip.Attach(frame, spec, extra)` wires OnEnter/OnLeave
   from a declarative spec, so a tooltip can't be left on screen by an early return.
   `spec` may be a `function(frame)` for live contents; returning nil suppresses it.
-- **`Widgets.lua`** — `Frame`, `MovableFrame`, `Label`, `Button`, `IconButton`,
-  `CloseButton`, `EditBox`, `Line`, `Backdrop`, `ResizeGrip`, `CloseOnEscape`.
+- **`Widgets.lua`** — 15 factories: `Backdrop`, `Frame`, `MovableFrame`, `Label`,
+  `Button`, `IconButton`, `CloseButton`, `ResizeGrip`, `CloseOnEscape`, `EditBox`,
+  `MaskTexture`, `Line`, `Texture`, `Tab`, `CheckBox`. Read the file — each carries a
+  comment saying what evidence justified it.
 
 **Everything `PSM.Widgets` returns is already skinned.** That is the whole point: the
 count of hand-written `ApplyElvUISkin` calls should only ever go down. `IconButton` is
-the exception and is unskinned by default — ElvUI's `HandleButton` strips exactly the
+the one exception, unskinned by default — ElvUI's `HandleButton` strips exactly the
 textures those buttons are made of.
+
+**Defaults produce consistency; parameters only allow it.** A widget with one
+obviously correct value should *default* to it (`Theme.CONTROL.CHECKBOX`), and the
+call site should stay silent unless it genuinely needs to differ. This was learned the
+hard way: taking `size` at every `CheckBox` call site let two panels drift to 16px vs
+20px, which is the same divergence the kit exists to remove, just relocated from
+`CreateFrame` blocks into options tables.
+
+**Two safety nets, both inspectable in-game rather than noisy:**
+`/dump PSM.Skin.unhandled` lists skin types passed that no handler knows (typos), and
+`/dump PSM.Widgets.unknownOptions` lists option keys a factory didn't understand.
+Options tables fail *silently* — a misspelled key is simply never read — so each
+factory declares its vocabulary in `OPTIONS` at the top of `Widgets.lua`. Add new keys
+there or they will be recorded as unknown.
 
 `PSM.UI:ApplyElvUISkin` / `PSM.UI.ElvUITexture` still exist as thin forwarders to
 `PSM.Skin` for the not-yet-migrated call sites. Don't call them in new code, and
 delete them when the last caller is gone.
 
-`Shared/PopUpManager.lua` is the migrated reference: it contains zero `CreateFrame`,
-zero `CreateFontString`, zero `GameTooltip:`, and zero skin calls. The only
-`SetBackdropColor` left in it is a *runtime recolour*, not construction — that's the
-line to draw when migrating another file.
+Context menus go through **`PSM.Utils:ShowContextMenu(menuList)`** — the single
+implementation. Two verbatim copies used to exist alongside it.
+
+### Migration status (A6, ongoing)
+
+Migrated, each with zero raw `CreateFrame` / `CreateFontString` / `CreateTexture` /
+`GameTooltip:` / skin calls: `Shared/PopUpManager.lua`, `Shared/Dialogs.lua`,
+`OwnedPets/TeamsPanel.lua`, `ModelsBrowser/SpecialTames.lua`,
+`ModelsBrowser/ModelsFilters.lua`.
+
+`PopUpManager.lua` is the reference. The only `SetBackdropColor` left in it is a
+*runtime recolour*, not construction — **that is the line to draw** when migrating
+another file. Density counts that include `SetBackdropColor` overstate a file's real
+construction work; count `SetBackdrop({` instead.
+
+Remaining, densest first: `AbilityBrowser.lua` (27), `ModelsPanel.lua` (23),
+`NPCRow.lua` (22), `Export.lua` (20), `Filters.lua` (16), `RowManager.lua` and
+`PanelManager.lua` (13), `OptionsPanel.lua` and `Panel.lua` (12), `Menu.lua` (10).
+
+The full task record — every measurement, every bug found while migrating, and the
+reasoning behind each kit addition — is in `../ARCHITECTURE_PLAN.md` (outside both
+repos). **Read its A6 sections before continuing the migration**; several decisions
+there look arbitrary without the evidence that produced them.
 
 ## Models View / NPC View share filter state — reload through one entrypoint
 
