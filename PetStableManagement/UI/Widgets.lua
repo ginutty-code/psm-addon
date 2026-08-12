@@ -41,6 +41,7 @@ local OPTIONS = {
     EditBox     = { name = true, multiline = true, template = true, fontObject = true, autoFocus = true, textColor = true, text = true, onEscape = true, onEnter = true, closes = true },
     Line        = { layer = true, color = true },
     Tab         = { frameType = true, palette = true, fontSize = true, fontObject = true, text = true },
+    MaskTexture = { texture = true, wrapH = true, wrapV = true },
     Texture     = { layer = true, sublayer = true, allPoints = true, color = true, texture = true, atlas = true, texCoord = true, vertexColor = true },
     CheckBox    = { name = true, template = true, checked = true, onClick = true, tooltip = true, label = true, labelFontObject = true },
 }
@@ -328,6 +329,21 @@ end
 --------------------------------------------------------------------------------
 -- DECORATION
 --------------------------------------------------------------------------------
+
+-- A mask texture, for the circular pet-portrait crop. Its own factory rather than a
+-- flag on Texture: CreateMaskTexture is a separate API, and SetTexture takes wrap
+-- modes here that an ordinary texture has no use for.
+function Widgets.MaskTexture(parent, opts)
+    opts = opts or {}
+    CheckOptions("MaskTexture", opts, OPTIONS.MaskTexture)
+
+    local m = parent:CreateMaskTexture()
+    m:SetTexture(opts.texture,
+        opts.wrapH or "CLAMPTOBLACKADDITIVE",
+        opts.wrapV or "CLAMPTOBLACKADDITIVE")
+    ApplyCommon(m, opts)
+    return m
+end
 
 -- A one-pixel rule. Pass `point` for both ends; height defaults to 1.
 function Widgets.Line(parent, opts)

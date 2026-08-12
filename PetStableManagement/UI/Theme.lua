@@ -96,6 +96,13 @@ Theme.BACKDROP = {
         tile = true, tileSize = 16, edgeSize = 16,
         insets = { left = 4, right = 4, top = 4, bottom = 4 },
     },
+    -- List rows inside a panel: full tile, thin edge, tight insets. Used by the
+    -- Teams rows and the Grouped View rows.
+    TOOLTIP_ROW = {
+        bgFile = TOOLTIP_BG, edgeFile = TOOLTIP_EDGE,
+        tile = true, tileSize = 16, edgeSize = 8,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 },
+    },
     -- Small popups (coords, note editor) -- a slightly tighter border.
     TOOLTIP_SMALL = {
         bgFile = TOOLTIP_BG, edgeFile = TOOLTIP_EDGE,

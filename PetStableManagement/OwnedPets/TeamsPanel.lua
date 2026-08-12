@@ -27,24 +27,13 @@ local RENDER_DELAY         = 0.01
 
 
 local function CreateActionButton(parent, text, width, height)
-    local btn = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-    btn:SetSize(width, height)
-    btn:SetText(text)
-    btn:SetNormalFontObject("GameFontNormalSmall")
-    PSM.UI:ApplyElvUISkin(btn, "button")
-    return btn
+    return PSM.Widgets.Button(parent, {
+        size       = { width, height },
+        text       = text,
+        fontObject = "GameFontNormalSmall",
+    })
 end
 
--- Tooltip helpers
-local function ShowTooltip(owner, anchor, text, xOff, yOff)
-    GameTooltip:SetOwner(owner, anchor, xOff, yOff)
-    GameTooltip:SetText(text)
-    GameTooltip:Show()
-end
-
-local function HideTooltip()
-    GameTooltip:Hide()
-end
 
 -- Slot X position (accounts for extra gap before slot 6)
 local function SlotXPos(i, slotSize, slotSpacing, slot5to6Spacing)
@@ -68,15 +57,16 @@ end
 ----------------------------------------------------------------------------------------------------------------
 
 local function CreateRemoveFromSlotButton(parent, container, slotNum, teamId)
-    local btn = CreateFrame("Button", nil, parent)
-    btn:SetSize(16, 16)
-    btn:SetPoint("TOPRIGHT", container, "TOPRIGHT", -20, -10)
-    btn:SetFrameLevel(container:GetFrameLevel() + 2)
-    btn:SetNormalTexture("Interface\\Buttons\\UI-StopButton")
-    btn:SetHighlightTexture("Interface\\Buttons\\UI-StopButton")
-    btn:SetPushedTexture("Interface\\Buttons\\UI-StopButton")
-    btn:SetAlpha(0.7)
-    btn:Hide()
+    local btn = PSM.Widgets.IconButton(parent, {
+        size      = { 16, 16 },
+        point     = { "TOPRIGHT", container, "TOPRIGHT", -20, -10 },
+        level     = container:GetFrameLevel() + 2,
+        texture   = "Interface\\Buttons\\UI-StopButton",
+        highlight = "Interface\\Buttons\\UI-StopButton",
+        pushed    = "Interface\\Buttons\\UI-StopButton",
+        alpha     = 0.7,
+        hidden    = true,
+    })
 
     btn.teamId  = teamId
     btn.slotNum = slotNum
@@ -89,14 +79,10 @@ local function CreateRemoveFromSlotButton(parent, container, slotNum, teamId)
             PSM.TeamsPanel:RefreshTeamsList()
         end
     end)
-    btn:SetScript("OnEnter", function(self)
-        self:SetAlpha(1.0)
-        ShowTooltip(self, "ANCHOR_RIGHT", "Remove from Team")
-    end)
-    btn:SetScript("OnLeave", function(self)
-        self:SetAlpha(0.7)
-        HideTooltip()
-    end)
+    PSM.Tooltip.Attach(btn, { title = "Remove from Team" }, {
+        onEnter = function(self) self:SetAlpha(1.0) end,
+        onLeave = function(self) self:SetAlpha(0.7) end,
+    })
 
     return btn
 end
@@ -107,7 +93,7 @@ local function SetupPetSlotInteraction(container, petData, slot, team)
         if container.removeButton then container.removeButton:Show() end
     end)
     container:SetScript("OnLeave", function()
-        HideTooltip()
+        PSM.Tooltip.Hide()
         if container.removeButton and not container.removeButton:IsMouseOver() then
             container.removeButton:Hide()
         end
@@ -180,10 +166,13 @@ end
 
 function PSM.TeamsPanel:AddTeamsPanelElements(panel)
     -- Info text
-    panel.infoText = panel:CreateFontString(nil, "OVERLAY")
-    panel.infoText:SetFont("Fonts\\FRIZQT__.TTF", 10)
-    panel.infoText:SetPoint("TOP", panel.title, "BOTTOM", 0, -5)
-    panel.infoText:SetTextColor(0.8, 0.8, 0.8)
+    local Theme, Widgets = PSM.Theme, PSM.Widgets
+
+    panel.infoText = Widgets.Label(panel, {
+        fontSize = Theme.SIZE.SMALL,
+        color    = Theme.COLOR.MUTED,
+        point    = { "TOP", panel.title, "BOTTOM", 0, -5 },
+    })
 
     -- Search box
     PSM.PanelManager:CreateSearchBox(panel, function(searchText)
@@ -193,29 +182,34 @@ function PSM.TeamsPanel:AddTeamsPanelElements(panel)
     })
 
     -- Scroll frame + content
-    local scrollFrame = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", 10, -110)
-    scrollFrame:SetPoint("BOTTOMRIGHT", -30, 35)
-
-    local teamsFrame = CreateFrame("Frame", nil, panel, "BackdropTemplate")
-    teamsFrame:SetPoint("TOPLEFT",     scrollFrame, "TOPLEFT",     -5,  5)
-    teamsFrame:SetPoint("BOTTOMRIGHT", scrollFrame, "BOTTOMRIGHT",  5, -5)
-    teamsFrame:SetBackdrop({
-        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 16,
-        insets = {left = 4, right = 4, top = 4, bottom = 4}
+    local scrollFrame = Widgets.Frame(panel, {
+        frameType = "ScrollFrame",
+        template  = "UIPanelScrollFrameTemplate",
+        skin      = "scrollframe",
+        point     = {
+            { "TOPLEFT",      10, -110 },
+            { "BOTTOMRIGHT", -30,   35 },
+        },
     })
-    teamsFrame:SetBackdropColor(unpack(PSM.Config.COLORS.BACKGROUND))
-    teamsFrame:SetFrameLevel(panel:GetFrameLevel() - 1)
 
-    local content = CreateFrame("Frame", nil, scrollFrame)
-    content:SetSize(scrollFrame:GetWidth() - 10, 100)
+    local teamsFrame = Widgets.Frame(panel, {
+        backdrop = "TOOLTIP",
+        color    = PSM.Config.COLORS.BACKGROUND,
+        level    = panel:GetFrameLevel() - 1,
+        point    = {
+            { "TOPLEFT",     scrollFrame, "TOPLEFT",     -5,  5 },
+            { "BOTTOMRIGHT", scrollFrame, "BOTTOMRIGHT",  5, -5 },
+        },
+    })
+
+    local content = Widgets.Frame(scrollFrame, {
+        size = { scrollFrame:GetWidth() - 10, 100 },
+    })
     scrollFrame:SetScrollChild(content)
 
     if scrollFrame.ScrollBar then
         scrollFrame.ScrollBar:SetAlpha(1)
-        PSM.UI:ApplyElvUISkin(scrollFrame.ScrollBar, "scrollbar")
+        PSM.Skin.Apply(scrollFrame.ScrollBar, "scrollbar")
     end
 
     panel.scrollFrame = scrollFrame
@@ -228,19 +222,22 @@ function PSM.TeamsPanel:AddTeamsPanelElements(panel)
     end)
 
     -- Stats text
-    panel.statsText = panel:CreateFontString(nil, "OVERLAY")
-    panel.statsText:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
-    panel.statsText:SetPoint("BOTTOM", 0, 15)
-    panel.statsText:SetTextColor(1, 0.82, 0)
-    panel.statsText:SetText("0 teams saved")
+    panel.statsText = Widgets.Label(panel, {
+        fontSize = Theme.SIZE.SMALL,
+        outline  = true,
+        color    = Theme.COLOR.GOLD,
+        point    = { "BOTTOM", 0, 15 },
+        text     = "0 teams saved",
+    })
 
     -- Empty state message
-    panel.emptyText = panel:CreateFontString(nil, "OVERLAY")
-    panel.emptyText:SetFont("Fonts\\FRIZQT__.TTF", 12)
-    panel.emptyText:SetPoint("CENTER", content, "CENTER", 0, 0)
-    panel.emptyText:SetTextColor(0.6, 0.6, 0.6)
-    panel.emptyText:SetText("No teams saved yet.\nCreate your teams at the Stable Master \nor by adding pets from the Owned Pets panel.")
-    panel.emptyText:Hide()
+    panel.emptyText = Widgets.Label(panel, {
+        fontSize = Theme.SIZE.LABEL,
+        color    = Theme.COLOR.GREY,
+        point    = { "CENTER", content, "CENTER", 0, 0 },
+        text     = "No teams saved yet.\nCreate your teams at the Stable Master \nor by adding pets from the Owned Pets panel.",
+        hidden   = true,
+    })
 end
 
 ----------------------------------------------------------------------------------------------------------------
@@ -255,42 +252,45 @@ function PSM.TeamsPanel:CreateTeamRow(parent)
     local buttonHeight   = 18
     local buttonSpacing  = 5
 
-    local row = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    row:SetSize(parent:GetWidth() - 10, ROW_HEIGHT)
-    row:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 8,
-        insets = {left = 2, right = 2, top = 2, bottom = 2}
+    local Theme, Widgets = PSM.Theme, PSM.Widgets
+
+    local row = Widgets.Frame(parent, {
+        size     = { parent:GetWidth() - 10, ROW_HEIGHT },
+        backdrop = "TOOLTIP_ROW",
+        color    = PSM.Config.COLORS.BACKGROUND,
     })
-    row:SetBackdropColor(unpack(PSM.Config.COLORS.BACKGROUND))
 
-    row.nameText = row:CreateFontString(nil, "OVERLAY")
-    row.nameText:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
-    row.nameText:SetPoint("TOPLEFT", 10, -8)
-    row.nameText:SetTextColor(1, 0.82, 0)
-    row.nameText:SetText("Team Name")
+    row.nameText = Widgets.Label(row, {
+        fontSize = Theme.SIZE.LABEL,
+        outline  = true,
+        color    = Theme.COLOR.GOLD,
+        point    = { "TOPLEFT", 10, -8 },
+        text     = "Team Name",
+    })
 
-    row.infoText = row:CreateFontString(nil, "OVERLAY")
-    row.infoText:SetFont("Fonts\\FRIZQT__.TTF", 9)
-    row.infoText:SetPoint("TOPLEFT", row.nameText, "BOTTOMLEFT", 0, -2)
-    row.infoText:SetTextColor(0.7, 0.7, 0.7)
+    row.infoText = Widgets.Label(row, {
+        fontSize = Theme.SIZE.TINY,
+        color    = Theme.COLOR.DIM,
+        point    = { "TOPLEFT", row.nameText, "BOTTOMLEFT", 0, -2 },
+    })
 
     -- Icons frame
     local iconsWidth = 6 * slotSize + 4 * slotSpacing + slot5to6Gap
-    row.iconsFrame = CreateFrame("Frame", nil, row)
-    row.iconsFrame:SetSize(iconsWidth, slotSize)
-    row.iconsFrame:SetPoint("BOTTOMLEFT", 0, 5)
+    row.iconsFrame = Widgets.Frame(row, {
+        size  = { iconsWidth, slotSize },
+        point = { "BOTTOMLEFT", 0, 5 },
+    })
 
     -- Divider between slots 5 and 6
     local slot5Right = (5 - 1) * (slotSize + slotSpacing) + slotSize
     local slot6Left  = 5 * (slotSize + slotSpacing) + slot5to6Gap
-    local divider = row.iconsFrame:CreateTexture(nil, "OVERLAY")
-    divider:SetTexture("Interface\\Buttons\\WHITE8X8")
-    divider:SetSize(slot5to6Gap - 4, 2)
-    divider:SetPoint("CENTER", row.iconsFrame, "LEFT", (slot5Right + slot6Left) / 2, 0)
-    divider:SetVertexColor(1, 0.82, 0)
-    row.dividerLine = divider
+    row.dividerLine = Widgets.Texture(row.iconsFrame, {
+        layer       = "OVERLAY",
+        texture     = "Interface\\Buttons\\WHITE8X8",
+        size        = { slot5to6Gap - 4, 2 },
+        point       = { "CENTER", row.iconsFrame, "LEFT", (slot5Right + slot6Left) / 2, 0 },
+        vertexColor = Theme.COLOR.GOLD,
+    })
 
     -- Pet icon slots
     row.petIcons          = {}
@@ -299,25 +299,32 @@ function PSM.TeamsPanel:CreateTeamRow(parent)
     row.petBorders        = {}
 
     for i = 1, 6 do
-        local container = CreateFrame("Button", nil, row.iconsFrame)
-        container:SetSize(slotSize, slotSize)
-        container:SetPoint("LEFT", SlotXPos(i, slotSize, slotSpacing, slot5to6Gap), 0)
+        local container = Widgets.Frame(row.iconsFrame, {
+            frameType = "Button",
+            size      = { slotSize, slotSize },
+            point     = { "LEFT", SlotXPos(i, slotSize, slotSpacing, slot5to6Gap), 0 },
+        })
 
-        local tex = container:CreateTexture(nil, "BACKGROUND", nil, 1)
-        tex:SetSize(ICON_SIZE, ICON_SIZE)
-        tex:SetPoint("CENTER")
-        tex:Hide()
+        local tex = Widgets.Texture(container, {
+            layer    = "BACKGROUND",
+            sublayer = 1,
+            size     = { ICON_SIZE, ICON_SIZE },
+            point    = { "CENTER" },
+            hidden   = true,
+        })
 
-        local mask = container:CreateMaskTexture()
-        mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask",
-            "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-        mask:SetSize(ICON_SIZE, ICON_SIZE)
-        mask:SetPoint("CENTER")
+        local mask = Widgets.MaskTexture(container, {
+            texture = "Interface\\CharacterFrame\\TempPortraitAlphaMask",
+            size    = { ICON_SIZE, ICON_SIZE },
+            point   = { "CENTER" },
+        })
         tex:AddMaskTexture(mask)
 
-        local border = container:CreateTexture(nil, "BORDER")
-        border:SetAtlas("footer_inactive-ring")
-        border:SetAllPoints(container)
+        local border = Widgets.Texture(container, {
+            layer     = "BORDER",
+            atlas     = "footer_inactive-ring",
+            allPoints = true,
+        })
 
         container:EnableMouse(true)
         container.displayId    = nil
@@ -330,9 +337,10 @@ function PSM.TeamsPanel:CreateTeamRow(parent)
     end
 
     -- Action buttons
-    row.buttonsFrame = CreateFrame("Frame", nil, row)
-    row.buttonsFrame:SetSize(buttonWidth, 4 * buttonHeight + 3 * buttonSpacing)
-    row.buttonsFrame:SetPoint("TOPRIGHT", row, "TOPRIGHT", -10, -25)
+    row.buttonsFrame = Widgets.Frame(row, {
+        size  = { buttonWidth, 4 * buttonHeight + 3 * buttonSpacing },
+        point = { "TOPRIGHT", row, "TOPRIGHT", -10, -25 },
+    })
 
     local prevBtn
     for _, spec in ipairs({
@@ -451,13 +459,20 @@ function PSM.TeamsPanel:UpdateTeamRow(row, team)
 
     if not applyEnabled then
         if not row.applyButtonTooltipOverlay then
-            local overlay = CreateFrame("Frame", nil, row.applyButton)
-            overlay:SetAllPoints()
+            local overlay = PSM.Widgets.Frame(row.applyButton, { allPoints = true })
             overlay:EnableMouse(true)
-            overlay:SetScript("OnEnter", function(self)
-                ShowTooltip(self, "ANCHOR_BOTTOM", "Visit a Stable Master to apply teams", 1, 0.5, 0)
-            end)
-            overlay:SetScript("OnLeave", HideTooltip)
+
+            -- The old call was ShowTooltip(self, "ANCHOR_BOTTOM", text, 1, 0.5, 0)
+            -- against a 5-parameter (owner, anchor, text, xOff, yOff) helper, so the
+            -- intended warning-orange {1, 0.5, 0} was silently consumed as x=1,
+            -- y=0.5 and a dropped third argument. The tooltip has been nudged half a
+            -- pixel instead of coloured ever since. Stated as a colour now.
+            PSM.Tooltip.Attach(overlay, {
+                anchor     = "ANCHOR_BOTTOM",
+                title      = "Visit a Stable Master to apply teams",
+                titleColor = PSM.Theme.COLOR.ORANGE,
+            })
+
             row.applyButtonTooltipOverlay = overlay
         end
         row.applyButtonTooltipOverlay:Show()
@@ -685,13 +700,24 @@ end
 ----------------------------------------------------------------------------------------------------------------
 
 function PSM.TeamsPanel:ShowPetTooltip(container, petData, slot)
-    GameTooltip:SetOwner(container, "ANCHOR_RIGHT", -20, -40)
-    GameTooltip:SetText("Slot " .. slot .. (slot == 6 and " (Companion)" or " (Active)"), 1, 0.82, 0)
-    GameTooltip:AddLine(petData.name or "Unknown Pet", 1, 1, 1)
+    local Theme = PSM.Theme
+    local spec = {
+        anchor     = "ANCHOR_RIGHT",
+        x          = -20,
+        y          = -40,
+        title      = "Slot " .. slot .. (slot == 6 and " (Companion)" or " (Active)"),
+        titleColor = Theme.COLOR.GOLD,
+        lines      = {},
+    }
+    local function Add(text, color)
+        spec.lines[#spec.lines + 1] = { text = text, color = color }
+    end
 
-    if petData.familyName then GameTooltip:AddLine("Family: " .. petData.familyName, 0.7, 0.7, 0.7) end
-    if petData.specName   then GameTooltip:AddLine("Spec: "   .. petData.specName,   0.7, 0.7, 0.7) end
-    if petData.isExotic   then GameTooltip:AddLine("|cffff8800Exotic|r") end
+    Add(petData.name or "Unknown Pet", Theme.COLOR.WHITE)
+
+    if petData.familyName then Add("Family: " .. petData.familyName, Theme.COLOR.DIM) end
+    if petData.specName   then Add("Spec: "   .. petData.specName,   Theme.COLOR.DIM) end
+    if petData.isExotic   then Add("|cffff8800Exotic|r") end
 
     local abilities = petData.abilities
     if abilities and type(abilities) == "table" then
@@ -711,18 +737,19 @@ function PSM.TeamsPanel:ShowPetTooltip(container, petData, slot)
             end
         end
         if #lines > 0 then
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("Abilities:", 1, 0.82, 0)
+            Add(" ")
+            Add("Abilities:", Theme.COLOR.GOLD)
             for _, line in ipairs(lines) do
-                GameTooltip:AddLine(line, 0.8, 0.8, 0.8)
+                Add(line, Theme.COLOR.MUTED)
             end
         end
     end
 
-    GameTooltip:AddLine(" ")
-    GameTooltip:AddLine("|cFFAAAAAA[Drag to rearrange]|r",   0.5, 0.5, 0.5)
-    GameTooltip:AddLine("|cFFAAAAAA[Hover + X to remove]|r", 0.5, 0.5, 0.5)
-    GameTooltip:Show()
+    Add(" ")
+    Add("|cFFAAAAAA[Drag to rearrange]|r",   Theme.COLOR.FAINT)
+    Add("|cFFAAAAAA[Hover + X to remove]|r", Theme.COLOR.FAINT)
+
+    PSM.Tooltip.Show(container, spec)
 end
 
 ----------------------------------------------------------------------------------------------------------------
@@ -745,14 +772,15 @@ local function EnablePetTeamsButtons()
 
     if menu and menu.teamsButton then
         EnableButton(menu.teamsButton)
-        menu.teamsButton:SetScript("OnEnter", function(self)
+        PSM.Tooltip.Attach(menu.teamsButton, function()
             local count = PSM.Teams and PSM.Teams:GetTeamCount() or 0
-            GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-            GameTooltip:SetText("View and manage saved pet teams")
-            GameTooltip:AddLine("You have " .. count .. " saved team(s)", 1, 1, 1)
-            GameTooltip:Show()
+            return {
+                anchor = "ANCHOR_BOTTOM",
+                title  = "View and manage saved pet teams",
+                lines  = { { text = "You have " .. count .. " saved team(s)",
+                             color = PSM.Theme.COLOR.WHITE } },
+            }
         end)
-        menu.teamsButton:SetScript("OnLeave", HideTooltip)
     end
 
     if panel and panel.teamsButton then
