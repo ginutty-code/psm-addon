@@ -93,6 +93,40 @@ one shared mutable table, `PSM.state` (declared in `Core.lua`), persisted to
 `PetStableManagementDB` (SavedVariables) plus a second SavedVariable,
 `PSM_UserNotes`.
 
+## The UI kit — build frames with `PSM.Widgets`, not `CreateFrame`
+
+`PetStableManagement/UI/` holds four files, loaded before anything that builds a
+frame. They know nothing about pets; they take a parent and an options table.
+
+- **`Theme.lua`** — the font path, the size ramp (`Theme.SIZE.BODY` etc.), the grey
+  ramp (`Theme.COLOR.*`), the four backdrop presets and their fill colours. It does
+  *not* duplicate `PSM.Config.COLORS`, which owns the semantic/state colours.
+- **`Skin.lua`** — `PSM.Skin.Apply(frame, skinType)`. **The only file allowed to
+  reference the `ElvUI` global.** Skin types live in a handler table; an unknown type
+  is counted in `PSM.Skin.unhandled` (inspect with `/dump PSM.Skin.unhandled`) rather
+  than silently ignored, which is how `"scrollframe"` went four call sites deep doing
+  nothing. There is deliberately **no pcall** around the handlers: a swallowed ElvUI
+  error is invisible on a non-ElvUI client, which is where most testing happens.
+- **`Tooltip.lua`** — `PSM.Tooltip.Attach(frame, spec, extra)` wires OnEnter/OnLeave
+  from a declarative spec, so a tooltip can't be left on screen by an early return.
+  `spec` may be a `function(frame)` for live contents; returning nil suppresses it.
+- **`Widgets.lua`** — `Frame`, `MovableFrame`, `Label`, `Button`, `IconButton`,
+  `CloseButton`, `EditBox`, `Line`, `Backdrop`, `ResizeGrip`, `CloseOnEscape`.
+
+**Everything `PSM.Widgets` returns is already skinned.** That is the whole point: the
+count of hand-written `ApplyElvUISkin` calls should only ever go down. `IconButton` is
+the exception and is unskinned by default — ElvUI's `HandleButton` strips exactly the
+textures those buttons are made of.
+
+`PSM.UI:ApplyElvUISkin` / `PSM.UI.ElvUITexture` still exist as thin forwarders to
+`PSM.Skin` for the not-yet-migrated call sites. Don't call them in new code, and
+delete them when the last caller is gone.
+
+`Shared/PopUpManager.lua` is the migrated reference: it contains zero `CreateFrame`,
+zero `CreateFontString`, zero `GameTooltip:`, and zero skin calls. The only
+`SetBackdropColor` left in it is a *runtime recolour*, not construction — that's the
+line to draw when migrating another file.
+
 ## Models View / NPC View share filter state — reload through one entrypoint
 
 The Models Browser panel has two render modes controlled by
@@ -158,7 +192,7 @@ until the layering work separates it.
 so it doesn't only ever exercise the lupa fallback).
 
 The lint job **gates on errors, not warnings**. luacheck exits 1 for warnings and
-≥2 for errors; the project carries a stable warning baseline (70), so failing on any
+≥2 for errors; the project carries a stable warning baseline (65), so failing on any
 warning would fail every run. The count is printed in the job log — treat a change
 in it as something you caused, and account for it.
 
@@ -174,9 +208,9 @@ path is in `CLAUDE.local.md` (untracked). Run from the repo root:
 luacheck PetStableManagement PetStableManagement_ModelsBrowser Tests
 ```
 
-The current clean baseline is **70 warnings / 0 errors**. That count has been stable
-across every task since the columnar migration — treat any change in it as something
-you introduced, and account for it.
+The current clean baseline is **65 warnings / 0 errors**. Treat any change in it as
+something you introduced, and account for it — a drop is as much a claim as a rise,
+and should be attributable to a specific edit.
 
 `.luacheckrc` lists the actual WoW API globals and project-defined globals
 (`PSM`, `PetStableManagementDB`, `AbilitiesData`, `ModelsData`, `CoordsData`,

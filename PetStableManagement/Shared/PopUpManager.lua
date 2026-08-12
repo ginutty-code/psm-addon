@@ -142,26 +142,30 @@ local function BuildNoteLink(npcId)
 end
 
 local function CreateNPCRow(parent, npc, rowWidth)
-    local row = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    row:SetWidth(rowWidth)
-    row:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8X8",
+    local Theme, Widgets = PSM.Theme, PSM.Widgets
+
+    local row = Widgets.Frame(parent, {
+        width    = rowWidth,
+        backdrop = "SOLID",
+        color    = Theme.FILL.ROW,
     })
-    row:SetBackdropColor(0.08, 0.08, 0.12, 0.85)
 
     -- Bottom border line
-    local bottomLine = row:CreateTexture(nil, "OVERLAY")
-    bottomLine:SetHeight(1)
-    bottomLine:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
-    bottomLine:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
-    bottomLine:SetColorTexture(0.25, 0.25, 0.30, 1)
+    Widgets.Line(row, {
+        point = {
+            { "BOTTOMLEFT",  row, "BOTTOMLEFT",  0, 0 },
+            { "BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0 },
+        },
+    })
 
     -- NPC name (left, gold)
-    local nameText = row:CreateFontString(nil, "OVERLAY")
-    nameText:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
-    nameText:SetTextColor(1, 0.82, 0)
-    nameText:SetJustifyH("LEFT")
-    nameText:SetPoint("TOPLEFT", row, "TOPLEFT", NPC_ROW_PADDING, -NPC_ROW_PADDING)
+    local nameText = Widgets.Label(row, {
+        fontSize = Theme.SIZE.LABEL,
+        outline  = true,
+        color    = Theme.COLOR.GOLD,
+        justify  = "LEFT",
+        point    = { "TOPLEFT", row, "TOPLEFT", NPC_ROW_PADDING, -NPC_ROW_PADDING },
+    })
 
     local nameStr = npc.name or "Unknown"
     if npc.classification and npc.classification ~= "Normal" then
@@ -172,12 +176,14 @@ local function CreateNPCRow(parent, npc, rowWidth)
     local nameKeeper = npc.nameKeeper or npc.namekeeper
     if nameKeeper then
         -- Add "keeps name" text indicator
-        local keepNameText = row:CreateFontString(nil, "OVERLAY")
-        keepNameText:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
-        keepNameText:SetTextColor(0.6, 0.6, 0.6)
-        keepNameText:SetJustifyH("LEFT")
-        keepNameText:SetPoint("LEFT", nameText, "RIGHT", 4, 0)
-        keepNameText:SetText("(keeps name)")
+        local keepNameText = Widgets.Label(row, {
+            fontSize = Theme.SIZE.LABEL,
+            outline  = true,
+            color    = Theme.COLOR.GREY,
+            justify  = "LEFT",
+            point    = { "LEFT", nameText, "RIGHT", 4, 0 },
+            text     = "(keeps name)",
+        })
 
         local maxNameW = rowWidth - (NPC_ROW_PADDING * 2) - keepNameText:GetStringWidth() - 8
         nameText:SetWidth(math.min(nameText:GetStringWidth(), maxNameW))
@@ -197,17 +203,22 @@ local function CreateNPCRow(parent, npc, rowWidth)
     end
 
     -- Subtle separator line between name and details
-    local line = row:CreateTexture(nil, "ARTWORK")
-    line:SetHeight(1)
-    line:SetPoint("TOPLEFT", nameText, "BOTTOMLEFT", 0, -2)
-    line:SetPoint("TOPRIGHT", nameText, "BOTTOMRIGHT", 0, -2)
-    line:SetColorTexture(1, 1, 1, 0.08)
+    local line = Widgets.Line(row, {
+        layer = "ARTWORK",
+        color = Theme.FILL.HAIRLINE,
+        point = {
+            { "TOPLEFT",  nameText, "BOTTOMLEFT",  0, -2 },
+            { "TOPRIGHT", nameText, "BOTTOMRIGHT", 0, -2 },
+        },
+    })
 
     -- Detail line (location, expansion, faction, NPC ID link)
-    local detailText = CreateFrame("SimpleHTML", nil, row)
-    detailText:SetPoint("TOPLEFT", line, "BOTTOMLEFT", 0, -3)
-    detailText:SetWidth(rowWidth - (NPC_ROW_PADDING * 2))
-    detailText:SetFont("p", "Fonts\\FRIZQT__.TTF", 11, "")
+    local detailText = Widgets.Frame(row, {
+        frameType = "SimpleHTML",
+        width     = rowWidth - (NPC_ROW_PADDING * 2),
+        point     = { "TOPLEFT", line, "BOTTOMLEFT", 0, -3 },
+    })
+    detailText:SetFont("p", Theme.FONT, Theme.SIZE.BODY, "")
     detailText:SetHyperlinksEnabled(true)
 
     local id         = npc.npcId or "?"
@@ -226,37 +237,54 @@ local function CreateNPCRow(parent, npc, rowWidth)
     detailText:SetText(html)
 
     -- Wire up hyperlink handlers
+    -- Tooltip contents per hyperlink type. Returns a PSM.Tooltip spec; the
+    -- deliberately empty spec for a condition link with no conditions preserves the
+    -- previous behaviour of anchoring an empty tooltip rather than showing nothing.
+    local function DetailLinkTooltip(linkType, data)
+        local id2 = tonumber(data)
+
+        if linkType == "psmcoords" then
+            return { title = "Click to view waypoints" }
+        end
+
+        if linkType == "psmcond" then
+            local conds = id2 and PSM.ConditionsData and PSM.ConditionsData.Get(id2)
+            if not (conds and #conds > 0) then return {} end
+            local lines = {}
+            for _, c in ipairs(conds) do
+                lines[#lines + 1] = { text = c, color = Theme.COLOR.WHITE }
+            end
+            return { title = "Special Conditions", lines = lines }
+        end
+
+        if linkType == "psmnote" then
+            local userNote = id2 and PSM_UserNotes and PSM_UserNotes[id2]
+            if userNote and userNote ~= "" then
+                return {
+                    title = "Edit note",
+                    lines = { { text = userNote, color = { 1, 1, 0 }, wrap = true } },
+                }
+            end
+            local seedNote = id2 and PSM.NotesData and PSM.NotesData[id2]
+            if seedNote then
+                return {
+                    title = "Add your own note",
+                    lines = { { text = seedNote, color = Theme.COLOR.MUTED, wrap = true } },
+                }
+            end
+            return { title = "Add a note for this NPC" }
+        end
+
+        return { title = "Click to copy Wowhead URL" }
+    end
+
     detailText:SetScript("OnHyperlinkEnter", function(_, link)
         local linkType, data = strsplit(":", link, 2)
-        GameTooltip:SetOwner(detailText, "ANCHOR_CURSOR")
-        if linkType == "psmcoords" then
-            GameTooltip:SetText("Click to view waypoints")
-        elseif linkType == "psmcond" then
-            local id2 = tonumber(data)
-            local conds = id2 and PSM.ConditionsData and PSM.ConditionsData.Get(id2)
-            if conds and #conds > 0 then
-                GameTooltip:SetText("Special Conditions")
-                for _, c in ipairs(conds) do GameTooltip:AddLine(c, 1, 1, 1) end
-            end
-        elseif linkType == "psmnote" then
-            local id2 = tonumber(data)
-            local hasSeed = id2 and PSM.NotesData and PSM.NotesData[id2]
-            local hasUser = id2 and PSM_UserNotes and PSM_UserNotes[id2] and PSM_UserNotes[id2] ~= ""
-            if hasUser then
-                GameTooltip:SetText("Edit note")
-                GameTooltip:AddLine(PSM_UserNotes[id2], 1, 1, 0, 1, true)
-            elseif hasSeed then
-                GameTooltip:SetText("Add your own note")
-                GameTooltip:AddLine(PSM.NotesData[id2], 0.8, 0.8, 0.8, 1, true)
-            else
-                GameTooltip:SetText("Add a note for this NPC")
-            end
-        else
-            GameTooltip:SetText("Click to copy Wowhead URL")
-        end
-        GameTooltip:Show()
+        local spec = DetailLinkTooltip(linkType, data)
+        spec.anchor = "ANCHOR_CURSOR"
+        PSM.Tooltip.Show(detailText, spec)
     end)
-    detailText:SetScript("OnHyperlinkLeave", function() GameTooltip:Hide() end)
+    detailText:SetScript("OnHyperlinkLeave", PSM.Tooltip.Hide)
     detailText:SetScript("OnHyperlinkClick", function(_, link)
         local linkType, data = strsplit(":", link, 2)
         if linkType == "npc" then
@@ -451,46 +479,32 @@ function PSM.PopUpManager:CreateModelPopup(config)
     local resizable = config.resizable or false
     local popupName = config.popupName or "PetStableManagementModelPopup"
 
+    local Theme, Widgets = PSM.Theme, PSM.Widgets
+
     -- Root frame
-    local popup = CreateFrame("Frame", popupName, UIParent)
-    popup:SetSize(width, height)
-    popup:SetPoint("CENTER")
-    popup:SetFrameStrata("DIALOG")
-    popup:SetFrameLevel(1000)
+    local popup = Widgets.MovableFrame(UIParent, {
+        name   = popupName,
+        size   = { width, height },
+        point  = { "CENTER" },
+        strata = "DIALOG",
+        level  = 1000,
+    })
     popup:SetToplevel(true)
     popup:SetClampedToScreen(true)
     popup:SetClipsChildren(true)
-    popup:SetMovable(true)
-    popup:EnableMouse(true)
-    popup:RegisterForDrag("LeftButton")
-    popup:SetScript("OnDragStart", popup.StartMoving)
-    popup:SetScript("OnDragStop",  popup.StopMovingOrSizing)
 
     -- Resize handle
     if resizable then
-        popup:SetResizable(true)
-        local grip = CreateFrame("Button", nil, popup)
-        grip:SetSize(16, 16)
-        grip:SetPoint("BOTTOMRIGHT", -5, 5)
-        grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
-        grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
-        grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
-        grip:SetScript("OnMouseDown", function() popup:StartSizing("BOTTOMRIGHT") end)
-        grip:SetScript("OnMouseUp",   function() popup:StopMovingOrSizing() end)
-        PSM.UI:ApplyElvUISkin(grip, "resizegrip")
+        Widgets.ResizeGrip(popup, { point = { "BOTTOMRIGHT", -5, 5 } })
     end
 
     -- Background / border
-    popup.border = CreateFrame("Frame", nil, popup, "BackdropTemplate")
-    popup.border:SetAllPoints()
-    popup.border:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 30, edgeSize = 5,
-        insets = {left=4, right=4, top=4, bottom=4}
+    popup.border = Widgets.Frame(popup, {
+        allPoints = true,
+        backdrop  = "TOOLTIP_HAIRLINE",
+        color     = { 0, 0, 0, PSM.Config:GetOpacity() },
+        level     = popup:GetFrameLevel() - 1,
     })
-    popup.border:SetBackdropColor(0, 0, 0, PSM.Config:GetOpacity())
-    popup.border:SetFrameLevel(popup:GetFrameLevel() - 1)
 
     popup.border.specBg = popup.border:CreateTexture(nil, "BACKGROUND", nil, -1)
     popup.border.specBg:SetAllPoints()
@@ -498,43 +512,47 @@ function PSM.PopUpManager:CreateModelPopup(config)
 
     -- Optional: Pet Models back button
     if config.showPetModelsButton then
-        popup.modelsButton = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
-        popup.modelsButton:SetPoint("TOPLEFT", 20, -10)
-        popup.modelsButton:SetSize(80, 25)
-        popup.modelsButton:SetText("< Pet Models")
-        popup.modelsButton:SetNormalFontObject("GameFontNormalSmall")
-        popup.modelsButton:SetScript("OnClick", function()
-            popup:Hide()
-            if PSM.state.modelsPanel and PSM.state.modelsPanel:IsVisible() then
-                PSM.state.modelsPanel:Raise()
-            elseif not PSM.Loader:EnsureBrowser() then
-                return  -- Loader has already reported why
-            elseif PSM.PanelManager and PSM.PanelManager.TogglePanel then
-                PSM.PanelManager:TogglePanel("modelsPanel", function()
-                    if PSM.ModelsPanel and PSM.ModelsPanel.CreateModelsPanel then
-                        PSM.ModelsPanel:CreateModelsPanel()
-                    end
-                end)
-            elseif PSM.state.modelsPanel then
-                PSM.state.modelsPanel:Show()
-                PSM.state.modelsPanel:Raise()
-            end
-        end)
-        PSM.UI:ApplyElvUISkin(popup.modelsButton, "button")
+        popup.modelsButton = Widgets.Button(popup, {
+            point      = { "TOPLEFT", 20, -10 },
+            size       = { 80, 25 },
+            text       = "< Pet Models",
+            fontObject = "GameFontNormalSmall",
+            onClick = function()
+                popup:Hide()
+                if PSM.state.modelsPanel and PSM.state.modelsPanel:IsVisible() then
+                    PSM.state.modelsPanel:Raise()
+                elseif not PSM.Loader:EnsureBrowser() then
+                    return  -- Loader has already reported why
+                elseif PSM.PanelManager and PSM.PanelManager.TogglePanel then
+                    PSM.PanelManager:TogglePanel("modelsPanel", function()
+                        if PSM.ModelsPanel and PSM.ModelsPanel.CreateModelsPanel then
+                            PSM.ModelsPanel:CreateModelsPanel()
+                        end
+                    end)
+                elseif PSM.state.modelsPanel then
+                    PSM.state.modelsPanel:Show()
+                    PSM.state.modelsPanel:Raise()
+                end
+            end,
+        })
     end
 
     -- Title
-    popup.title = popup:CreateFontString(nil, "OVERLAY")
-    popup.title:SetFont("Fonts\\FRIZQT__.TTF", 16, "OUTLINE")
-    popup.title:SetPoint("TOP", 0, -15)
-    popup.title:SetText(title)
-    popup.title:SetTextColor(1, 0.82, 0)
+    popup.title = Widgets.Label(popup, {
+        fontSize = Theme.SIZE.TITLE,
+        outline  = true,
+        color    = Theme.COLOR.GOLD,
+        point    = { "TOP", 0, -15 },
+        text     = title,
+    })
 
     -- 3D model frame
-    local mf = CreateFrame("PlayerModel", nil, popup)
-    mf:SetSize(modelSize - 10, modelSize - 10)
-    mf:SetPoint("TOP", popup.title, "BOTTOM", 0, -15)
-    mf:SetFrameLevel(popup:GetFrameLevel() + 1)
+    local mf = Widgets.Frame(popup, {
+        frameType = "PlayerModel",
+        size      = { modelSize - 10, modelSize - 10 },
+        point     = { "TOP", popup.title, "BOTTOM", 0, -15 },
+        level     = popup:GetFrameLevel() + 1,
+    })
     mf.rotation            = math.pi * 2
     mf.zoom                = 1.0
     mf.lastCamDistanceScale = 1.0
@@ -544,14 +562,15 @@ function PSM.PopUpManager:CreateModelPopup(config)
     popup.modelFrame = mf
 
     -- Reset view button (top-right of model)
-    popup.modelReset = CreateFrame("Button", nil, popup)
-    popup.modelReset:SetSize(20, 20)
-    popup.modelReset:SetPoint("TOPRIGHT", mf, "TOPRIGHT", -2, -2)
-    popup.modelReset:SetFrameLevel(mf:GetFrameLevel() + 2)
-    popup.modelReset:SetNormalTexture("Interface\\Buttons\\UI-RefreshButton")
-    popup.modelReset:SetHighlightTexture("Interface\\Buttons\\UI-RefreshButton")
-    popup.modelReset:SetAlpha(0.7)
-    popup.modelReset:Hide()
+    popup.modelReset = Widgets.IconButton(popup, {
+        size      = { 20, 20 },
+        point     = { "TOPRIGHT", mf, "TOPRIGHT", -2, -2 },
+        level     = mf:GetFrameLevel() + 2,
+        texture   = "Interface\\Buttons\\UI-RefreshButton",
+        highlight = "Interface\\Buttons\\UI-RefreshButton",
+        alpha     = 0.7,
+        hidden    = true,
+    })
     popup.modelReset:SetScript("OnClick", function()
         local db = GetDB()
         local hPos = (db.modelHorizontalPosition or PSM.Config.DEFAULT_MODEL_HORIZONTAL_POSITION) * 2.0
@@ -567,16 +586,10 @@ function PSM.PopUpManager:CreateModelPopup(config)
         if PSM.MovementFrame then PSM.MovementFrame.activeModels[mf] = nil end
         SaveView(popup, { rotation = mf.rotation, zoom = mf.zoom, position = {0, hPos, vPos} })
     end)
-    popup.modelReset:SetScript("OnEnter", function(self)
-        self:SetAlpha(1.0)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText("Reset View")
-        GameTooltip:Show()
-    end)
-    popup.modelReset:SetScript("OnLeave", function(self)
-        self:SetAlpha(0.7)
-        GameTooltip:Hide()
-    end)
+    PSM.Tooltip.Attach(popup.modelReset, { title = "Reset View" }, {
+        onEnter = function(self) self:SetAlpha(1.0) end,
+        onLeave = function(self) self:SetAlpha(0.7) end,
+    })
 
     -- Model mouse interaction
     mf:EnableMouse(true)
@@ -619,25 +632,24 @@ function PSM.PopUpManager:CreateModelPopup(config)
         SaveView(popup, { zoom = self.zoom })
     end)
 
-    mf:SetScript("OnEnter", function()
-        popup.modelReset:Show()
-        GameTooltip:SetOwner(mf, "ANCHOR_RIGHT")
-        GameTooltip:SetText("Left-click and drag to rotate\nRight-click and drag to move (left/right, up/down)\nScroll to zoom")
-        GameTooltip:Show()
-    end)
-
-    mf:SetScript("OnLeave", function()
-        if not popup.modelReset:IsMouseOver() then popup.modelReset:Hide() end
-        GameTooltip:Hide()
-    end)
+    PSM.Tooltip.Attach(mf, {
+        title = "Left-click and drag to rotate\nRight-click and drag to move (left/right, up/down)\nScroll to zoom",
+    }, {
+        onEnter = function() popup.modelReset:Show() end,
+        onLeave = function()
+            if not popup.modelReset:IsMouseOver() then popup.modelReset:Hide() end
+        end,
+    })
 
     -- Favorites button (top-left of model)
-    popup.favoritesButton = CreateFrame("Button", nil, popup)
-    popup.favoritesButton:SetSize(20, 20)
-    popup.favoritesButton:SetPoint("TOPLEFT", mf, "TOPLEFT", 2, -2)
-    popup.favoritesButton:SetFrameLevel(mf:GetFrameLevel() + 2)
-    popup.favoritesButton:SetNormalTexture("Interface\\Common\\ReputationStar")
-    popup.favoritesButton:SetHighlightTexture("Interface\\Common\\ReputationStar")
+    popup.favoritesButton = Widgets.IconButton(popup, {
+        size      = { 20, 20 },
+        point     = { "TOPLEFT", mf, "TOPLEFT", 2, -2 },
+        level     = mf:GetFrameLevel() + 2,
+        texture   = "Interface\\Common\\ReputationStar",
+        highlight = "Interface\\Common\\ReputationStar",
+        tooltip   = { title = "Add to Favorites", anchor = "ANCHOR_LEFT" },
+    })
     local function SetFavTexCoord(btn, isFav)
         local coord = isFav and {0, 0.5, 0, 0.5} or {0.5, 1, 0, 0.5}
         btn:GetNormalTexture():SetTexCoord(unpack(coord))
@@ -654,46 +666,51 @@ function PSM.PopUpManager:CreateModelPopup(config)
             PSM.ModelsDataLoader:LoadModelsForSelectedFamilies()
         end
     end)
-    popup.favoritesButton:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:SetText("Add to Favorites")
-        GameTooltip:Show()
-    end)
-    popup.favoritesButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
     popup.SetFavTexCoord = SetFavTexCoord
 
     -- Info text (anchored to bottom of model frame)
-    popup.infoText = popup:CreateFontString(nil, "OVERLAY")
-    popup.infoText:SetFont("Fonts\\FRIZQT__.TTF", 12)
-    popup.infoText:SetPoint("TOPLEFT", mf, "BOTTOMLEFT", 0, -20)
-    popup.infoText:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -25, -20)
+    popup.infoText = Widgets.Label(popup, {
+        fontSize = Theme.SIZE.LABEL,
+        point    = {
+            { "TOPLEFT",  mf,    "BOTTOMLEFT", 0,   -20 },
+            { "TOPRIGHT", popup, "TOPRIGHT",   -25, -20 },
+        },
+    })
 
     -- Taming requirements area
-    local tf = CreateFrame("Frame", nil, popup, "BackdropTemplate")
-    tf:SetPoint("TOPLEFT", popup.infoText, "BOTTOMLEFT", 0, -10)
-    tf:SetPoint("TOPRIGHT", popup.infoText, "BOTTOMRIGHT", 0, -10)
-    popup.tamingFrame = tf
-    tf:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
+    local tf = Widgets.Frame(popup, {
+        backdrop = "SOLID",
+        color    = Theme.FILL.ROW,
+        point    = {
+            { "TOPLEFT",  popup.infoText, "BOTTOMLEFT",  0, -10 },
+            { "TOPRIGHT", popup.infoText, "BOTTOMRIGHT", 0, -10 },
+        },
     })
-    tf:SetBackdropColor(0.08, 0.08, 0.12, 0.85)
+    popup.tamingFrame = tf
 
-    popup.tamingTitle = tf:CreateFontString(nil, "OVERLAY")
-    popup.tamingTitle:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
-    popup.tamingTitle:SetTextColor(1, 0.82, 0)
-    popup.tamingTitle:SetJustifyH("CENTER")
-    popup.tamingTitle:SetPoint("TOPLEFT", tf, "TOPLEFT", TAMING_ROW_PADDING, -6)
-    popup.tamingTitle:SetText("Taming Skills Required")
+    popup.tamingTitle = Widgets.Label(tf, {
+        fontSize = Theme.SIZE.LABEL,
+        outline  = true,
+        color    = Theme.COLOR.GOLD,
+        justify  = "CENTER",
+        point    = { "TOPLEFT", tf, "TOPLEFT", TAMING_ROW_PADDING, -6 },
+        text     = "Taming Skills Required",
+    })
 
-    local tamingBottomLine = tf:CreateTexture(nil, "OVERLAY")
-    tamingBottomLine:SetHeight(2)
-    tamingBottomLine:SetPoint("BOTTOMLEFT", 0, 0)
-    tamingBottomLine:SetPoint("BOTTOMRIGHT", 0, 0)
-    tamingBottomLine:SetColorTexture(0.44, 0.44, 0.50, 1)
+    Widgets.Line(tf, {
+        height = 2,
+        color  = { 0.44, 0.44, 0.50, 1 },
+        point  = {
+            { "BOTTOMLEFT",  0, 0 },
+            { "BOTTOMRIGHT", 0, 0 },
+        },
+    })
 
-    popup.tamingHTML = CreateFrame("SimpleHTML", nil, tf)
-    popup.tamingHTML:SetPoint("TOPLEFT", popup.tamingTitle, "BOTTOMLEFT", 0, -6)
-    popup.tamingHTML:SetFont("p", "Fonts\\FRIZQT__.TTF", 11, "")
+    popup.tamingHTML = Widgets.Frame(tf, {
+        frameType = "SimpleHTML",
+        point     = { "TOPLEFT", popup.tamingTitle, "BOTTOMLEFT", 0, -6 },
+    })
+    popup.tamingHTML:SetFont("p", Theme.FONT, Theme.SIZE.BODY, "")
     popup.tamingHTML:SetHyperlinksEnabled(true)
     tf:Hide()
 
@@ -702,18 +719,17 @@ function PSM.PopUpManager:CreateModelPopup(config)
         if linkType ~= "psmtaming" then return end
         local rule = PSM.TamingRules and PSM.TamingRules[data]
         if not rule or not rule.hint then return end
-        GameTooltip:SetOwner(popup.tamingHTML, "ANCHOR_CURSOR")
+
+        local hyperlink
         if rule.hint.itemID then
-            GameTooltip:SetHyperlink("item:" .. rule.hint.itemID)
+            hyperlink = "item:" .. rule.hint.itemID
         elseif rule.hint.questID then
-            GameTooltip:SetHyperlink("quest:" .. rule.hint.questID)
+            hyperlink = "quest:" .. rule.hint.questID
         end
-        GameTooltip:Show()
+        PSM.Tooltip.Show(popup.tamingHTML, { anchor = "ANCHOR_CURSOR", hyperlink = hyperlink })
     end)
 
-    popup.tamingHTML:SetScript("OnHyperlinkLeave", function()
-        GameTooltip:Hide()
-    end)
+    popup.tamingHTML:SetScript("OnHyperlinkLeave", PSM.Tooltip.Hide)
 
     popup.tamingHTML:SetScript("OnHyperlinkClick", function(_, link, _, button)
         local linkType, data = strsplit(":", link, 2)
@@ -731,26 +747,36 @@ function PSM.PopUpManager:CreateModelPopup(config)
     end)
 
     -- NPC scroll area
-    popup.npcsScrollFrame = CreateFrame("ScrollFrame", nil, popup)
-    popup.npcsScrollFrame:SetPoint("TOPLEFT", tf, "BOTTOMLEFT", 0, -8)
-    popup.npcsScrollFrame:SetPoint("TOPRIGHT", tf, "BOTTOMRIGHT", 0, -8)
-    popup.npcsScrollFrame:SetPoint("BOTTOM", popup, "BOTTOM", 0, 45)
+    popup.npcsScrollFrame = Widgets.Frame(popup, {
+        frameType = "ScrollFrame",
+        point = {
+            { "TOPLEFT",  tf,    "BOTTOMLEFT",  0, -8 },
+            { "TOPRIGHT", tf,    "BOTTOMRIGHT", 0, -8 },
+            { "BOTTOM",   popup, "BOTTOM",      0, 45 },
+        },
+    })
     popup.npcsScrollFrame:EnableMouse(true)
 
-    popup.npcsContainer = CreateFrame("Frame", nil, popup.npcsScrollFrame)
-    popup.npcsContainer:SetSize(width - 0, 120)
-    popup.npcsContainer:SetPoint("TOPLEFT", 22, 0) -- Leave space for scrollbar on left
+    popup.npcsContainer = Widgets.Frame(popup.npcsScrollFrame, {
+        size  = { width - 0, 120 },
+        point = { "TOPLEFT", 22, 0 },  -- Leave space for scrollbar on left
+    })
     popup.npcsScrollFrame:SetScrollChild(popup.npcsContainer)
 
-    local scrollBar = CreateFrame("Slider", nil, popup, "UIPanelScrollBarTemplate")
-    scrollBar:SetPoint("TOPRIGHT",    popup.npcsScrollFrame, "TOPRIGHT",    0, -16)
-    scrollBar:SetPoint("BOTTOMRIGHT", popup.npcsScrollFrame, "BOTTOMRIGHT", 0,  16)
+    local scrollBar = Widgets.Frame(popup, {
+        frameType = "Slider",
+        template  = "UIPanelScrollBarTemplate",
+        skin      = "scrollbar",
+        point = {
+            { "TOPRIGHT",    popup.npcsScrollFrame, "TOPRIGHT",    0, -16 },
+            { "BOTTOMRIGHT", popup.npcsScrollFrame, "BOTTOMRIGHT", 0,  16 },
+        },
+    })
     scrollBar:SetMinMaxValues(0, 0)
     scrollBar:SetValueStep(1)
     scrollBar.scrollStep = 1
     scrollBar:SetScript("OnValueChanged", function(_, v) popup.npcsScrollFrame:SetVerticalScroll(v) end)
     popup.npcsScrollBar = scrollBar
-    PSM.UI:ApplyElvUISkin(scrollBar, "scrollbar")
 
     popup.npcsScrollFrame:SetScript("OnMouseWheel", function(_, delta)
         local cur = scrollBar:GetValue()
@@ -760,33 +786,25 @@ function PSM.PopUpManager:CreateModelPopup(config)
 
     -- Optional: Try Again button
     if config.showTryAgainButton then
-        popup.tryAgainButton = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
-        popup.tryAgainButton:SetSize(80, 25)
-        popup.tryAgainButton:SetText("Try Again")
-        popup.tryAgainButton:SetNormalFontObject("GameFontNormalSmall")
-        popup.tryAgainButton:SetFrameStrata("TOOLTIP")
-        popup.tryAgainButton:SetPoint("TOPRIGHT", popup.npcsScrollFrame, "BOTTOMRIGHT", -20, -10)
-        popup.tryAgainButton:SetScript("OnClick", function()
-            if config.onTryAgain then config.onTryAgain() end
-        end)
-        PSM.UI:ApplyElvUISkin(popup.tryAgainButton, "button")
+        popup.tryAgainButton = Widgets.Button(popup, {
+            size       = { 80, 25 },
+            text       = "Try Again",
+            fontObject = "GameFontNormalSmall",
+            strata     = "TOOLTIP",
+            point      = { "TOPRIGHT", popup.npcsScrollFrame, "BOTTOMRIGHT", -20, -10 },
+            onClick    = function()
+                if config.onTryAgain then config.onTryAgain() end
+            end,
+        })
     end
 
     -- Close button
-    popup.closeButton = CreateFrame("Button", nil, popup, "UIPanelCloseButton")
-    popup.closeButton:SetPoint("TOPRIGHT", -5, -5)
-    popup.closeButton:SetSize(20, 20)
-    popup.closeButton:SetFrameLevel(popup:GetFrameLevel() + 10)
-    popup.closeButton:SetScript("OnClick", function() popup:Hide() end)
-    PSM.UI:ApplyElvUISkin(popup.closeButton, "closebutton")
+    popup.closeButton = Widgets.CloseButton(popup, {
+        size  = { 20, 20 },
+        level = popup:GetFrameLevel() + 10,
+    })
 
-    -- ESC closes popup
-    popup:EnableKeyboard(true)
-    popup:SetPropagateKeyboardInput(true)
-    popup:SetScript("OnKeyDown", function(self, key)
-        self:SetPropagateKeyboardInput(key ~= "ESCAPE")
-        if key == "ESCAPE" then self:Hide() end
-    end)
+    Widgets.CloseOnEscape(popup)
 
     -- Layout: the taming/NPC block at the bottom keeps a stable height, and the
     -- model frame above it absorbs all resize- and content-driven size changes.
@@ -874,41 +892,34 @@ end
 
 function PSM.PopUpManager:ShowURLPopup(url)
     if not self.urlPopup then
-        local f = CreateFrame("Frame", "PSMURLPopup", UIParent, "BackdropTemplate")
-        f:SetSize(300, 100)
-        f:SetPoint("CENTER")
-        f:SetFrameStrata("TOOLTIP")
-        f:SetMovable(true)
-        f:SetToplevel(true)
-        f:EnableMouse(true)
-        f:RegisterForDrag("LeftButton")
-        f:SetScript("OnDragStart", f.StartMoving)
-        f:SetScript("OnDragStop",  f.StopMovingOrSizing)
-        f:SetBackdrop({
-            bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-            tile = true, tileSize = 16, edgeSize = 16,
-            insets = {left=4, right=4, top=4, bottom=4}
+        local Theme, Widgets = PSM.Theme, PSM.Widgets
+
+        local f = Widgets.MovableFrame(UIParent, {
+            name     = "PSMURLPopup",
+            size     = { 300, 100 },
+            point    = { "CENTER" },
+            strata   = "TOOLTIP",
+            backdrop = "TOOLTIP",
+            color    = Theme.FILL.POPUP,
         })
-        f:SetBackdropColor(0, 0, 0, 0.9)
+        f:SetToplevel(true)
 
-        f.title = f:CreateFontString(nil, "OVERLAY")
-        f.title:SetFont("Fonts\\FRIZQT__.TTF", 14, "OUTLINE")
-        f.title:SetPoint("TOP", 0, -10)
-        f.title:SetTextColor(1, 0.82, 0)
-        f.title:SetText("Wowhead URL")
+        f.title = Widgets.Label(f, {
+            fontSize = Theme.SIZE.HEADING,
+            outline  = true,
+            color    = Theme.COLOR.GOLD,
+            point    = { "TOP", 0, -10 },
+            text     = "Wowhead URL",
+        })
 
-        f.editBox = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
-        f.editBox:SetPoint("TOP", f.title, "BOTTOM", 0, -10)
-        f.editBox:SetSize(260, 20)
-        f.editBox:SetAutoFocus(true)
-        f.editBox:SetScript("OnEscapePressed", function() f:Hide() end)
+        f.editBox = Widgets.EditBox(f, {
+            point     = { "TOP", f.title, "BOTTOM", 0, -10 },
+            size      = { 260, 20 },
+            autoFocus = true,
+            closes    = f,
+        })
 
-        f.closeButton = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-        f.closeButton:SetPoint("TOPRIGHT", -5, -5)
-        f.closeButton:SetScript("OnClick", function() f:Hide() end)
-        PSM.UI:ApplyElvUISkin(f.closeButton, "closebutton")
-        PSM.UI:ApplyElvUISkin(f.editBox, "editbox")
+        f.closeButton = Widgets.CloseButton(f)
 
         self.urlPopup = f
     end
@@ -1037,144 +1048,126 @@ end
 
 function PSM.PopUpManager:ShowCoordsPopup(text, npcName, location, displayId)
     if not self.coordsPopup then
-        local f = CreateFrame("Frame", "PSMCoordsPopup", UIParent, "BackdropTemplate")
-        f:SetSize(300, 200)
-        f:SetPoint("CENTER")
-        f:SetFrameStrata("TOOLTIP")
-        f:SetFrameLevel(1010)
+        local Theme, Widgets = PSM.Theme, PSM.Widgets
+
+        local f = Widgets.MovableFrame(UIParent, {
+            name     = "PSMCoordsPopup",
+            size     = { 300, 200 },
+            point    = { "CENTER" },
+            strata   = "TOOLTIP",
+            level    = 1010,
+            backdrop = "TOOLTIP_SMALL",
+            color    = Theme.FILL.POPUP,
+        })
         f:SetToplevel(true)
-        f:SetMovable(true)
         f:SetResizable(true)
         f:SetResizeBounds(300, 150, 800, 800)
-        f:EnableMouse(true)
-        f:RegisterForDrag("LeftButton")
-        f:SetScript("OnDragStart", f.StartMoving)
-        f:SetScript("OnDragStop",  f.StopMovingOrSizing)
-        f:SetBackdrop({
-            bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-            tile = true, tileSize = 14, edgeSize = 14,
-            insets = {left=4, right=4, top=4, bottom=4}
+
+        f.title = Widgets.Label(f, {
+            fontSize = Theme.SIZE.LABEL,
+            outline  = true,
+            color    = Theme.COLOR.GOLD,
+            point    = { "TOP", 0, -10 },
         })
-        f:SetBackdropColor(0, 0, 0, 0.9)
 
-        f.title = f:CreateFontString(nil, "OVERLAY")
-        f.title:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
-        f.title:SetPoint("TOP", 0, -10)
-        f.title:SetTextColor(1, 0.82, 0)
+        f.pasteButton = Widgets.Button(f, {
+            point = { "BOTTOM", f, "BOTTOM", 0, 10 },
+            size  = { 120, 25 },
+            text  = "Create Waypoints",
+            tooltip = {
+                anchor   = "ANCHOR_BOTTOMRIGHT",
+                title    = "Adds a waypoint pin on the map",
+                toplevel = true,
+                lines    = {{
+                    text  = "Install TomTom for portrait icons, multiple waypoints, and navigation.",
+                    color = Theme.COLOR.WHITE,
+                    wrap  = true,
+                }},
+            },
+            onClick = function()
+                local t = f.editBox:GetText()
+                if not t or t == "" then return end
+                local lines = { strsplit("\n", t) }
+                local hasTomTom = _G.TomTom ~= nil
 
-        f.pasteButton = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-        f.pasteButton:SetPoint("BOTTOM", f, "BOTTOM", 0, 10)
-        f.pasteButton:SetSize(120, 25)
-        f.pasteButton:SetText("Create Waypoints")
-        f.pasteButton:SetScript("OnClick", function()
-            local t = f.editBox:GetText()
-            if not t or t == "" then return end
-            local lines = { strsplit("\n", t) }
-            local hasTomTom = _G.TomTom ~= nil
+                local waypointCount, firstMapId = 0, nil
+                local firstCoord = nil -- only used when TomTom is absent
 
-            local waypointCount, firstMapId = 0, nil
-            local firstCoord = nil -- only used when TomTom is absent
-
-            for _, line in ipairs(lines) do
-                if strtrim(line) ~= "" then
-                    local uiMapId, x, y, name = line:match("/way #(%d+) ([0-9%.]+) ([0-9%.]+) (.+)")
-                    if uiMapId and x and y then
-                        uiMapId = tonumber(uiMapId)
-                        if hasTomTom then
-                            _G.TomTom:AddWaypoint(uiMapId, tonumber(x)/100, tonumber(y)/100, {
-                                title = name or "",
-                                worldmap_displayID = f.displayId,
-                                minimap_displayID = f.displayId,
-                            })
-                        elseif not firstCoord then
-                            firstCoord = { uiMapId = uiMapId, x = tonumber(x)/100, y = tonumber(y)/100 }
+                for _, line in ipairs(lines) do
+                    if strtrim(line) ~= "" then
+                        local uiMapId, x, y, name = line:match("/way #(%d+) ([0-9%.]+) ([0-9%.]+) (.+)")
+                        if uiMapId and x and y then
+                            uiMapId = tonumber(uiMapId)
+                            if hasTomTom then
+                                _G.TomTom:AddWaypoint(uiMapId, tonumber(x)/100, tonumber(y)/100, {
+                                    title = name or "",
+                                    worldmap_displayID = f.displayId,
+                                    minimap_displayID = f.displayId,
+                                })
+                            elseif not firstCoord then
+                                firstCoord = { uiMapId = uiMapId, x = tonumber(x)/100, y = tonumber(y)/100 }
+                            end
+                            waypointCount = waypointCount + 1
+                            if not firstMapId then firstMapId = uiMapId end
                         end
-                        waypointCount = waypointCount + 1
-                        if not firstMapId then firstMapId = uiMapId end
                     end
                 end
-            end
 
-            if not hasTomTom and firstCoord then
-                -- No TomTom: Blizzard's native waypoint only ever shows a single
-                -- plain pin (no custom icon, no multi-point support). Full
-                -- multi-pin coverage with portrait icons requires TomTom.
-                C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(firstCoord.uiMapId, firstCoord.x, firstCoord.y))
-                C_SuperTrack.SetSuperTrackedUserWaypoint(true)
-            end
-
-            if waypointCount > 0 and f.npcName and f.location then
-                print("|cff00ff00" .. waypointCount .. " waypoint(s) added on " .. f.location .. " map for " .. f.npcName .. "|r")
-                if not hasTomTom then
-                    print("|cffffff00PSM:|r Only the first location was marked. Install |cff3fc7ebTomTom|r for all waypoints, portrait icons, and navigation.")
+                if not hasTomTom and firstCoord then
+                    -- No TomTom: Blizzard's native waypoint only ever shows a single
+                    -- plain pin (no custom icon, no multi-point support). Full
+                    -- multi-pin coverage with portrait icons requires TomTom.
+                    C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(firstCoord.uiMapId, firstCoord.x, firstCoord.y))
+                    C_SuperTrack.SetSuperTrackedUserWaypoint(true)
                 end
-            end
-            if firstMapId then
-                f:Hide() -- popup is TOOLTIP-strata, above the map; get it out of the way first
-                -- OpenWorldMap (not SetMapID+ShowUIPanel) matters: WorldMapFrame's OnShow
-                -- always resets to the player's current zone, so the map ID has to be set
-                -- *after* showing, which is what OpenWorldMap does for us.
-                OpenWorldMap(firstMapId)
-            end
-        end)
-        f.pasteButton:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
-            GameTooltip:SetText("Adds a waypoint pin on the map")
-            GameTooltip:AddLine("Install TomTom for portrait icons, multiple waypoints, and navigation.", 1, 1, 1, true)
-            GameTooltip:SetFrameLevel(self:GetFrameLevel() + 100)
-            GameTooltip:SetToplevel(true)
-            GameTooltip:Show()
-        end)
-        f.pasteButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
-        PSM.UI:ApplyElvUISkin(f.pasteButton, "button")
 
-        f.contentScroll = CreateFrame("ScrollFrame", "PSMCoordsPopupScrollFrame", f, "UIPanelScrollFrameTemplate")
-        f.contentScroll:SetPoint("TOP", f.title, "BOTTOM", 0, -10)
-        f.contentScroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -40, 40)
-        PSM.UI:ApplyElvUISkin(f.contentScroll, "scrollframe")
-        PSM.UI:ApplyElvUISkin(f.contentScroll.ScrollBar, "scrollbar")
+                if waypointCount > 0 and f.npcName and f.location then
+                    print("|cff00ff00" .. waypointCount .. " waypoint(s) added on " .. f.location .. " map for " .. f.npcName .. "|r")
+                    if not hasTomTom then
+                        print("|cffffff00PSM:|r Only the first location was marked. Install |cff3fc7ebTomTom|r for all waypoints, portrait icons, and navigation.")
+                    end
+                end
+                if firstMapId then
+                    f:Hide() -- popup is TOOLTIP-strata, above the map; get it out of the way first
+                    -- OpenWorldMap (not SetMapID+ShowUIPanel) matters: WorldMapFrame's OnShow
+                    -- always resets to the player's current zone, so the map ID has to be set
+                    -- *after* showing, which is what OpenWorldMap does for us.
+                    OpenWorldMap(firstMapId)
+                end
+            end,
+        })
 
-        f.editBox = CreateFrame("EditBox", "PSMCoordsEditBox", f.contentScroll)
-        f.editBox:SetFontObject("GameFontNormal")
-        f.editBox:SetMultiLine(true)
-        f.editBox:SetAutoFocus(false)
-        f.editBox:SetWidth(f.contentScroll:GetWidth())
-        f.editBox:SetHeight(f.contentScroll:GetHeight())
-        f.editBox:EnableMouse(true)
-        f.editBox:EnableKeyboard(true)
-        f.editBox:SetTextColor(1, 1, 1)
-        f.editBox:SetScript("OnEscapePressed", function() f:Hide() end)
+        f.contentScroll = Widgets.Frame(f, {
+            name      = "PSMCoordsPopupScrollFrame",
+            frameType = "ScrollFrame",
+            template  = "UIPanelScrollFrameTemplate",
+            skin      = "scrollframe",
+            point = {
+                { "TOP",         f.title, "BOTTOM",      0,   -10 },
+                { "BOTTOMRIGHT", f,       "BOTTOMRIGHT", -40,  40 },
+            },
+        })
+        PSM.Skin.Apply(f.contentScroll.ScrollBar, "scrollbar")
+
+        f.editBox = Widgets.EditBox(f.contentScroll, {
+            name      = "PSMCoordsEditBox",
+            multiline = true,
+            width     = f.contentScroll:GetWidth(),
+            height    = f.contentScroll:GetHeight(),
+            textColor = Theme.COLOR.WHITE,
+            closes    = f,
+        })
         f.contentScroll:SetScrollChild(f.editBox)
-        PSM.UI:ApplyElvUISkin(f.editBox, "editbox")
 
         f:SetScript("OnSizeChanged", function()
             f.editBox:SetWidth(f.contentScroll:GetWidth())
             f.editBox:SetHeight(f.contentScroll:GetHeight())
         end)
 
-        f.closeButton = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-        f.closeButton:SetPoint("TOPRIGHT", -5, -5)
-        f.closeButton:SetFrameLevel(f:GetFrameLevel() + 10)
-        f.closeButton:SetScript("OnClick", function() f:Hide() end)
-        PSM.UI:ApplyElvUISkin(f.closeButton, "closebutton")
+        f.closeButton = Widgets.CloseButton(f, { level = f:GetFrameLevel() + 10 })
 
-        local grip = CreateFrame("Button", nil, f)
-        grip:SetSize(16, 16)
-        grip:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -4, 4)
-        grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
-        grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
-        grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
-        grip:SetScript("OnMouseDown", function() f:StartSizing("BOTTOMRIGHT") end)
-        grip:SetScript("OnMouseUp",   function() f:StopMovingOrSizing() end)
-        PSM.UI:ApplyElvUISkin(grip, "resizegrip")
-
-        f:EnableKeyboard(true)
-        f:SetPropagateKeyboardInput(true)
-        f:SetScript("OnKeyDown", function(self, key)
-            self:SetPropagateKeyboardInput(key ~= "ESCAPE")
-            if key == "ESCAPE" then self:Hide() end
-        end)
+        Widgets.ResizeGrip(f)
+        Widgets.CloseOnEscape(f)
 
         self.coordsPopup = f
     end
@@ -1516,118 +1509,104 @@ function PSM.PopUpManager:ShowNoteEditor(npcId, npcName, parentPopup, onSaved)
     PSM.Loader:EnsureBrowser()
 
     if not self.noteEditor then
-        local f = CreateFrame("Frame", "PSMNoteEditor", UIParent, "BackdropTemplate")
-        f:SetSize(450, 350)
-        f:SetPoint("CENTER")
-        f:SetFrameStrata("TOOLTIP")
-        f:SetFrameLevel(1020)
+        local Theme, Widgets = PSM.Theme, PSM.Widgets
+
+        local f = Widgets.MovableFrame(UIParent, {
+            name     = "PSMNoteEditor",
+            size     = { 450, 350 },
+            point    = { "CENTER" },
+            strata   = "TOOLTIP",
+            level    = 1020,
+            backdrop = "TOOLTIP_SMALL",
+            color    = Theme.FILL.POPUP,
+        })
         f:SetToplevel(true)
-        f:SetMovable(true)
         f:SetResizable(true)
         f:SetResizeBounds(350, 250, 800, 800)
-        f:EnableMouse(true)
-        f:RegisterForDrag("LeftButton")
-        f:SetScript("OnDragStart", f.StartMoving)
-        f:SetScript("OnDragStop",  f.StopMovingOrSizing)
-        f:SetBackdrop({
-            bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-            tile = true, tileSize = 14, edgeSize = 14,
-            insets = {left=4, right=4, top=4, bottom=4}
-        })
-        f:SetBackdropColor(0, 0, 0, 0.9)
 
         -- Title
-        f.title = f:CreateFontString(nil, "OVERLAY")
-        f.title:SetFont("Fonts\\FRIZQT__.TTF", 14, "OUTLINE")
-        f.title:SetPoint("TOP", 0, -10)
-        f.title:SetTextColor(1, 0.82, 0)
+        f.title = Widgets.Label(f, {
+            fontSize = Theme.SIZE.HEADING,
+            outline  = true,
+            color    = Theme.COLOR.GOLD,
+            point    = { "TOP", 0, -10 },
+        })
 
         -- Seed note label (shown only when a seed note exists)
-        f.seedLabel = f:CreateFontString(nil, "OVERLAY")
-        f.seedLabel:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
-        f.seedLabel:SetPoint("TOPLEFT", f, "TOPLEFT", 20, -35)
-        f.seedLabel:SetTextColor(0.6, 0.6, 0.6)
-        f.seedLabel:SetText("Info note (read-only):")
+        f.seedLabel = Widgets.Label(f, {
+            fontSize = Theme.SIZE.SMALL,
+            outline  = true,
+            color    = Theme.COLOR.GREY,
+            point    = { "TOPLEFT", f, "TOPLEFT", 20, -35 },
+            text     = "Info note (read-only):",
+        })
 
         -- Seed note text (read-only FontString)
-        f.seedText = f:CreateFontString(nil, "OVERLAY")
-        f.seedText:SetFont("Fonts\\FRIZQT__.TTF", 11)
-        f.seedText:SetPoint("TOPLEFT", f.seedLabel, "BOTTOMLEFT", 0, -4)
-        f.seedText:SetPoint("RIGHT", f, "RIGHT", -20, 0)
-        f.seedText:SetTextColor(0.75, 0.75, 0.75)
-        f.seedText:SetJustifyH("LEFT")
+        f.seedText = Widgets.Label(f, {
+            fontSize = Theme.SIZE.BODY,
+            color    = { 0.75, 0.75, 0.75 },
+            justify  = "LEFT",
+            point    = {
+                { "TOPLEFT", f.seedLabel, "BOTTOMLEFT", 0,   -4 },
+                { "RIGHT",   f,           "RIGHT",      -20,  0 },
+            },
+        })
         f.seedText:SetNonSpaceWrap(true)
         f.seedText:SetWordWrap(true)
 
         -- User note label
-        f.userLabel = f:CreateFontString(nil, "OVERLAY")
-        f.userLabel:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
-        f.userLabel:SetTextColor(0.6, 0.6, 0.6)
-        f.userLabel:SetText("My note:")
+        f.userLabel = Widgets.Label(f, {
+            fontSize = Theme.SIZE.SMALL,
+            outline  = true,
+            color    = Theme.COLOR.GREY,
+            text     = "My note:",
+        })
 
         -- Scroll frame + edit box for user note
-        f.scrollFrame = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
-        f.scrollFrame:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -50, 45)
-        PSM.UI:ApplyElvUISkin(f.scrollFrame, "scrollframe")
-        PSM.UI:ApplyElvUISkin(f.scrollFrame.ScrollBar, "scrollbar")
+        f.scrollFrame = Widgets.Frame(f, {
+            frameType = "ScrollFrame",
+            template  = "UIPanelScrollFrameTemplate",
+            skin      = "scrollframe",
+            point     = { "BOTTOMRIGHT", f, "BOTTOMRIGHT", -50, 45 },
+        })
+        PSM.Skin.Apply(f.scrollFrame.ScrollBar, "scrollbar")
 
-        f.editBox = CreateFrame("EditBox", nil, f.scrollFrame)
-        f.editBox:SetFontObject("ChatFontNormal")
-        f.editBox:SetMultiLine(true)
-        f.editBox:SetAutoFocus(false)
-        f.editBox:EnableMouse(true)
-        f.editBox:EnableKeyboard(true)
-        f.editBox:SetTextColor(1, 1, 1)
-        f.editBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+        f.editBox = Widgets.EditBox(f.scrollFrame, {
+            multiline  = true,
+            fontObject = "ChatFontNormal",
+            textColor  = Theme.COLOR.WHITE,
+            -- Escape here clears focus rather than closing: the frame's own
+            -- OnKeyDown handles the second Escape and closes the editor.
+            onEscape   = function(self) self:ClearFocus() end,
+        })
         f.scrollFrame:SetScrollChild(f.editBox)
-        PSM.UI:ApplyElvUISkin(f.editBox, "editbox")
 
-        -- Save button
-        f.saveButton = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-        f.saveButton:SetSize(80, 25)
-        f.saveButton:SetPoint("BOTTOMRIGHT", f, "BOTTOM", -5, 12)
-        f.saveButton:SetText("Save")
-        PSM.UI:ApplyElvUISkin(f.saveButton, "button")
+        -- Save button (its OnClick is wired per-call, below)
+        f.saveButton = Widgets.Button(f, {
+            size  = { 80, 25 },
+            point = { "BOTTOMRIGHT", f, "BOTTOM", -5, 12 },
+            text  = "Save",
+        })
 
         -- Clear button
-        f.clearButton = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-        f.clearButton:SetSize(80, 25)
-        f.clearButton:SetPoint("BOTTOMLEFT", f, "BOTTOM", 5, 12)
-        f.clearButton:SetText("Clear")
-        f.clearButton:SetScript("OnClick", function()
-            f.editBox:SetText("")
-            f.editBox:SetFocus()
-        end)
-        PSM.UI:ApplyElvUISkin(f.clearButton, "button")
+        f.clearButton = Widgets.Button(f, {
+            size    = { 80, 25 },
+            point   = { "BOTTOMLEFT", f, "BOTTOM", 5, 12 },
+            text    = "Clear",
+            onClick = function()
+                f.editBox:SetText("")
+                f.editBox:SetFocus()
+            end,
+        })
 
-        -- Close button
-        f.closeButton = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-        f.closeButton:SetPoint("TOPRIGHT", -5, -5)
-        f.closeButton:SetFrameLevel(f:GetFrameLevel() + 10)
-        f.closeButton:SetScript("OnClick", function() f:Hide() end)
-        PSM.UI:ApplyElvUISkin(f.closeButton, "closebutton")
+        f.closeButton = Widgets.CloseButton(f, { level = f:GetFrameLevel() + 10 })
 
-        -- Resize grip
-        local grip = CreateFrame("Button", nil, f)
-        grip:SetSize(16, 16)
-        grip:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -4, 4)
-        grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
-        grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
-        grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
-        grip:SetScript("OnMouseDown", function() f:StartSizing("BOTTOMRIGHT") end)
-        grip:SetScript("OnMouseUp",   function() f:StopMovingOrSizing() end)
-        PSM.UI:ApplyElvUISkin(grip, "resizegrip")
+        Widgets.ResizeGrip(f)
 
         -- ESC clears focus first, second ESC closes
-        f:EnableKeyboard(true)
-        f:SetPropagateKeyboardInput(true)
-        f:SetScript("OnKeyDown", function(self, key)
-            self:SetPropagateKeyboardInput(key ~= "ESCAPE")
-            if key == "ESCAPE" then self:Hide() end
-        end)
+        Widgets.CloseOnEscape(f)
 
-        f:SetScript("OnSizeChanged", function(self, w, h)
+        f:SetScript("OnSizeChanged", function()
             f.editBox:SetWidth(f.scrollFrame:GetWidth())
         end)
 

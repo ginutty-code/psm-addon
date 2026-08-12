@@ -9,33 +9,19 @@ local PSM = _G.PSM
 PSM.UI = PSM.UI or {}
 
 --------------------------------------------------------------------------------
--- ELVUI COMPATIBILITY
+-- ELVUI COMPATIBILITY (compatibility shims -- the implementation is UI/Skin.lua)
 --------------------------------------------------------------------------------
+-- These two forward to PSM.Skin so the call sites that predate the UI kit keep
+-- working while they migrate file by file. New code calls PSM.Skin.Apply
+-- directly, or -- better -- builds the widget with PSM.Widgets, which skins it.
+-- When the last caller is gone, delete these.
 
 function PSM.UI.ElvUITexture(name)
-    local media = ElvUI and ElvUI[1] and ElvUI[1].Media and ElvUI[1].Media.Textures
-    return (media and media[name])
-        or (name == "PlusButton"  and "Interface\\Buttons\\UI-PlusButton-Up")
-        or (name == "MinusButton" and "Interface\\Buttons\\UI-MinusButton-Up")
+    return PSM.Skin.Texture(name)
 end
 
 function PSM.UI:ApplyElvUISkin(frame, skinType)
-    if not ElvUI or not ElvUI[1] or not ElvUI[1]:GetModule("Skins") then return end
-    local S = ElvUI[1]:GetModule("Skins")
-    if     skinType == "frame"        then S:HandleFrame(frame, true)
-    elseif skinType == "button"
-        or skinType == "collapsebutton" then S:HandleButton(frame)
-    elseif skinType == "editbox"      then S:HandleEditBox(frame)
-    elseif skinType == "closebutton"  then S:HandleCloseButton(frame)
-    elseif skinType == "dropdown"     then S:HandleDropDownBox(frame)
-    elseif skinType == "checkbox"     then S:HandleCheckBox(frame)
-    elseif skinType == "scrollbar"    then S:HandleScrollBar(frame)
-    elseif skinType == "resizegrip"   then
-        frame:StripTextures()
-        frame:SetTemplate()
-        frame:SetNormalTexture(ElvUI[1].Media.Textures.ArrowUp or "Interface\\Buttons\\UI-PlusButton-Up")
-        frame:GetNormalTexture():SetRotation(-2.35)
-    end
+    return PSM.Skin.Apply(frame, skinType)
 end
 
 --------------------------------------------------------------------------------

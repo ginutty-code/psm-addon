@@ -17,6 +17,14 @@ Core.lua
 # Shared modules
 Shared/Config.lua
 Shared/Utils.lua
+
+# UI kit -- generic widget factories, loaded before anything that builds frames.
+# Nothing in here knows what a pet is; see UI/Widgets.lua.
+UI/Theme.lua
+UI/Skin.lua
+UI/Tooltip.lua
+UI/Widgets.lua
+
 Shared/Loader.lua
 Shared/Events.lua
 Shared/UI.lua
