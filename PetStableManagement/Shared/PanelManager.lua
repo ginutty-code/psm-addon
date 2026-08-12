@@ -116,7 +116,16 @@ function PSM.PanelManager:CreateBasePanel(name, config)
     panel.closeButton = closeBtn
 
     -- Show/Hide callbacks
-    panel:SetScript("OnHide", function(self) if config.onHide then config.onHide(self) end end)
+    panel:SetScript("OnHide", function(self)
+        -- A context menu opened from this panel is parented to UIParent, so it
+        -- outlives the panel unless something closes it. Blizzard's Escape path
+        -- (CloseAllWindows) does that for UISpecialFrames, but our own OnKeyDown
+        -- above consumes ESCAPE and suppresses propagation, so it usually never
+        -- runs -- and the X button, the minimap toggle and /psm never go near it
+        -- at all. Closing here covers every route out of a panel.
+        CloseDropDownMenus()
+        if config.onHide then config.onHide(self) end
+    end)
     panel:SetScript("OnShow", function(self) if config.onShow then config.onShow(self) end end)
 
     -- Maximize button

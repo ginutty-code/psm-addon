@@ -227,21 +227,7 @@ local function AppendBulkGroupMenuItems(menuList)
 end
 
 local function ShowContextMenu(menuList)
-    if not PSM.state.contextDropDown then
-        PSM.state.contextDropDown = CreateFrame("Frame", "PSMContextMenuDropDown", UIParent, "UIDropDownMenuTemplate")
-        PSM.state.contextDropDown:Hide()
-    end
-    UIDropDownMenu_Initialize(PSM.state.contextDropDown, function(self, level)
-        for _, item in ipairs(menuList) do
-            local info = UIDropDownMenu_CreateInfo()
-            info.text         = item.text
-            info.notCheckable = item.notCheckable or true
-            info.isTitle      = item.isTitle or false
-            info.func         = item.func
-            UIDropDownMenu_AddButton(info, level)
-        end
-    end, "MENU")
-    ToggleDropDownMenu(1, nil, PSM.state.contextDropDown, "cursor", 0, 0)
+    PSM.Utils:ShowContextMenu(menuList)
 end
 
 -- Ctrl/Shift + right-click on a pet model

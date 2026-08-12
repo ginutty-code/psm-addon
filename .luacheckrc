@@ -81,6 +81,7 @@ read_globals = {
     "PlayerHasToy",
     "SetPortraitTextureFromCreatureDisplayID",
     "Settings",
+    "CloseDropDownMenus",
     "SettingsPanel",
     "SlashCmdList",
     "StableFrame",

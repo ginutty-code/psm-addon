@@ -531,29 +531,15 @@ local function SetAllContinentsCollapsed(panel, collapsed)
 end
 
 --------------------------------------------------------------------------------
--- CONTEXT MENU (small local equivalent of GroupedView.lua's ShowContextMenu — reuses the same
--- shared dropdown frame so only one ever exists app-wide)
+-- CONTEXT MENU
 --------------------------------------------------------------------------------
 
+-- Thin alias over the shared implementation, kept only so the call sites below read
+-- unchanged. This file (and GroupedView.lua) each carried a verbatim copy of
+-- PSM.Utils:ShowContextMenu, which had existed with zero callers the whole time --
+-- and which already contained the corrected `notCheckable` line the copies got wrong.
 local function ShowContextMenu(menuList)
-    if not PSM.state.contextDropDown then
-        PSM.state.contextDropDown = PSM.Widgets.Frame(UIParent, {
-            name     = "PSMContextMenuDropDown",
-            template = "UIDropDownMenuTemplate",
-            hidden   = true,
-        })
-    end
-    UIDropDownMenu_Initialize(PSM.state.contextDropDown, function(self, level)
-        for _, item in ipairs(menuList) do
-            local info = UIDropDownMenu_CreateInfo()
-            info.text         = item.text
-            info.notCheckable = item.notCheckable or true
-            info.isTitle      = item.isTitle or false
-            info.func         = item.func
-            UIDropDownMenu_AddButton(info, level)
-        end
-    end, "MENU")
-    ToggleDropDownMenu(1, nil, PSM.state.contextDropDown, "cursor", 0, 0)
+    PSM.Utils:ShowContextMenu(menuList)
 end
 
 local function ShowContinentContextMenu(panel)
