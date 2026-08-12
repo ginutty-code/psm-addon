@@ -6,12 +6,15 @@ _G.PSM = _G.PSM or {}
 local PSM = _G.PSM
 PSM.ModelRow = PSM.ModelRow or {}
 
-local cfg = PSM.Config
-local mgr = PSM.RowManager
+-- Deliberately NOT captured at file scope. PSM.Config and PSM.RowManager belong to
+-- the *core* addon, and this file is in the browser addon, so a file-scope capture
+-- reads whatever happens to exist at parse time and fails much later with a
+-- misleading stack. That is the exact shape of the ModelRow.lua bug from the
+-- LoadOnDemand work. Read them inside the function that needs them.
 
 -- Returns the current scaling factor based on petsPerColumn setting
 local function scalingFactor()
-    local ppc = PetStableManagementDB.settings.petsPerColumn or cfg.DEFAULT_PETS_PER_COLUMN
+    local ppc = PetStableManagementDB.settings.petsPerColumn or PSM.Config.DEFAULT_PETS_PER_COLUMN
     return 5 / ppc
 end
 
@@ -30,9 +33,9 @@ end
 function PSM.ModelRow:CreateModelRow(parent)
     local sf = scalingFactor()
     local mcfg = PSM.ModelsPanel.MODELS_CONFIG
-    local textW = cfg.TEXT_WIDTH / sf
+    local textW = PSM.Config.TEXT_WIDTH / sf
 
-    local row = mgr:CreateBaseRow(parent, {
+    local row = PSM.RowManager:CreateBaseRow(parent, {
         useBackdropTemplate = true,
         width  = 432,
         height = mcfg.ROW_HEIGHT,
@@ -142,10 +145,10 @@ function PSM.ModelRow:UpdateItemRow(row, item, index, scale)
     local totalOwned, ownershipStr = buildOwnershipData(displayId)
     local npcs        = item.npcs or {}
 
-    mgr:UpdateModelDisplay(row, displayId, nil)
+    PSM.RowManager:UpdateModelDisplay(row, displayId, nil)
     local specName = item.familyName and PSM.Config.FAMILY_TO_SPEC[item.familyName]
-    mgr:UpdateBackgroundColor(row, false, false, totalOwned > 0, specName)
-    mgr:UpdateFavoriteButton(row, displayId)
+    PSM.RowManager:UpdateBackgroundColor(row, false, false, totalOwned > 0, specName)
+    PSM.RowManager:UpdateFavoriteButton(row, displayId)
 
     -- Check if any NPCs for this display have user notes
     local hasUserNote = false
@@ -169,7 +172,7 @@ function PSM.ModelRow:UpdateItemRow(row, item, index, scale)
     if totalOwned > 0 then
         nameStr = nameStr .. string.format(" (%s)", ownershipStr)
     end
-    row.nameText:SetWidth(cfg.TEXT_WIDTH / scale)
+    row.nameText:SetWidth(PSM.Config.TEXT_WIDTH / scale)
     row.nameText:SetText(nameStr)
     row.nameText:SetTextColor(totalOwned > 0 and 0 or 1, totalOwned > 0 and 1 or 1, totalOwned > 0 and 0 or 1)
     row.nameText:Show()
