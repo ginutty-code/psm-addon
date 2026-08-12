@@ -44,6 +44,7 @@ local OPTIONS = {
     MaskTexture = { texture = true, wrapH = true, wrapV = true },
     Texture     = { layer = true, sublayer = true, allPoints = true, color = true, texture = true, atlas = true, texCoord = true, vertexColor = true },
     CheckBox    = { name = true, template = true, checked = true, onClick = true, tooltip = true, label = true, labelFontObject = true },
+    SectionHeader = { palette = true, inset = true, text = true, fontSize = true, fontObject = true, color = true, labelInset = true },
 }
 
 local function CheckOptions(factory, opts, allowed)
@@ -441,6 +442,67 @@ function Widgets.Tab(parent, opts)
     end
 
     return tab
+end
+
+--------------------------------------------------------------------------------
+-- SECTION HEADER
+--------------------------------------------------------------------------------
+
+-- The flat gold-on-dark bar that sits above a group of controls.
+--
+-- Visually this is an active Widgets.Tab, but it is not a tab: nothing selects it and
+-- it has no inactive state, so it gets its own factory rather than a Tab locked to
+-- active. The Models Browser's "Show Only" group and the NPC view's column header are
+-- both this shape -- the latter's comment says outright that it was written to match
+-- the former, which is the clearest possible sign it wanted to be shared.
+--
+-- `text` adds a left-aligned label, returned as `.label`. Omit it when the caller
+-- fills the bar itself, as the NPC column header does with its sort buttons.
+-- `inset` is how far the accent rules stop short of each end (2 for a pill that sits
+-- inside a panel, 0 for one that spans an edge).
+function Widgets.SectionHeader(parent, opts)
+    opts = opts or {}
+    CheckOptions("SectionHeader", opts, OPTIONS.SectionHeader)
+
+    local palette = opts.palette or PSM.Config.TAB
+    local inset   = opts.inset or 2
+
+    local header = Widgets.Frame(parent, {
+        size  = opts.size,
+        width = opts.width, height = opts.height,
+        point = opts.point,
+    })
+
+    header.bg = Widgets.Texture(header, {
+        layer     = "BACKGROUND",
+        allPoints = true,
+        color     = palette.ACTIVE_BG,
+    })
+
+    for _, edge in ipairs({ "TOP", "BOTTOM" }) do
+        local line = Widgets.Line(header, {
+            layer = "BORDER",
+            color = palette.ACTIVE_BORDER,
+            point = {
+                { edge .. "LEFT",  header, edge .. "LEFT",   inset, 0 },
+                { edge .. "RIGHT", header, edge .. "RIGHT", -inset, 0 },
+            },
+        })
+        header[edge == "TOP" and "topLine" or "bottomLine"] = line
+    end
+
+    if opts.text then
+        header.label = Widgets.Label(header, {
+            fontObject = opts.fontObject,
+            fontSize   = opts.fontObject and nil or opts.fontSize,
+            color      = opts.color or PSM.Theme.COLOR.GOLD,
+            justify    = "LEFT",
+            point      = { "LEFT", opts.labelInset or 5, 0 },
+            text       = opts.text,
+        })
+    end
+
+    return header
 end
 
 --------------------------------------------------------------------------------

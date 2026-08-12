@@ -426,44 +426,25 @@ end
 -- ─────────────────────────────────────────────
 
 function PSM.ModelsPanel:AddModelsBrowserElements(panel)
-    -- Filters
-        -- Show Only filters frame
-    panel.showOnlyFrame = CreateFrame("Frame", nil, panel, "BackdropTemplate")
-    panel.showOnlyFrame:SetPoint("TOPLEFT", 10, -100)
-    panel.showOnlyFrame:SetSize(180, 160)
-    panel.showOnlyFrame:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 16,
-        insets = {left=4, right=4, top=4, bottom=4},
+    local Widgets = PSM.Widgets
+
+    -- Show Only filters frame
+    panel.showOnlyFrame = Widgets.Frame(panel, {
+        size        = { 180, 160 },
+        point       = { "TOPLEFT", 10, -100 },
+        backdrop    = "TOOLTIP",
+        color       = PSM.Config.COLORS.BACKGROUND,
+        borderColor = { 0.75, 0.75, 0.75, 1 },  -- silver
     })
-    panel.showOnlyFrame:SetBackdropColor(unpack(PSM.Config.COLORS.BACKGROUND))
-    panel.showOnlyFrame:SetBackdropBorderColor(0.75, 0.75, 0.75, 1) -- silver border
 
-    -- Title pill
-    local titleFrame = CreateFrame("Frame", nil, panel.showOnlyFrame)
-    titleFrame:SetPoint("TOPLEFT", 5, -5)
-    titleFrame:SetSize(170, 20)
-    local bg = titleFrame:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BG))
-    local topLine = titleFrame:CreateTexture(nil, "BORDER")
-    topLine:SetPoint("TOPLEFT", titleFrame, "TOPLEFT", 2, 0)
-    topLine:SetPoint("TOPRIGHT", titleFrame, "TOPRIGHT", -2, 0)
-    topLine:SetHeight(1)
-    topLine:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BORDER))
-    local bottomLine = titleFrame:CreateTexture(nil, "BORDER")
-    bottomLine:SetPoint("BOTTOMLEFT", titleFrame, "BOTTOMLEFT", 2, 0)
-    bottomLine:SetPoint("BOTTOMRIGHT", titleFrame, "BOTTOMRIGHT", -2, 0)
-    bottomLine:SetHeight(1)
-    bottomLine:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BORDER))
-    local label = titleFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    label:SetPoint("LEFT", 5, 0)
-    label:SetJustifyH("LEFT")
-    label:SetText("Show Only")
-    label:SetTextColor(1, 0.82, 0) -- golden color
+    Widgets.SectionHeader(panel.showOnlyFrame, {
+        size       = { 170, 20 },
+        point      = { "TOPLEFT", 5, -5 },
+        text       = "Show Only",
+        fontObject = "GameFontHighlightSmall",
+    })
 
-        local MF = PSM.ModelsFilters
+    local MF = PSM.ModelsFilters
     if MF then
         if MF.CreateRaresToggle         then MF:CreateRaresToggle(panel)         end
         if MF.CreateFavoritesToggle     then MF:CreateFavoritesToggle(panel)     end
@@ -481,16 +462,14 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     end
 
     -- Pets frame (2-column layout)
-    local petsFrame = CreateFrame("Frame", nil, panel, "BackdropTemplate")
-    petsFrame:SetPoint("TOPLEFT",     panel.showOnlyFrame, "TOPRIGHT", 25, 0)
-    petsFrame:SetPoint("BOTTOMRIGHT", -10, 50)
-    petsFrame:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 16,
-        insets = {left=4, right=4, top=4, bottom=4},
+    local petsFrame = Widgets.Frame(panel, {
+        backdrop = "TOOLTIP",
+        color    = PSM.Config.COLORS.BACKGROUND,
+        point    = {
+            { "TOPLEFT",     panel.showOnlyFrame, "TOPRIGHT", 25,  0 },
+            { "BOTTOMRIGHT", -10, 50 },
+        },
     })
-    petsFrame:SetBackdropColor(unpack(PSM.Config.COLORS.BACKGROUND))
 
     -- Mouse-wheel navigation
     petsFrame:EnableMouseWheel(true)
@@ -542,11 +521,11 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
         panel.npcRows[i] = npcRow
     end
 
-    local viewToggleButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    viewToggleButton:SetPoint("TOPRIGHT", panel.closeButton, "TOPLEFT", -2, 0)
-    viewToggleButton:SetSize(PSM.Config.PANEL_BUTTON_WIDTH, PSM.Config.PANEL_BUTTON_HEIGHT)
-    viewToggleButton:SetNormalFontObject("GameFontNormalSmall")
-    PSM.UI:ApplyElvUISkin(viewToggleButton, "button")
+    local viewToggleButton = Widgets.Button(panel, {
+        size       = { PSM.Config.PANEL_BUTTON_WIDTH, PSM.Config.PANEL_BUTTON_HEIGHT },
+        point      = { "TOPRIGHT", panel.closeButton, "TOPLEFT", -2, 0 },
+        fontObject = "GameFontNormalSmall",
+    })
     panel.viewToggleButton = viewToggleButton
 
     local npcColumnsButton = PSM.NPCRow:CreateColumnsPicker(panel, viewToggleButton)
@@ -611,57 +590,51 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     end
 
     -- Navigation buttons
-    local firstButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    firstButton:SetPoint("BOTTOMLEFT", petsFrame, "BOTTOMLEFT", 0, -35)
-    firstButton:SetSize(50, 25)
-    firstButton:SetText("First")
-    firstButton:SetScript("OnClick", function()
-        GoToPage(panel, 1)
-    end)
+    local firstButton = Widgets.Button(panel, {
+        size    = { 50, 25 },
+        point   = { "BOTTOMLEFT", petsFrame, "BOTTOMLEFT", 0, -35 },
+        text    = "First",
+        onClick = function() GoToPage(panel, 1) end,
+    })
 
-    local prevButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    prevButton:SetPoint("LEFT", firstButton, "RIGHT", 5, 0)
-    prevButton:SetSize(80, 25)
-    prevButton:SetText("Previous")
-    prevButton:SetScript("OnClick", function()
-        GoToPage(panel, panel.currentPage - 1)
-    end)
+    local prevButton = Widgets.Button(panel, {
+        size    = { 80, 25 },
+        point   = { "LEFT", firstButton, "RIGHT", 5, 0 },
+        text    = "Previous",
+        onClick = function() GoToPage(panel, panel.currentPage - 1) end,
+    })
 
-    local lastButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    lastButton:SetPoint("BOTTOMRIGHT", petsFrame, "BOTTOMRIGHT", 0, -35)
-    lastButton:SetSize(50, 25)
-    lastButton:SetText("Last")
-    lastButton:SetScript("OnClick", function()
-        local _, petsPerPage = GetPageLayout()
-        local max = math.max(1, math.ceil(#GetActiveList(panel) / petsPerPage))
-        GoToPage(panel, max)
-    end)
+    local lastButton = Widgets.Button(panel, {
+        size    = { 50, 25 },
+        point   = { "BOTTOMRIGHT", petsFrame, "BOTTOMRIGHT", 0, -35 },
+        text    = "Last",
+        onClick = function()
+            local _, petsPerPage = GetPageLayout()
+            local max = math.max(1, math.ceil(#GetActiveList(panel) / petsPerPage))
+            GoToPage(panel, max)
+        end,
+    })
 
-    local nextButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    nextButton:SetPoint("RIGHT", lastButton, "LEFT", -5, 0)
-    nextButton:SetSize(80, 25)
-    nextButton:SetText("Next")
-    nextButton:SetScript("OnClick", function()
-        GoToPage(panel, panel.currentPage + 1)
-    end)
+    local nextButton = Widgets.Button(panel, {
+        size    = { 80, 25 },
+        point   = { "RIGHT", lastButton, "LEFT", -5, 0 },
+        text    = "Next",
+        onClick = function() GoToPage(panel, panel.currentPage + 1) end,
+    })
 
-    local pageText = panel:CreateFontString(nil, "OVERLAY")
-    pageText:SetFont("Fonts\\FRIZQT__.TTF", 12)
-    pageText:SetPoint("BOTTOM", petsFrame, "BOTTOM", 0, -25)
-    pageText:SetText("Page 1 of 1")
+    local pageText = Widgets.Label(panel, {
+        fontSize = PSM.Theme.SIZE.LABEL,
+        point    = { "BOTTOM", petsFrame, "BOTTOM", 0, -25 },
+        text     = "Page 1 of 1",
+    })
 
     -- Page-jump controls
-    local pageJumpFrame = CreateFrame("Frame", nil, panel)
-    pageJumpFrame:SetSize(150, 25)
-    pageJumpFrame:SetPoint("BOTTOM", petsFrame, "BOTTOM", 0, -5)
+    local pageJumpFrame = Widgets.Frame(panel, {
+        size  = { 150, 25 },
+        point = { "BOTTOM", petsFrame, "BOTTOM", 0, -5 },
+    })
 
-    local pageJumpEditBox = CreateFrame("EditBox", nil, pageJumpFrame, "InputBoxTemplate")
-    pageJumpEditBox:SetSize(50, 25)
-    pageJumpEditBox:SetPoint("CENTER", pageJumpFrame, "CENTER", 0, 16)
-    pageJumpEditBox:SetAutoFocus(false)
-    pageJumpEditBox:SetNumeric(true)
-    pageJumpEditBox:SetMaxLetters(4)
-    pageJumpEditBox:SetJustifyH("CENTER")
+    local pageJumpEditBox
 
     local function CommitPageJump()
         local _, ppp = GetPageLayout()
@@ -671,23 +644,26 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
         end
         pageJumpEditBox:ClearFocus()
     end
-    pageJumpEditBox:SetScript("OnEnterPressed", CommitPageJump)
-    pageJumpEditBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 
-    local pageJumpButton = CreateFrame("Button", nil, pageJumpFrame, "UIPanelButtonTemplate")
-    pageJumpButton:SetSize(60, 25)
-    pageJumpButton:SetPoint("LEFT", pageJumpEditBox, "RIGHT", 5, 0)
-    pageJumpButton:SetText("Go")
-    pageJumpButton:SetScript("OnClick", CommitPageJump)
+    pageJumpEditBox = Widgets.EditBox(pageJumpFrame, {
+        size     = { 50, 25 },
+        point    = { "CENTER", pageJumpFrame, "CENTER", 0, 16 },
+        onEnter  = CommitPageJump,
+        onEscape = function(self) self:ClearFocus() end,
+    })
+    -- EditBox specifics the kit has no option for. Set on the returned frame, as
+    -- Dialogs.lua does with SetMaxLetters -- they earn an option once a third caller
+    -- wants them, not before.
+    pageJumpEditBox:SetNumeric(true)
+    pageJumpEditBox:SetMaxLetters(4)
+    pageJumpEditBox:SetJustifyH("CENTER")
 
-    -- Apply ElvUI skin where available
-    if PSM.UI and PSM.UI.ApplyElvUISkin then
-        PSM.UI:ApplyElvUISkin(prevButton,     "button")
-        PSM.UI:ApplyElvUISkin(nextButton,     "button")
-        PSM.UI:ApplyElvUISkin(pageJumpButton, "button")
-        PSM.UI:ApplyElvUISkin(firstButton,    "button")
-        PSM.UI:ApplyElvUISkin(lastButton,     "button")
-    end
+    local pageJumpButton = Widgets.Button(pageJumpFrame, {
+        size    = { 60, 25 },
+        point   = { "LEFT", pageJumpEditBox, "RIGHT", 5, 0 },
+        text    = "Go",
+        onClick = CommitPageJump,
+    })
 
     panel.prevButton       = prevButton
     panel.nextButton       = nextButton
