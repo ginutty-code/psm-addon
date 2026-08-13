@@ -12,6 +12,15 @@ local ROW_HEIGHT    = 36
 local HEADER_HEIGHT = 22
 local ID_LINE_HEIGHT = 14 -- display-id pills wrap onto a second line at this height before "+N" kicks in
 
+-- This view packs a lot of columns into a row, so its text runs half a point
+-- smaller than PSM.Theme.SIZE.TINY. Local rather than a theme token: nothing
+-- outside this table wants it, and a token used once is a token nobody can place.
+local CELL_FONT_SIZE = 9.5
+
+-- Row spacing in the Columns picker. Tracks PSM.Theme.CONTROL.CHECKBOX (20) plus
+-- breathing room -- previously 18, sized for a 16px box that no longer exists.
+local PICKER_ROW_HEIGHT = 22
+
 PSM.NPCRow.ROW_HEIGHT    = ROW_HEIGHT
 PSM.NPCRow.HEADER_HEIGHT = HEADER_HEIGHT
 
@@ -165,12 +174,21 @@ end
 --------------------------------------------------------------------------------
 
 -- Shared OnUpdate driver for column-boundary dragging (same pattern as the
--- model rotate/move drivers in RowManager.lua).
+-- model rotate/move drivers in RowManager.lua). Raw CreateFrame on purpose: this
+-- is an invisible ticker with no parent and nothing to draw, not a widget.
 local ResizeDriver = CreateFrame("Frame")
+
+-- The handle's rule is always gold and varies only in opacity: invisible at rest,
+-- half-lit on hover, solid while dragging. One place to say that, instead of four
+-- copies of SetColorTexture(1, 0.82, 0, x).
+local function SetHandleAlpha(handle, alpha)
+    local c = PSM.Theme.COLOR.GOLD
+    handle.tex:SetColorTexture(c[1], c[2], c[3], alpha)
+end
 
 local function StopResize(handle)
     ResizeDriver.active = nil
-    if handle.tex then handle.tex:SetColorTexture(1, 0.82, 0, 0) end
+    if handle.tex then SetHandleAlpha(handle, 0) end
     local panel = PSM.state.modelsPanel
     if panel and panel.npcColumnWidths then
         PetStableManagementDB.settings.npcViewColumnWidths = PSM.Utils.DeepCopy(panel.npcColumnWidths)
@@ -206,28 +224,32 @@ ResizeDriver:SetScript("OnUpdate", function(self)
 end)
 
 local function CreateResizeHandle(header, columnKey)
-    local handle = CreateFrame("Frame", nil, header)
-    handle:SetWidth(6)
+    local Widgets = PSM.Widgets
+
+    local handle = Widgets.Frame(header, { width = 6 })
     handle:EnableMouse(true)
     handle.columnKey = columnKey
 
-    local tex = handle:CreateTexture(nil, "OVERLAY")
-    tex:SetPoint("TOP", handle, "TOP", 0, 0)
-    tex:SetPoint("BOTTOM", handle, "BOTTOM", 0, 0)
-    tex:SetWidth(2)
-    tex:SetColorTexture(1, 0.82, 0, 0)
-    handle.tex = tex
+    handle.tex = Widgets.Texture(handle, {
+        layer = "OVERLAY",
+        width = 2,
+        point = {
+            { "TOP",    handle, "TOP",    0, 0 },
+            { "BOTTOM", handle, "BOTTOM", 0, 0 },
+        },
+    })
+    SetHandleAlpha(handle, 0)
 
-    handle:SetScript("OnEnter", function() tex:SetColorTexture(1, 0.82, 0, 0.6) end)
-    handle:SetScript("OnLeave", function()
-        if ResizeDriver.active ~= handle then tex:SetColorTexture(1, 0.82, 0, 0) end
+    handle:SetScript("OnEnter", function(self) SetHandleAlpha(self, 0.6) end)
+    handle:SetScript("OnLeave", function(self)
+        if ResizeDriver.active ~= self then SetHandleAlpha(self, 0) end
     end)
     handle:SetScript("OnMouseDown", function(self, button)
         if button ~= "LeftButton" then return end
         local scale = UIParent:GetEffectiveScale()
         self.lastX = GetCursorPosition() / scale
         ResizeDriver.active = self
-        tex:SetColorTexture(1, 0.82, 0, 1)
+        SetHandleAlpha(self, 1)
     end)
     handle:SetScript("OnMouseUp", function(self)
         if ResizeDriver.active == self then StopResize(self) end
@@ -241,38 +263,36 @@ end
 --------------------------------------------------------------------------------
 
 function PSM.NPCRow:CreateHeaderRow(parent)
-    local header = CreateFrame("Frame", nil, parent)
-    header:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
-    header:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
-    header:SetHeight(HEADER_HEIGHT)
+    local Widgets = PSM.Widgets
+
+    -- The same gold-on-dark bar as the "Show Only" filter group header -- which is
+    -- what this used to say in a comment, above a hand-written copy of it. inset 0
+    -- because this one spans the full width of the table rather than sitting inside
+    -- a panel; no `text`, because the columns below fill it themselves.
+    local header = Widgets.SectionHeader(parent, {
+        height = HEADER_HEIGHT,
+        inset  = 0,
+        point  = {
+            { "TOPLEFT",  parent, "TOPLEFT",  0, 0 },
+            { "TOPRIGHT", parent, "TOPRIGHT", 0, 0 },
+        },
+    })
     header:SetClipsChildren(true)
     header.labelButtons = {}
     header.resizeHandles = {}
 
-    -- Golden/dark pill styling, matching the "Show Only" filter group header.
-    local bg = header:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BG))
-    local topLine = header:CreateTexture(nil, "BORDER")
-    topLine:SetPoint("TOPLEFT", header, "TOPLEFT", 0, 0)
-    topLine:SetPoint("TOPRIGHT", header, "TOPRIGHT", 0, 0)
-    topLine:SetHeight(1)
-    topLine:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BORDER))
-    local bottomLine = header:CreateTexture(nil, "BORDER")
-    bottomLine:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", 0, 0)
-    bottomLine:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", 0, 0)
-    bottomLine:SetHeight(1)
-    bottomLine:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BORDER))
-
     for _, col in ipairs(self.COLUMNS) do
-        local btn = CreateFrame("Button", nil, header)
-        btn:SetHeight(HEADER_HEIGHT - 2)
-        local fs = btn:CreateFontString(nil, "OVERLAY")
-        fs:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
-        fs:SetPoint("LEFT", 4, 0)
-        fs:SetJustifyH("LEFT")
-        fs:SetTextColor(1, 0.82, 0)
-        btn.text = fs
+        local btn = Widgets.Frame(header, {
+            frameType = "Button",
+            height    = HEADER_HEIGHT - 2,
+        })
+        btn.text = Widgets.Label(btn, {
+            fontSize = PSM.Theme.SIZE.BODY,
+            outline  = true,
+            color    = PSM.Theme.COLOR.GOLD,
+            justify  = "LEFT",
+            point    = { "LEFT", 4, 0 },
+        })
         btn.columnKey = col.key
 
         btn:SetScript("OnClick", function()
@@ -343,52 +363,61 @@ function PSM.NPCRow:CreateColumnsPicker(panel, anchorTo)
         if col.optional then table.insert(optionalCols, col) end
     end
 
-    local btn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    btn:SetPoint("TOPRIGHT", anchorTo, "TOPLEFT", -5, 0)
-    btn:SetSize(PSM.Config.PANEL_BUTTON_WIDTH, PSM.Config.PANEL_BUTTON_HEIGHT)
-    btn:SetText("Columns")
-    btn:SetNormalFontObject("GameFontNormalSmall")
-    PSM.UI:ApplyElvUISkin(btn, "button")
+    local Widgets = PSM.Widgets
 
-    local popout = CreateFrame("Frame", nil, panel, "BackdropTemplate")
-    popout:SetSize(140, 10 + 18 * #optionalCols)
-    popout:SetPoint("TOPRIGHT", btn, "BOTTOMRIGHT", 0, -2)
-    popout:SetFrameStrata("DIALOG")
-    popout:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 16,
-        insets = {left=4, right=4, top=4, bottom=4},
+    local btn = Widgets.Button(panel, {
+        size       = { PSM.Config.PANEL_BUTTON_WIDTH, PSM.Config.PANEL_BUTTON_HEIGHT },
+        point      = { "TOPRIGHT", anchorTo, "TOPLEFT", -5, 0 },
+        text       = "Columns",
+        fontObject = "GameFontNormalSmall",
     })
-    popout:SetBackdropColor(unpack(PSM.Config.COLORS.BACKGROUND))
-    popout:SetBackdropBorderColor(0.75, 0.75, 0.75, 1)
-    popout:Hide()
+
+    local POPOUT_WIDTH = 140
+
+    local popout = Widgets.Frame(panel, {
+        size        = { POPOUT_WIDTH, 10 + PICKER_ROW_HEIGHT * #optionalCols },
+        point       = { "TOPRIGHT", btn, "BOTTOMRIGHT", 0, -2 },
+        strata      = "DIALOG",
+        backdrop    = "TOOLTIP",
+        color       = PSM.Config.COLORS.BACKGROUND,
+        borderColor = { 0.75, 0.75, 0.75, 1 },  -- silver, matching the Show Only frame
+        hidden      = true,
+    })
+
+    local CHECKBOX_X = 6
+    -- Extend each checkbox's clickable area rightward across its label (a negative
+    -- inset expands the hit rect) so clicking the column name toggles it too. Derived
+    -- from the box's right edge to the popout's inner edge rather than hard-coded, so
+    -- it stays correct now that the box is 20px rather than 16.
+    local hitExtend = -(POPOUT_WIDTH - CHECKBOX_X - PSM.Theme.CONTROL.CHECKBOX - CHECKBOX_X)
 
     local y = -6
     for _, col in ipairs(optionalCols) do
-        local cb = CreateFrame("CheckButton", nil, popout, "UICheckButtonTemplate")
-        cb:SetSize(16, 16)
-        cb:SetPoint("TOPLEFT", 6, y)
-        local label = cb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        label:SetPoint("LEFT", cb, "RIGHT", 2, 0)
-        label:SetText(col.label)
-        -- Extend the checkbox's clickable area rightward over the label text
-        -- (negative inset expands the hit rect) so clicking the name also toggles it.
-        cb:SetHitRectInsets(0, -114, 0, 0)
-        cb:SetChecked(panel.npcVisibleColumns and panel.npcVisibleColumns[col.key])
-        cb:SetScript("OnClick", function(self)
-            panel.npcVisibleColumns[col.key] = self:GetChecked() and true or false
-            PetStableManagementDB.settings.npcViewColumns = PSM.Utils.DeepCopy(panel.npcVisibleColumns)
-            PSM.NPCRow:UpdateHeaderRow(panel)
-            PSM.ModelsPanel:UpdateVisibleRows()
-        end)
-        PSM.UI:ApplyElvUISkin(cb, "checkbox")
-        y = y - 18
+        Widgets.CheckBox(popout, {
+            point           = { "TOPLEFT", CHECKBOX_X, y },
+            label           = col.label,
+            labelFontObject = "GameFontHighlightSmall",
+            checked         = panel.npcVisibleColumns and panel.npcVisibleColumns[col.key],
+            onClick         = function(self)
+                panel.npcVisibleColumns[col.key] = self:GetChecked() and true or false
+                PetStableManagementDB.settings.npcViewColumns = PSM.Utils.DeepCopy(panel.npcVisibleColumns)
+                PSM.NPCRow:UpdateHeaderRow(panel)
+                PSM.ModelsPanel:UpdateVisibleRows()
+            end,
+        }):SetHitRectInsets(0, hitExtend, 0, 0)
+        y = y - PICKER_ROW_HEIGHT
     end
 
     btn:SetScript("OnClick", function()
         if popout:IsShown() then popout:Hide() else popout:Show() end
     end)
+
+    -- A transient popout must not outlive its owner being hidden. Hiding the panel
+    -- (Escape, or the close button) hides the popout as a child, but leaves its own
+    -- shown state set -- so it came back on screen the next time the browser opened,
+    -- still holding a click the user had long since moved on from. Same shape as the
+    -- context menu that survived Escape on the Grouped View header.
+    panel:HookScript("OnHide", function() popout:Hide() end)
 
     -- Close on click-away. OnUpdate only ticks while popout is shown, so this
     -- is a no-op cost otherwise; non-modal (doesn't swallow clicks) so a click
@@ -425,16 +454,51 @@ local ID_LINK_OWNED_HOVER  = {0.6,  1,    0.6}
 local CLICKABLE_CELL_COLUMNS = { name = true, zone = true }
 local CELL_NEUTRAL_COLOR = {0.79, 0.79, 0.76}
 
+-- GameTooltip has no maximum width -- it sizes itself to its widest line. An NPC with
+-- forty display IDs put them all on one line, which made the tooltip wider than the
+-- screen and still clipped the end. Breaking the list into bounded lines lets it grow
+-- downward instead, which is the direction a tooltip has room in.
+--
+-- Bounded by character count rather than pixels on purpose: a font string's width is
+-- only measurable once it is realised, and these are digits and commas, where the two
+-- measures track closely enough that a pixel-exact answer would buy nothing.
+local ID_LIST_MAX_CHARS = 56
+
+-- Joins `parts` into lines no longer than maxChars. `prefix` starts the first line and
+-- shares its budget, so a short list still fits on one line with its label.
+local function WrapJoin(prefix, parts, separator, maxChars)
+    local lines   = {}
+    local current = prefix or ""
+
+    for i, part in ipairs(parts) do
+        local piece = part .. (i < #parts and separator or "")
+        if current ~= "" and #current + #piece > maxChars then
+            lines[#lines + 1] = current
+            current = piece
+        else
+            current = current .. piece
+        end
+    end
+
+    if current ~= "" then lines[#lines + 1] = current end
+    return lines
+end
+
 function PSM.NPCRow:GetOrCreateIdLink(row, index)
     if row.idLinks[index] then return row.idLinks[index] end
 
-    local link = CreateFrame("Button", nil, row.idContainer)
-    link:SetHeight(ID_LINE_HEIGHT)
-    local fs = link:CreateFontString(nil, "OVERLAY")
-    fs:SetFont("Fonts\\FRIZQT__.TTF", 9.5)
-    fs:SetPoint("LEFT", 0, 0)
-    fs:SetJustifyH("LEFT")
-    fs:SetTextColor(unpack(ID_LINK_COLOR))
+    local Widgets = PSM.Widgets
+
+    local link = Widgets.Frame(row.idContainer, {
+        frameType = "Button",
+        height    = ID_LINE_HEIGHT,
+    })
+    local fs = Widgets.Label(link, {
+        fontSize = CELL_FONT_SIZE,
+        color    = ID_LINK_COLOR,
+        justify  = "LEFT",
+        point    = { "LEFT", 0, 0 },
+    })
     link.text = fs
     link.baseColor, link.hoverColor = ID_LINK_COLOR, ID_LINK_HOVER
 
@@ -449,54 +513,66 @@ function PSM.NPCRow:GetOrCreateIdLink(row, index)
 end
 
 function PSM.NPCRow:CreateNPCRow(parent)
-    local row = CreateFrame("Frame", nil, parent)
-    row:SetHeight(ROW_HEIGHT)
-    row:SetPoint("LEFT", parent, "LEFT", 0, 0)
-    row:SetPoint("RIGHT", parent, "RIGHT", 0, 0)
+    local Widgets = PSM.Widgets
+
+    local row = Widgets.Frame(parent, {
+        height = ROW_HEIGHT,
+        point  = {
+            { "LEFT",  parent, "LEFT",  0, 0 },
+            { "RIGHT", parent, "RIGHT", 0, 0 },
+        },
+    })
     -- Clip anything (long text, many display-id links) that would otherwise
     -- bleed past the row/panel edge instead of wrapping it to a second line.
     row:SetClipsChildren(true)
 
-    row.bg = row:CreateTexture(nil, "BACKGROUND")
-    row.bg:SetAllPoints()
-    row.bg:SetColorTexture(1, 1, 1, 0)
+    row.bg = Widgets.Texture(row, {
+        layer     = "BACKGROUND",
+        allPoints = true,
+        color     = { 1, 1, 1, 0 },  -- alpha set per row in UpdateItemRow for striping
+    })
+
+    -- A full-height, column-wide button behind a cell, so the whole cell is the
+    -- click target rather than just its glyphs.
+    local function CellButton()
+        return Widgets.Frame(row, { frameType = "Button", height = ROW_HEIGHT })
+    end
 
     row.cellTexts = {}
     row.clickableCells = {}
     for _, col in ipairs(self.COLUMNS) do
         if col.key == "note" then
-            local btn = CreateFrame("Button", nil, row)
-            btn:SetHeight(ROW_HEIGHT)
-            local icon = btn:CreateTexture(nil, "OVERLAY")
-            icon:SetSize(14, 14)
-            icon:SetPoint("LEFT", btn, "LEFT", 2, 0)
-            btn.icon = icon
+            local btn = CellButton()
+            btn.icon = Widgets.Texture(btn, {
+                layer = "OVERLAY",
+                size  = { 14, 14 },
+                point = { "LEFT", btn, "LEFT", 2, 0 },
+            })
             row.clickableCells.note = btn
         elseif col.key ~= "displayIds" then
             local fsParent = row
             if CLICKABLE_CELL_COLUMNS[col.key] then
-                local btn = CreateFrame("Button", nil, row)
-                btn:SetHeight(ROW_HEIGHT)
+                local btn = CellButton()
                 row.clickableCells[col.key] = btn
                 fsParent = btn
             end
-            local fs = fsParent:CreateFontString(nil, "OVERLAY")
-            fs:SetFont("Fonts\\FRIZQT__.TTF", 9.5)
-            fs:SetJustifyH("LEFT")
-            fs:SetWordWrap(false)
-            row.cellTexts[col.key] = fs
+            row.cellTexts[col.key] = Widgets.Label(fsParent, {
+                fontSize = CELL_FONT_SIZE,
+                justify  = "LEFT",
+                wordWrap = false,
+            })
         end
     end
 
-    row.idContainer = CreateFrame("Frame", nil, row)
-    row.idContainer:SetHeight(ID_LINE_HEIGHT * 2)
+    row.idContainer = Widgets.Frame(row, { height = ID_LINE_HEIGHT * 2 })
     row.idLinks = {}
 
-    row.idMoreText = row:CreateFontString(nil, "OVERLAY")
-    row.idMoreText:SetFont("Fonts\\FRIZQT__.TTF", 9.5)
-    row.idMoreText:SetJustifyH("LEFT")
-    row.idMoreText:SetTextColor(0.55, 0.55, 0.5)
-    row.idMoreText:Hide()
+    row.idMoreText = Widgets.Label(row, {
+        fontSize = CELL_FONT_SIZE,
+        color    = { 0.55, 0.55, 0.5 },
+        justify  = "LEFT",
+        hidden   = true,
+    })
 
     row:Hide()
     return row
@@ -539,20 +615,14 @@ function PSM.NPCRow:UpdateItemRow(row, item, index)
                     PSM.ModelsPanel:UpdateVisibleRows()
                 end)
             end)
-            btn:SetScript("OnEnter", function(self)
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                if hasUser then
-                    GameTooltip:SetText("Your note:")
-                    GameTooltip:AddLine(userNote, 1, 1, 1, true)
-                elseif seedNote then
-                    GameTooltip:SetText("Info note:")
-                    GameTooltip:AddLine(seedNote, 1, 1, 1, true)
-                else
-                    GameTooltip:SetText("Click to add a note")
-                end
-                GameTooltip:Show()
-            end)
-            btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            local noteText = hasUser and userNote or seedNote
+            PSM.Tooltip.Attach(btn, {
+                title = noteText and (hasUser and "Your note:" or "Info note:")
+                                  or "Click to add a note",
+                lines = noteText
+                    and { { text = noteText, color = PSM.Theme.COLOR.WHITE, wrap = true } }
+                    or nil,
+            })
             btn:Show()
         elseif key == "displayIds" then
             row.idContainer:ClearAllPoints()
@@ -686,23 +756,29 @@ function PSM.NPCRow:UpdateItemRow(row, item, index)
         end
     end
 
-    row:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(item.name)
-        GameTooltip:AddLine("NPC ID: " .. tostring(item.npcId), 0.7, 0.7, 0.7)
-        GameTooltip:AddLine(string.format("%s - %s, %s",
-            item.family or "Unknown", item.uiMapName or "Unknown", item.expansion or "Unknown"), 0.7, 0.7, 0.7)
+    -- Resolved per hover rather than per render: ownedDisplayIdSet is rebuilt once
+    -- per render pass, and a row outlives several of those.
+    PSM.Tooltip.Attach(row, function()
+        local lines = {
+            { text = "NPC ID: " .. tostring(item.npcId), color = PSM.Theme.COLOR.DIM },
+            { text = string.format("%s - %s, %s",
+                item.family or "Unknown", item.uiMapName or "Unknown",
+                item.expansion or "Unknown"), color = PSM.Theme.COLOR.DIM },
+        }
+
         if item.displayIds and #item.displayIds > 0 then
-            local ownedSet = panel and panel.ownedDisplayIdSet
+            local ownedSet = PSM.state.modelsPanel and PSM.state.modelsPanel.ownedDisplayIdSet
             local parts = {}
             for _, id in ipairs(item.displayIds) do
                 table.insert(parts, tostring(id) .. ((ownedSet and ownedSet[id]) and " (owned)" or ""))
             end
-            GameTooltip:AddLine("Display IDs: " .. table.concat(parts, ", "), 0.55, 0.75, 0.95)
+            for _, text in ipairs(WrapJoin("Display IDs: ", parts, ", ", ID_LIST_MAX_CHARS)) do
+                lines[#lines + 1] = { text = text, color = ID_LINK_HOVER }
+            end
         end
-        GameTooltip:Show()
+
+        return { title = item.name, lines = lines }
     end)
-    row:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
     row:Show()
 end

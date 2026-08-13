@@ -110,10 +110,17 @@ frame. They know nothing about pets; they take a parent and an options table.
 - **`Tooltip.lua`** — `PSM.Tooltip.Attach(frame, spec, extra)` wires OnEnter/OnLeave
   from a declarative spec, so a tooltip can't be left on screen by an early return.
   `spec` may be a `function(frame)` for live contents; returning nil suppresses it.
-- **`Widgets.lua`** — 15 factories: `Backdrop`, `Frame`, `MovableFrame`, `Label`,
+  Content comes from exactly one of `title`+`lines`, `hyperlink`, or `spellId`.
+  `PSM.Tooltip.AddLines(lines, tooltip)` appends to an already-built tooltip, for
+  Blizzard `TooltipDataProcessor` post-calls — a spell that resolves asynchronously is
+  rebuilt internally, discarding anything added right after the `Set*` call.
+  **`GameTooltip` has no maximum width**: it sizes to its widest line, so a caller
+  emitting a long joined list must break it into lines itself (see `NPCRow`'s
+  `WrapJoin`) or set `wrap = true`.
+- **`Widgets.lua`** — 16 factories: `Backdrop`, `Frame`, `MovableFrame`, `Label`,
   `Button`, `IconButton`, `CloseButton`, `ResizeGrip`, `CloseOnEscape`, `EditBox`,
-  `MaskTexture`, `Line`, `Texture`, `Tab`, `CheckBox`. Read the file — each carries a
-  comment saying what evidence justified it.
+  `MaskTexture`, `Line`, `Texture`, `Tab`, `SectionHeader`, `CheckBox`. Read the file —
+  each carries a comment saying what evidence justified it.
 
 **Everything `PSM.Widgets` returns is already skinned.** That is the whole point: the
 count of hand-written `ApplyElvUISkin` calls should only ever go down. `IconButton` is
@@ -146,15 +153,23 @@ implementation. Two verbatim copies used to exist alongside it.
 Migrated, each with zero raw `CreateFrame` / `CreateFontString` / `CreateTexture` /
 `GameTooltip:` / skin calls: `Shared/PopUpManager.lua`, `Shared/Dialogs.lua`,
 `OwnedPets/TeamsPanel.lua`, `ModelsBrowser/SpecialTames.lua`,
-`ModelsBrowser/ModelsFilters.lua`.
+`ModelsBrowser/ModelsFilters.lua`, `ModelsBrowser/AbilityBrowser.lua`,
+`ModelsBrowser/ModelsPanel.lua`, `ModelsBrowser/NPCRow.lua`.
 
 `PopUpManager.lua` is the reference. The only `SetBackdropColor` left in it is a
 *runtime recolour*, not construction — **that is the line to draw** when migrating
 another file. Density counts that include `SetBackdropColor` overstate a file's real
 construction work; count `SetBackdrop({` instead.
 
-Remaining, densest first: `AbilityBrowser.lua` (27), `ModelsPanel.lua` (23),
-`NPCRow.lua` (22), `Export.lua` (20), `Filters.lua` (16), `RowManager.lua` and
+**One `CreateFrame` may legitimately survive a migration:** an invisible, parentless
+frame that exists only to hold `OnUpdate` or `RegisterEvent` handlers is not a widget
+and should not come from the widget kit (`ModelsPanel`'s zone listener, `NPCRow`'s
+`ResizeDriver`). In *core*, prefer `PSM.CreateFrame` (Core.lua's alias, which the
+headless tests can stub); in the *browser*, use raw `CreateFrame` — reaching for the
+core alias at browser file scope is the cross-addon capture pattern `ModelRow.lua` was
+fixed for.
+
+Remaining, densest first: `Export.lua` (20), `Filters.lua` (16), `RowManager.lua` and
 `PanelManager.lua` (13), `OptionsPanel.lua` and `Panel.lua` (12), `Menu.lua` (10).
 
 The full task record — every measurement, every bug found while migrating, and the
