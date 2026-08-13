@@ -226,9 +226,10 @@ Migrated, each with zero raw `CreateFrame` / `CreateFontString` / `CreateTexture
 `OwnedPets/Filters.lua`, `OwnedPets/GroupedView.lua`,
 `ModelsBrowser/SpecialTames.lua`, `ModelsBrowser/ModelsFilters.lua`,
 `ModelsBrowser/AbilityBrowser.lua`, `ModelsBrowser/ModelsPanel.lua`,
-`ModelsBrowser/NPCRow.lua`, `OwnedPets/GridView.lua`.
+`ModelsBrowser/NPCRow.lua`, `OwnedPets/GridView.lua`,
+`ModelsBrowser/ModelRow.lua`.
 
-Repo-wide, thirteen files in: `ApplyElvUISkin` **86 → 17**, `CreateFrame` **193 → 42**.
+Repo-wide, fourteen files in: `ApplyElvUISkin` **86 → 17**, `CreateFrame` **193 → 42**.
 
 **The density score says how much a file does by hand, not what kind.** `GridView`
 scored 17 and every one of them was `GameTooltip:` — zero construction, because
@@ -257,10 +258,10 @@ fixed for.
 Remaining, densest first — **re-measure rather than trusting this list**, the original
 one was a partial survey that omitted the two densest files in the addon:
 
-`ModelsBrowser/ModelRow.lua` (16), `Core.lua` (15), `Shared/Minimap.lua` (14),
-`Shared/PanelManager.lua` and `Shared/OptionsPanel.lua` (13), `OwnedPets/Panel.lua` (12),
-`OwnedPets/DragDrop.lua` (11), `Shared/Menu.lua` and `Shared/Broker.lua` (10),
-`Shared/Utils.lua` (7), `OwnedPets/Row.lua` (6).
+`Core.lua` (15), `Shared/Minimap.lua` (14), `Shared/PanelManager.lua` and
+`Shared/OptionsPanel.lua` (13), `OwnedPets/Panel.lua` (12), `OwnedPets/DragDrop.lua` (11),
+`Shared/Menu.lua` and `Shared/Broker.lua` (10), `Shared/Utils.lua` (7),
+`OwnedPets/Row.lua` (6).
 `Shared/UI.lua` is the `ApplyElvUISkin` shim and goes when its last caller does.
 
 ```bash

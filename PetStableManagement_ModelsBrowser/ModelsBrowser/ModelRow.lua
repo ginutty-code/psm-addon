@@ -18,21 +18,50 @@ local function scalingFactor()
     return 5 / ppc
 end
 
--- Creates and returns a font string anchored relative to an anchor frame
-local function addFontString(parent, size, color, w)
-    local fs = parent:CreateFontString(nil, "OVERLAY")
-    fs:SetFont("Fonts\\FRIZQT__.TTF", size)
-    fs:SetJustifyH("LEFT")
-    if color then fs:SetTextColor(unpack(color)) end
-    if w then fs:SetWidth(w) end
-    return fs
-end
-
 --------------------------------------------------------------------------------
 
+-- Everything the row tooltip says. Reads `row.tooltipData`, which UpdateItemRow
+-- refreshes, so the tooltip is attached once at creation instead of rebuilt per row on
+-- every render -- the old version installed a fresh closure capturing the item, its
+-- NPC list and its name string each time a row was updated.
+--
+-- Returning nil for a row that has not been filled in yet suppresses the tooltip,
+-- which is what the placeholder handler in CreateModelRow used to do by hand.
+local function RowTooltipSpec(row)
+    local d = row.tooltipData
+    if not d then return nil end
+
+    local lines = {}
+    local function Add(text, color, wrap)
+        lines[#lines + 1] = { text = text, color = color, wrap = wrap }
+    end
+
+    Add("Family: " .. (d.familyName or "Unknown"))
+
+    if #d.npcs > 0 then
+        Add(" ")
+        Add("NPCs:")
+        local descriptions = _G.PSM._modelsDescriptionCache
+        for _, npc in ipairs(d.npcs) do
+            local npcId = _G.ModelsData.NpcId[npc]
+            local line  = "  " .. ((descriptions and descriptions[npc]) or "")
+            if npcId and PSM_UserNotes and PSM_UserNotes[npcId] and PSM_UserNotes[npcId] ~= "" then
+                line = line .. " |cff00ff00\226\151\143|r"
+            end
+            Add(line, PSM.Theme.COLOR.MUTED, true)
+        end
+    end
+
+    Add(" ")
+    Add("|cff00ff00Click magnifier button for further details.|r", PSM.Theme.COLOR.GREY)
+
+    return { title = d.title, lines = lines }
+end
+
 function PSM.ModelRow:CreateModelRow(parent)
-    local sf = scalingFactor()
-    local mcfg = PSM.ModelsPanel.MODELS_CONFIG
+    local Widgets = PSM.Widgets
+    local sf    = scalingFactor()
+    local mcfg  = PSM.ModelsPanel.MODELS_CONFIG
     local textW = PSM.Config.TEXT_WIDTH / sf
 
     local row = PSM.RowManager:CreateBaseRow(parent, {
@@ -49,44 +78,49 @@ function PSM.ModelRow:CreateModelRow(parent)
 
     row.customElements = {}
 
-    row.nameText = addFontString(row, 10, nil, textW)
-    row.nameText:SetPoint("LEFT", row.model, "RIGHT", 15, 15)
-    row.nameText:SetWordWrap(true)
+    row.nameText = Widgets.Label(row, {
+        fontSize = 10,
+        justify  = "LEFT",
+        wordWrap = true,
+        width    = textW,
+        point    = { "LEFT", row.model, "RIGHT", 15, 15 },
+    })
 
-    row.infoText = addFontString(row, 8, {0.7, 0.7, 0.7})
-    row.infoText:SetPoint("LEFT", row.nameText, "RIGHT", 10, 0)
+    row.infoText = Widgets.Label(row, {
+        fontSize = 8,
+        justify  = "LEFT",
+        color    = PSM.Theme.COLOR.DIM,
+        point    = { "LEFT", row.nameText, "RIGHT", 10, 0 },
+    })
 
     -- Note indicator (small dot next to name)
-    row.noteIndicator = row:CreateTexture(nil, "OVERLAY")
-    row.noteIndicator:SetSize(8, 8)
-    row.noteIndicator:SetPoint("LEFT", row.nameText, "RIGHT", 5, 2)
-    row.noteIndicator:SetTexture("Interface\\Common\\Icon-NoTick")
-    row.noteIndicator:SetVertexColor(0.5, 1, 0.5)
-    row.noteIndicator:Hide()
+    row.noteIndicator = Widgets.Texture(row, {
+        layer       = "OVERLAY",
+        size        = { 8, 8 },
+        point       = { "LEFT", row.nameText, "RIGHT", 5, 2 },
+        texture     = "Interface\\Common\\Icon-NoTick",
+        vertexColor = { 0.5, 1, 0.5 },
+        hidden      = true,
+    })
 
     row.npcTexts = {}
     for i = 1, 4 do
-        local npc = addFontString(row, 9, {0.8, 0.8, 0.8}, textW)
-        npc:SetWordWrap(true)
-        npc:SetPoint("LEFT", row.model, "RIGHT", 15, 10 - i * 12 * sf)
-        npc:Hide()
+        local npc = Widgets.Label(row, {
+            fontSize = 9,
+            justify  = "LEFT",
+            color    = PSM.Theme.COLOR.MUTED,
+            wordWrap = true,
+            width    = textW,
+            point    = { "LEFT", row.model, "RIGHT", 15, 10 - i * 12 * sf },
+            hidden   = true,
+        })
         table.insert(row.customElements, npc)
         table.insert(row.npcTexts, npc)
     end
 
     table.insert(row.customElements, row.favoriteButton)
 
-    row:SetScript("OnEnter", function(self)
-        if not self.displayId then return end
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText("Display ID: " .. self.displayId)
-        if self.familyName then
-            GameTooltip:AddLine("Family: " .. self.familyName)
-        end
-        GameTooltip:Show()
-    end)
-
-    row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    PSM.Tooltip.Attach(row, RowTooltipSpec)
 
     return row
 end
@@ -204,29 +238,14 @@ function PSM.ModelRow:UpdateItemRow(row, item, index, scale)
 
     if row.npcText then row.npcText:Hide() end  -- legacy cleanup
 
-    -- Tooltip
-    row.displayId = displayId
-    row:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(nameStr)
-        GameTooltip:AddLine("Family: " .. (item.familyName or "Unknown"))
-        if totalNpcs > 0 then
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("NPCs:")
-            for _, npc in ipairs(npcs) do
-                local npcId = _G.ModelsData.NpcId[npc]
-                local desc = _G.PSM._modelsDescriptionCache and _G.PSM._modelsDescriptionCache[npc]
-                local npcLine = "  " .. (desc or "")
-                if npcId and PSM_UserNotes and PSM_UserNotes[npcId] and PSM_UserNotes[npcId] ~= "" then
-                    npcLine = npcLine .. " |cff00ff00\226\151\143|r"
-                end
-                GameTooltip:AddLine(npcLine, 0.8, 0.8, 0.8, true)
-            end
-        end
-        GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("|cff00ff00Click magnifier button for further details.|r", 0.6, 0.6, 0.6)
-        GameTooltip:Show()
-    end)
+    -- Tooltip: refresh the data the attached spec reads. The handler itself was wired
+    -- once, in CreateModelRow.
+    row.displayId   = displayId
+    row.tooltipData = {
+        title      = nameStr,
+        familyName = item.familyName,
+        npcs       = npcs,
+    }
 
     row:Show()
 end
