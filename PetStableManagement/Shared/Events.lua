@@ -87,6 +87,14 @@ local _lastShowCollectedCount = nil
 local function CollectAndRender(retryCount)
     retryCount = retryCount or 0
 
+    -- Blizzard_StableUI is load-on-demand, so the global StableFrame may not have
+    -- existed when Core.lua captured it into PSM.StableFrame at file scope. By the time
+    -- this runs the frame is up, so re-resolve rather than trusting a snapshot taken at
+    -- login -- a stale nil here makes CollectStablePets bail with "stable frame not
+    -- found" for the whole session. Same shape as the stable-button bug: a reference
+    -- captured once, at a moment when the thing it names might not exist yet.
+    PSM.StableFrame = PSM.StableFrame or StableFrame
+
     -- Check if data provider is ready (needed for stabled pets)
     local dataProviderReady = false
     if PSM.StableFrame and PSM.StableFrame.StabledPetList and PSM.StableFrame.StabledPetList.ScrollBox then

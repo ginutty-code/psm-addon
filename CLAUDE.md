@@ -150,6 +150,63 @@ delete them when the last caller is gone.
 Context menus go through **`PSM.Utils:ShowContextMenu(menuList)`** — the single
 implementation. Two verbatim copies used to exist alongside it.
 
+### Shared pet content
+
+**`PSM.PetTooltip`** (`OwnedPets/PetTooltip.lua`) owns what a pet says about itself:
+
+- `ABILITY_BUCKETS` — the four ability groups, in display order, with their prefix and
+  colour. Used by both model views, the expanded row, and the teams panel. There were
+  four independent copies of this table and three had drifted (`[Spec]` gold in three
+  and yellow in the fourth, `[Other]` off by a shade, one with a stray leading space).
+- `IsBucketed(abilities)` — bucketed layout vs the flat list older saved data uses.
+- `Spec(pet, opts)` — the whole pet tooltip as a `PSM.Tooltip` spec. **Every owned-pet
+  tooltip is this one**, so a pet reads the same wherever it is looked at. Only two
+  things vary: `opts.hints` (the trailing interaction block — grouped view explains
+  reordering, teams explains dragging) and `opts.slotLabel` (teams slots are team
+  positions, and slot 6 is the companion). Anchoring stays with the caller; the teams
+  panel patches `spec.x/y` after building.
+
+A tooltip that comes out thinner than its siblings is a **data** problem, not a
+formatting one — the builder only emits a line when the field is there. Team slots were
+missing `level` and `tamer` because `PSM.Teams:SlotRecord` (see below) dropped them.
+
+**Pet records carry `level`, not `petLevel`.** There are two collection paths in
+`Data.lua` and they used to produce two different shapes: `CollectStabledPets` deep-copies
+Blizzard's record (which has `level`), while `ProcessPetInfo` builds active pets field by
+field and renamed it to `petLevel`. Each consumer then picked whichever key worked for
+the pets it happened to look at — the tooltip read `level` and so showed nothing for
+slots 1-5; Export read `petLevel` and so showed nothing for stabled pets. Both paths
+normalise to `level` now. **When adding a field, add it to both paths.**
+
+**Team slots go through `PSM.Teams:SlotRecord(pet)`** — the one definition of what a
+team stores. A slot is a *snapshot*, not a reference: teams save independently of the
+live stable, so a pet can sit in a team while stabled on another character or gone
+entirely. It accepts either a live `C_StableInfo` record or a processed PSM pet. There
+were three hand-written copies of the field list (one in `TeamsData`, two in
+`Dialogs`), all agreeing on the same nine fields and all omitting `level` and `tamer` —
+and the two building from an already-processed pet were discarding values they held.
+
+**`X = SomeGlobal` at file scope is a snapshot, not a reference.** `Blizzard_StableUI`
+is load-on-demand, so `PSM.StableFrame = StableFrame` in Core.lua's "WOW API REFERENCES"
+block can capture `nil` permanently depending on login order; it is re-resolved in
+`CollectAndRender` now. The stable-frame Teams buttons had the same shape from the other
+side — they required a Blizzard child frame (`PetSelectButton`) that turns out to be
+**transient**, and a bare `return` when it was missing removed the feature for a whole
+session with nothing logged. Anchors there are optional and repositioned per show.
+**A silent early return in event-driven code is indistinguishable from the feature not
+existing** — if a handler can give up, it should say so.
+
+**Counting record builders is a cheap audit.** Three separate shapes for "a pet" have
+now produced three user-visible bugs in a row. If you add a field to a pet, grep for
+every place a pet-shaped table is constructed.
+
+**`PSM.RowManager.MODEL_HINTS`** is the rotate/move/zoom text, previously written out
+in full in four files. **`PSM.RowManager:ShowHoverButtons(model)` /
+`:HideHoverButtons(model)`** are the overlay-button fade, public because a view that
+wants its own model tooltip must re-attach `OnEnter`/`OnLeave` and would otherwise drop
+RowManager's pair — which is exactly what both views did, each with its own hardcoded
+copy of the button list instead of walking `model.hoverButtons`.
+
 ### Migration status (A6, ongoing)
 
 Migrated, each with zero raw `CreateFrame` / `CreateFontString` / `CreateTexture` /
@@ -158,9 +215,20 @@ Migrated, each with zero raw `CreateFrame` / `CreateFontString` / `CreateTexture
 `OwnedPets/Filters.lua`, `OwnedPets/GroupedView.lua`,
 `ModelsBrowser/SpecialTames.lua`, `ModelsBrowser/ModelsFilters.lua`,
 `ModelsBrowser/AbilityBrowser.lua`, `ModelsBrowser/ModelsPanel.lua`,
-`ModelsBrowser/NPCRow.lua`.
+`ModelsBrowser/NPCRow.lua`, `OwnedPets/GridView.lua`.
 
-Repo-wide, twelve files in: `ApplyElvUISkin` **86 → 17**, `CreateFrame` **193 → 42**.
+Repo-wide, thirteen files in: `ApplyElvUISkin` **86 → 17**, `CreateFrame` **193 → 42**.
+
+**The density score says how much a file does by hand, not what kind.** `GridView`
+scored 17 and every one of them was `GameTooltip:` — zero construction, because
+RowManager's migration had already covered its widgets. Read the file before planning
+the work; the breakdown is a one-liner:
+
+```bash
+f=<file>; for p in 'CreateFrame(' ':CreateFontString(' ':CreateTexture(' \
+  'GameTooltip:' 'ApplyElvUISkin' 'SetBackdrop({'; do
+  printf '%3d  %s\n' "$(grep -c -F "$p" $f)" "$p"; done
+```
 
 `PopUpManager.lua` is the reference. The only `SetBackdropColor` left in it is a
 *runtime recolour*, not construction — **that is the line to draw** when migrating
@@ -178,10 +246,10 @@ fixed for.
 Remaining, densest first — **re-measure rather than trusting this list**, the original
 one was a partial survey that omitted the two densest files in the addon:
 
-`OwnedPets/GridView.lua` (17), `ModelsBrowser/ModelRow.lua` (16), `Core.lua` (15),
-`Shared/Minimap.lua` (14), `Shared/PanelManager.lua` and `Shared/OptionsPanel.lua` (13),
-`OwnedPets/Panel.lua` (12), `OwnedPets/DragDrop.lua` (11), `Shared/Menu.lua` and
-`Shared/Broker.lua` (10), `Shared/Utils.lua` (7), `OwnedPets/Row.lua` (6).
+`ModelsBrowser/ModelRow.lua` (16), `Core.lua` (15), `Shared/Minimap.lua` (14),
+`Shared/PanelManager.lua` and `Shared/OptionsPanel.lua` (13), `OwnedPets/Panel.lua` (12),
+`OwnedPets/DragDrop.lua` (11), `Shared/Menu.lua` and `Shared/Broker.lua` (10),
+`Shared/Utils.lua` (7), `OwnedPets/Row.lua` (6).
 `Shared/UI.lua` is the `ApplyElvUISkin` shim and goes when its last caller does.
 
 ```bash

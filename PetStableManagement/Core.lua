@@ -126,50 +126,88 @@ function PSM:InitializeOpacity()
     PSM.PanelManager:UpdatePanelBackgrounds()
 end
 
--- Create Save Team button on Blizzard's stable frame
-function PSM:CreateSaveTeamButtonOnStable()
-    if not StableFrame then return end
-    
-    -- Find Blizzard's "Put in Stable" button (PetSelectButton in modern WoW)
-    local putInStableButton = StableFrame.PetSelectButton or StableFrame.SetPetButton or StableFrame.PutInStableButton
-    
-    if not putInStableButton then
-        -- Try to find any button in the bottom right area
-        for _, child in ipairs({StableFrame:GetChildren()}) do
-            if child and child:GetObjectType() == "Button" then
-                local text = child:GetText()
-                if text and (text:find("Put") or text:find("Stable") or text:find("Select")) then
-                    putInStableButton = child
-                    break
-                end
+-- ─── Stable-frame buttons ────────────────────────────────────────────────────
+--
+-- These anchor to Blizzard's "Put in Stable" button, which is **not reliably present
+-- when PET_STABLE_SHOW fires**. It has been observed missing while our own buttons
+-- were already on screen, so it is created lazily or conditionally by Blizzard rather
+-- than existing for the life of the frame.
+--
+-- This used to be a hard requirement guarded by a bare `return`. Losing that race took
+-- both buttons away for the rest of the session, logged nothing, and survived a
+-- /reload -- because the next show lost the race too. A silent early return in code
+-- that runs on an event is indistinguishable from the feature not existing.
+--
+-- So the anchor is optional now, and position is recomputed on every show rather than
+-- fixed at creation: a late-appearing anchor is picked up without the buttons ever
+-- having to vanish to wait for it.
+
+local STABLE_BUTTON_SPACING = 5
+
+local function FindPutInStableButton()
+    local direct = StableFrame.PetSelectButton or StableFrame.SetPetButton
+                   or StableFrame.PutInStableButton
+    if direct then return direct end
+
+    for _, child in ipairs({ StableFrame:GetChildren() }) do
+        if child and child:GetObjectType() == "Button" then
+            local text = child:GetText()
+            if text and (text:find("Put") or text:find("Stable") or text:find("Select")) then
+                return child
             end
         end
     end
-    
-    if not putInStableButton then return end
-    
-    -- Get button size and add 3px to height
-    local buttonWidth = putInStableButton:GetWidth() or 80
-    local buttonHeight = (putInStableButton:GetHeight() or 25) + 3
-    local buttonSpacing = 5  -- Spacing between buttons
-    
+    return nil
+end
+
+-- Anchored to Blizzard's button when there is one, and to the frame's bottom-right
+-- corner when there is not, which is about where that button sits anyway.
+local function PositionStableButtons(teamsListButton, saveButton)
+    local anchor = FindPutInStableButton()
+    local width  = (anchor and anchor:GetWidth())  or PSM.Config.BUTTON_WIDTH
+    local height = ((anchor and anchor:GetHeight()) or PSM.Config.PANEL_BUTTON_HEIGHT) + 3
+
+    for _, btn in ipairs({ teamsListButton, saveButton }) do
+        btn:SetSize(width, height)
+        btn:ClearAllPoints()
+        btn.underlyingButton = anchor
+    end
+
+    if anchor then
+        saveButton:SetPoint("BOTTOM", anchor, "TOP", 0, 10)
+        teamsListButton:SetPoint("BOTTOM", anchor, "TOP", 0,
+            15 + height + STABLE_BUTTON_SPACING)
+    else
+        saveButton:SetPoint("BOTTOMRIGHT", StableFrame, "BOTTOMRIGHT", -20,
+            20 + height + STABLE_BUTTON_SPACING)
+        teamsListButton:SetPoint("BOTTOM", saveButton, "TOP", 0, STABLE_BUTTON_SPACING)
+    end
+end
+
+-- Create Save Team button on Blizzard's stable frame
+function PSM:CreateSaveTeamButtonOnStable()
+    if not StableFrame then return end
+
+    -- Reuse what is already there. This used to build two new frames on every show,
+    -- each with the same global name, and add another OnHide hook that could never be
+    -- removed -- so the leak grew for as long as the session did.
+    if StableFrame.PSM_TeamsListButton and StableFrame.PSM_SaveTeamButton then
+        PositionStableButtons(StableFrame.PSM_TeamsListButton, StableFrame.PSM_SaveTeamButton)
+        PSM:UpdateSaveTeamButtonState()
+        StableFrame.PSM_TeamsListButton:Show()
+        StableFrame.PSM_SaveTeamButton:Show()
+        return
+    end
+
     -- Create Teams List button (positioned above Save Team button)
     local teamsListButton = CreateFrame("Button", "PSM_TeamsListButton", StableFrame, "UIPanelButtonTemplate")
-    teamsListButton:SetSize(buttonWidth, buttonHeight)
     teamsListButton:SetText("Teams List")
     teamsListButton:SetNormalFontObject("GameFontNormal")
-    
+
     -- Set higher frame strata to appear above model scene
     teamsListButton:SetFrameStrata("HIGH")
     teamsListButton:SetFrameLevel(10)
-    
-    -- Position above the Put in Stable button (with spacing for Save Team button below)
-    teamsListButton:ClearAllPoints()
-    teamsListButton:SetPoint("BOTTOM", putInStableButton, "TOP", 0, 15 + buttonHeight + buttonSpacing)
-    
-    -- Store reference to the underlying button for positioning updates
-    teamsListButton.underlyingButton = putInStableButton
-    
+
     -- OnClick handler - toggle the Pet Teams panel
     teamsListButton:SetScript("OnClick", function()
         PSM.TeamsPanel:Toggle()
@@ -194,21 +232,13 @@ function PSM:CreateSaveTeamButtonOnStable()
     
     -- Create Save Team button
     local saveButton = CreateFrame("Button", "PSM_SaveTeamButton", StableFrame, "UIPanelButtonTemplate")
-    saveButton:SetSize(buttonWidth, buttonHeight)
     saveButton:SetText("Save Team")
     saveButton:SetNormalFontObject("GameFontNormal")
-    
+
     -- Set higher frame strata to appear above model scene
     saveButton:SetFrameStrata("HIGH")
     saveButton:SetFrameLevel(10)
-    
-    -- Position above the Put in Stable button
-    saveButton:ClearAllPoints()
-    saveButton:SetPoint("BOTTOM", putInStableButton, "TOP", 0, 10)
-    
-    -- Store reference to the underlying button for positioning updates
-    saveButton.underlyingButton = putInStableButton
-    
+
     -- OnClick handler
     saveButton:SetScript("OnClick", function()
         if not PSM.state.isStableOpen then
@@ -237,31 +267,19 @@ function PSM:CreateSaveTeamButtonOnStable()
     
     -- Store reference
     StableFrame.PSM_SaveTeamButton = saveButton
-    
-    -- Update initial state
-    if PSM.state.isStableOpen then
-        saveButton:Enable()
-        saveButton:SetAlpha(1.0)
-        teamsListButton:Enable()
-        teamsListButton:SetAlpha(1.0)
-    else
-        saveButton:Disable()
-        saveButton:SetAlpha(0.5)
-        teamsListButton:Enable()
-        teamsListButton:SetAlpha(1.0)
-    end
-    
-    -- Hook into PET_STABLE_CLOSED to hide/disable the buttons
+
+    -- Hooked once, on the pass that creates the buttons. HookScript cannot be undone,
+    -- so doing this per show accumulated a closure for every stable visit.
     StableFrame:HookScript("OnHide", function()
-        if saveButton then
-            saveButton:Hide()
-        end
-        if teamsListButton then
-            teamsListButton:Hide()
-        end
+        saveButton:Hide()
+        teamsListButton:Hide()
     end)
-    
-    -- Show the buttons
+
+    PositionStableButtons(teamsListButton, saveButton)
+    -- The enable/disable rules live in UpdateSaveTeamButtonState. This used to restate
+    -- them here, which is how two copies of one rule start drifting.
+    PSM:UpdateSaveTeamButtonState()
+
     saveButton:Show()
     teamsListButton:Show()
 end
