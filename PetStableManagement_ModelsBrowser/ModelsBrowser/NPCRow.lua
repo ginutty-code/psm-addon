@@ -17,10 +17,6 @@ local ID_LINE_HEIGHT = 14 -- display-id pills wrap onto a second line at this he
 -- outside this table wants it, and a token used once is a token nobody can place.
 local CELL_FONT_SIZE = 9.5
 
--- Row spacing in the Columns picker. Tracks PSM.Theme.CONTROL.CHECKBOX (20) plus
--- breathing room -- previously 18, sized for a 16px box that no longer exists.
-local PICKER_ROW_HEIGHT = 22
-
 PSM.NPCRow.ROW_HEIGHT    = ROW_HEIGHT
 PSM.NPCRow.HEADER_HEIGHT = HEADER_HEIGHT
 
@@ -375,7 +371,7 @@ function PSM.NPCRow:CreateColumnsPicker(panel, anchorTo)
     local POPOUT_WIDTH = 140
 
     local popout = Widgets.Frame(panel, {
-        size        = { POPOUT_WIDTH, 10 + PICKER_ROW_HEIGHT * #optionalCols },
+        size        = { POPOUT_WIDTH, 10 + PSM.Theme.CONTROL.CHECKBOX_ROW * #optionalCols },
         point       = { "TOPRIGHT", btn, "BOTTOMRIGHT", 0, -2 },
         strata      = "DIALOG",
         backdrop    = "TOOLTIP",
@@ -405,7 +401,7 @@ function PSM.NPCRow:CreateColumnsPicker(panel, anchorTo)
                 PSM.ModelsPanel:UpdateVisibleRows()
             end,
         }):SetHitRectInsets(0, hitExtend, 0, 0)
-        y = y - PICKER_ROW_HEIGHT
+        y = y - PSM.Theme.CONTROL.CHECKBOX_ROW
     end
 
     btn:SetScript("OnClick", function()

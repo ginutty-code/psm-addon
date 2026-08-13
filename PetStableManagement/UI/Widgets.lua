@@ -43,7 +43,7 @@ local OPTIONS = {
     Tab         = { frameType = true, palette = true, fontSize = true, fontObject = true, text = true },
     MaskTexture = { texture = true, wrapH = true, wrapV = true },
     Texture     = { layer = true, sublayer = true, allPoints = true, color = true, texture = true, atlas = true, texCoord = true, vertexColor = true },
-    CheckBox    = { name = true, template = true, checked = true, onClick = true, tooltip = true, label = true, labelFontObject = true },
+    CheckBox    = { name = true, template = true, checked = true, onClick = true, tooltip = true, label = true, labelFontObject = true, labelFontSize = true, labelColor = true },
     SectionHeader = { palette = true, inset = true, text = true, fontSize = true, fontObject = true, color = true, labelInset = true },
 }
 
@@ -534,8 +534,13 @@ function Widgets.CheckBox(parent, opts)
     if opts.tooltip then PSM.Tooltip.Attach(c, opts.tooltip)  end
 
     if opts.label then
+        -- Either a font object, or an explicit size/colour -- the same two styles
+        -- Widgets.Label offers, since that is what this forwards to.
+        local useFontObject = opts.labelFontObject or not opts.labelFontSize
         c.label = Widgets.Label(c, {
-            fontObject = opts.labelFontObject or "GameFontNormal",
+            fontObject = useFontObject and (opts.labelFontObject or "GameFontNormal") or nil,
+            fontSize   = not useFontObject and opts.labelFontSize or nil,
+            color      = opts.labelColor,
             justify    = "LEFT",
             point      = { "LEFT", c, "RIGHT", 4, 0 },
             text       = opts.label,

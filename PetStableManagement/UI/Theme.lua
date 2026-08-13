@@ -70,6 +70,11 @@ Theme.COLOR = {
 Theme.CONTROL = {
     CHECKBOX      = 20,
     CHECKBOX_MARK = 16,  -- the loot-pass glyph drawn over a checkbox when inverted
+    -- Vertical pitch for a stacked list of checkboxes: the box plus breathing room.
+    -- Kept next to CHECKBOX because the two must move together -- the NPC column
+    -- picker had a 16px box on an 18px pitch, and the pitch was not touched when the
+    -- box grew.
+    CHECKBOX_ROW  = 22,
 }
 
 --------------------------------------------------------------------------------

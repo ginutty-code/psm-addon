@@ -138,33 +138,32 @@ local function RefreshExportContent(frame)
     ))
 end
 
+local COLUMN_PITCH  = 110
+local COLUMNS_PER_ROW = 5
+
 local function CreateCheckboxSection(frame)
     frame.checkboxes = {}
     frame.selectedColumns = PSM.Export:GetDefaultSelectedColumns()
 
     local y, x, col = -50, 20, 0
-    for i, def in ipairs(ALL_COLUMNS) do
-        local cb = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-        cb:SetPoint("TOPLEFT", x, y)
-        cb:SetChecked(frame.selectedColumns[def.key])
-        cb:SetScript("OnClick", function(self)
-            frame.selectedColumns[def.key] = self:GetChecked()
-            RefreshExportContent(frame)
-        end)
-
-        local lbl = cb:CreateFontString(nil, "OVERLAY")
-        lbl:SetFont("Fonts\\FRIZQT__.TTF", 9)
-        lbl:SetPoint("LEFT", cb, "RIGHT", 5, 0)
-        lbl:SetText(def.label)
-        lbl:SetTextColor(0.9, 0.9, 0.9)
-
-        table.insert(frame.checkboxes, cb)
+    for _, def in ipairs(ALL_COLUMNS) do
+        table.insert(frame.checkboxes, PSM.Widgets.CheckBox(frame, {
+            point           = { "TOPLEFT", x, y },
+            checked         = frame.selectedColumns[def.key],
+            label           = def.label,
+            labelFontSize   = PSM.Theme.SIZE.TINY,
+            labelColor      = { 0.9, 0.9, 0.9 },
+            onClick         = function(self)
+                frame.selectedColumns[def.key] = self:GetChecked()
+                RefreshExportContent(frame)
+            end,
+        }))
 
         col = col + 1
-        if col >= 5 then
-            col, y, x = 0, y - 20, 20
+        if col >= COLUMNS_PER_ROW then
+            col, y, x = 0, y - PSM.Theme.CONTROL.CHECKBOX_ROW, 20
         else
-            x = x + 110
+            x = x + COLUMN_PITCH
         end
     end
 
@@ -173,67 +172,74 @@ local function CreateCheckboxSection(frame)
 end
 
 local function CreateEditBoxSection(frame, topY)
-    local scrollFrame = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", 20, topY - 20)
-    scrollFrame:SetPoint("BOTTOMRIGHT", -40, 80)
+    local Widgets = PSM.Widgets
 
-    local editBox = CreateFrame("EditBox", nil, scrollFrame)
-    editBox:SetMultiLine(true)
+    local scrollFrame = Widgets.Frame(frame, {
+        frameType = "ScrollFrame",
+        template  = "UIPanelScrollFrameTemplate",
+        skin      = "scrollframe",
+        point     = {
+            { "TOPLEFT",      20, topY - 20 },
+            { "BOTTOMRIGHT", -40, 80 },
+        },
+    })
+    PSM.Skin.Apply(scrollFrame.ScrollBar, "scrollbar")
+
+    local editBox = Widgets.EditBox(scrollFrame, {
+        multiline  = true,
+        fontObject = "GameFontHighlightSmall",
+        width      = scrollFrame:GetWidth() - 20,
+        closes     = frame,
+    })
     editBox:SetMaxLetters(0)
-    editBox:SetFontObject(GameFontHighlightSmall)
-    editBox:SetWidth(scrollFrame:GetWidth() - 20)
-    editBox:SetAutoFocus(false)
-    editBox:SetScript("OnEscapePressed", function() frame:Hide() end)
     scrollFrame:SetScrollChild(editBox)
-    PSM.UI:ApplyElvUISkin(editBox, "editbox")
-    PSM.UI:ApplyElvUISkin(scrollFrame.ScrollBar, "scrollbar")
 
     -- Background behind edit box
-    local bg = CreateFrame("Frame", nil, scrollFrame, "BackdropTemplate")
-    bg:SetPoint("TOPLEFT",     scrollFrame, "TOPLEFT",     -5,  5)
-    bg:SetPoint("BOTTOMRIGHT", scrollFrame, "BOTTOMRIGHT",  5, -5)
-    bg:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 16,
-        insets = {left=4, right=4, top=4, bottom=4}
+    Widgets.Frame(scrollFrame, {
+        backdrop    = "TOOLTIP",
+        color       = { 0.1, 0.1, 0.1, PSM.Config:GetOpacity() },
+        borderColor = { 0.4, 0.4, 0.4, 1 },
+        level       = scrollFrame:GetFrameLevel() - 1,
+        point       = {
+            { "TOPLEFT",     scrollFrame, "TOPLEFT",     -5,  5 },
+            { "BOTTOMRIGHT", scrollFrame, "BOTTOMRIGHT",  5, -5 },
+        },
     })
-    bg:SetBackdropColor(0.1, 0.1, 0.1, PSM.Config:GetOpacity())
-    bg:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
-    bg:SetFrameLevel(scrollFrame:GetFrameLevel() - 1)
 
     frame.editBox = editBox
 end
 
 local function CreateBottomBar(frame)
-    local petCount = frame:CreateFontString(nil, "OVERLAY")
-    petCount:SetFont("Fonts\\FRIZQT__.TTF", 11)
-    petCount:SetPoint("BOTTOM", 0, 50)
-    petCount:SetTextColor(0.7, 0.9, 1)
-    frame.petCount = petCount
+    local Widgets = PSM.Widgets
 
-    local selectAllBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    selectAllBtn:SetSize(100, 25)
-    selectAllBtn:SetPoint("BOTTOM", -55, 15)
-    selectAllBtn:SetText("Select All")
-    selectAllBtn:SetScript("OnClick", function()
-        frame.editBox:SetFocus()
-        frame.editBox:HighlightText()
-    end)
-    PSM.UI:ApplyElvUISkin(selectAllBtn, "button")
+    frame.petCount = Widgets.Label(frame, {
+        fontSize = PSM.Theme.SIZE.BODY,
+        color    = { 0.7, 0.9, 1 },
+        point    = { "BOTTOM", 0, 50 },
+    })
 
-    local helpBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    helpBtn:SetSize(100, 25)
-    helpBtn:SetPoint("BOTTOM", 55, 15)
-    helpBtn:SetText("How to Copy")
-    helpBtn:SetScript("OnClick", function()
-        print("|cFFFFD700Pet Stable Management:|r To copy the CSV data:")
-        print("|cFF00FF001.|r Click 'Select All' button")
-        print("|cFF00FF002.|r Press Ctrl+C (Cmd+C on Mac) to copy")
-        print("|cFF00FF003.|r Paste into Excel, Google Sheets, or a text editor")
-        print("|cFF00FF004.|r Save as .csv file if needed")
-    end)
-    PSM.UI:ApplyElvUISkin(helpBtn, "button")
+    Widgets.Button(frame, {
+        size    = { 100, 25 },
+        point   = { "BOTTOM", -55, 15 },
+        text    = "Select All",
+        onClick = function()
+            frame.editBox:SetFocus()
+            frame.editBox:HighlightText()
+        end,
+    })
+
+    Widgets.Button(frame, {
+        size    = { 100, 25 },
+        point   = { "BOTTOM", 55, 15 },
+        text    = "How to Copy",
+        onClick = function()
+            print("|cFFFFD700Pet Stable Management:|r To copy the CSV data:")
+            print("|cFF00FF001.|r Click 'Select All' button")
+            print("|cFF00FF002.|r Press Ctrl+C (Cmd+C on Mac) to copy")
+            print("|cFF00FF003.|r Paste into Excel, Google Sheets, or a text editor")
+            print("|cFF00FF004.|r Save as .csv file if needed")
+        end,
+    })
 end
 
 function PSM.Export:ShowExportDialog()
@@ -246,48 +252,46 @@ function PSM.Export:ShowExportDialog()
         return
     end
 
-    local frame = CreateFrame("Frame", "PetStableExportFrame", UIParent, "BackdropTemplate")
-    frame:SetSize(600, 600)
-    frame:SetPoint("CENTER")
-    frame:SetFrameStrata("DIALOG")
-    frame:SetFrameLevel(100)
+    local Widgets = PSM.Widgets
+
+    local frame = Widgets.MovableFrame(UIParent, {
+        name              = "PetStableExportFrame",
+        size              = { 600, 600 },
+        point             = { "CENTER" },
+        strata            = "DIALOG",
+        level             = 100,
+        backdrop          = "TOOLTIP",
+        -- Wider tile than the default preset: this dialog is 600px of flat
+        -- background and a 16px tile visibly repeats across it.
+        backdropOverrides = { tileSize = 32 },
+        color             = { 0, 0, 0, PSM.Config:GetOpacity() },
+        skin              = "frame",
+    })
     frame:SetToplevel(true)
     frame:SetClampedToScreen(true)
-    frame:SetMovable(true)
-    frame:EnableMouse(true)
-    frame:RegisterForDrag("LeftButton")
-    frame:SetScript("OnDragStart", function(self) self:StartMoving() end)
-    frame:SetScript("OnDragStop",  function(self) self:StopMovingOrSizing() end)
-    frame:SetScript("OnKeyDown", function(self, key)
-        if key == "ESCAPE" then self:Hide() end
-    end)
-    frame:EnableKeyboard(true)
 
-    frame:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 32, edgeSize = 16,
-        insets = {left=4, right=4, top=4, bottom=4}
+    -- Was EnableKeyboard(true) plus a bare OnKeyDown, with no
+    -- SetPropagateKeyboardInput -- which meant this dialog swallowed *every*
+    -- keypress while open, not just Escape, leaving the player's keybinds dead.
+    -- CloseOnEscape propagates everything except Escape.
+    Widgets.CloseOnEscape(frame)
+
+    Widgets.CloseButton(frame, { point = { "TOPRIGHT", -5, -5 } })
+
+    local title = Widgets.Label(frame, {
+        fontSize = PSM.Theme.SIZE.HEADING,
+        outline  = true,
+        color    = PSM.Theme.COLOR.GOLD,
+        point    = { "TOP", 0, -15 },
+        text     = "Export Pet Data (CSV)",
     })
-    frame:SetBackdropColor(0, 0, 0, PSM.Config:GetOpacity())
-    PSM.UI:ApplyElvUISkin(frame, "frame")
 
-    local closeButton = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-    closeButton:SetPoint("TOPRIGHT", -5, -5)
-    closeButton:SetScript("OnClick", function() frame:Hide() end)
-    PSM.UI:ApplyElvUISkin(closeButton, "closebutton")
-
-    local title = frame:CreateFontString(nil, "OVERLAY")
-    title:SetFont("Fonts\\FRIZQT__.TTF", 14, "OUTLINE")
-    title:SetPoint("TOP", 0, -15)
-    title:SetText("Export Pet Data (CSV)")
-    title:SetTextColor(1, 0.82, 0)
-
-    local instructions = frame:CreateFontString(nil, "OVERLAY")
-    instructions:SetFont("Fonts\\FRIZQT__.TTF", 10)
-    instructions:SetPoint("TOP", title, "BOTTOM", 0, -10)
-    instructions:SetText("Select the columns to export, then copy the text below and paste it into a .csv file or spreadsheet")
-    instructions:SetTextColor(0.8, 0.8, 0.8)
+    Widgets.Label(frame, {
+        fontSize = PSM.Theme.SIZE.SMALL,
+        color    = PSM.Theme.COLOR.MUTED,
+        point    = { "TOP", title, "BOTTOM", 0, -10 },
+        text     = "Select the columns to export, then copy the text below and paste it into a .csv file or spreadsheet",
+    })
 
     local checkboxBottomY = CreateCheckboxSection(frame)
     CreateEditBoxSection(frame, checkboxBottomY)
