@@ -128,6 +128,13 @@ Theme.BACKDROP = {
     -- No textures at all. A frame that needs BackdropTemplate so something can call
     -- SetBackdropBorderColor on it later, but draws nothing of its own.
     NONE = {},
+    -- Border with no fill: an overlay that rings a row without obscuring what is
+    -- already drawn there. The duplicate/owned row indicator and the drag-drop
+    -- target outline; the latter wants overrides = { edgeSize = 12 }.
+    BORDER_ONLY = {
+        edgeFile = TOOLTIP_EDGE, edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 },
+    },
     -- Flat fill with a hairline border: cards and selectable rows, where the border
     -- is recoloured on hover. Set both colours -- the border defaults to white.
     SOLID_BORDERED = {

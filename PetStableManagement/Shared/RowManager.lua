@@ -11,9 +11,11 @@ PSM.RowManager = {}
 
 -- ─── Shared update frames ────────────────────────────────────────────────────
 
+-- An invisible, parentless ticker: nothing to draw, so not a widget. PSM.CreateFrame
+-- is Core.lua's alias, which is what the headless tests can stub.
 local function EnsureUpdateFrame(key, onUpdate)
     if PSM[key] then return PSM[key] end
-    local f = CreateFrame("Frame")
+    local f = PSM.CreateFrame("Frame")
     f.activeModels = {}
     f:SetScript("OnUpdate", onUpdate)
     PSM[key] = f
@@ -150,50 +152,58 @@ local function SetupModelInteraction(model)
         end
     end
 
-    model:SetScript("OnEnter", function(self)
-        refreshButtons(self, true)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        local tip = "Left-click and drag to rotate\nRight-click and drag to move (left/right, up/down)\nScroll to zoom"
-        if PSM.state and PSM.state.isStableOpen
-            and self.petData and self.petData.slotID then
-            tip = tip .. "\nShift/Ctrl + drag to reorder slot"
-        end
-        GameTooltip:SetText(tip)
-        GameTooltip:Show()
-    end)
-
-    model:SetScript("OnLeave", function(self)
-        -- Keep button visible if mouse moved directly onto it
-        for _, b in ipairs(self.hoverButtons or {}) do
-            if not b:IsMouseOver() then b:Hide() end
-        end
-        GameTooltip:Hide()
-    end)
+    -- A function spec: the reorder hint depends on whether the stable is open and
+    -- whether this model is a slotted pet, both of which change while the row lives.
+    PSM.Tooltip.Attach(model,
+        function(self)
+            local tip = "Left-click and drag to rotate\nRight-click and drag to move (left/right, up/down)\nScroll to zoom"
+            if PSM.state and PSM.state.isStableOpen
+                and self.petData and self.petData.slotID then
+                tip = tip .. "\nShift/Ctrl + drag to reorder slot"
+            end
+            return { title = tip }
+        end,
+        {
+            onEnter = function(self) refreshButtons(self, true) end,
+            onLeave = function(self)
+                -- Keep a button visible if the mouse moved directly onto it.
+                for _, b in ipairs(self.hoverButtons or {}) do
+                    if not b:IsMouseOver() then b:Hide() end
+                end
+            end,
+        }
+    )
 end
 
 -- ─── Button factory ───────────────────────────────────────────────────────────
 
-local function MakeOverlayButton(parent, model, size, anchorPoint, anchorRelPoint, offX, offY, normal, highlight, pushed)
-    local btn = CreateFrame("Button", nil, parent)
-    btn:SetSize(size, size)
-    btn:SetPoint(anchorPoint, model, anchorRelPoint, offX, offY)
-    btn:SetFrameLevel(model:GetFrameLevel() + 2)
-    btn:SetNormalTexture(normal)
-    btn:SetAlpha(0.7)
-    if highlight then btn:SetHighlightTexture(highlight) end
-    if pushed   then btn:SetPushedTexture(pushed) end
-    btn:Hide()
+-- The small affordances that fade in over a model on hover: reset view, magnify,
+-- add/remove from team. Deliberately not skinned -- ElvUI's HandleButton strips
+-- exactly the textures these are made of.
+--
+-- Was ten positional parameters, four of which were anchor components. Named now:
+-- `MakeOverlayButton(parent, model, 16, "TOPRIGHT", "TOPRIGHT", -2, -2, tex, tex)`
+-- gives a reader no way to check an argument without counting commas.
+local OVERLAY_ALPHA, OVERLAY_ALPHA_HOVER = 0.7, 1.0
 
-    btn:SetScript("OnEnter", function(self)
-        self:SetAlpha(1.0)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(self.tooltipText or "")
-        GameTooltip:Show()
-    end)
-    btn:SetScript("OnLeave", function(self)
-        self:SetAlpha(0.7)
-        GameTooltip:Hide()
-    end)
+local function MakeOverlayButton(parent, model, opts)
+    local btn = PSM.Widgets.IconButton(parent, {
+        size      = { opts.size, opts.size },
+        point     = { opts.point, model, opts.relPoint, opts.x, opts.y },
+        level     = model:GetFrameLevel() + 2,
+        texture   = opts.texture,
+        highlight = opts.highlight,
+        pushed    = opts.pushed,
+        alpha     = OVERLAY_ALPHA,
+        hidden    = true,
+    })
+
+    -- The brighten and the tooltip are one hover behaviour, so they are attached
+    -- together -- two separate OnEnter handlers would mean the last one wins.
+    PSM.Tooltip.Attach(btn, opts.tooltip, {
+        onEnter = function(self) self:SetAlpha(OVERLAY_ALPHA_HOVER) end,
+        onLeave = function(self) self:SetAlpha(OVERLAY_ALPHA)       end,
+    })
     return btn
 end
 
@@ -203,11 +213,13 @@ local function RegisterHoverButton(model, btn)
 end
 
 local function CreateResetButton(parent, model)
-    local btn = MakeOverlayButton(parent, model, 16,
-        "TOPRIGHT", "TOPRIGHT", -2, -2,
-        "Interface\\Buttons\\UI-RefreshButton",
-        "Interface\\Buttons\\UI-RefreshButton")
-    btn.tooltipText = "Reset View"
+    local btn = MakeOverlayButton(parent, model, {
+        size      = 16,
+        point     = "TOPRIGHT", relPoint = "TOPRIGHT", x = -2, y = -2,
+        texture   = "Interface\\Buttons\\UI-RefreshButton",
+        highlight = "Interface\\Buttons\\UI-RefreshButton",
+        tooltip   = "Reset View",
+    })
 
     btn:SetScript("OnClick", function()
         local s = GetSettings()
@@ -241,10 +253,12 @@ local function CreateResetButton(parent, model)
 end
 
 local function CreateMagnifyButton(parent, model)
-    local btn = MakeOverlayButton(parent, model, 16,
-        "TOPRIGHT", "TOPRIGHT", -20, -2,
-        "Interface\\Icons\\INV_Misc_Spyglass_02")
-    btn.tooltipText = "Magnify Model"
+    local btn = MakeOverlayButton(parent, model, {
+        size    = 16,
+        point   = "TOPRIGHT", relPoint = "TOPRIGHT", x = -20, y = -2,
+        texture = "Interface\\Icons\\INV_Misc_Spyglass_02",
+        tooltip = "Magnify Model",
+    })
 
     btn:SetScript("OnClick", function()
         if PSM.PopUpManager and PSM.PopUpManager.ShowMagnificationPopup then
@@ -258,12 +272,14 @@ local function CreateMagnifyButton(parent, model)
 end
 
 local function CreateAddToTeamButton(parent, model)
-    local btn = MakeOverlayButton(parent, model, 16,
-        "BOTTOMRIGHT", "BOTTOMRIGHT", -2, 2,
-        "Interface\\Buttons\\UI-PlusButton-UP",
-        "Interface\\Buttons\\UI-PlusButton-Highlight",
-        "Interface\\Buttons\\UI-PlusButton-Down")
-    btn.tooltipText = "Add to Team"
+    local btn = MakeOverlayButton(parent, model, {
+        size      = 16,
+        point     = "BOTTOMRIGHT", relPoint = "BOTTOMRIGHT", x = -2, y = 2,
+        texture   = "Interface\\Buttons\\UI-PlusButton-UP",
+        highlight = "Interface\\Buttons\\UI-PlusButton-Highlight",
+        pushed    = "Interface\\Buttons\\UI-PlusButton-Down",
+        tooltip   = "Add to Team",
+    })
 
     btn:SetScript("OnClick", function()
         if model.petData then PSM.TeamDialogs:ShowAddToTeamDialog(model.petData) end
@@ -275,12 +291,14 @@ local function CreateAddToTeamButton(parent, model)
 end
 
 local function CreateRemoveFromTeamButton(parent, model)
-    local btn = MakeOverlayButton(parent, model, 16,
-        "BOTTOMRIGHT", "BOTTOMRIGHT", -20, 2,
-        "Interface\\Buttons\\UI-MinusButton-UP",
-        "Interface\\Buttons\\UI-MinusButton-Highlight",
-        "Interface\\Buttons\\UI-MinusButton-Down")
-    btn.tooltipText = "Remove from Team"
+    local btn = MakeOverlayButton(parent, model, {
+        size      = 16,
+        point     = "BOTTOMRIGHT", relPoint = "BOTTOMRIGHT", x = -20, y = 2,
+        texture   = "Interface\\Buttons\\UI-MinusButton-UP",
+        highlight = "Interface\\Buttons\\UI-MinusButton-Highlight",
+        pushed    = "Interface\\Buttons\\UI-MinusButton-Down",
+        tooltip   = "Remove from Team",
+    })
 
     btn:SetScript("OnClick", function()
         if model.petData then PSM.TeamDialogs:ShowRemoveFromTeamDialog(model.petData) end
@@ -293,34 +311,43 @@ end
 
 -- ─── Row construction ─────────────────────────────────────────────────────────
 
+-- The row's own hairline rule and border tint, distinct from PSM.Theme.FILL.SEPARATOR
+-- (which is bluer and opaque). Kept as-is so this pass does not restyle rows.
+local ROW_RULE = { 0.3, 0.3, 0.3, 0.5 }
+
+-- Applied both at construction and again by UpdateBackgroundColor, which restores it
+-- after a spec-atlas background is cleared. One definition for both.
+local function ApplyRowBackdrop(row)
+    PSM.Widgets.Backdrop(row, "TOOLTIP", {
+        color       = PSM.Config.COLORS.BACKGROUND,
+        borderColor = ROW_RULE,
+    })
+end
+
 local function CreateSeparator(row)
-    local sep = row:CreateTexture(nil, "BORDER")
-    sep:SetHeight(1)
-    sep:SetPoint("BOTTOMLEFT",  row, "BOTTOMLEFT",  0, 0)
-    sep:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
-    sep:SetColorTexture(0.3, 0.3, 0.3, 0.5)
-    return sep
+    return PSM.Widgets.Line(row, {
+        layer = "BORDER",
+        color = ROW_RULE,
+        point = {
+            { "BOTTOMLEFT",  row, "BOTTOMLEFT",  0, 0 },
+            { "BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0 },
+        },
+    })
 end
 
 local function CreateBackground(row, useBackdrop)
-    if useBackdrop then
-        row:SetBackdrop({
-            bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-            tile = true, tileSize = 16, edgeSize = 16,
-            insets = { left = 4, right = 4, top = 4, bottom = 4 },
-        })
-        row:SetBackdropColor(unpack(PSM.Config.COLORS.BACKGROUND))
-        row:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.5)
-    end
+    if useBackdrop then ApplyRowBackdrop(row) end
 
     -- Clip children to row bounds
     row:SetClipsChildren(true)
 
     -- Spec atlas background
-    row.specBg = row:CreateTexture(nil, "BACKGROUND", nil, -1)
-    row.specBg:SetAllPoints(row)
-    row.specBg:Hide()
+    row.specBg = PSM.Widgets.Texture(row, {
+        layer     = "BACKGROUND",
+        sublayer  = -1,
+        allPoints = true,
+        hidden    = true,
+    })
 end
 
 function PSM.RowManager:CreateBaseRow(parent, config)
@@ -329,26 +356,32 @@ function PSM.RowManager:CreateBaseRow(parent, config)
     local showMagnify   = config.showMagnifyButton ~= false
     local showTeamBtns  = config.showTeamButtons or false
 
-    local row = CreateFrame("Frame", nil, parent, useBackdrop and "BackdropTemplate" or nil)
-    row:SetSize(config.width or PSM.Config.DEFAULT_ROW_WIDTH,
-                config.height or PSM.Config.ROW_HEIGHT)
+    local Widgets = PSM.Widgets
+
+    local row = Widgets.Frame(parent, {
+        template = useBackdrop and "BackdropTemplate" or nil,
+        size     = {
+            config.width  or PSM.Config.DEFAULT_ROW_WIDTH,
+            config.height or PSM.Config.ROW_HEIGHT,
+        },
+    })
 
     CreateBackground(row, useBackdrop)
     CreateSeparator(row)
 
     -- Model
     local modelSize = config.modelSize or PSM.Config.MODEL_SIZE
-    row.model = CreateFrame("PlayerModel", nil, row)
-    row.model:SetSize(modelSize, modelSize)
-    row.model:SetPoint("LEFT", row, "LEFT", 2, 0)
-    row.model.rotation   = math.pi * 2
-    row.model.zoom       = 1.0
-    row.model.lastCamDistanceScale = 1.0 / GetGlobalZoom()
-    row.model:SetRotation(row.model.rotation)
-    SetCamDistanceScaleIfChanged(row.model, row.model.lastCamDistanceScale)
+    row.model = Widgets.Frame(row, {
+        frameType = "PlayerModel",
+        size      = { modelSize, modelSize },
+        point     = { "LEFT", row, "LEFT", 2, 0 },
+    })
     row.model.rotation   = math.pi * 2
     row.model.zoom       = 1.0
     row.model.isRotating = false
+    row.model.lastCamDistanceScale = 1.0 / GetGlobalZoom()
+    row.model:SetRotation(row.model.rotation)
+    SetCamDistanceScaleIfChanged(row.model, row.model.lastCamDistanceScale)
 
     SetupModelInteraction(row.model)
     CreateResetButton(row, row.model)
@@ -359,13 +392,15 @@ function PSM.RowManager:CreateBaseRow(parent, config)
     end
 
     -- Favorite button
-    local favBtn = CreateFrame("Button", nil, row)
-    favBtn:SetSize(16, 16)
-    favBtn:SetPoint("TOPLEFT", row.model, "TOPLEFT", 0, -2)
-    favBtn:SetFrameLevel(row.model:GetFrameLevel() + 2)
-    favBtn:SetNormalTexture("Interface\\Common\\ReputationStar")
-    favBtn:SetHighlightTexture("Interface\\Common\\ReputationStar")
-    favBtn:Hide()
+    local favBtn = Widgets.IconButton(row, {
+        size      = { 16, 16 },
+        point     = { "TOPLEFT", row.model, "TOPLEFT", 0, -2 },
+        level     = row.model:GetFrameLevel() + 2,
+        texture   = "Interface\\Common\\ReputationStar",
+        highlight = "Interface\\Common\\ReputationStar",
+        hidden    = true,
+        tooltip   = "Favorite/Unfavorite",
+    })
 
     local function SetFavTexCoords(isFav)
         local u = isFav and 0 or 0.5
@@ -384,29 +419,25 @@ function PSM.RowManager:CreateBaseRow(parent, config)
             PSM.ModelsDataLoader:LoadModelsForSelectedFamilies()
         end
     end)
-    favBtn:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText("Favorite/Unfavorite")
-        GameTooltip:Show()
-    end)
-    favBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
-
     row.favoriteButton  = favBtn
     row._setFavTexCoords = SetFavTexCoords  -- expose for UpdateFavoriteButton
 
     -- Icon fallback
-    row.icon = row:CreateTexture(nil, "ARTWORK")
-    row.icon:SetSize(PSM.Config.ICON_SIZE, PSM.Config.ICON_SIZE)
-    row.icon:SetPoint("LEFT", row, "LEFT", 2, 0)
-    row.icon:Hide()
+    row.icon = Widgets.Texture(row, {
+        layer  = "ARTWORK",
+        size   = { PSM.Config.ICON_SIZE, PSM.Config.ICON_SIZE },
+        point  = { "LEFT", row, "LEFT", 2, 0 },
+        hidden = true,
+    })
 
     -- Label
-    row.text = row:CreateFontString(nil, "OVERLAY")
-    row.text:SetFont("Fonts\\FRIZQT__.TTF", 10)
-    row.text:SetPoint("LEFT", row.model, "RIGHT", 6, 0)
-    row.text:SetJustifyH("LEFT")
+    row.text = Widgets.Label(row, {
+        fontSize = PSM.Theme.SIZE.SMALL,
+        justify  = "LEFT",
+        width    = PSM.Config.TEXT_WIDTH,
+        point    = { "LEFT", row.model, "RIGHT", 6, 0 },
+    })
     row.text:SetJustifyV("MIDDLE")
-    row.text:SetWidth(PSM.Config.TEXT_WIDTH)
 
     row.config = config
     return row
@@ -486,16 +517,7 @@ function PSM.RowManager:UpdateBackgroundColor(row, isSameCharDup, isCrossCharDup
             if row.SetBackdrop then row:SetBackdrop(nil) end  -- Hide backdrop for spec bg
         elseif backgroundType == "simple" then
             row.specBg:Hide()
-            if row.SetBackdrop then  -- Restore backdrop for simple
-                row:SetBackdrop({
-                    bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-                    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-                    tile = true, tileSize = 16, edgeSize = 16,
-                    insets = { left = 4, right = 4, top = 4, bottom = 4 },
-                })
-                row:SetBackdropColor(unpack(PSM.Config.COLORS.BACKGROUND))
-                row:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.5)
-            end
+            if row.SetBackdrop then ApplyRowBackdrop(row) end  -- restore what "simple" means
         else
             row.specBg:Hide()
             if row.SetBackdrop then row:SetBackdrop(nil) end
@@ -504,13 +526,11 @@ function PSM.RowManager:UpdateBackgroundColor(row, isSameCharDup, isCrossCharDup
 
     -- Duplicate border indicator
     if not row.dupBorder then
-        row.dupBorder = CreateFrame("Frame", nil, row, "BackdropTemplate")
-        row.dupBorder:SetAllPoints()
-        row.dupBorder:SetFrameLevel(row:GetFrameLevel() + 2)
-        row.dupBorder:SetBackdrop({
-            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-            edgeSize = 16,
-            insets   = { left = 4, right = 4, top = 4, bottom = 4 },
+        -- Border with no fill, so the row's own background stays visible through it.
+        row.dupBorder = PSM.Widgets.Frame(row, {
+            backdrop  = "BORDER_ONLY",
+            allPoints = true,
+            level     = row:GetFrameLevel() + 2,
         })
     end
 
