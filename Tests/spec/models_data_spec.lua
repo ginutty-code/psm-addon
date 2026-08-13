@@ -42,9 +42,9 @@ describe("ModelsData structure", function()
         end
     end)
 
-    it("holds 7700 records, consistently across Index and NpcId", function()
-        eq(#M.NpcId, 7700, "#NpcId")
-        eq(count(M.Index), 7700, "Index entry count")
+    it("holds 7800 records, consistently across Index and NpcId", function()
+        eq(#M.NpcId, 7800, "#NpcId")
+        eq(count(M.Index), 7800, "Index entry count")
     end)
 
     it("Index and NpcId are exact inverses", function()
@@ -60,7 +60,7 @@ describe("ModelsData structure", function()
         eq(count(M.Families), 61, "distinct families")
         eq(count(M.Expansions), 12, "distinct expansions")
         eq(count(M.Classifications), 4, "distinct classifications")
-        eq(count(M.UiMapNames), 394, "distinct zone names")
+        eq(count(M.UiMapNames), 400, "distinct zone names")
     end)
 end)
 
@@ -134,14 +134,38 @@ describe("ModelsData per-record invariants", function()
 end)
 
 describe("ModelsData known records", function()
+    -- `displayId` may be a single number or a list: roughly a quarter of records have
+    -- several display IDs (2124 of 7800 at the time of writing), and that has always
+    -- been true -- every case here happened to be single-valued until the tail record
+    -- changed, so the shape went uncovered. Written as a list, compared elementwise.
+    local function eqDisplayIds(actual, expected, label)
+        if type(expected) == "table" then
+            isType(actual, "table", label .. " (expected a list)")
+            eq(#actual, #expected, label .. " count")
+            for k = 1, #expected do
+                eq(actual[k], expected[k], ("%s[%d]"):format(label, k))
+            end
+        else
+            eq(actual, expected, label)
+        end
+    end
+
     -- The exact NPCs spot-checked by hand during T3, plus the last dense index as
     -- a canary for truncated generation.
+    --
+    -- The canary has to be re-pointed whenever the data grows: it is the *last* record
+    -- that proves generation was not cut short, so a stale one silently stops testing
+    -- that. When updating it, take the record at #M.NpcId, not the previous canary's
+    -- new index.
     local CASES = {
         { npc = 30,     index = 1,    name = "Forest Spider",        family = "Spider",       expansion = "Vanilla",  classification = "Normal", zone = "Elwynn Forest", displayId = 366,    reactA = -1, reactH = -1 },
         { npc = 43,     index = 2,    name = "Mine Spider",          family = "Spider",       expansion = "Vanilla",  classification = "Normal", zone = "Elwynn Forest", displayId = 368,    reactA = -1, reactH = -1 },
         { npc = 113,    index = 3,    name = "Stonetusk Boar",       family = "Boar",         expansion = "Vanilla",  classification = "Normal", zone = "Elwynn Forest", displayId = 503,    reactA = 0,  reactH = 0  },
         { npc = 118,    index = 4,    name = "Prowler",              family = "Wolf",         expansion = "Vanilla",  classification = "Normal", zone = "Elwynn Forest", displayId = 11415,  reactA = -1, reactH = -1 },
-        { npc = 265254, index = 7700, name = "Hal'hadar Leystalker", family = "Warp Stalker", expansion = "Midnight", classification = "Normal", zone = "Naigtal",       displayId = 141335, reactA = -1, reactH = -1 },
+        { npc = 265254, index = 7786, name = "Hal'hadar Leystalker", family = "Warp Stalker", expansion = "Midnight", classification = "Normal", zone = "Naigtal",       displayId = 141335, reactA = -1, reactH = -1 },
+        -- The truncation canary: last dense index, and multi-valued by chance, which is
+        -- the only coverage this spec has of that shape.
+        { npc = 273290, index = 7800, name = "Writhing Coiler",      family = "Serpent",      expansion = "Midnight", classification = "Normal", zone = "Vaults of Atal'Utek", displayId = { 137231, 142379 }, reactA = 0, reactH = 0 },
     }
 
     for _, c in ipairs(CASES) do
@@ -153,7 +177,7 @@ describe("ModelsData known records", function()
             eq(M.Expansions[M.ExpansionId[i]], c.expansion, "expansion")
             eq(M.Classifications[M.ClassificationId[i]], c.classification, "classification")
             eq(M.UiMapNames[M.UiMapId[i]], c.zone, "zone")
-            eq(M.DisplayIds[i], c.displayId, "displayId")
+            eqDisplayIds(M.DisplayIds[i], c.displayId, "displayId")
             eq(M.ReactA[i], c.reactA, "reactA")
             eq(M.ReactH[i], c.reactH, "reactH")
         end)
