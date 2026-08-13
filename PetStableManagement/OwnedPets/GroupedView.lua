@@ -60,6 +60,94 @@ local function RefreshUI()
 end
 
 --------------------------------------------------------------------------------
+-- PET TOOLTIP
+--------------------------------------------------------------------------------
+
+-- The ability list colour per bucket. The bracketed prefixes carry their own inline
+-- colour codes; these are the colours of the ability names that follow them.
+local ABILITY_BUCKETS = {
+    { key = "spec",    prefix = "|cFFFFD700[Spec]|r",   color = { 1,   1, 1   } },
+    { key = "family",  prefix = "|cFF40FF40[Family]|r", color = { 0.8, 1, 0.8 } },
+    { key = "pet",     prefix = "|cFF40FFFF[Pet]|r",    color = { 0.8, 1, 1   } },
+    { key = "unknown", prefix = "|cFFAAAAAA[Other]|r",  color = { 0.7, 0.7, 0.7 } },
+}
+
+-- Everything a grouped-view pet tooltip says, as a spec. Built per hover rather than
+-- per render: the interaction hints at the bottom depend on the active sort and on
+-- whether the stable is open, both of which change while a row exists.
+local function PetTooltipSpec(pet)
+    if not pet then return nil end
+
+    local Theme = PSM.Theme
+    local lines = {}
+    local function Add(text, color) lines[#lines + 1] = { text = text, color = color } end
+
+    Add(string.format("DisplayID: %d", pet.displayID or 0), Theme.COLOR.MUTED)
+    if pet.familyName then Add("Family: " .. pet.familyName, Theme.COLOR.WHITE) end
+    if pet.specName   then Add("Spec: "   .. pet.specName,   Theme.COLOR.MUTED) end
+    if pet.tamer      then Add("Owned by: " .. pet.tamer,    Theme.COLOR.DIM)   end
+
+    if pet.level and pet.level > 0 then
+        local levelColor = pet.level >= 25 and " |cFF00FF00" or (pet.level >= 1 and " |cFFFFFF00" or " |cFF888888")
+        Add(string.format("Level: %d%s", pet.level, levelColor), Theme.COLOR.WHITE)
+    end
+
+    local abilities    = type(pet.abilities) == "table" and pet.abilities or {}
+    local hasAbilities = false
+
+    if abilities.family or abilities.spec or abilities.pet or abilities.unknown then
+        Add(" ")
+        Add("|cFFFFD700Abilities:|r", Theme.COLOR.WHITE)
+        for _, bucket in ipairs(ABILITY_BUCKETS) do
+            local list = abilities[bucket.key]
+            if list and #list > 0 then
+                for _, ability in ipairs(list) do
+                    Add(string.format("  %s %s", bucket.prefix, ability), bucket.color)
+                end
+                hasAbilities = true
+            end
+        end
+    else
+        -- Flat list: older saved data that predates the grouped buckets.
+        for _, ability in ipairs(abilities) do
+            Add("  \226\128\162 " .. (type(ability) == "table" and ability.name or tostring(ability)),
+                Theme.COLOR.WHITE)
+            hasAbilities = true
+        end
+    end
+
+    if not hasAbilities then
+        Add(" ")
+        Add("|cFFAAAAAA(No abilities available)", Theme.COLOR.DIM)
+    end
+
+    local hints = "Left-click and drag to rotate\nRight-click and drag to move (left/right, up/down)\nScroll to zoom"
+    if PSM.state.sortBy then
+        hints = hints .. "\n|cFFFF8800Reordering disabled while sorting is active.|r"
+            .. "\n|cFFFF8800Set Sort by to Unsorted to re-enable.|r"
+    else
+        hints = hints .. "\nShift/Ctrl + drag to reorder within group (works outside stable)"
+    end
+    hints = hints .. "\nShift/Ctrl + Right-click to move to a specific group"
+    if PSM.state and PSM.state.isStableOpen and pet.slotID then
+        hints = hints .. "\nShift/Ctrl + drag to swap stable slots"
+    end
+    Add(" ")
+    Add(hints, Theme.COLOR.DIM)
+
+    local exoticLabel = pet.isExotic and " |cffff8800[Exotic]|r" or ""
+    return {
+        title      = string.format("Slot %d: %s%s", pet.slotID or 0, pet.name or "?", exoticLabel),
+        titleColor = Theme.COLOR.WHITE,
+        lines      = lines,
+    }
+end
+
+function PSM.UI.GroupedView:ShowPetTooltip(row, pet)
+    PSM.Tooltip.Show(row, PetTooltipSpec(pet))
+end
+
+--------------------------------------------------------------------------------
 -- ROW CREATION / UPDATE
 --------------------------------------------------------------------------------
 
@@ -88,22 +176,24 @@ function PSM.UI.GroupedView:CreateModelRow(parent)
     local function showButtons(self)
         if self.resetButton   then self.resetButton:Show() end
         if self.magnifyButton then self.magnifyButton:Show() end
-        if self.addToTeamButton    and self.isOwnedByPlayer then self.addToTeamButton:Show() end
+        if self.addToTeamButton      and self.isOwnedByPlayer then self.addToTeamButton:Show()      end
         if self.removeFromTeamButton and self.isOwnedByPlayer then self.removeFromTeamButton:Show() end
-        if row.petData then PSM.UI.GroupedView:ShowPetTooltip(row, row.petData) end
     end
     local function hideButtons(self)
         if self.resetButton          and not self.resetButton:IsMouseOver()          then self.resetButton:Hide() end
         if self.magnifyButton        and not self.magnifyButton:IsMouseOver()        then self.magnifyButton:Hide() end
         if self.addToTeamButton      and not self.addToTeamButton:IsMouseOver()      then self.addToTeamButton:Hide() end
         if self.removeFromTeamButton and not self.removeFromTeamButton:IsMouseOver() then self.removeFromTeamButton:Hide() end
-        GameTooltip:Hide()
     end
 
-    row.model:SetScript("OnEnter", showButtons)
-    row.model:SetScript("OnLeave", hideButtons)
-    row:SetScript("OnEnter", function() if row.petData then PSM.UI.GroupedView:ShowPetTooltip(row, row.petData) end end)
-    row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    -- Anchored to `row`, not to the model, so the tooltip sits beside the whole cell
+    -- however the mouse arrived. Both the model and the row show the same thing;
+    -- entering the model deliberately replaces RowManager's rotate/zoom tooltip,
+    -- because these hints are already the last section of the pet tooltip.
+    local function TooltipForRow() return PetTooltipSpec(row.petData) end
+
+    PSM.Tooltip.Attach(row.model, TooltipForRow, { onEnter = showButtons, onLeave = hideButtons })
+    PSM.Tooltip.Attach(row,       TooltipForRow)
 
     return row
 end
@@ -138,73 +228,6 @@ function PSM.UI.GroupedView:UpdateRow(row, pet)
 end
 
 --------------------------------------------------------------------------------
--- PET TOOLTIP
---------------------------------------------------------------------------------
-
-function PSM.UI.GroupedView:ShowPetTooltip(row, pet)
-    if not pet then return end
-
-    GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
-
-    local exoticLabel = pet.isExotic and " |cffff8800[Exotic]|r" or ""
-    GameTooltip:SetText(string.format("Slot %d: %s%s", pet.slotID or 0, pet.name or "?", exoticLabel), 1, 1, 1)
-    GameTooltip:AddLine(string.format("DisplayID: %d", pet.displayID or 0), 0.8, 0.8, 0.8)
-    if pet.familyName then GameTooltip:AddLine(string.format("Family: %s", pet.familyName), 1, 1, 1) end
-    if pet.specName   then GameTooltip:AddLine(string.format("Spec: %s",   pet.specName),   0.8, 0.8, 0.8) end
-    if pet.tamer      then GameTooltip:AddLine(string.format("Owned by: %s", pet.tamer),    0.7, 0.7, 0.7) end
-
-    if pet.level and pet.level > 0 then
-        local levelColor = pet.level >= 25 and " |cFF00FF00" or (pet.level >= 1 and " |cFFFFFF00" or " |cFF888888")
-        GameTooltip:AddLine(string.format("Level: %d%s", pet.level, levelColor), 1, 1, 1)
-    end
-
-    local abilities  = type(pet.abilities) == "table" and pet.abilities or {}
-    local hasAbilities = false
-
-    if abilities.family or abilities.spec or abilities.pet or abilities.unknown then
-        GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("|cFFFFD700Abilities:|r", 1, 1, 1)
-        local function addAbilities(list, prefix, r, g, b)
-            if list and #list > 0 then
-                for _, ability in ipairs(list) do
-                    GameTooltip:AddLine(string.format("  %s %s", prefix, ability), r, g, b)
-                end
-                hasAbilities = true
-            end
-        end
-        addAbilities(abilities.spec,    "|cFFFFD700[Spec]|r",   1,   1,   1)
-        addAbilities(abilities.family,  "|cFF40FF40[Family]|r", 0.8, 1,   0.8)
-        addAbilities(abilities.pet,     "|cFF40FFFF[Pet]|r",    0.8, 1,   1)
-        addAbilities(abilities.unknown, "|cFFAAAAAA[Other]|r",  0.7, 0.7, 0.7)
-    else
-        for _, ability in ipairs(abilities) do
-            GameTooltip:AddLine(string.format("  • %s", type(ability) == "table" and ability.name or tostring(ability)), 1, 1, 1)
-            hasAbilities = true
-        end
-    end
-
-    if not hasAbilities then
-        GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("|cFFAAAAAA(No abilities available)", 0.7, 0.7, 0.7)
-    end
-
-    local hints = "Left-click and drag to rotate\nRight-click and drag to move (left/right, up/down)\nScroll to zoom"
-    if PSM.state.sortBy then
-        hints = hints .. "\n|cFFFF8800Reordering disabled while sorting is active.|r"
-            .. "\n|cFFFF8800Set Sort by to Unsorted to re-enable.|r"
-    else
-        hints = hints .. "\nShift/Ctrl + drag to reorder within group (works outside stable)"
-    end
-    hints = hints .. "\nShift/Ctrl + Right-click to move to a specific group"
-    if PSM.state and PSM.state.isStableOpen and pet and pet.slotID then
-        hints = hints .. "\nShift/Ctrl + drag to swap stable slots"
-    end
-    GameTooltip:AddLine(" ")
-    GameTooltip:AddLine(hints, 0.7, 0.7, 0.7)
-    GameTooltip:Show()
-end
-
---------------------------------------------------------------------------------
 -- CONTEXT MENUS
 --------------------------------------------------------------------------------
 
@@ -224,10 +247,6 @@ local function AppendBulkGroupMenuItems(menuList)
         text = "Delete All Groups", notCheckable = true,
         func = function() PSM.UI.GroupedView:ConfirmDeleteAllGroups() end,
     })
-end
-
-local function ShowContextMenu(menuList)
-    PSM.Utils:ShowContextMenu(menuList)
 end
 
 -- Ctrl/Shift + right-click on a pet model
@@ -291,7 +310,7 @@ function PSM.UI.GroupedView:ShowPetGroupContextMenu(pet)
         func = function() PSM.UI.GroupedView:ShowCreateGroupForPetDialog(pet) end,
     })
 
-    ShowContextMenu(menuList)
+    PSM.Utils:ShowContextMenu(menuList)
 end
 
 -- Right-click on a named group header
@@ -310,7 +329,7 @@ function PSM.UI.GroupedView:ShowGroupContextMenu(groupId, groupName)
         },
     }
     AppendBulkGroupMenuItems(menuList)
-    ShowContextMenu(menuList)
+    PSM.Utils:ShowContextMenu(menuList)
 end
 
 -- Right-click on the "Ungrouped" header
@@ -330,7 +349,7 @@ function PSM.UI.GroupedView:ShowAutoGroupContextMenu(pets)
         { text = "Owner (Tamer)",notCheckable = true, func = function() autoGroup("tamer")      end },
     }
     AppendBulkGroupMenuItems(menuList)
-    ShowContextMenu(menuList)
+    PSM.Utils:ShowContextMenu(menuList)
 end
 
 --------------------------------------------------------------------------------
@@ -398,50 +417,62 @@ end
 -- GROUP HEADER WIDGET
 --------------------------------------------------------------------------------
 
+-- "(3 pets)" / "(1 pet)"
+local function PetCountLabel(petCount)
+    petCount = petCount or 0
+    return "(" .. petCount .. " pet" .. (petCount ~= 1 and "s" or "") .. ")"
+end
+
+local EXPAND_BUTTON_ANCHOR = { "LEFT", 4, 0 }
+
 function PSM.UI.GroupedView:CreateGroupHeader(parent, groupName, petCount)
-    local header = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    header:SetHeight(HEADER_HEIGHT)
-    header:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile=true, tileSize=16, edgeSize=8,
-        insets={left=2, right=2, top=2, bottom=2},
+    local Widgets = PSM.Widgets
+
+    local header = Widgets.Frame(parent, {
+        height      = HEADER_HEIGHT,
+        backdrop    = "TOOLTIP_ROW",
+        color       = { 0.15, 0.15, 0.15 },
+        borderColor = { 0.5,  0.5,  0.5  },
     })
-    header:SetBackdropColor(0.15, 0.15, 0.15)
-    header:SetBackdropBorderColor(0.5, 0.5, 0.5)
 
-    local expandButton = CreateFrame("Button", nil, header)
-    expandButton:SetSize(16, 16)
-    expandButton:SetPoint("LEFT", header, "LEFT", 4, 0)
+    local expandButton = Widgets.IconButton(header, {
+        size  = { 16, 16 },
+        point = { EXPAND_BUTTON_ANCHOR[1], header, EXPAND_BUTTON_ANCHOR[1],
+                  EXPAND_BUTTON_ANCHOR[2], EXPAND_BUTTON_ANCHOR[3] },
+        skin  = "collapsebutton",
+    })
 
-    if PSM.UI and PSM.UI.ApplyElvUISkin then
-        PSM.UI:ApplyElvUISkin(expandButton, "collapsebutton")
-    end
-    expandButton:SetNormalTexture(PSM.UI.ElvUITexture("MinusButton"))
-    expandButton:SetPushedTexture(PSM.UI.ElvUITexture("MinusButton"))
+    -- Textures and geometry are applied *after* skinning, not before: ElvUI's
+    -- HandleButton strips textures and resets size/point, so anything set first is
+    -- discarded. The original re-stated size and point here for exactly this reason;
+    -- IconButton applies `skin` last, so this ordering still holds.
+    local minus = PSM.Skin.Texture("MinusButton")
+    expandButton:SetNormalTexture(minus)
+    expandButton:SetPushedTexture(minus)
     expandButton:SetHighlightTexture("Interface\\Buttons\\UI-PlusButton-Hilight", "ADD")
     expandButton:SetSize(16, 16)
     expandButton:ClearAllPoints()
-    expandButton:SetPoint("LEFT", header, "LEFT", 4, 0)
+    expandButton:SetPoint(EXPAND_BUTTON_ANCHOR[1], header, EXPAND_BUTTON_ANCHOR[1],
+                          EXPAND_BUTTON_ANCHOR[2], EXPAND_BUTTON_ANCHOR[3])
     -- OnClick is set in UpdateVisibleRows so it has access to the current section
     header.expandButton = expandButton
 
-    local nameText  = header:CreateFontString(nil, "OVERLAY")
-    nameText:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
-    nameText:SetPoint("LEFT", expandButton, "RIGHT", 4, 0)
-    nameText:SetTextColor(1, 0.82, 0)
-    nameText:SetText(groupName or "Group")
+    header.nameText = Widgets.Label(header, {
+        fontSize = PSM.Theme.SIZE.LABEL,
+        outline  = true,
+        color    = PSM.Theme.COLOR.GOLD,
+        point    = { "LEFT", expandButton, "RIGHT", 4, 0 },
+        text     = groupName or "Group",
+    })
 
-    local countText = header:CreateFontString(nil, "OVERLAY")
-    countText:SetFont("Fonts\\FRIZQT__.TTF", 10)
-    countText:SetPoint("LEFT", nameText, "RIGHT", 8, 0)
-    countText:SetTextColor(0.7, 0.7, 0.7)
-    countText:SetText("(" .. (petCount or 0) .. " pet" .. ((petCount or 0) ~= 1 and "s" or "") .. ")")
+    header.countText = Widgets.Label(header, {
+        fontSize = PSM.Theme.SIZE.SMALL,
+        color    = PSM.Theme.COLOR.DIM,
+        point    = { "LEFT", header.nameText, "RIGHT", 8, 0 },
+        text     = PetCountLabel(petCount),
+    })
 
-    header.nameText  = nameText
-    header.countText = countText
     header:EnableMouse(true)
-
     return header
 end
 
@@ -640,9 +671,9 @@ function PSM.UI.GroupedView:UpdateVisibleRows()
             header.groupId = section.gid
             header.isGroupHeader = true
             if header.nameText then header.nameText:SetText(section.name or "Group") end
-            if header.countText then header.countText:SetText("(" .. (#section.pets) .. " pet" .. (#section.pets ~= 1 and "s" or "") .. ")") end
+            if header.countText then header.countText:SetText(PetCountLabel(#section.pets)) end
             if header.expandButton then
-                local tex = section.collapsed and PSM.UI.ElvUITexture("PlusButton") or PSM.UI.ElvUITexture("MinusButton")
+                local tex = PSM.Skin.Texture(section.collapsed and "PlusButton" or "MinusButton")
                 header.expandButton:SetNormalTexture(tex)
                 header.expandButton:SetPushedTexture(tex)
                 header.expandButton:SetScript("OnClick", function(self, button)

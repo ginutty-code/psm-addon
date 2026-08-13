@@ -43,10 +43,27 @@ DD.teamState = {
 -- HELPERS
 ------------------------------------------------
 
+-- Remember a row's own colours before a highlight overwrites them, so they can be put
+-- back exactly. Headers restore from this too -- they used to be reset to hard-coded
+-- literals that were a copy of GroupedView's header palette, in a different file, with
+-- nothing keeping the two in step.
+local function SaveRowColors(row)
+    if not row or not row.GetBackdropColor or row._savedBackdrop then return end
+    row._savedBackdrop = { row:GetBackdropColor() }
+    if row.GetBackdropBorderColor then
+        row._savedBorder = { row:GetBackdropBorderColor() }
+    end
+end
+
 local function SetRowColor(row, color)
     if not row or not row.SetBackdropColor then return end
     if row.isGroupHeader then
-        row:SetBackdropBorderColor(color[1], color[2], color[3], color[4] or 1)
+        -- A header means "this whole group", so the whole header lights up. It used to
+        -- tint only the border, at the fill's 0.4 alpha -- a translucent wash over an
+        -- 8px edge, which read as nothing happening at all. The fill carries the tint
+        -- now and the border takes it at full opacity to outline the target.
+        row:SetBackdropColor(color[1], color[2], color[3], color[4] or 1)
+        row:SetBackdropBorderColor(color[1], color[2], color[3], 1)
     else
         row:SetBackdropColor(unpack(color))
     end
@@ -54,12 +71,19 @@ end
 
 local function ResetRowColor(row, savedBackdrop)
     if not row or not row.SetBackdropColor then return end
-    if row.isGroupHeader then
-        row:SetBackdropColor(0.15, 0.15, 0.15, 1)
-        row:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
-    elseif savedBackdrop then
-        row:SetBackdropColor(unpack(savedBackdrop))
-    end
+    savedBackdrop = savedBackdrop or row._savedBackdrop
+    if savedBackdrop then row:SetBackdropColor(unpack(savedBackdrop)) end
+    if row._savedBorder then row:SetBackdropBorderColor(unpack(row._savedBorder)) end
+end
+
+-- Put a row back the way it was and forget it. One helper because the three cleanup
+-- sites each used to restore and clear by hand, and adding the border to the saved set
+-- meant finding all three again.
+local function RestoreRowColors(row, savedBackdrop)
+    if not row then return end
+    ResetRowColor(row, savedBackdrop)
+    row._savedBackdrop = nil
+    row._savedBorder   = nil
 end
 
 local function SetDropIndicator(row, show)
@@ -214,10 +238,7 @@ function DD:OnEnterTarget(row, pet)
     s.targetRow = row
     s.targetPet = pet
 
-    -- Save this row's own color before overwriting it (only if not already saved)
-    if row.GetBackdropColor and not row.isGroupHeader and not row._savedBackdrop then
-        row._savedBackdrop = {row:GetBackdropColor()}
-    end
+    SaveRowColors(row)
 
     local isValid
     if s.sourceAllowOutsideStable then
@@ -235,20 +256,18 @@ end
 function DD:OnLeaveTarget(row)
     local s = DD.state
     if not s.isDragging or not row then return end
-    ResetRowColor(row, row._savedBackdrop)
+    RestoreRowColors(row)
     SetDropIndicator(row, false)
-    row._savedBackdrop = nil
     if s.targetRow == row then s.targetRow = nil end
 end
 
 function DD:EndDrag()
     local s = DD.state
     if s.dragFrame then s.dragFrame:Hide() end
-    ResetRowColor(s.sourceRow, s.originalBackdrop)
+    RestoreRowColors(s.sourceRow, s.originalBackdrop)
     if s.targetRow then
-        ResetRowColor(s.targetRow, s.targetRow._savedBackdrop)
+        RestoreRowColors(s.targetRow)
         SetDropIndicator(s.targetRow, false)
-        s.targetRow._savedBackdrop = nil
     end
 
     s.isDragging               = false
@@ -263,6 +282,48 @@ function DD:EndDrag()
     s.lastFocus                = nil
 
     if self._interceptor then self._interceptor:Hide() end
+end
+
+-- A group's stored pet order, with any visible-but-untracked pets seeded in first.
+--
+-- Only "ungrouped" needs the seeding: a pet is implicitly ungrouped until something
+-- explicitly files it, so the stored list can be missing pets that are plainly on
+-- screen -- and an insertion index computed against a partial list lands in the wrong
+-- place. Named groups always track their own members, so the seed pass finds nothing
+-- and costs a loop.
+local function StoredOrderForGroup(groupId)
+    local petGroups  = PSM.PetGroups
+    local group      = petGroups:GetGroupById(groupId)
+    local storedPets = group and group.pets or {}
+
+    local tracked = {}
+    for _, guid in ipairs(storedPets) do tracked[guid] = true end
+
+    if PSM.state.groupedViewRows then
+        local toSeed = {}
+        for _, r in ipairs(PSM.state.groupedViewRows) do
+            if r:IsShown() and r.groupId == groupId
+                    and r.dragDropPet and r.dragDropPet.guid
+                    and not tracked[r.dragDropPet.guid] then
+                table.insert(toSeed, r.dragDropPet.guid)
+            end
+        end
+        if #toSeed > 0 then
+            -- One batched call rather than one Save() per pet.
+            petGroups:SeedUngroupedPets(toSeed)
+            group      = petGroups:GetGroupById(groupId)
+            storedPets = group and group.pets or {}
+        end
+    end
+
+    return storedPets
+end
+
+-- Index of `guid` in `list`, or nil.
+local function IndexOf(list, guid)
+    for i, entry in ipairs(list) do
+        if entry == guid then return i end
+    end
 end
 
 function DD:CompleteDrop(targetRow, targetPet)
@@ -281,58 +342,37 @@ function DD:CompleteDrop(targetRow, targetPet)
 
         local petGroups = PSM.PetGroups
 
+        local storedPets = StoredOrderForGroup(tgtGroup)
+
+        -- Where the drop indicator was pointing. nil when the drop landed on a group
+        -- header rather than a pet, which means "append to this group".
+        local tgtGUID = s.targetPet and s.targetPet.guid
+        local tgtPos  = tgtGUID and IndexOf(storedPets, tgtGUID) or nil
+
         if sameGroup then
-            local tgtGUID = s.targetPet and s.targetPet.guid
-            if not tgtGUID then self:EndDrag(); return false end
+            -- Bails on an unknown target rather than on a missing one: the old guard
+            -- checked only that a target pet existed, so a pet that was somehow not in
+            -- storage produced tgtPos = nil and then compared a number against nil.
+            if not tgtPos then self:EndDrag(); return false end
 
-            -- Get current storage for this group
-            local group = petGroups:GetGroupById(tgtGroup)
-            local storedPets = group and group.pets or {}
-
-            -- Build a lookup of what's already tracked
-            local tracked = {}
-            for _, guid in ipairs(storedPets) do tracked[guid] = true end
-
-            -- Seed only untracked visible pets in one batch (avoids per-pet Save() calls)
-            if PSM.state.groupedViewRows then
-                local toSeed = {}
-                for _, r in ipairs(PSM.state.groupedViewRows) do
-                    if r:IsShown() and r.groupId == tgtGroup
-                            and r.dragDropPet and r.dragDropPet.guid
-                            and not tracked[r.dragDropPet.guid] then
-                        table.insert(toSeed, r.dragDropPet.guid)
-                    end
-                end
-                if #toSeed > 0 then
-                    petGroups:SeedUngroupedPets(toSeed)
-                    -- Refresh after seeding
-                    group = petGroups:GetGroupById(tgtGroup)
-                    storedPets = group and group.pets or {}
-                    for _, guid in ipairs(storedPets) do tracked[guid] = true end
-                end
-            end
-
-            -- Find target position in (now seeded) storage
-            local tgtPos = nil
-            for i, guid in ipairs(storedPets) do
-                if guid == tgtGUID then tgtPos = i; break end
-            end
-
-            -- Find source position to calculate adjustment
-            local srcPos = nil
-            for i, guid in ipairs(storedPets) do
-                if guid == srcGUID then srcPos = i; break end
-            end
-
-            -- tgtPos was found before source removal; if source is before target,
-            -- removal shifts target left by one, so adjust to land before target.
+            -- tgtPos was measured before the source is removed; if the source sits
+            -- before the target, that removal shifts the target left by one, so
+            -- subtract to land *before* the target rather than after it.
+            local srcPos = IndexOf(storedPets, srcGUID)
             local adjPos = tgtPos
             if srcPos and srcPos < tgtPos then adjPos = tgtPos - 1 end
             if adjPos < 1 then adjPos = 1 end
 
             petGroups:ReorderPetInGroup(tgtGroup, srcGUID, adjPos)
         else
-            petGroups:MovePetToGroup(srcGUID, tgtGroup, nil)
+            -- Insert where the indicator promised, instead of appending. No index
+            -- adjustment here: the source is leaving a *different* group, so removing
+            -- it does not shift this group's positions.
+            --
+            -- MovePetToGroup has always taken a position; this path used to pass an
+            -- explicit nil, so every cross-group drop landed at the end while the
+            -- highlight said otherwise.
+            petGroups:MovePetToGroup(srcGUID, tgtGroup, tgtPos)
         end
 
         self:EndDrag()
@@ -524,9 +564,8 @@ updateFrame:SetScript("OnUpdate", function()
         -- Clean up previous target before switching to new one
         local prevTarget = DD.state.targetRow
         if prevTarget then
-            ResetRowColor(prevTarget, prevTarget._savedBackdrop)
+            RestoreRowColors(prevTarget)
             SetDropIndicator(prevTarget, false)
-            prevTarget._savedBackdrop = nil
         end
 
         local targetRow = nil
@@ -547,9 +586,7 @@ updateFrame:SetScript("OnUpdate", function()
             if DD.state.sourceAllowOutsideStable then
                 local tgtGroup  = targetRow.groupId
                 local sameGroup = tgtGroup and (tgtGroup == DD.state.sourceGroupId)
-                if targetRow.GetBackdropColor and not targetRow.isGroupHeader and not targetRow._savedBackdrop then
-                    targetRow._savedBackdrop = {targetRow:GetBackdropColor()}
-                end
+                SaveRowColors(targetRow)
                 local isValid   = tgtGroup ~= nil or targetRow.isGroupHeader == true or sameGroup
                 SetRowColor(targetRow, isValid and COLOR.TARGET or COLOR.INVALID)
                 if isValid and not targetRow.isGroupHeader then SetDropIndicator(targetRow, true) end

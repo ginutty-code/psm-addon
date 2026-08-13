@@ -9,16 +9,15 @@ local PSM = _G.PSM
 PSM.UI = PSM.UI or {}
 
 --------------------------------------------------------------------------------
--- ELVUI COMPATIBILITY (compatibility shims -- the implementation is UI/Skin.lua)
+-- ELVUI COMPATIBILITY (compatibility shim -- the implementation is UI/Skin.lua)
 --------------------------------------------------------------------------------
--- These two forward to PSM.Skin so the call sites that predate the UI kit keep
--- working while they migrate file by file. New code calls PSM.Skin.Apply
--- directly, or -- better -- builds the widget with PSM.Widgets, which skins it.
--- When the last caller is gone, delete these.
-
-function PSM.UI.ElvUITexture(name)
-    return PSM.Skin.Texture(name)
-end
+-- Forwards to PSM.Skin so the call sites that predate the UI kit keep working while
+-- they migrate file by file. New code calls PSM.Skin.Apply directly, or -- better --
+-- builds the widget with PSM.Widgets, which skins what it returns.
+--
+-- `PSM.UI.ElvUITexture` used to live here too and is gone: its last caller migrated
+-- with GroupedView. This one follows when its own last caller does; check with
+--   grep -rn ApplyElvUISkin PetStableManagement PetStableManagement_ModelsBrowser
 
 function PSM.UI:ApplyElvUISkin(frame, skinType)
     return PSM.Skin.Apply(frame, skinType)
