@@ -224,73 +224,73 @@ function PSM:CreateSaveTeamButtonOnStable()
         return
     end
 
-    -- Create Teams List button (positioned above Save Team button)
-    local teamsListButton = CreateFrame("Button", "PSM_TeamsListButton", StableFrame, "UIPanelButtonTemplate")
-    teamsListButton:SetText("Teams List")
-    teamsListButton:SetNormalFontObject("GameFontNormal")
+    -- Read here, not at file scope: this file loads before UI/Theme.lua and
+    -- UI/Widgets.lua, so at parse time neither exists. By the time a stable opens they
+    -- do. Same rule the browser addon follows for core tables.
+    local Widgets = PSM.Widgets
+    local Theme   = PSM.Theme
 
-    -- Set higher frame strata to appear above model scene
-    teamsListButton:SetFrameStrata("HIGH")
-    teamsListButton:SetFrameLevel(10)
+    -- Anchored below the button because these sit near the bottom of the stable frame,
+    -- where a tooltip to the right would run off the model scene.
+    local ANCHOR = "ANCHOR_BOTTOM"
 
-    -- OnClick handler - toggle the Pet Teams panel
-    teamsListButton:SetScript("OnClick", function()
-        PSM.TeamsPanel:Toggle()
-    end)
-
-    -- Tooltip
-    teamsListButton:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-        local teamCount = PSM.Teams:GetTeamCount() or 0
-        GameTooltip:SetText("View and manage saved pet teams")
-        GameTooltip:AddLine("You have " .. teamCount .. " saved team(s)", 1, 1, 1)
-        GameTooltip:Show()
-    end)
-    teamsListButton:SetScript("OnLeave", function()
-        GameTooltip:Hide()
-    end)
-
-    PSM.UI:ApplyElvUISkin(teamsListButton, "button")
-    
-    -- Store reference
+    local teamsListButton = Widgets.Button(StableFrame, {
+        name       = "PSM_TeamsListButton",
+        text       = "Teams List",
+        fontObject = "GameFontNormal",
+        strata     = "HIGH",   -- above the stable's model scene
+        level      = 10,
+        onClick    = function() PSM.TeamsPanel:Toggle() end,
+        -- A function spec: the team count changes while the button exists.
+        tooltip    = function()
+            return {
+                anchor = ANCHOR,
+                title  = "View and manage saved pet teams",
+                lines  = {
+                    { text  = ("You have %d saved team(s)"):format(PSM.Teams:GetTeamCount() or 0),
+                      color = Theme.COLOR.WHITE },
+                },
+            }
+        end,
+    })
     StableFrame.PSM_TeamsListButton = teamsListButton
-    
-    -- Create Save Team button
-    local saveButton = CreateFrame("Button", "PSM_SaveTeamButton", StableFrame, "UIPanelButtonTemplate")
-    saveButton:SetText("Save Team")
-    saveButton:SetNormalFontObject("GameFontNormal")
 
-    -- Set higher frame strata to appear above model scene
-    saveButton:SetFrameStrata("HIGH")
-    saveButton:SetFrameLevel(10)
-
-    -- OnClick handler
-    saveButton:SetScript("OnClick", function()
-        if not PSM.state.isStableOpen then
-            print("|cFFFF8800PetStableManagement: You must be at a Stable Master to save a team.|r")
-            return
-        end
-        PSM.UI:HandleSaveTeamClick()
-    end)
-    
-    -- Tooltip
-    saveButton:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-        if PSM.state.isStableOpen then
-            GameTooltip:SetText("Save current pets in slots 1-6 as a team")
-        else
-            GameTooltip:SetText("Visit a Stable Master to save teams")
-            GameTooltip:AddLine("Requires stable to be open", 1, 0.5, 0)
-        end
-        GameTooltip:Show()
-    end)
-    saveButton:SetScript("OnLeave", function()
-        GameTooltip:Hide()
-    end)
-
-    PSM.UI:ApplyElvUISkin(saveButton, "button")
-    
-    -- Store reference
+    -- SAVING A TEAM IS NOT STABLE-ONLY. This button is a convenience for players who
+    -- arrange their pets in Blizzard's own stable UI and want to keep that arrangement,
+    -- so it captures the *live* slot layout -- and that is the only reason it needs the
+    -- stable open. It calls Teams:SaveTeam/UpdateTeam without a `slots` argument, and
+    -- those fall back to Teams:GetCurrentSlots(), which reads C_StableInfo.
+    --
+    -- Every other route passes `slots` explicitly (built by Teams:SlotRecord) and has no
+    -- stable requirement at all: the Teams panel and the dialogs in Shared/Dialogs.lua
+    -- create and edit teams anywhere, any time. Persistence is
+    -- PetStableManagementDB.characters[<char>].teams, reached through CharData() in
+    -- TeamsData.lua and mutated in place -- there is no separate "write" step, which is
+    -- why nothing outside the stable needs a Save button.
+    --
+    -- Only *applying* a team requires a stable visit.
+    --
+    -- Deliberately no disabled state and no "visit a stable master" tooltip: this button
+    -- is parented to StableFrame and hidden on PET_STABLE_CLOSED, so it is never visible
+    -- while the stable is shut. Both used to exist, and both taught the reader that
+    -- teams can only be saved at a stable, which is false.
+    local saveButton = Widgets.Button(StableFrame, {
+        name       = "PSM_SaveTeamButton",
+        text       = "Save Team",
+        fontObject = "GameFontNormal",
+        strata     = "HIGH",
+        level      = 10,
+        onClick    = function()
+            -- Kept as a guard, not as UI: if this button's visibility ever changes,
+            -- capturing slots without a stable would silently save an empty team.
+            if not PSM.state.isStableOpen then
+                print("|cFFFF8800PetStableManagement: You must be at a Stable Master to save a team.|r")
+                return
+            end
+            PSM.UI:HandleSaveTeamClick()
+        end,
+        tooltip    = { anchor = ANCHOR, title = "Save current pets in slots 1-6 as a team" },
+    })
     StableFrame.PSM_SaveTeamButton = saveButton
 
     -- Hooked once, on the pass that creates the buttons. HookScript cannot be undone,
@@ -309,24 +309,17 @@ function PSM:CreateSaveTeamButtonOnStable()
     teamsListButton:Show()
 end
 
--- Update Save Team button state
+-- Both stable-frame buttons are usable whenever they are visible, and they are only
+-- ever visible during a stable visit -- so there is no per-show state left to compute.
+-- This stays as the one place that would own such a rule if one is ever needed again;
+-- what it must not grow back is a "disabled outside the stable" branch, which described
+-- a state that cannot happen and implied teams can only be saved at a stable.
 function PSM:UpdateSaveTeamButtonState()
-    -- Update Save Team button (requires stable to be open)
-    if StableFrame and StableFrame.PSM_SaveTeamButton then
-        local button = StableFrame.PSM_SaveTeamButton
-        if PSM.state.isStableOpen then
+    for _, name in ipairs({ "PSM_SaveTeamButton", "PSM_TeamsListButton" }) do
+        local button = StableFrame and StableFrame[name]
+        if button then
             button:Enable()
             button:SetAlpha(1.0)
-        else
-            button:Disable()
-            button:SetAlpha(0.5)
         end
-    end
-    
-    -- Update Teams List button (always enabled when visible)
-    if StableFrame and StableFrame.PSM_TeamsListButton then
-        local button = StableFrame.PSM_TeamsListButton
-        button:Enable()
-        button:SetAlpha(1.0)
     end
 end

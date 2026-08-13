@@ -726,9 +726,3 @@ function PSM.UI:UpdateSortButtonTexts()
     UIDropDownMenu_SetText(panel.sortDrop, sortText)
 end
 
-function PSM.UI:UpdateSaveTeamButtonState()
-    if not PSM.state.panel or not PSM.state.panel.saveTeamButton then return end
-    local btn = PSM.state.panel.saveTeamButton
-    if PSM.state.isStableOpen then btn:Enable(); btn:SetAlpha(1.0)
-    else btn:Disable(); btn:SetAlpha(0.5) end
-end
