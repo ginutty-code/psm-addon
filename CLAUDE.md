@@ -120,7 +120,9 @@ frame. They know nothing about pets; they take a parent and an options table.
 - **`Widgets.lua`** — 16 factories: `Backdrop`, `Frame`, `MovableFrame`, `Label`,
   `Button`, `IconButton`, `CloseButton`, `ResizeGrip`, `CloseOnEscape`, `EditBox`,
   `MaskTexture`, `Line`, `Texture`, `Tab`, `SectionHeader`, `CheckBox`. Read the file —
-  each carries a comment saying what evidence justified it.
+  each carries a comment saying what evidence justified it. `CheckBox` returns a box
+  with `:SetTriState(nil | true | "inverted")`; the kit renders the three filter states,
+  the caller owns their meaning and cycle order.
 
 **Everything `PSM.Widgets` returns is already skinned.** That is the whole point: the
 count of hand-written `ApplyElvUISkin` calls should only ever go down. `IconButton` is
@@ -152,9 +154,13 @@ implementation. Two verbatim copies used to exist alongside it.
 
 Migrated, each with zero raw `CreateFrame` / `CreateFontString` / `CreateTexture` /
 `GameTooltip:` / skin calls: `Shared/PopUpManager.lua`, `Shared/Dialogs.lua`,
-`OwnedPets/TeamsPanel.lua`, `ModelsBrowser/SpecialTames.lua`,
-`ModelsBrowser/ModelsFilters.lua`, `ModelsBrowser/AbilityBrowser.lua`,
-`ModelsBrowser/ModelsPanel.lua`, `ModelsBrowser/NPCRow.lua`.
+`Shared/RowManager.lua`, `OwnedPets/TeamsPanel.lua`, `OwnedPets/Export.lua`,
+`OwnedPets/Filters.lua`, `OwnedPets/GroupedView.lua`,
+`ModelsBrowser/SpecialTames.lua`, `ModelsBrowser/ModelsFilters.lua`,
+`ModelsBrowser/AbilityBrowser.lua`, `ModelsBrowser/ModelsPanel.lua`,
+`ModelsBrowser/NPCRow.lua`.
+
+Repo-wide, twelve files in: `ApplyElvUISkin` **86 → 17**, `CreateFrame` **193 → 42**.
 
 `PopUpManager.lua` is the reference. The only `SetBackdropColor` left in it is a
 *runtime recolour*, not construction — **that is the line to draw** when migrating
@@ -169,8 +175,23 @@ headless tests can stub); in the *browser*, use raw `CreateFrame` — reaching f
 core alias at browser file scope is the cross-addon capture pattern `ModelRow.lua` was
 fixed for.
 
-Remaining, densest first: `Export.lua` (20), `Filters.lua` (16), `RowManager.lua` and
-`PanelManager.lua` (13), `OptionsPanel.lua` and `Panel.lua` (12), `Menu.lua` (10).
+Remaining, densest first — **re-measure rather than trusting this list**, the original
+one was a partial survey that omitted the two densest files in the addon:
+
+`OwnedPets/GridView.lua` (17), `ModelsBrowser/ModelRow.lua` (16), `Core.lua` (15),
+`Shared/Minimap.lua` (14), `Shared/PanelManager.lua` and `Shared/OptionsPanel.lua` (13),
+`OwnedPets/Panel.lua` (12), `OwnedPets/DragDrop.lua` (11), `Shared/Menu.lua` and
+`Shared/Broker.lua` (10), `Shared/Utils.lua` (7), `OwnedPets/Row.lua` (6).
+`Shared/UI.lua` is the `ApplyElvUISkin` shim and goes when its last caller does.
+
+```bash
+for f in $(find PetStableManagement* -name '*.lua' -not -path '*/Data/*' | grep -v /UI/); do
+  n=$(( $(grep -c -F 'CreateFrame(' $f) + $(grep -c -F ':CreateFontString(' $f) \
+      + $(grep -c -F ':CreateTexture(' $f) + $(grep -c -F 'GameTooltip:' $f) \
+      + $(grep -c -F 'ApplyElvUISkin' $f) + $(grep -c -F 'SetBackdrop({' $f) ))
+  [ "$n" -gt 2 ] && printf '%3d  %s\n' "$n" "$f"
+done | sort -rn
+```
 
 The full task record — every measurement, every bug found while migrating, and the
 reasoning behind each kit addition — is in `../ARCHITECTURE_PLAN.md` (outside both
