@@ -330,7 +330,7 @@ function PSM.Data:CollectStablePets()
     PSM.state.stablePets = {}
     self:ClearMemory(true)
 
-    if not PSM.StableFrame then
+    if not PSM.GetStableFrame() then
         print(PSM.Config.MESSAGES.STABLE_FRAME_NOT_FOUND)
         return 0, 0
     end
@@ -386,7 +386,8 @@ function PSM.Data:SetCachedDerivedFields(petKey, fingerprint, abilities, isExoti
 end
 
 function PSM.Data:CollectStabledPets()
-    local stabledPetList = PSM.StableFrame.StabledPetList
+    local stableFrame    = PSM.GetStableFrame()
+    local stabledPetList = stableFrame and stableFrame.StabledPetList
     local scrollBox = stabledPetList and stabledPetList.ScrollBox
     local dataProvider = scrollBox and scrollBox:GetDataProvider()
     if not dataProvider then return 0, 0 end

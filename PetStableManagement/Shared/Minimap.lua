@@ -283,16 +283,21 @@ function PSM.Minimap:ShowContextMenu()
         { text = "Cancel", notCheckable = true, func = function() end },
     }
 
-    PSM.UIDropDownMenu_Initialize(menu, function()
+    -- Called through the globals, not through aliases captured in Core.lua at file
+    -- scope: these come from Blizzard_UIDropDownMenu, which is a separate addon and so
+    -- need not have loaded before us. A capture taken at that moment is frozen -- if it
+    -- was nil then, it stays nil for the session. Resolved here, it works whenever the
+    -- API is there. Everywhere else in the addon already calls them this way.
+    UIDropDownMenu_Initialize(menu, function()
         for _, item in ipairs(MENU_ITEMS) do
-            local info = PSM.UIDropDownMenu_CreateInfo()
+            local info = UIDropDownMenu_CreateInfo()
             info.text         = item.text
             info.isTitle      = item.isTitle
             info.notCheckable = item.notCheckable
             info.func         = item.func
-            PSM.UIDropDownMenu_AddButton(info)
+            UIDropDownMenu_AddButton(info)
         end
     end)
 
-    PSM.ToggleDropDownMenu(1, nil, menu, "cursor", 0, 0, "MENU")
+    ToggleDropDownMenu(1, nil, menu, "cursor", 0, 0, "MENU")
 end

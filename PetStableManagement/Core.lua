@@ -51,13 +51,40 @@ PetStableManagementDB = PetStableManagementDB or {
 --------------------------------------------------------------------------------
 -- WOW API REFERENCES
 --------------------------------------------------------------------------------
+--
+-- These are aliases, and an alias taken at file scope is a **snapshot, not a
+-- reference**: whatever the global held when this file loaded is what it holds
+-- forever. That is fine for the base API, which is up before any addon runs. It is a
+-- bug for anything that can appear later.
+--
+-- Removed from this block for that reason:
+--
+--   StableFrame               Blizzard_StableUI is load-on-demand, so this captured
+--                             nil on any session where the stable had not been opened,
+--                             and CollectStablePets then failed for the whole session.
+--                             Resolved in Events.lua:CollectAndRender instead, where
+--                             the frame is guaranteed to be up.
+--   UIDropDownMenu_*          Blizzard_UIDropDownMenu is a separate addon and need not
+--   ToggleDropDownMenu        load before us. Called through the globals now, which is
+--   EasyMenu                  what the rest of the addon already did -- three of these
+--                             aliases had no callers at all.
+--
+-- Before adding one: is the global guaranteed to exist when this file runs? If not,
+-- call it through the global at the point of use.
+--
+-- PSM.GetSpellInfo is *expected* to be nil on modern clients -- it is the legacy half
+-- of Utils:GetSpellNameCompat, which prefers C_Spell.GetSpellName and falls back only
+-- if the old global is there. Nil is the answer, not a missing capture.
+
+-- Blizzard's stable frame, looked up on every call rather than aliased. There is no
+-- PSM.StableFrame field on purpose: a field would be a snapshot again, and there are
+-- eight entry points into pet collection, so no single handler can be trusted to have
+-- refreshed it first.
+function PSM.GetStableFrame()
+    return StableFrame
+end
+
 PSM.CreateFrame = CreateFrame
-PSM.StableFrame = StableFrame
-PSM.UIDropDownMenu_Initialize = UIDropDownMenu_Initialize
-PSM.UIDropDownMenu_SetWidth = UIDropDownMenu_SetWidth
-PSM.UIDropDownMenu_SetText = UIDropDownMenu_SetText
-PSM.UIDropDownMenu_AddButton = UIDropDownMenu_AddButton
-PSM.UIDropDownMenu_CreateInfo = UIDropDownMenu_CreateInfo
 PSM.C_Timer = C_Timer
 PSM.hooksecurefunc = hooksecurefunc
 PSM.C_StableInfo = C_StableInfo
@@ -66,8 +93,6 @@ PSM.GetSpellInfo = GetSpellInfo
 PSM.UIParent = UIParent
 PSM.GameTooltip = GameTooltip
 PSM.GetCursorPosition = GetCursorPosition
-PSM.ToggleDropDownMenu = ToggleDropDownMenu
-PSM.EasyMenu = EasyMenu
 PSM.GetCharacterKey = function() return UnitName("player") .. "-" .. GetRealmName() end
 
 -- Check if current character is a hunter

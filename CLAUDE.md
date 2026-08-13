@@ -186,15 +186,26 @@ were three hand-written copies of the field list (one in `TeamsData`, two in
 `Dialogs`), all agreeing on the same nine fields and all omitting `level` and `tamer` —
 and the two building from an already-processed pet were discarding values they held.
 
-**`X = SomeGlobal` at file scope is a snapshot, not a reference.** `Blizzard_StableUI`
-is load-on-demand, so `PSM.StableFrame = StableFrame` in Core.lua's "WOW API REFERENCES"
-block can capture `nil` permanently depending on login order; it is re-resolved in
-`CollectAndRender` now. The stable-frame Teams buttons had the same shape from the other
-side — they required a Blizzard child frame (`PetSelectButton`) that turns out to be
-**transient**, and a bare `return` when it was missing removed the feature for a whole
-session with nothing logged. Anchors there are optional and repositioned per show.
-**A silent early return in event-driven code is indistinguishable from the feature not
-existing** — if a handler can give up, it should say so.
+**`X = SomeGlobal` at file scope is a snapshot, not a reference.** Core.lua's "WOW API
+REFERENCES" block is now only the globals that are guaranteed up before any addon runs.
+Anything load-on-demand is called through the global at the point of use:
+
+- **Blizzard's stable frame** — use `PSM.GetStableFrame()`. There is deliberately no
+  `PSM.StableFrame` field: `Blizzard_StableUI` is load-on-demand, so a field would be a
+  snapshot again, and there are eight entry points into pet collection, so no single
+  handler can be trusted to refresh it first.
+- **`UIDropDownMenu_*` / `ToggleDropDownMenu` / `EasyMenu`** — call the globals.
+  `Blizzard_UIDropDownMenu` is a separate addon and need not load before us. Three of
+  these aliases had no callers; the rest of the addon already used the globals.
+- **`PSM.GetSpellInfo` is expected to be nil** on modern clients — it is the legacy half
+  of `Utils:GetSpellNameCompat`, which prefers `C_Spell.GetSpellName`. Not a bug.
+
+The stable-frame Teams buttons were the same bug from the other side: they required a
+Blizzard child frame (`PetSelectButton`) that turns out to be **transient**, and a bare
+`return` when it was missing removed the feature for a whole session with nothing
+logged. Anchors there are optional and repositioned per show. **A silent early return in
+event-driven code is indistinguishable from the feature not existing** — if a handler can
+give up, it should say so.
 
 **Counting record builders is a cheap audit.** Three separate shapes for "a pet" have
 now produced three user-visible bugs in a row. If you add a field to a pet, grep for

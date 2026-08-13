@@ -17,9 +17,10 @@ local _lastScheduledCollectedCount = nil
 -- dataProvider:GetSize(). Used as a fast-path signal below, with the
 -- stability check as fallback if it's ever missing/unparseable.
 local function GetListCounterText()
-    local counter = PSM.StableFrame and PSM.StableFrame.StabledPetList
-                 and PSM.StableFrame.StabledPetList.ListCounter
-                 and PSM.StableFrame.StabledPetList.ListCounter.Count
+    local frame   = PSM.GetStableFrame()
+    local counter = frame and frame.StabledPetList
+                 and frame.StabledPetList.ListCounter
+                 and frame.StabledPetList.ListCounter.Count
     if counter and counter.GetText then
         local ok, text = pcall(counter.GetText, counter)
         if ok then return text end
@@ -87,18 +88,11 @@ local _lastShowCollectedCount = nil
 local function CollectAndRender(retryCount)
     retryCount = retryCount or 0
 
-    -- Blizzard_StableUI is load-on-demand, so the global StableFrame may not have
-    -- existed when Core.lua captured it into PSM.StableFrame at file scope. By the time
-    -- this runs the frame is up, so re-resolve rather than trusting a snapshot taken at
-    -- login -- a stale nil here makes CollectStablePets bail with "stable frame not
-    -- found" for the whole session. Same shape as the stable-button bug: a reference
-    -- captured once, at a moment when the thing it names might not exist yet.
-    PSM.StableFrame = PSM.StableFrame or StableFrame
-
     -- Check if data provider is ready (needed for stabled pets)
+    local stableFrame = PSM.GetStableFrame()
     local dataProviderReady = false
-    if PSM.StableFrame and PSM.StableFrame.StabledPetList and PSM.StableFrame.StabledPetList.ScrollBox then
-        local scrollBox = PSM.StableFrame.StabledPetList.ScrollBox
+    if stableFrame and stableFrame.StabledPetList and stableFrame.StabledPetList.ScrollBox then
+        local scrollBox = stableFrame.StabledPetList.ScrollBox
         local dp = scrollBox:GetDataProvider()
         dataProviderReady = dp and true or false
     end
