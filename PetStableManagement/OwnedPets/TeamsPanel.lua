@@ -699,55 +699,19 @@ end
 -- PET TOOLTIP
 ----------------------------------------------------------------------------------------------------------------
 
+-- The same tooltip the owned-pets views show, so a pet reads identically wherever it
+-- is looked at. Only the slot label and the trailing hints are the teams panel's own:
+-- here a slot is a team position rather than a stable slot, and 6 is the companion.
 function PSM.TeamsPanel:ShowPetTooltip(container, petData, slot)
-    local Theme = PSM.Theme
-    local spec = {
-        anchor     = "ANCHOR_RIGHT",
-        x          = -20,
-        y          = -40,
-        title      = "Slot " .. slot .. (slot == 6 and " (Companion)" or " (Active)"),
-        titleColor = Theme.COLOR.GOLD,
-        lines      = {},
-    }
-    local function Add(text, color)
-        spec.lines[#spec.lines + 1] = { text = text, color = color }
-    end
+    local spec = PSM.PetTooltip.Spec(petData, {
+        slotLabel = "Slot " .. slot .. (slot == 6 and " (Companion)" or " (Active)"),
+        hints     = "Drag to rearrange\nHover + X to remove",
+    })
+    if not spec then return end
 
-    Add(petData.name or "Unknown Pet", Theme.COLOR.WHITE)
-
-    if petData.familyName then Add("Family: " .. petData.familyName, Theme.COLOR.DIM) end
-    if petData.specName   then Add("Spec: "   .. petData.specName,   Theme.COLOR.DIM) end
-    if petData.isExotic   then Add("|cffff8800Exotic|r") end
-
-    local abilities = petData.abilities
-    if abilities and type(abilities) == "table" then
-        local lines = {}
-        local cats  = {
-            { key = "spec",    label = "|cFFFFFF00[Spec]|r"    },
-            { key = "family",  label = "|cFF40FF40[Family]|r"  },
-            { key = "pet",     label = " |cFF40FFFF[Pet]|r"    },
-            { key = "unknown", label = "|cFFABABAB[Other]|r"   },
-        }
-        for _, cat in ipairs(cats) do
-            if abilities[cat.key] and #abilities[cat.key] > 0 then
-                table.insert(lines, cat.label)
-                for _, ability in ipairs(abilities[cat.key]) do
-                    table.insert(lines, "  • " .. ability)
-                end
-            end
-        end
-        if #lines > 0 then
-            Add(" ")
-            Add("Abilities:", Theme.COLOR.GOLD)
-            for _, line in ipairs(lines) do
-                Add(line, Theme.COLOR.MUTED)
-            end
-        end
-    end
-
-    Add(" ")
-    Add("|cFFAAAAAA[Drag to rearrange]|r",   Theme.COLOR.FAINT)
-    Add("|cFFAAAAAA[Hover + X to remove]|r", Theme.COLOR.FAINT)
+    -- Anchoring is this panel's business, not the shared content's: the team slots sit
+    -- close to the right edge, so the tooltip is pulled back over them.
+    spec.x, spec.y = -20, -40
 
     PSM.Tooltip.Show(container, spec)
 end

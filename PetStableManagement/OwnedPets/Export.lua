@@ -15,7 +15,7 @@ local ALL_COLUMNS = {
     {key = "name",            label = "Name"},
     {key = "displayID",       label = "Display ID"},
     {key = "petNumber",       label = "Pet Number"},
-    {key = "petLevel",        label = "Level"},
+    {key = "level",           label = "Level"},
     {key = "familyName",      label = "Family"},
     {key = "specName",        label = "Specialization"},
     {key = "specID",          label = "Spec ID"},

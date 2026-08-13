@@ -83,6 +83,38 @@ local function MsgErr(text)  Msg("FFFF0000", text) end
 -- SLOT CAPTURE AND COMPARISON
 ----------------------------------------------------------------------------------------------------------------
 
+-- The one definition of what a team slot stores.
+--
+-- A slot is a *snapshot*, not a reference: teams are saved independently of the live
+-- stable, so a pet can sit in a team while stabled on another character, or while gone
+-- entirely. That is why the fields are copied out rather than looked up on display.
+--
+-- There were three hand-written copies of this list -- one building from Blizzard's raw
+-- record, two copying from an already-processed pet -- and all three had settled on the
+-- same nine fields, omitting `level` and `tamer`. The two copying from a processed pet
+-- were discarding values they already had. The teams tooltip then looked thinner than
+-- the owned-pets one for no reason a reader could see.
+--
+-- Accepts either shape: a live `C_StableInfo` record or a processed PSM pet.
+function PSM.Teams:SlotRecord(pet)
+    if not pet or not pet.name then return nil end
+    return {
+        petNumber  = pet.petNumber,
+        name       = pet.name,
+        displayID  = pet.displayID or 0,
+        icon       = pet.icon,
+        level      = pet.level or 0,
+        familyName = pet.familyName or (pet.family and pet.family.name),
+        specName   = pet.specName or pet.specialization,
+        specID     = pet.specID or pet.specId,
+        isExotic   = pet.isExotic or false,
+        -- Only the current character can capture their own slots, so an absent tamer
+        -- means "captured now" rather than "unknown".
+        tamer      = pet.tamer or PSM.GetCharacterKey(),
+        abilities  = pet.abilities or PSM.Data:ExtractPetAbilities(pet),
+    }
+end
+
 function PSM.Teams:GetCurrentSlots()
     if not PSM.state.isStableOpen then
         return nil, "Stable must be open to capture pet slots"
@@ -94,19 +126,7 @@ function PSM.Teams:GetCurrentSlots()
     local slots = {}
     for slot = 1, 6 do
         local info = C_StableInfo.GetStablePetInfo(slot)
-        if info and info.name then
-            slots[slot] = {
-                petNumber  = info.petNumber,
-                name       = info.name,
-                displayID  = info.displayID or 0,
-                icon       = info.icon,
-                familyName = info.familyName or (info.family and info.family.name),
-                specName   = info.specName or info.specialization,
-                specID     = info.specID or info.specId,
-                isExotic   = info.isExotic or false,
-                abilities  = PSM.Data:ExtractPetAbilities(info),
-            }
-        end
+        slots[slot] = self:SlotRecord(info)
     end
     return slots, nil
 end

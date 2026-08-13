@@ -63,65 +63,11 @@ end
 -- PET TOOLTIP
 --------------------------------------------------------------------------------
 
--- The ability list colour per bucket. The bracketed prefixes carry their own inline
--- colour codes; these are the colours of the ability names that follow them.
-local ABILITY_BUCKETS = {
-    { key = "spec",    prefix = "|cFFFFD700[Spec]|r",   color = { 1,   1, 1   } },
-    { key = "family",  prefix = "|cFF40FF40[Family]|r", color = { 0.8, 1, 0.8 } },
-    { key = "pet",     prefix = "|cFF40FFFF[Pet]|r",    color = { 0.8, 1, 1   } },
-    { key = "unknown", prefix = "|cFFAAAAAA[Other]|r",  color = { 0.7, 0.7, 0.7 } },
-}
-
--- Everything a grouped-view pet tooltip says, as a spec. Built per hover rather than
--- per render: the interaction hints at the bottom depend on the active sort and on
--- whether the stable is open, both of which change while a row exists.
-local function PetTooltipSpec(pet)
-    if not pet then return nil end
-
-    local Theme = PSM.Theme
-    local lines = {}
-    local function Add(text, color) lines[#lines + 1] = { text = text, color = color } end
-
-    Add(string.format("DisplayID: %d", pet.displayID or 0), Theme.COLOR.MUTED)
-    if pet.familyName then Add("Family: " .. pet.familyName, Theme.COLOR.WHITE) end
-    if pet.specName   then Add("Spec: "   .. pet.specName,   Theme.COLOR.MUTED) end
-    if pet.tamer      then Add("Owned by: " .. pet.tamer,    Theme.COLOR.DIM)   end
-
-    if pet.level and pet.level > 0 then
-        local levelColor = pet.level >= 25 and " |cFF00FF00" or (pet.level >= 1 and " |cFFFFFF00" or " |cFF888888")
-        Add(string.format("Level: %d%s", pet.level, levelColor), Theme.COLOR.WHITE)
-    end
-
-    local abilities    = type(pet.abilities) == "table" and pet.abilities or {}
-    local hasAbilities = false
-
-    if abilities.family or abilities.spec or abilities.pet or abilities.unknown then
-        Add(" ")
-        Add("|cFFFFD700Abilities:|r", Theme.COLOR.WHITE)
-        for _, bucket in ipairs(ABILITY_BUCKETS) do
-            local list = abilities[bucket.key]
-            if list and #list > 0 then
-                for _, ability in ipairs(list) do
-                    Add(string.format("  %s %s", bucket.prefix, ability), bucket.color)
-                end
-                hasAbilities = true
-            end
-        end
-    else
-        -- Flat list: older saved data that predates the grouped buckets.
-        for _, ability in ipairs(abilities) do
-            Add("  \226\128\162 " .. (type(ability) == "table" and ability.name or tostring(ability)),
-                Theme.COLOR.WHITE)
-            hasAbilities = true
-        end
-    end
-
-    if not hasAbilities then
-        Add(" ")
-        Add("|cFFAAAAAA(No abilities available)", Theme.COLOR.DIM)
-    end
-
-    local hints = "Left-click and drag to rotate\nRight-click and drag to move (left/right, up/down)\nScroll to zoom"
+-- Grouped view is the only place a pet can be reordered or moved between groups, so
+-- it has the most to explain -- and the explanation depends on the active sort, which
+-- disables reordering entirely.
+local function GroupedHints(pet)
+    local hints = PSM.RowManager.MODEL_HINTS
     if PSM.state.sortBy then
         hints = hints .. "\n|cFFFF8800Reordering disabled while sorting is active.|r"
             .. "\n|cFFFF8800Set Sort by to Unsorted to re-enable.|r"
@@ -132,15 +78,12 @@ local function PetTooltipSpec(pet)
     if PSM.state and PSM.state.isStableOpen and pet.slotID then
         hints = hints .. "\nShift/Ctrl + drag to swap stable slots"
     end
-    Add(" ")
-    Add(hints, Theme.COLOR.DIM)
+    return hints
+end
 
-    local exoticLabel = pet.isExotic and " |cffff8800[Exotic]|r" or ""
-    return {
-        title      = string.format("Slot %d: %s%s", pet.slotID or 0, pet.name or "?", exoticLabel),
-        titleColor = Theme.COLOR.WHITE,
-        lines      = lines,
-    }
+local function PetTooltipSpec(pet)
+    if not pet then return nil end
+    return PSM.PetTooltip.Spec(pet, { hints = GroupedHints(pet) })
 end
 
 function PSM.UI.GroupedView:ShowPetTooltip(row, pet)
@@ -173,27 +116,18 @@ function PSM.UI.GroupedView:CreateModelRow(parent)
     row.viewType = "grouped"
     row.petData  = nil
 
-    local function showButtons(self)
-        if self.resetButton   then self.resetButton:Show() end
-        if self.magnifyButton then self.magnifyButton:Show() end
-        if self.addToTeamButton      and self.isOwnedByPlayer then self.addToTeamButton:Show()      end
-        if self.removeFromTeamButton and self.isOwnedByPlayer then self.removeFromTeamButton:Show() end
-    end
-    local function hideButtons(self)
-        if self.resetButton          and not self.resetButton:IsMouseOver()          then self.resetButton:Hide() end
-        if self.magnifyButton        and not self.magnifyButton:IsMouseOver()        then self.magnifyButton:Hide() end
-        if self.addToTeamButton      and not self.addToTeamButton:IsMouseOver()      then self.addToTeamButton:Hide() end
-        if self.removeFromTeamButton and not self.removeFromTeamButton:IsMouseOver() then self.removeFromTeamButton:Hide() end
-    end
-
-    -- Anchored to `row`, not to the model, so the tooltip sits beside the whole cell
-    -- however the mouse arrived. Both the model and the row show the same thing;
-    -- entering the model deliberately replaces RowManager's rotate/zoom tooltip,
-    -- because these hints are already the last section of the pet tooltip.
+    -- The model and the row show the same tooltip, each anchored to itself, so it
+    -- lands beside whichever the mouse actually entered. Attaching to the model
+    -- deliberately replaces RowManager's rotate/zoom tooltip -- those hints are
+    -- already this tooltip's last section -- and that is why the hover buttons have
+    -- to come along: re-attaching OnEnter/OnLeave drops RowManager's pair with it.
     local function TooltipForRow() return PetTooltipSpec(row.petData) end
 
-    PSM.Tooltip.Attach(row.model, TooltipForRow, { onEnter = showButtons, onLeave = hideButtons })
-    PSM.Tooltip.Attach(row,       TooltipForRow)
+    PSM.Tooltip.Attach(row.model, TooltipForRow, {
+        onEnter = function(self) PSM.RowManager:ShowHoverButtons(self) end,
+        onLeave = function(self) PSM.RowManager:HideHoverButtons(self) end,
+    })
+    PSM.Tooltip.Attach(row, TooltipForRow)
 
     return row
 end

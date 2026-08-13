@@ -407,6 +407,10 @@ function PSM.Data:CollectStabledPets()
         p.guid        = p.guid or p.petNumber
         p.modelSceneID = p.modelSceneID or 783
         p.tamer       = PSM.GetCharacterKey()
+        -- Stabled pets arrive as a copy of Blizzard's record and keep whatever it has;
+        -- active pets are built field by field in ProcessPetInfo. Both must end up with
+        -- the same shape, or a consumer reads a key that only one path fills.
+        p.level       = p.level or 0
         p._originalData = nil
 
         local fingerprint = PetFingerprint(p)
@@ -475,7 +479,7 @@ function PSM.Data:ProcessPetInfo(petInfo, slotID, isActive)
         displayID  = petInfo.displayID or 0,
         petNumber  = petInfo.petNumber or 0,
         guid       = petInfo.petNumber or 0,
-        petLevel   = petInfo.level or 0,
+        level      = petInfo.level or 0,
         familyName = familyName,
         specName   = specName,
         specID     = petInfo.specID or petInfo.specId,

@@ -17,13 +17,9 @@ local ACTION_BUTTONS = {
     { key = "release",    label = "Release"      },
 }
 
--- Ability groups in display order: { key, color, label }
-local ABILITY_GROUPS = {
-    { key = "spec",    color = "|cFFFFD700", label = "[Spec]"   },
-    { key = "family",  color = "|cFF40FF40", label = "[Family]" },
-    { key = "pet",     color = "|cFF40FFFF", label = "[Pet]"    },
-    { key = "unknown", color = "|cFFAAAAAA", label = "[Other]"  },
-}
+-- Ability groups come from PSM.PetTooltip: this renders them as a block of text
+-- rather than as tooltip lines, but it is the same four buckets in the same order
+-- with the same colours, and they used to drift apart when both files owned a copy.
 
 -- ---------------------------------------------------------------------------
 -- Private helpers
@@ -43,12 +39,12 @@ local function BuildAbilitiesText(abilities)
     local parts = {}
     local hasAbilities = false
 
-    if abilities.family or abilities.spec or abilities.pet or abilities.unknown then
+    if PSM.PetTooltip.IsBucketed(abilities) then
         -- Grouped format
-        for _, group in ipairs(ABILITY_GROUPS) do
+        for _, group in ipairs(PSM.PetTooltip.ABILITY_BUCKETS) do
             local list = abilities[group.key]
             if list and #list > 0 then
-                parts[#parts + 1] = group.color .. group.label .. "|r\n"
+                parts[#parts + 1] = group.prefix .. "\n"
                 for _, ability in ipairs(list) do
                     parts[#parts + 1] = "  • " .. ability .. "\n"
                 end

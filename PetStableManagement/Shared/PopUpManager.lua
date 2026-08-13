@@ -633,7 +633,7 @@ function PSM.PopUpManager:CreateModelPopup(config)
     end)
 
     PSM.Tooltip.Attach(mf, {
-        title = "Left-click and drag to rotate\nRight-click and drag to move (left/right, up/down)\nScroll to zoom",
+        title = PSM.RowManager.MODEL_HINTS,
     }, {
         onEnter = function() popup.modelReset:Show() end,
         onLeave = function()

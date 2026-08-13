@@ -343,17 +343,7 @@ end
 -- the empty-teams branch and the has-teams branch).
 local function CreateNewTeamFromPet(petData)
     local slots = {}
-    slots[1] = {
-        petNumber = petData.petNumber,
-        name      = petData.name,
-        displayID = petData.displayID or 0,
-        icon      = petData.icon,
-        familyName = petData.familyName,
-        specName  = petData.specName,
-        specID    = petData.specID,
-        isExotic  = petData.isExotic,
-        abilities = petData.abilities,
-    }
+    slots[1] = PSM.Teams:SlotRecord(petData)
     PSM.TeamDialogs:ShowNameInputDialog({
         title       = "New Team Name",
         description = "Enter a name for your new team:",
@@ -613,17 +603,7 @@ function PSM.TeamDialogs:ConfirmAddToTeam(team, petData, slot)
     for i = 1, 6 do
         if team.slots and team.slots[i] then slots[i] = PSM.Utils.DeepCopy(team.slots[i]) end
     end
-    slots[slot] = {
-        petNumber  = petData.petNumber,
-        name       = petData.name,
-        displayID  = petData.displayID or 0,
-        icon       = petData.icon,
-        familyName = petData.familyName,
-        specName   = petData.specName,
-        specID     = petData.specID,
-        isExotic   = petData.isExotic,
-        abilities  = petData.abilities,
-    }
+    slots[slot] = PSM.Teams:SlotRecord(petData)
 
     local ok, err = PSM.Teams:UpdateTeam(team.id, slots)
     if ok then

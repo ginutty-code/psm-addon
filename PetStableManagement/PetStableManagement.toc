@@ -40,6 +40,7 @@ Shared/Broker.lua
 Shared/PopUpManager.lua
 
 # Owned Pets feature
+OwnedPets/PetTooltip.lua
 OwnedPets/Panel.lua
 OwnedPets/GridView.lua
 OwnedPets/GroupedView.lua

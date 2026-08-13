@@ -9,6 +9,14 @@ local PSM = _G.PSM
 
 PSM.RowManager = {}
 
+-- What the mouse can do to a 3D model. Every view that shows one repeats this, so it
+-- lives with the code that installs the handlers it describes -- if the interaction
+-- changes, the text sitting next to it is hard to miss.
+PSM.RowManager.MODEL_HINTS =
+    "Left-click and drag to rotate\n" ..
+    "Right-click and drag to move (left/right, up/down)\n" ..
+    "Scroll to zoom"
+
 -- ─── Shared update frames ────────────────────────────────────────────────────
 
 -- An invisible, parentless ticker: nothing to draw, so not a widget. PSM.CreateFrame
@@ -138,25 +146,11 @@ local function SetupModelInteraction(model)
         PersistView(self, { zoom = self.zoom })
     end)
 
-    -- Buttons to toggle on hover (populated later)
-    local function refreshButtons(self, show)
-        for _, b in ipairs(self.hoverButtons or {}) do
-            -- Team buttons only show for player-owned pets
-            if b == self.addToTeamButton or b == self.removeFromTeamButton then
-                if self.isOwnedByPlayer then
-                    if show then b:Show() else b:Hide() end
-                end
-            else
-                if show then b:Show() else b:Hide() end
-            end
-        end
-    end
-
     -- A function spec: the reorder hint depends on whether the stable is open and
     -- whether this model is a slotted pet, both of which change while the row lives.
     PSM.Tooltip.Attach(model,
         function(self)
-            local tip = "Left-click and drag to rotate\nRight-click and drag to move (left/right, up/down)\nScroll to zoom"
+            local tip = PSM.RowManager.MODEL_HINTS
             if PSM.state and PSM.state.isStableOpen
                 and self.petData and self.petData.slotID then
                 tip = tip .. "\nShift/Ctrl + drag to reorder slot"
@@ -164,15 +158,33 @@ local function SetupModelInteraction(model)
             return { title = tip }
         end,
         {
-            onEnter = function(self) refreshButtons(self, true) end,
-            onLeave = function(self)
-                -- Keep a button visible if the mouse moved directly onto it.
-                for _, b in ipairs(self.hoverButtons or {}) do
-                    if not b:IsMouseOver() then b:Hide() end
-                end
-            end,
+            onEnter = function(self) PSM.RowManager:ShowHoverButtons(self) end,
+            onLeave = function(self) PSM.RowManager:HideHoverButtons(self) end,
         }
     )
+end
+
+-- ─── Hover buttons ───────────────────────────────────────────────────────────
+--
+-- The overlay buttons fade in together on hover. Views that want their own model
+-- tooltip have to re-attach OnEnter/OnLeave, which drops the pair installed above,
+-- so both halves are public: a view supplies the tooltip and reuses these. Hand-
+-- written copies in the views each hardcoded the four button fields, which meant a
+-- fifth overlay button would have appeared in some views and not others.
+
+function PSM.RowManager:ShowHoverButtons(model)
+    for _, b in ipairs(model.hoverButtons or {}) do
+        -- Team buttons only show for player-owned pets.
+        local teamButton = b == model.addToTeamButton or b == model.removeFromTeamButton
+        if not teamButton or model.isOwnedByPlayer then b:Show() end
+    end
+end
+
+-- Keep a button visible if the mouse moved directly onto it from the model.
+function PSM.RowManager:HideHoverButtons(model)
+    for _, b in ipairs(model.hoverButtons or {}) do
+        if not b:IsMouseOver() then b:Hide() end
+    end
 end
 
 -- ─── Button factory ───────────────────────────────────────────────────────────
