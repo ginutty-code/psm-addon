@@ -6,40 +6,6 @@ local addonName = "PetStableManagement"
 _G.PSM = _G.PSM or {}
 local PSM = _G.PSM
 
-local function ApplyElvUIDropdownSkin(dropdown)
-    if not ElvUI or not ElvUI[1] or not ElvUI[1]:GetModule("Skins") then return end
-    local S = ElvUI[1]:GetModule("Skins")
-    C_Timer.After(0.1, function()
-        if dropdown.Button then
-            if S.HandleNextPrevButton then S:HandleNextPrevButton(dropdown.Button, "down") end
-            dropdown.Button:ClearAllPoints()
-            dropdown.Button:SetPoint("RIGHT", dropdown, "RIGHT", -10, 3)
-        end
-        for _, part in ipairs({ "Middle", "Left", "Right" }) do
-            if dropdown[part] then dropdown[part]:SetAlpha(0) end
-        end
-        if not dropdown.backdrop then
-            dropdown.backdrop = CreateFrame("Frame", nil, dropdown, "BackdropTemplate")
-            dropdown.backdrop:SetFrameLevel(dropdown:GetFrameLevel() - 1)
-            dropdown.backdrop:SetPoint("TOPLEFT", dropdown, "TOPLEFT", 16, -4)
-            dropdown.backdrop:SetPoint("BOTTOMRIGHT", dropdown.Button, "BOTTOMRIGHT", 2, -2)
-            dropdown.backdrop:SetBackdrop({
-                bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-                edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-                tile = true, tileSize = 16, edgeSize = 16,
-                insets = { left = 4, right = 4, top = 4, bottom = 4 },
-            })
-            dropdown.backdrop:SetBackdropColor(0.1, 0.1, 0.1, PSM.Config:GetOpacity())
-            dropdown.backdrop:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
-        end
-        if dropdown.Text then
-            dropdown.Text:ClearAllPoints()
-            dropdown.Text:SetPoint("LEFT",  dropdown,        "LEFT",  22, 2)
-            dropdown.Text:SetPoint("RIGHT", dropdown.Button, "LEFT",  -2, 2)
-        end
-    end)
-end
-
 -- ─── Helpers ──────────────────────────────────────────────────────────────────
 
 local function IsFamilyExotic(name) return PSM.Data.IsExoticFamily(name) end
@@ -53,46 +19,35 @@ local function DropdownText(tbl, fallback)
 end
 
 -- ─── Tri-state checkbox ────────────────────────────────────────────────────────
--- Cycles nil → true → "inverted" → nil, managing visual state automatically.
 
-local function SetupTriStateCheckbox(cb, onChanged, initialState)
-    cb.triState = initialState
-    
-    -- Set initial visual state
-    local isInverted = initialState == "inverted"
-    cb:SetChecked(initialState ~= nil)
-    cb:GetCheckedTexture():SetAlpha(isInverted and 0 or 1)
-    
-    if not cb.invertedTexture then
-        cb.invertedTexture = cb:CreateTexture(nil, "OVERLAY")
-        cb.invertedTexture:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
-        cb.invertedTexture:SetSize(16, 16)
-        cb.invertedTexture:SetPoint("CENTER", cb, "CENTER", 0, 0)
-    end
-    cb.invertedTexture:SetShown(isInverted)
-    
+-- The order the three filter states cycle in. The *rendering* of each is
+-- PSM.Widgets.CheckBox:SetTriState; what they mean and what follows what is this
+-- file's business.
+local function NextTriState(state)
+    if state == nil  then return true      end
+    if state == true then return "inverted" end
+    return nil
+end
+
+-- A tri-state filter checkbox: off → include → exclude → off.
+local function CreateFilterCheckbox(panel, opts)
+    local cb = PSM.Widgets.CheckBox(panel, {
+        point         = opts.point,
+        label         = opts.label,
+        labelFontSize = PSM.Theme.SIZE.SMALL,
+    })
+
+    -- Extends the clickable area rightward over the label text, so clicking the
+    -- words toggles the box (a negative inset grows the hit rect).
+    cb:SetHitRectInsets(0, -opts.labelHitWidth, 0, 0)
+
+    cb:SetTriState(opts.initialState)
     cb:SetScript("OnClick", function(self)
-        -- Advance state
-        if     self.triState == nil      then self.triState = true
-        elseif self.triState == true     then self.triState = "inverted"
-        else                                  self.triState = nil
-        end
-
-        -- Visuals
-        local isInverted = self.triState == "inverted"
-        self:SetChecked(self.triState ~= nil)
-        self:GetCheckedTexture():SetAlpha(isInverted and 0 or 1)
-
-        if not self.invertedTexture then
-            self.invertedTexture = self:CreateTexture(nil, "OVERLAY")
-            self.invertedTexture:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
-            self.invertedTexture:SetSize(16, 16)
-            self.invertedTexture:SetPoint("CENTER", self, "CENTER", 0, 0)
-        end
-        self.invertedTexture:SetShown(isInverted)
-
-        onChanged(self.triState)
+        self:SetTriState(NextTriState(self.triState))
+        opts.onChanged(self.triState)
     end)
+
+    return cb
 end
 
 -- ─── Generic multi-select dropdown initialiser ────────────────────────────────
@@ -209,90 +164,81 @@ function PSM.UI:BuildFilters(panel)
         PSM.UI:UpdatePanel()
     end, PSM.Config.UPDATE_DELAY)
 
+    local Widgets = PSM.Widgets
     local cfg  = PSM.Config
     local rowY = cfg.DROPDOWN_ROW_Y
     local step = cfg.DROPDOWN_SPACING
 
-    -- Spec dropdown
-    panel.specDrop = CreateFrame("Frame", "PetDupSpecDrop", panel, "UIDropDownMenuTemplate")
-    panel.specDrop:SetPoint("TOPLEFT", -10, rowY)
-    UIDropDownMenu_SetWidth(panel.specDrop, cfg.DROPDOWN_WIDTH)
-    ApplyElvUIDropdownSkin(panel.specDrop)
+    -- All four are UIDropDownMenuTemplate frames of the same width, differing only
+    -- in where they sit and how they are populated.
+    local function Dropdown(name, point)
+        local d = Widgets.Frame(panel, {
+            name      = name,
+            template  = "UIDropDownMenuTemplate",
+            skin      = "dropdown",
+            point     = point,
+        })
+        UIDropDownMenu_SetWidth(d, cfg.DROPDOWN_WIDTH)
+        return d
+    end
+
+    panel.specDrop = Dropdown("PetDupSpecDrop", { "TOPLEFT", -10, rowY })
     InitMultiDropdown(function() return PSM.state.specList end,
                       function() return PSM.state.selectedSpecs end,
                       panel.specDrop, "All Specs")
 
-    -- Family dropdown
-    panel.familyDrop = CreateFrame("Frame", "PetDupFamilyDrop", panel, "UIDropDownMenuTemplate")
-    panel.familyDrop:SetPoint("TOPLEFT", step * 1-10, rowY)
-    UIDropDownMenu_SetWidth(panel.familyDrop, cfg.DROPDOWN_WIDTH)
-    ApplyElvUIDropdownSkin(panel.familyDrop)
+    panel.familyDrop = Dropdown("PetDupFamilyDrop", { "TOPLEFT", step * 1 - 10, rowY })
     InitFamilyDropdown(panel)
 
-    -- Tamer dropdown
-    panel.tamerDrop = CreateFrame("Frame", "PetDupTamerDrop", panel, "UIDropDownMenuTemplate")
-    panel.tamerDrop:SetPoint("TOPLEFT", step * 2-10, rowY)
-    UIDropDownMenu_SetWidth(panel.tamerDrop, cfg.DROPDOWN_WIDTH)
-    ApplyElvUIDropdownSkin(panel.tamerDrop)
+    panel.tamerDrop = Dropdown("PetDupTamerDrop", { "TOPLEFT", step * 2 - 10, rowY })
     self:ReinitializeTamerDropdown()
 
-    -- Sort dropdown
-    panel.sortDrop = CreateFrame("Frame", "PetDupSortDrop", panel, "UIDropDownMenuTemplate")
-    panel.sortDrop:SetPoint("TOPRIGHT", -17, rowY)
-    UIDropDownMenu_SetWidth(panel.sortDrop, cfg.DROPDOWN_WIDTH)
-    ApplyElvUIDropdownSkin(panel.sortDrop)
+    panel.sortDrop = Dropdown("PetDupSortDrop", { "TOPRIGHT", -17, rowY })
     InitSortDropdown(panel)
-    panel.sortDrop:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT", 17, 0)
-        GameTooltip:SetText("Sort by", 1, 1, 1)
-        GameTooltip:AddLine("Slot - sort by stable slot number",    0.7, 0.7, 0.7)
-        GameTooltip:AddLine("Model - sort by display ID",           0.7, 0.7, 0.7)
-        GameTooltip:AddLine("Family - sort alphabetically by family", 0.7, 0.7, 0.7)
-        GameTooltip:AddLine("Spec - sort alphabetically by spec",   0.7, 0.7, 0.7)
-        GameTooltip:AddLine("Tamer - sort alphabetically by owner", 0.7, 0.7, 0.7)
-        GameTooltip:AddLine("Unsorted - default order",             0.7, 0.7, 0.7)
-        GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("Custom drag-and-drop reordering in",   1, 0.82, 0)
-        GameTooltip:AddLine("Grouped view requires Unsorted.",       1, 0.82, 0)
-        GameTooltip:Show()
-    end)
-    panel.sortDrop:SetScript("OnLeave", function()
-        GameTooltip:Hide()
-    end)
 
-    -- Exotic checkbox
-    panel.exoticCheck = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
-    panel.exoticCheck:SetSize(20, 20)
-    panel.exoticCheck:SetPoint("BOTTOMLEFT",panel.familyDrop, "TOPLEFT", 16, 3)
-    PSM.UI:ApplyElvUISkin(panel.exoticCheck, "checkbox")
-    panel.exoticCheck:SetHitRectInsets(0, -100, 0, 0)
-    panel.exoticCheck.text = panel.exoticCheck:CreateFontString(nil, "OVERLAY")
-    panel.exoticCheck.text:SetFont("Fonts\\FRIZQT__.TTF", 10)
-    panel.exoticCheck.text:SetPoint("LEFT", panel.exoticCheck, "RIGHT", 5, 0)
-    panel.exoticCheck.text:SetText("Exotic Only")
-    
-    SetupTriStateCheckbox(panel.exoticCheck, function(state)
-        PSM.state.exoticFilter = state
-        PSM.Utils:ClearTable(PSM.state.selectedFamilies)
-        InitFamilyDropdown(panel)
-        debouncedUpdate()
-    end, PSM.state.exoticFilter)
+    local DIM, GOLD = PSM.Theme.COLOR.DIM, PSM.Theme.COLOR.GOLD
+    PSM.Tooltip.Attach(panel.sortDrop, {
+        anchor     = "ANCHOR_BOTTOMLEFT",
+        x          = 17,
+        y          = 0,
+        title      = "Sort by",
+        titleColor = PSM.Theme.COLOR.WHITE,
+        lines = {
+            { text = "Slot - sort by stable slot number",     color = DIM },
+            { text = "Model - sort by display ID",            color = DIM },
+            { text = "Family - sort alphabetically by family", color = DIM },
+            { text = "Spec - sort alphabetically by spec",    color = DIM },
+            { text = "Tamer - sort alphabetically by owner",  color = DIM },
+            { text = "Unsorted - default order",              color = DIM },
+            " ",
+            { text = "Custom drag-and-drop reordering in",    color = GOLD },
+            { text = "Grouped view requires Unsorted.",       color = GOLD },
+        },
+    })
 
-    -- Duplicates checkbox
-    panel.duplicatesCheck = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
-    panel.duplicatesCheck:SetSize(20, 20)
-    panel.duplicatesCheck:SetPoint("BOTTOMLEFT",panel.tamerDrop, "TOPLEFT", 16, 3)
-    PSM.UI:ApplyElvUISkin(panel.duplicatesCheck, "checkbox")
-    panel.duplicatesCheck:SetHitRectInsets(0, -120, 0, 0)
-    panel.duplicatesCheck.text = panel.duplicatesCheck:CreateFontString(nil, "OVERLAY")
-    panel.duplicatesCheck.text:SetFont("Fonts\\FRIZQT__.TTF", 10)
-    panel.duplicatesCheck.text:SetPoint("LEFT", panel.duplicatesCheck, "RIGHT", 5, 0)
-    panel.duplicatesCheck.text:SetText("Duplicates Only")
-    
-    SetupTriStateCheckbox(panel.duplicatesCheck, function(state)
-        PSM.state.duplicatesOnlyFilter = state
-        debouncedUpdate()
-    end, PSM.state.duplicatesOnlyFilter)
+    panel.exoticCheck = CreateFilterCheckbox(panel, {
+        point         = { "BOTTOMLEFT", panel.familyDrop, "TOPLEFT", 16, 3 },
+        label         = "Exotic Only",
+        labelHitWidth = 100,
+        initialState  = PSM.state.exoticFilter,
+        onChanged = function(state)
+            PSM.state.exoticFilter = state
+            PSM.Utils:ClearTable(PSM.state.selectedFamilies)
+            InitFamilyDropdown(panel)
+            debouncedUpdate()
+        end,
+    })
+
+    panel.duplicatesCheck = CreateFilterCheckbox(panel, {
+        point         = { "BOTTOMLEFT", panel.tamerDrop, "TOPLEFT", 16, 3 },
+        label         = "Duplicates Only",
+        labelHitWidth = 120,
+        initialState  = PSM.state.duplicatesOnlyFilter,
+        onChanged = function(state)
+            PSM.state.duplicatesOnlyFilter = state
+            debouncedUpdate()
+        end,
+    })
 end
 
 function PSM.UI:SetDefaultTamerSelection()
@@ -371,26 +317,10 @@ function PSM.UI:UpdateFilterUI()
     local panel = PSM.state.panel
     if not panel then return end
 
-    if panel.exoticCheck then
-        panel.exoticCheck:SetChecked(PSM.state.exoticFilter)
-        -- Sync internal triState with saved filter value
-        panel.exoticCheck.triState = PSM.state.exoticFilter
-        local isInverted = PSM.state.exoticFilter == "inverted"
-        panel.exoticCheck:GetCheckedTexture():SetAlpha(isInverted and 0 or 1)
-        if panel.exoticCheck.invertedTexture then
-            panel.exoticCheck.invertedTexture:SetShown(isInverted)
-        end
-    end
-    if panel.duplicatesCheck then
-        panel.duplicatesCheck:SetChecked(PSM.state.duplicatesOnlyFilter)
-        -- Sync internal triState with saved filter value
-        panel.duplicatesCheck.triState = PSM.state.duplicatesOnlyFilter
-        local isInverted = PSM.state.duplicatesOnlyFilter == "inverted"
-        panel.duplicatesCheck:GetCheckedTexture():SetAlpha(isInverted and 0 or 1)
-        if panel.duplicatesCheck.invertedTexture then
-            panel.duplicatesCheck.invertedTexture:SetShown(isInverted)
-        end
-    end
+    -- SetTriState paints the box and keeps `.triState` in sync with the saved filter,
+    -- which the two hand-written versions of this had to remember separately.
+    if panel.exoticCheck     then panel.exoticCheck:SetTriState(PSM.state.exoticFilter)              end
+    if panel.duplicatesCheck then panel.duplicatesCheck:SetTriState(PSM.state.duplicatesOnlyFilter)  end
 
     if panel.specDrop   then UIDropDownMenu_SetText(panel.specDrop,   DropdownText(PSM.state.selectedSpecs,   "All Specs"))       end
     if panel.familyDrop then UIDropDownMenu_SetText(panel.familyDrop, DropdownText(PSM.state.selectedFamilies, FamilyAllLabel())) end
@@ -400,55 +330,57 @@ end
 
 function PSM.UI:BuildSortButtons(panel)
     -- Reset Filters button
-    panel.resetFiltersButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    panel.resetFiltersButton:SetSize(PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT)
-    panel.resetFiltersButton:SetPoint("TOPLEFT", panel.searchBox, "TOPRIGHT", 10, 0)
-    panel.resetFiltersButton:SetText("Reset Filters")
-    panel.resetFiltersButton:SetNormalFontObject("GameFontNormalSmall")
-    PSM.UI:ApplyElvUISkin(panel.resetFiltersButton, "button")
-    panel.resetFiltersButton:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
-        GameTooltip:SetText("Reset all filters", 1, 1, 1)
-        for _, line in ipairs({
-            "All Specs selected", "All Families selected",
-            PSM.state.isStableOpen and "Tamer: kept on current hunter" or "All Hunters selected",
-            "Exotic Only: OFF", "Duplicates Only: OFF", "Clear search box",
-            "Sort by: Unsorted",
-        }) do
-            GameTooltip:AddLine(line, 0.5, 0.5, 0.5)
-        end
-        GameTooltip:Show()
-    end)
-    panel.resetFiltersButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    panel.resetFiltersButton:SetScript("OnClick", function()
-        if panel.searchBox then panel.searchBox:SetText("") end
+    panel.resetFiltersButton = PSM.Widgets.Button(panel, {
+        size       = { PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT },
+        point      = { "TOPLEFT", panel.searchBox, "TOPRIGHT", 10, 0 },
+        text       = "Reset Filters",
+        fontObject = "GameFontNormalSmall",
 
-        PSM.Utils:ClearTable(PSM.state.selectedSpecs)
-        PSM.Utils:ClearTable(PSM.state.selectedFamilies)
-        UIDropDownMenu_SetText(panel.specDrop,   "All Specs")
-        UIDropDownMenu_SetText(panel.familyDrop, "All Families")
+        -- A function spec: the tamer line depends on whether the stable is open,
+        -- which changes while this button exists.
+        tooltip = function()
+            local lines = {}
+            for _, text in ipairs({
+                "All Specs selected", "All Families selected",
+                PSM.state.isStableOpen and "Tamer: kept on current hunter" or "All Hunters selected",
+                "Exotic Only: OFF", "Duplicates Only: OFF", "Clear search box",
+                "Sort by: Unsorted",
+            }) do
+                lines[#lines + 1] = { text = text, color = PSM.Theme.COLOR.FAINT }
+            end
+            return {
+                anchor     = "ANCHOR_BOTTOMRIGHT",
+                title      = "Reset all filters",
+                titleColor = PSM.Theme.COLOR.WHITE,
+                lines      = lines,
+            }
+        end,
 
-        -- When stable is open, keep tamer locked to current hunter
-        if not PSM.state.isStableOpen then
-            PSM.Utils:ClearTable(PSM.state.selectedTamers)
-            UIDropDownMenu_SetText(panel.tamerDrop, "All Hunters")
-        end
+        onClick = function()
+            if panel.searchBox then panel.searchBox:SetText("") end
 
-        local function resetCheck(cb, stateKey)
-            PSM.state[stateKey] = nil
-            cb.triState = nil
-            cb:SetChecked(false)
-            cb:GetCheckedTexture():SetAlpha(1)
-            if cb.invertedTexture then cb.invertedTexture:Hide() end
-        end
-        resetCheck(panel.exoticCheck,     "exoticFilter")
-        resetCheck(panel.duplicatesCheck, "duplicatesOnlyFilter")
+            PSM.Utils:ClearTable(PSM.state.selectedSpecs)
+            PSM.Utils:ClearTable(PSM.state.selectedFamilies)
+            UIDropDownMenu_SetText(panel.specDrop,   "All Specs")
+            UIDropDownMenu_SetText(panel.familyDrop, "All Families")
 
-        PSM.state.sortBy = nil
-        UIDropDownMenu_SetText(panel.sortDrop, "Sort by")
+            -- When stable is open, keep tamer locked to current hunter
+            if not PSM.state.isStableOpen then
+                PSM.Utils:ClearTable(PSM.state.selectedTamers)
+                UIDropDownMenu_SetText(panel.tamerDrop, "All Hunters")
+            end
 
-        PSM.UI:UpdatePanel()
-    end)
+            PSM.state.exoticFilter         = nil
+            PSM.state.duplicatesOnlyFilter = nil
+            panel.exoticCheck:SetTriState(nil)
+            panel.duplicatesCheck:SetTriState(nil)
+
+            PSM.state.sortBy = nil
+            UIDropDownMenu_SetText(panel.sortDrop, "Sort by")
+
+            PSM.UI:UpdatePanel()
+        end,
+    })
 end
 
 

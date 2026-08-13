@@ -29,7 +29,42 @@ local handlers = {
     collapsebutton = function(S, f) S:HandleButton(f)      end,
     editbox        = function(S, f) S:HandleEditBox(f)     end,
     closebutton    = function(S, f) S:HandleCloseButton(f) end,
-    dropdown       = function(S, f) S:HandleDropDownBox(f) end,
+    -- Not S:HandleDropDownBox. That restyles the frame but leaves the arrow button
+    -- and the text where Blizzard put them, which does not match the rest of the
+    -- addon. What follows is the treatment PSM has always shipped, lifted verbatim
+    -- from a local helper in OwnedPets/Filters.lua -- the last place the ElvUI global
+    -- escaped this file, and the reason `dropdown` had a handler here that nothing
+    -- called. Anyone who had written skin = "dropdown" would have got a look no other
+    -- dropdown in the addon has.
+    --
+    -- Deferred a tick: ElvUI has not finished with the dropdown at construction time,
+    -- so repositioning immediately is overwritten.
+    dropdown = function(S, f)
+        C_Timer.After(0.1, function()
+            if f.Button then
+                if S.HandleNextPrevButton then S:HandleNextPrevButton(f.Button, "down") end
+                f.Button:ClearAllPoints()
+                f.Button:SetPoint("RIGHT", f, "RIGHT", -10, 3)
+            end
+            for _, part in ipairs({ "Middle", "Left", "Right" }) do
+                if f[part] then f[part]:SetAlpha(0) end
+            end
+            if not f.backdrop then
+                f.backdrop = CreateFrame("Frame", nil, f, "BackdropTemplate")
+                f.backdrop:SetFrameLevel(f:GetFrameLevel() - 1)
+                f.backdrop:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -4)
+                f.backdrop:SetPoint("BOTTOMRIGHT", f.Button, "BOTTOMRIGHT", 2, -2)
+                f.backdrop:SetBackdrop(PSM.Theme.BACKDROP.TOOLTIP)
+                f.backdrop:SetBackdropColor(0.1, 0.1, 0.1, PSM.Config:GetOpacity())
+                f.backdrop:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
+            end
+            if f.Text then
+                f.Text:ClearAllPoints()
+                f.Text:SetPoint("LEFT",  f,        "LEFT",  22, 2)
+                f.Text:SetPoint("RIGHT", f.Button, "LEFT",  -2, 2)
+            end
+        end)
+    end,
     checkbox       = function(S, f) S:HandleCheckBox(f)    end,
     scrollbar      = function(S, f) S:HandleScrollBar(f)   end,
 

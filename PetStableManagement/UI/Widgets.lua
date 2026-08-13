@@ -547,6 +547,35 @@ function Widgets.CheckBox(parent, opts)
         })
     end
 
+    -- Render one of the three filter states: nil (off), true (include),
+    -- "inverted" (exclude, shown as the loot-pass glyph).
+    --
+    -- Only the *rendering* lives here. What the states mean, and the order they cycle
+    -- in, stay with the caller. Before this, the same three lines plus a lazily
+    -- created overlay were open-coded five times in OwnedPets/Filters.lua alone --
+    -- initial paint, the click handler, two restore paths and Reset Filters -- and
+    -- four more times across the browser's filter panels. Two of those copies also
+    -- had to remember to keep `.triState` in sync by hand; this does it for them.
+    --
+    -- Safe to call right after construction: CheckBox skins before it returns, so
+    -- ElvUI's checked-texture swap cannot land after the alpha is set here.
+    function c:SetTriState(state)
+        local inverted = state == "inverted"
+        self:SetChecked(state ~= nil)
+        self:GetCheckedTexture():SetAlpha(inverted and 0 or 1)
+
+        if not self.invertedTexture then
+            self.invertedTexture = Widgets.Texture(self, {
+                layer   = "OVERLAY",
+                texture = "Interface\\Buttons\\UI-GroupLoot-Pass-Up",
+                size    = { PSM.Theme.CONTROL.CHECKBOX_MARK, PSM.Theme.CONTROL.CHECKBOX_MARK },
+                point   = { "CENTER", self, "CENTER", 0, 0 },
+            })
+        end
+        self.invertedTexture:SetShown(inverted)
+        self.triState = state
+    end
+
     PSM.Skin.Apply(c, "checkbox")
     return c
 end
