@@ -37,7 +37,7 @@ local OPTIONS = {
     Button      = { name = true, template = true, text = true, fontObject = true, strata = true, level = true, onClick = true, tooltip = true, skin = true },
     IconButton  = { name = true, texture = true, highlight = true, pushed = true, alpha = true, level = true, onClick = true, tooltip = true, skin = true, texCoord = true },
     CloseButton = { name = true, level = true, onClick = true, target = true },
-    ResizeGrip  = { corner = true },
+    ResizeGrip  = { corner = true, onStop = true },
     EditBox     = { name = true, multiline = true, template = true, fontObject = true, autoFocus = true, textColor = true, text = true, onEscape = true, onEnter = true, closes = true },
     Line        = { layer = true, color = true },
     Tab         = { frameType = true, palette = true, fontSize = true, fontObject = true, text = true },
@@ -274,7 +274,13 @@ function Widgets.ResizeGrip(frame, opts)
     grip:SetScript("OnMouseDown", function(_, button)
         if button == "LeftButton" then frame:StartSizing(opts.corner or "BOTTOMRIGHT") end
     end)
-    grip:SetScript("OnMouseUp",   function() frame:StopMovingOrSizing() end)
+    -- `onStop` fires only at the end of a *user* drag, which is the distinction callers
+    -- actually need: OnSizeChanged cannot tell a drag from a programmatic SetHeight, and
+    -- anything that auto-sizes needs to know "the user chose this size" specifically.
+    grip:SetScript("OnMouseUp", function()
+        frame:StopMovingOrSizing()
+        if opts.onStop then opts.onStop(frame) end
+    end)
     PSM.Skin.Apply(grip, "resizegrip")
     return grip
 end

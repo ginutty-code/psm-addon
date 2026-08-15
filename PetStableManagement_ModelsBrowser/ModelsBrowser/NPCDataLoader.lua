@@ -85,7 +85,9 @@ local function IsAnyDisplayIdOwned(displayIds, ownedSet)
     return false
 end
 
--- Tristate-aware single-zone match, mirroring ModelsDataLoader:_IsLocationSelected
+-- Two-state single-zone match, mirroring ModelsDataLoader:_IsLocationSelected. The
+-- "inverted" third state is gone; see that function for why it never meant anything
+-- distinct here.
 local function IsLocationSelected(uiMapName, selectedLocations)
     if not selectedLocations or not next(selectedLocations) then return true end
 
@@ -93,13 +95,10 @@ local function IsLocationSelected(uiMapName, selectedLocations)
     for _, state in pairs(selectedLocations) do
         if state == true then userHasActive = true; break end
     end
+    if not userHasActive then return true end
 
-    if not uiMapName then return not userHasActive end
-
-    local state = selectedLocations[uiMapName]
-    if state == "inverted" then return false end
-    if userHasActive then return state == true end
-    return true
+    if not uiMapName then return false end
+    return selectedLocations[uiMapName] == true
 end
 
 --------------------------------------------------------------------------------

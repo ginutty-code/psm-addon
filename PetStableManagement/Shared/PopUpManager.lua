@@ -470,6 +470,16 @@ end
 -- CreateModelPopup
 -- ============================================================
 
+-- Where a user-chosen popup size is kept, keyed by popupName so the magnifier and the
+-- roulette remember their own. Created on demand rather than assumed present: Core seeds
+-- it for new installs, and this covers profiles saved before it existed.
+local function PopupSizeStore()
+    if not PetStableManagementDB then return nil end
+    PetStableManagementDB.settings = PetStableManagementDB.settings or {}
+    PetStableManagementDB.settings.popupSizes = PetStableManagementDB.settings.popupSizes or {}
+    return PetStableManagementDB.settings.popupSizes
+end
+
 function PSM.PopUpManager:CreateModelPopup(config)
     config = config or {}
     local title     = config.title     or "Model Viewer"
@@ -493,9 +503,43 @@ function PSM.PopUpManager:CreateModelPopup(config)
     popup:SetClampedToScreen(true)
     popup:SetClipsChildren(true)
 
-    -- Resize handle
+    -- Kept so Reset can put the popup back. Auto-sizing cannot do it: it only ever
+    -- recomputes *height*, which is why a dragged width survived every populate and would
+    -- have survived Reset too.
+    popup.defaultWidth  = width
+    popup.defaultHeight = height
+
+    -- Resize handle. Finishing a drag marks the popup as user-sized, which switches
+    -- auto-sizing off (see PopulateModelPopup) and records the size to SavedVariables.
     if resizable then
-        Widgets.ResizeGrip(popup, { point = { "BOTTOMRIGHT", -5, 5 } })
+        Widgets.ResizeGrip(popup, {
+            point  = { "BOTTOMRIGHT", -5, 5 },
+            onStop = function(f)
+                f.userSized = true
+                local store = PopupSizeStore()
+                if store then
+                    store[popupName] = {
+                        w = math.floor(f:GetWidth()  + 0.5),
+                        h = math.floor(f:GetHeight() + 0.5),
+                    }
+                end
+            end,
+        })
+
+        -- Restore a size chosen in an earlier session, and adopt the user-sized state with
+        -- it -- otherwise the first populate would auto-size straight over the restore.
+        --
+        -- Clamped to the current screen. These popups set no resize bounds, so a size
+        -- saved on a larger monitor would otherwise come back bigger than the display with
+        -- no way to grab the grip.
+        local store = PopupSizeStore()
+        local saved = store and store[popupName]
+        if saved and saved.w and saved.h then
+            popup:SetSize(
+                math.max(200, math.min(saved.w, UIParent:GetWidth())),
+                math.max(200, math.min(saved.h, UIParent:GetHeight())))
+            popup.userSized = true
+        end
     end
 
     -- Background / border
@@ -1330,7 +1374,19 @@ end
 -- ============================================================
 
 function PSM.PopUpManager:PopulateModelPopup(popup, displayId, petData, npcs)
-    popup.needsAutoSizing = true
+    -- Auto-size only until the user picks a size. This was unconditional, so every
+    -- populate recomputed an *absolute* target height and applied it -- resize the popup
+    -- larger, click another Display ID, and it kept your width but snapped back to a
+    -- shorter height. Width survived only because nothing recomputes it.
+    --
+    -- Gated here rather than at the two auto-size sites: both already branch on
+    -- needsAutoSizing, so this is the one place that decides, and the rule is visible next
+    -- to the flag rather than duplicated where it is consumed.
+    --
+    -- Session-scoped by design. The popup frame is created once and reused, so the choice
+    -- survives closing and reopening, but nothing in the addon persists popup geometry to
+    -- SavedVariables and this does not start.
+    popup.needsAutoSizing = not popup.userSized
     popup.currentDisplayId = tonumber(displayId)
     popup.currentPetData = petData
     popup.currentNPCs = npcs or {}

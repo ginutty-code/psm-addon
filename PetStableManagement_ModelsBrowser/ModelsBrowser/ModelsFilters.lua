@@ -638,6 +638,14 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
     InitStateIfEmpty(PSM.state.selectedExpansions,      expansionList, "selectedExpansions")
     InitStateIfEmpty(PSM.state.selectedLocations,       locationList,  "selectedLocations")
 
+    -- Locations are two-state now. A saved "inverted" from the old three-state cycle
+    -- already meant the same thing as unselected -- both excluded the location -- so fold
+    -- it in rather than leaving a value the UI can render but no longer produce. Setting an
+    -- existing key to nil during pairs() is defined behaviour; adding one is not.
+    for loc, state in pairs(PSM.state.selectedLocations) do
+        if state == "inverted" then PSM.state.selectedLocations[loc] = nil end
+    end
+
     -- Store for use by other functions
     panel.familiesList        = families
     panel.expansionList       = expansionList
@@ -962,8 +970,14 @@ local function GetPooledLocationRow(panel, index)
     return cb
 end
 
--- Tristate checkbox row for one location, mirroring SpecialTames.lua:CreateRuleRow's manual
--- visual/cycle pattern (nil -> true -> "inverted" -> nil).
+-- Plain two-state checkbox: checked = show this location, unchecked = don't.
+--
+-- Locations used to cycle nil -> true -> "inverted" -> nil like the Families and
+-- Expansions filters. The third state bought the user nothing here, because locations are
+-- seeded all-true (see InitStateIfEmpty): with an active selection always present, an
+-- unchecked location already fails the include test, and "inverted" reached the same
+-- outcome through the exclude path. Two ways to spell "hidden", and a click to cycle past
+-- the one that looked different but was not.
 local function CreateLocationRow(panel, index, item, yOffset)
     local cb = GetPooledLocationRow(panel, index)
     cb:ClearAllPoints()
@@ -971,41 +985,14 @@ local function CreateLocationRow(panel, index, item, yOffset)
     cb.text:SetText(item)
 
     local function UpdateVisual()
-        local state = PSM.state.selectedLocations[item]
-        local check = cb:GetCheckedTexture()
-        if state == "inverted" then
-            cb:SetChecked(true)
-            check:SetAlpha(0)
-            if not cb.invertedTexture then
-                cb.invertedTexture = PSM.Widgets.Texture(cb, {
-                    layer   = "OVERLAY",
-                    texture = "Interface\\Buttons\\UI-GroupLoot-Pass-Up",
-                    size    = { PSM.Theme.CONTROL.CHECKBOX_MARK, PSM.Theme.CONTROL.CHECKBOX_MARK },
-                    point   = { "CENTER", cb, "CENTER", 0, 0 },
-                })
-            end
-            cb.invertedTexture:Show()
-        elseif state == true then
-            cb:SetChecked(true)
-            check:SetAlpha(1)
-            if cb.invertedTexture then cb.invertedTexture:Hide() end
-        else
-            cb:SetChecked(false)
-            check:SetAlpha(1)
-            if cb.invertedTexture then cb.invertedTexture:Hide() end
-        end
+        cb:SetChecked(PSM.state.selectedLocations[item] == true)
+        cb:GetCheckedTexture():SetAlpha(1)
     end
     UpdateVisual()
 
     cb:SetScript("OnClick", function()
-        local state = PSM.state.selectedLocations[item]
-        if state == true then
-            PSM.state.selectedLocations[item] = "inverted"
-        elseif state == "inverted" then
-            PSM.state.selectedLocations[item] = nil
-        else
-            PSM.state.selectedLocations[item] = true
-        end
+        local selected = PSM.state.selectedLocations[item] == true
+        PSM.state.selectedLocations[item] = (not selected) or nil
         UpdateVisual()
         ReloadAndSummarise()
         PSM.ModelsFilters:UpdateDynamicFilters()
@@ -1016,7 +1003,7 @@ local function CreateLocationRow(panel, index, item, yOffset)
     return cb, 25 * lines
 end
 
--- Pooled like the rows above; invIcon is created once and toggled instead
+-- Pooled like the rows above
 -- of being conditionally created inline.
 local function GetPooledContinentHeader(panel, index)
     panel._continentHeaderPool = panel._continentHeaderPool or {}
@@ -1042,20 +1029,13 @@ local function GetPooledContinentHeader(panel, index)
             point      = { "LEFT", header.expandBtn, "RIGHT", 4, 0 },
         })
 
-        header.invIcon = Widgets.Texture(header, {
-            layer   = "OVERLAY",
-            texture = "Interface\\Buttons\\UI-GroupLoot-Pass-Up",
-            size    = { 12, 12 },
-            point   = { "LEFT", header.label, "RIGHT", 4, 0 },
-        })
-
         panel._continentHeaderPool[index] = header
     end
     return header
 end
 
 -- Header row for one continent group: dark bg + state-colored label (SpecialTames style),
--- left-click cycles select-all/exclude-all/clear-all for the group, +/- icon toggles collapse
+-- left-click selects or clears the whole group, +/- icon toggles collapse
 -- for just this continent, right-click opens the Expand All/Collapse All menu.
 local function CreateContinentHeader(panel, index, continentName, locs, yOffset)
     local header = GetPooledContinentHeader(panel, index)
@@ -1063,7 +1043,6 @@ local function CreateContinentHeader(panel, index, continentName, locs, yOffset)
     header:SetPoint("TOPLEFT",  panel.filterContent, "TOPLEFT",  0, -yOffset)
     header:SetPoint("TOPRIGHT", panel.filterContent, "TOPRIGHT", 0, -yOffset)
     header.bg:SetColorTexture(0.12, 0.12, 0.12, 1)
-    header.invIcon:Hide()
 
     local collapsed = IsContinentCollapsed(continentName)
     local tex = collapsed and PSM.Skin.Texture("PlusButton") or PSM.Skin.Texture("MinusButton")
@@ -1076,20 +1055,15 @@ local function CreateContinentHeader(panel, index, continentName, locs, yOffset)
 
     header.label:SetText(continentName)
 
-    -- Aggregate tristate visual across this continent's currently-visible locations
-    local allSel, allInv, anyAct = true, true, false
+    -- Aggregate visual across this continent's currently-visible locations: all on, some
+    -- on, or none.
+    local allSel, anySel = true, false
     for _, loc in ipairs(locs) do
-        local state = PSM.state.selectedLocations[loc]
-        if state ~= true      then allSel = false end
-        if state ~= "inverted" then allInv = false end
-        if state == true or state == "inverted" then anyAct = true end
+        if PSM.state.selectedLocations[loc] == true then anySel = true else allSel = false end
     end
     if allSel then
         header.label:SetTextColor(0, 1, 0)
-    elseif allInv then
-        header.label:SetTextColor(1, 0, 0)
-        header.invIcon:Show()
-    elseif anyAct then
+    elseif anySel then
         header.label:SetTextColor(1, 1, 1)
     else
         header.label:SetTextColor(0.6, 0.6, 0.6)
@@ -1100,20 +1074,13 @@ local function CreateContinentHeader(panel, index, continentName, locs, yOffset)
 
     header:SetScript("OnMouseDown", function(self, button)
         if button == "LeftButton" then
-            -- Cycle true -> inverted -> nil -> true. Checking "nil/false" first (not "~= true")
-            -- matters: locations default to true, so a fully-inverted group must fall through
-            -- to the else branch (nil) rather than being misread as "unselected" and bounced
-            -- straight back to true.
-            local hasUnselected, hasTrue = false, false
+            -- Select-all / deselect-all for the continent: if anything under it is
+            -- unselected, turn the whole group on; otherwise turn it all off.
+            local hasUnselected = false
             for _, loc in ipairs(locs) do
-                local st = PSM.state.selectedLocations[loc]
-                if st == nil or st == false then hasUnselected = true end
-                if st == true then hasTrue = true end
+                if PSM.state.selectedLocations[loc] ~= true then hasUnselected = true break end
             end
-            local nextState
-            if     hasUnselected then nextState = true
-            elseif hasTrue       then nextState = "inverted"
-            else                      nextState = nil end
+            local nextState = hasUnselected or nil
             for _, loc in ipairs(locs) do
                 PSM.state.selectedLocations[loc] = nextState
             end

@@ -431,6 +431,23 @@ panel:SetScript("OnShow", function(self)
             PetStableManagementDB.settings.petsPerColumn           = cfg.DEFAULT_PETS_PER_COLUMN
             PetStableManagementDB.settings.backgroundType          = cfg.DEFAULT_BACKGROUND_TYPE
 
+            -- Chosen popup sizes are a setting too, so Reset returns them to auto-sizing.
+            --
+            -- Clearing `userSized` is not enough on its own: auto-sizing only ever
+            -- recomputes height, so a dragged *width* would survive Reset untouched. The
+            -- popup is put back to the size it was created at, and auto-sizing takes the
+            -- height from there on the next populate.
+            PetStableManagementDB.settings.popupSizes = {}
+            for _, key in ipairs({ "modelMagnificationPopup", "petRoulettePopup" }) do
+                local popup = PSM.state[key]
+                if popup then
+                    popup.userSized = nil
+                    if popup.defaultWidth and popup.defaultHeight then
+                        popup:SetSize(popup.defaultWidth, popup.defaultHeight)
+                    end
+                end
+            end
+
             if PetStableManagementDB.filters then
                 PetStableManagementDB.filters.selectedTamingRules = nil
                 PetStableManagementDB.filters.selectedConditions = nil
@@ -443,8 +460,24 @@ panel:SetScript("OnShow", function(self)
             PSM.state.selectedTamingRules = nil
             PSM.state.familiesAppliedFromAbilities = nil
             PSM.state.abilitiesFamilySet = nil
-            PSM.state.selectedModelsFamilies = {}
             PSM.state.modelViews = {}
+
+            -- Families/expansions/locations default to *all selected*, not none. Clearing
+            -- the tables to {} left every checkbox unticked, which is the one state the
+            -- browser treats as "hide everything" -- and it stuck, because the all-true
+            -- seeding only runs when the panel is first built.
+            --
+            -- The browser's own Reset Filters button already does this correctly, so call
+            -- that rather than keeping a second, worse copy here. Guarded on the module
+            -- being *loaded* rather than available: if it was never loaded there is no
+            -- panel to fix, and an empty table is exactly what the seeding wants to see.
+            if PSM.ModelsFilters and PSM.state.modelsPanel then
+                PSM.ModelsFilters:ResetAllFilters(PSM.state.modelsPanel)
+            else
+                PSM.state.selectedModelsFamilies = {}
+                PSM.state.selectedExpansions     = {}
+                PSM.state.selectedLocations      = {}
+            end
 
             -- Move the controls to match the values just written. Silently, or each
             -- slider would re-write the setting we already wrote and rebuild every

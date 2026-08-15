@@ -310,10 +310,12 @@ function PSM.ModelsDataLoader:_IsZoneMatch(npc, playerMapId)
     return false
 end
 
--- Tristate-aware: selectedLocations[name] can be true (include), "inverted" (exclude), or nil.
--- Mirrors the Conditions-filter pattern in DisplayPassesFilters: any inverted match disqualifies
--- outright; otherwise the location passes if there's no active (true) selection anywhere, or it
--- matches one of the active selections.
+-- Two-state: selectedLocations[name] is true (show) or absent (hide). The "inverted"
+-- third state is gone -- with locations seeded all-true it always produced the same
+-- outcome as absent, and ModelsFilters folds any saved value into nil on load, so nothing
+-- can reach here with one.
+--
+-- Passes if there is no active selection at all, or if the location matches one.
 function PSM.ModelsDataLoader:_IsLocationSelected(locationString, selectedLocations)
     if not locationString or not selectedLocations then return true end
     if type(selectedLocations) == "table" and not selectedLocations[1] then
@@ -323,16 +325,12 @@ function PSM.ModelsDataLoader:_IsLocationSelected(locationString, selectedLocati
         for _, state in pairs(selectedLocations) do
             if state == true then userHasActive = true; break end
         end
+        if not userHasActive then return true end
 
-        local disqualified, matchedActive = false, false
         for loc in string.gmatch(locationString, "[^|]+") do
-            local state = selectedLocations[strtrim(loc)]
-            if state == "inverted" then disqualified = true; break end
-            if state == true then matchedActive = true end
+            if selectedLocations[strtrim(loc)] == true then return true end
         end
-
-        if disqualified then return false end
-        return not userHasActive or matchedActive
+        return false
     end
     if #selectedLocations == 0 then return true end
     for loc in string.gmatch(locationString, "[^|]+") do
@@ -563,7 +561,9 @@ function PSM.ModelsDataLoader:_CalculateModelsData()
         allItems = filtered
     end
 
-    -- Location filter (tristate: true = include, "inverted" = exclude, nil = no opinion)
+    -- Location filter (two-state: true = show, absent = hide). Third copy of this rule --
+    -- see also _IsLocationSelected above and NPCDataLoader's IsLocationSelected -- kept
+    -- separate because this one walks an item's NPC list rather than a single string.
     if PSM.state.selectedLocations then
         local hasSelection = next(PSM.state.selectedLocations) ~= nil
         local userHasActive = false
@@ -579,15 +579,15 @@ function PSM.ModelsDataLoader:_CalculateModelsData()
             if item.npcs then
                 for _, npc in ipairs(item.npcs) do
                     if hasSelection then
-                        local npcDisqualified, npcMatchedActive = false, false
+                        local npcMatchedActive = false
                         -- NpcLocation() always returns a string ("Unknown" fallback),
                         -- so no nil guard needed.
                         for loc in string.gmatch(PSM.PetModels.NpcLocation(npc), "[^|]+") do
-                            local state = PSM.state.selectedLocations[strtrim(loc)]
-                            if state == "inverted" then npcDisqualified = true; break end
-                            if state == true then npcMatchedActive = true end
+                            if PSM.state.selectedLocations[strtrim(loc)] == true then
+                                npcMatchedActive = true; break
+                            end
                         end
-                        if not npcDisqualified and (not userHasActive or npcMatchedActive) then
+                        if not userHasActive or npcMatchedActive then
                             match = true; break
                         end
                     end
