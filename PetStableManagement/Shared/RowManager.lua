@@ -311,7 +311,7 @@ local function CreateAddToTeamButton(parent, model)
     })
 
     btn:SetScript("OnClick", function()
-        if model.petData then PSM.TeamDialogs:ShowAddToTeamDialog(model.petData) end
+        if model.petData then PSM.Dialogs:ShowAddToTeamDialog(model.petData) end
     end)
 
     model.addToTeamButton = btn
@@ -330,7 +330,7 @@ local function CreateRemoveFromTeamButton(parent, model)
     })
 
     btn:SetScript("OnClick", function()
-        if model.petData then PSM.TeamDialogs:ShowRemoveFromTeamDialog(model.petData) end
+        if model.petData then PSM.Dialogs:ShowRemoveFromTeamDialog(model.petData) end
     end)
 
     model.removeFromTeamButton = btn

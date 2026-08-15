@@ -6,8 +6,8 @@ local addonName = "PetStableManagement"
 _G.PSM = _G.PSM or {}
 local PSM = _G.PSM
 
-PSM.TeamDialogs = PSM.TeamDialogs or {}
-PSM.TeamDialogs.activeDialog = nil
+PSM.Dialogs = PSM.Dialogs or {}
+PSM.Dialogs.activeDialog = nil
 
 --------------------------------------------------------------------------------
 -- HELPERS
@@ -34,8 +34,8 @@ end
 
 -- Creates a styled dialog frame. Pass resizable=true for a resize handle.
 local function CreateBaseDialog(name, width, height, title, resizable)
-    if PSM.TeamDialogs.activeDialog then
-        PSM.TeamDialogs.activeDialog:Hide()
+    if PSM.Dialogs.activeDialog then
+        PSM.Dialogs.activeDialog:Hide()
     end
 
     local Theme, Widgets = PSM.Theme, PSM.Widgets
@@ -86,10 +86,10 @@ local function CreateBaseDialog(name, width, height, title, resizable)
 
     PSM.Skin.Apply(d, "frame")
 
-    PSM.TeamDialogs.activeDialog = d
+    PSM.Dialogs.activeDialog = d
     d:SetScript("OnHide", function(self)
-        if PSM.TeamDialogs.activeDialog == self then
-            PSM.TeamDialogs.activeDialog = nil
+        if PSM.Dialogs.activeDialog == self then
+            PSM.Dialogs.activeDialog = nil
         end
     end)
 
@@ -126,7 +126,7 @@ end
 -- NAME INPUT DIALOG  (used by several callers)
 --------------------------------------------------------------------------------
 
-function PSM.TeamDialogs:ShowNameInputDialog(options)
+function PSM.Dialogs:ShowNameInputDialog(options)
     options = options or {}
 
     local d = CreateBaseDialog("PSMTeamNameDialog", 350, 140, options.title or "Enter Team Name")
@@ -180,7 +180,7 @@ end
 -- @param options.suggestedName  pre-filled text (for create)
 -- @param options.onConfirm  function(name)
 -- @param options.onCancel   function()
-function PSM.TeamDialogs:ShowGroupNameDialog(options)
+function PSM.Dialogs:ShowGroupNameDialog(options)
     options = options or {}
     local isRename = options.mode == "rename"
 
@@ -196,13 +196,13 @@ function PSM.TeamDialogs:ShowGroupNameDialog(options)
 end
 
 -- Convenience shims kept for callers that use the old names
-function PSM.TeamDialogs:ShowCreateGroupDialog(options)
+function PSM.Dialogs:ShowCreateGroupDialog(options)
     options = options or {}
     options.mode = "create"
     return self:ShowGroupNameDialog(options)
 end
 
-function PSM.TeamDialogs:ShowRenameGroupDialog(options)
+function PSM.Dialogs:ShowRenameGroupDialog(options)
     options = options or {}
     options.mode = "rename"
     return self:ShowGroupNameDialog(options)
@@ -212,7 +212,7 @@ end
 -- CONFIRMATION DIALOG
 --------------------------------------------------------------------------------
 
-function PSM.TeamDialogs:ShowConfirmDialog(options)
+function PSM.Dialogs:ShowConfirmDialog(options)
     options = options or {}
 
     local d = CreateBaseDialog("PSMTeamConfirmDialog", 350, 130, options.title or "Confirm")
@@ -246,7 +246,7 @@ function PSM.TeamDialogs:ShowConfirmDialog(options)
 end
 
 -- Confirm-dialog convenience wrappers
-function PSM.TeamDialogs:ShowDeleteConfirmDialog(teamName, onConfirm, onCancel)
+function PSM.Dialogs:ShowDeleteConfirmDialog(teamName, onConfirm, onCancel)
     return self:ShowConfirmDialog({
         title       = "Delete Team",
         message     = "Are you sure you want to delete the team\n'" .. (teamName or "Unknown") .. "'?\n\nThis action cannot be undone.",
@@ -255,7 +255,7 @@ function PSM.TeamDialogs:ShowDeleteConfirmDialog(teamName, onConfirm, onCancel)
     })
 end
 
-function PSM.TeamDialogs:ShowApplyConfirmDialog(teamName, onConfirm, onCancel)
+function PSM.Dialogs:ShowApplyConfirmDialog(teamName, onConfirm, onCancel)
     return self:ShowConfirmDialog({
         title       = "Apply Team",
         message     = "Apply team '" .. (teamName or "Unknown") .. "' to your active pet slots?\n\nThis will rearrange your pets in slots 1-6.",
@@ -264,7 +264,7 @@ function PSM.TeamDialogs:ShowApplyConfirmDialog(teamName, onConfirm, onCancel)
     })
 end
 
-function PSM.TeamDialogs:ShowDeleteGroupConfirmDialog(groupName, onConfirm, onCancel)
+function PSM.Dialogs:ShowDeleteGroupConfirmDialog(groupName, onConfirm, onCancel)
     return self:ShowConfirmDialog({
         title       = "Delete Group",
         message     = "Are you sure you want to delete the group\n'" .. (groupName or "Unknown") .. "'?\n\nAll pets in this group will be moved to Ungrouped.",
@@ -273,7 +273,7 @@ function PSM.TeamDialogs:ShowDeleteGroupConfirmDialog(groupName, onConfirm, onCa
     })
 end
 
-function PSM.TeamDialogs:ShowDeleteAllGroupsConfirmDialog(onConfirm, onCancel)
+function PSM.Dialogs:ShowDeleteAllGroupsConfirmDialog(onConfirm, onCancel)
     return self:ShowConfirmDialog({
         title       = "Delete All Groups",
         message     = "Are you sure you want to delete ALL groups?\n\nAll pets will be moved to Ungrouped.\nThis action cannot be undone.",
@@ -286,7 +286,7 @@ end
 -- SAVE TEAM DIALOG
 --------------------------------------------------------------------------------
 
-function PSM.TeamDialogs:ShowSaveTeamDialog(options)
+function PSM.Dialogs:ShowSaveTeamDialog(options)
     options = options or {}
 
     local hasExisting = options.existingTeamId and options.existingTeamName
@@ -357,7 +357,7 @@ end
 local function CreateNewTeamFromPet(petData)
     local slots = {}
     slots[1] = PSM.Teams:SlotRecord(petData)
-    PSM.TeamDialogs:ShowNameInputDialog({
+    PSM.Dialogs:ShowNameInputDialog({
         title       = "New Team Name",
         description = "Enter a name for your new team:",
         onConfirm   = function(teamName)
@@ -371,7 +371,7 @@ local function CreateNewTeamFromPet(petData)
     })
 end
 
-function PSM.TeamDialogs:ShowAddToTeamDialog(petData)
+function PSM.Dialogs:ShowAddToTeamDialog(petData)
     if not petData then return end
 
     local teams = PSM.Teams:GetTeams()
@@ -443,7 +443,7 @@ function PSM.TeamDialogs:ShowAddToTeamDialog(petData)
                     point      = { "TOPLEFT", 5 + col*(btnW+spacing), -row*(btnH+spacing) },
                     onClick    = function()
                         d:Hide()
-                        PSM.TeamDialogs:ShowSelectSlotDialog(team, petData)
+                        PSM.Dialogs:ShowSelectSlotDialog(team, petData)
                     end,
                 })
                 table.insert(d.teamButtons, btn)
@@ -484,7 +484,7 @@ end
 -- SELECT SLOT DIALOG
 --------------------------------------------------------------------------------
 
-function PSM.TeamDialogs:ShowSelectSlotDialog(team, petData)
+function PSM.Dialogs:ShowSelectSlotDialog(team, petData)
     if not team or not petData then return end
 
     -- Duplicate-pet guard
@@ -565,7 +565,7 @@ function PSM.TeamDialogs:ShowSelectSlotDialog(team, petData)
 
         btn:SetScript("OnClick", function()
             d:Hide()
-            PSM.TeamDialogs:ConfirmAddToTeam(team, petData, slot)
+            PSM.Dialogs:ConfirmAddToTeam(team, petData, slot)
         end)
 
         PSM.Tooltip.Attach(btn, isOccupied
@@ -587,7 +587,7 @@ function PSM.TeamDialogs:ShowSelectSlotDialog(team, petData)
     d.cancelButton:SetPoint("BOTTOM", d, "BOTTOM", 0, 15)
     d.cancelButton:SetScript("OnClick", function()
         d:Hide()
-        PSM.TeamDialogs:ShowAddToTeamDialog(petData)
+        PSM.Dialogs:ShowAddToTeamDialog(petData)
     end)
 
     d:Show()
@@ -598,7 +598,7 @@ end
 -- CONFIRM ADD / REMOVE
 --------------------------------------------------------------------------------
 
-function PSM.TeamDialogs:ConfirmAddToTeam(team, petData, slot)
+function PSM.Dialogs:ConfirmAddToTeam(team, petData, slot)
     if not team or not petData or not slot then return end
 
     -- Duplicate guard
@@ -628,7 +628,7 @@ function PSM.TeamDialogs:ConfirmAddToTeam(team, petData, slot)
     end
 end
 
-function PSM.TeamDialogs:ConfirmRemoveFromTeam(team, slot, petName)
+function PSM.Dialogs:ConfirmRemoveFromTeam(team, slot, petName)
     if not team or not slot then return end
 
     local slots = {}
@@ -651,7 +651,7 @@ end
 -- REMOVE FROM TEAM DIALOG
 --------------------------------------------------------------------------------
 
-function PSM.TeamDialogs:ShowRemoveFromTeamDialog(petData)
+function PSM.Dialogs:ShowRemoveFromTeamDialog(petData)
     if not petData then return end
 
     local teams = PSM.Teams:GetTeams()
@@ -698,7 +698,7 @@ function PSM.TeamDialogs:ShowRemoveFromTeamDialog(petData)
                 point      = { "TOP", d, "TOP", 0, -100 - (i-1)*(btnH+5) },
                 onClick    = function()
                     d:Hide()
-                    PSM.TeamDialogs:ConfirmRemoveFromTeam(match.team, match.slot, petData.name)
+                    PSM.Dialogs:ConfirmRemoveFromTeam(match.team, match.slot, petData.name)
                 end,
             })
             table.insert(d.teamButtons, btn)

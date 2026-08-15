@@ -448,7 +448,7 @@ function PSM.TeamsPanel:UpdateTeamRow(row, team)
             print("|cFFFF8800PetStableManagement: You must be at a Stable Master to apply a team.|r")
             return
         end
-        PSM.TeamDialogs:ShowApplyConfirmDialog(teamName, function()
+        PSM.Dialogs:ShowApplyConfirmDialog(teamName, function()
             local ok, err = PSM.Teams:ApplyTeam(teamId)
             if ok then
                 PSM.TeamsPanel:RefreshTeamsList()
@@ -488,7 +488,7 @@ function PSM.TeamsPanel:UpdateTeamRow(row, team)
 
     -- Rename
     row.renameButton:SetScript("OnClick", function()
-        PSM.TeamDialogs:ShowNameInputDialog({
+        PSM.Dialogs:ShowNameInputDialog({
             title = "Rename Team",
             description = "Enter a new name for '" .. teamName .. "':",
             defaultText = teamName,
@@ -503,7 +503,7 @@ function PSM.TeamsPanel:UpdateTeamRow(row, team)
 
     -- Duplicate
     row.duplicateButton:SetScript("OnClick", function()
-        PSM.TeamDialogs:ShowNameInputDialog({
+        PSM.Dialogs:ShowNameInputDialog({
             title = "Duplicate Team",
             description = "Enter a name for the copy of '" .. teamName .. "':",
             defaultText = teamName .. " (Copy)",
@@ -518,7 +518,7 @@ function PSM.TeamsPanel:UpdateTeamRow(row, team)
 
     -- Delete
     row.deleteButton:SetScript("OnClick", function()
-        PSM.TeamDialogs:ShowDeleteConfirmDialog(teamName, function()
+        PSM.Dialogs:ShowDeleteConfirmDialog(teamName, function()
             local ok, err = PSM.Teams:DeleteTeam(teamId)
             if ok then PSM.TeamsPanel:RefreshTeamsList()
             else print("|cFFFF0000PetStableManagement: " .. (err or "Failed to delete team") .. "|r") end

@@ -292,7 +292,7 @@ end
 
 function PSM.UI.GroupedView:ShowCreateGroupForPetDialog(pet)
     if not pet then return end
-    PSM.TeamDialogs:ShowCreateGroupDialog({
+    PSM.Dialogs:ShowCreateGroupDialog({
         suggestedName = pet.familyName or pet.name or "New Group",
         onConfirm = function(groupName)
             local groupId, err = PSM.PetGroups:CreateGroup(groupName)
@@ -311,7 +311,7 @@ end
 
 function PSM.UI.GroupedView:ShowRenameDialog(groupId, currentName)
     if not groupId then return end
-    PSM.TeamDialogs:ShowRenameGroupDialog({
+    PSM.Dialogs:ShowRenameGroupDialog({
         currentName = currentName,
         onConfirm = function(newName)
             local ok, err = PSM.PetGroups:RenameGroup(groupId, newName)
@@ -323,7 +323,7 @@ end
 
 function PSM.UI.GroupedView:ConfirmDeleteGroup(groupId, groupName)
     if not groupId then return end
-    PSM.TeamDialogs:ShowDeleteGroupConfirmDialog(groupName, function()
+    PSM.Dialogs:ShowDeleteGroupConfirmDialog(groupName, function()
         local ok, err = PSM.PetGroups:DeleteGroup(groupId)
         if ok then RefreshUI()
         else print("|cFFFF0000PetStableManagement: " .. (err or "Failed to delete group") .. "|r") end
@@ -331,7 +331,7 @@ function PSM.UI.GroupedView:ConfirmDeleteGroup(groupId, groupName)
 end
 
 function PSM.UI.GroupedView:ConfirmDeleteAllGroups()
-    PSM.TeamDialogs:ShowDeleteAllGroupsConfirmDialog(function()
+    PSM.Dialogs:ShowDeleteAllGroupsConfirmDialog(function()
         PSM.PetGroups:DeleteAllGroups()
         RefreshUI()
     end)

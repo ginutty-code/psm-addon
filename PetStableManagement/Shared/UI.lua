@@ -743,7 +743,7 @@ function PSM.UI:HandleSaveTeamClick()
 
     if activeTeam then
         if PSM.Teams:HasActiveTeamChanged() then
-            PSM.TeamDialogs:ShowSaveTeamDialog({
+            PSM.Dialogs:ShowSaveTeamDialog({
                 existingTeamId   = activeTeamId,
                 existingTeamName = activeTeam.name,
                 onUpdate = function()
@@ -761,7 +761,7 @@ function PSM.UI:HandleSaveTeamClick()
             print("|cFF00FF00PetStableManagement: Team '" .. activeTeam.name .. "' is already up to date.|r")
         end
     else
-        PSM.TeamDialogs:ShowNameInputDialog({
+        PSM.Dialogs:ShowNameInputDialog({
             title       = "Save New Team",
             description = "Enter a name for your pet team:",
             onConfirm   = function(name)
