@@ -85,7 +85,18 @@ end
 
 SLASH_PETSWAP1 = "/petswap"
 
-local PETSWAP_MAX_SLOT = PSM.Config and PSM.Config.MAX_STABLE_SLOTS or 205
+-- Read at call time, not captured at file scope.
+--
+-- This was `local PETSWAP_MAX_SLOT = PSM.Config and PSM.Config.MAX_STABLE_SLOTS or 205`,
+-- which works today only because Config is TOC line 18 and this file is 33. It is the
+-- same snapshot-not-reference pattern that `ModelRow.lua` was fixed for, with one extra
+-- hazard: the `and`/`or` guard means a load-order change would not error, it would
+-- silently freeze the limit at 205 and reject valid slots with a confident message
+-- quoting the wrong number. **A guarded capture fails more quietly than an unguarded
+-- one, which makes it worse, not safer.**
+local function MaxStableSlot()
+    return (PSM.Config and PSM.Config.MAX_STABLE_SLOTS) or 205
+end
 
 SlashCmdList["PETSWAP"] = function(msg)
     local a, b = msg:match("^(%S+)%s+(%S+)$")
@@ -97,12 +108,13 @@ SlashCmdList["PETSWAP"] = function(msg)
         return
     end
 
+    local maxSlot = MaxStableSlot()
     local function validSlot(n)
-        return n >= 1 and n <= PETSWAP_MAX_SLOT
+        return n >= 1 and n <= maxSlot
     end
 
     if not validSlot(startSlot) or not validSlot(destSlot) then
-        print(string.format("|cFFFF0000Slot numbers must be between 1 and %d.|r", PETSWAP_MAX_SLOT))
+        print(string.format("|cFFFF0000Slot numbers must be between 1 and %d.|r", maxSlot))
         return
     end
 

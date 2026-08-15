@@ -544,29 +544,45 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
         if box then box:SetPlaceholder(newPlaceholder) end
     end
 
-    local function ApplyModelsViewMode(mode)
-        panel.modelsViewMode = mode
-        PetStableManagementDB.settings.modelsViewMode = mode
+    -- What a view mode *looks* like: which frames are up, and what the search box says.
+    -- Separate from the rest of ApplyModelsViewMode because the panel's initial build
+    -- needs exactly this and none of the page reset or data loading.
+    --
+    -- It used to carry its own copy of the branch, and the copy had drifted: it showed
+    -- and hid the same two frames but never set the placeholder and never hid the columns
+    -- popout. So a panel restored into NPC view opened reading "Search models..." and
+    -- stayed wrong until the user toggled the mode by hand.
+    local function ApplyViewModePresentation(mode)
         RefreshViewToggleButtonText()
-
-        panel.currentPage = 1
-        PSM.state.modelsPanelCurrentPage = 1
-        _G.PSM_modelsPanelCurrentPage = 1
-        SaveCurrentPage(1)
-
         if mode == "npc" then
             for _, row in ipairs(panel.modelRows) do row:Hide() end
             panel.npcHeaderRow:Show()
             npcColumnsButton:Show()
             SetSearchPlaceholder("Search NPCs...")
-            PSM.ModelsPanel:UpdateNPCPanelLayout()
-            PSM.NPCDataLoader:LoadNPCsForSelectedFamilies()
         else
             for _, row in ipairs(panel.npcRows) do row:Hide() end
             panel.npcHeaderRow:Hide()
             npcColumnsButton:Hide()
             panel.npcColumnsPopout:Hide()
             SetSearchPlaceholder("Search models...")
+        end
+    end
+
+    local function ApplyModelsViewMode(mode)
+        panel.modelsViewMode = mode
+        PetStableManagementDB.settings.modelsViewMode = mode
+
+        panel.currentPage = 1
+        PSM.state.modelsPanelCurrentPage = 1
+        _G.PSM_modelsPanelCurrentPage = 1
+        SaveCurrentPage(1)
+
+        ApplyViewModePresentation(mode)
+
+        if mode == "npc" then
+            PSM.ModelsPanel:UpdateNPCPanelLayout()
+            PSM.NPCDataLoader:LoadNPCsForSelectedFamilies()
+        else
             PSM.ModelsPanel:UpdateModelsPanelLayout()
             PSM.ModelsDataLoader:LoadModelsForSelectedFamilies()
         end
@@ -577,14 +593,9 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
         ApplyModelsViewMode(panel.modelsViewMode == "npc" and "displayId" or "npc")
     end)
 
-    RefreshViewToggleButtonText()
-    if panel.modelsViewMode == "npc" then
-        npcColumnsButton:Show()
-        panel.npcHeaderRow:Show()
-    else
-        panel.npcHeaderRow:Hide()
-        npcColumnsButton:Hide()
-    end
+    -- The restored mode, painted through the same function the toggle uses. Presentation
+    -- only: loading is left to whatever shows the panel.
+    ApplyViewModePresentation(panel.modelsViewMode)
 
     -- Navigation buttons
     local firstButton = Widgets.Button(panel, {
