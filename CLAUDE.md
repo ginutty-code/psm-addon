@@ -16,9 +16,10 @@ pipeline).
 
 ## Repo layout gotcha
 
-`C:\Users\Gi\Dev\PSM` itself is **not** a git repo. `psm-addon` (this repo)
-and `psm-data` are two independent sibling git repos one level down. Check
-`git status` before assuming which repo you're committing to.
+The directory containing this repo (referred to below as the **PSM workspace
+root**) is itself **not** a git repo. `psm-addon` (this repo) and `psm-data`
+are two independent sibling git repos one level down. Check `git status`
+before assuming which repo you're committing to.
 
 For the full cross-repo picture — every `psm-data` pipeline stage, which
 `Manual/` CSV feeds which script, and the exact bridge point
@@ -88,12 +89,12 @@ duplicating it in the README just makes it bulkier over time.
 
 ## Linting
 
-`luacheck.exe` is installed at `C:\Users\Gi\Dev\tools\luacheck.exe` (not on
-PATH — invoke by full path, or add that folder to PATH if you want to run it
-directly). Run from the repo root:
+`luacheck` is installed outside this repo and is **not** on PATH — invoke it by
+full path, or add its folder to PATH to run it as `luacheck`. The exact local
+path is in `CLAUDE.local.md` (untracked). Run from the repo root:
 
 ```bash
-"C:\Users\Gi\Dev\tools\luacheck.exe" PetStableManagement PetStableManagement_ModelsBrowser
+luacheck PetStableManagement PetStableManagement_ModelsBrowser
 ```
 
 `.luacheckrc` lists the actual WoW API globals and project-defined globals

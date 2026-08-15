@@ -1,2 +1,53 @@
+﻿# ── Secrets / environments ───────────────────────────────────────────────────
 .env
+.env.*
 venv/
+.venv/
+
+# ── Python (Tests/run.py bootstrap) ──────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── Lua tooling ──────────────────────────────────────────────────────────────
+# luacheck.exe itself lives outside this repo and is never committed; this is its
+# optional --cache file. .luacheckrc IS tracked on purpose -- it is the project's
+# lint config (the WoW globals list built for this codebase), not a tool.
+.luacheckcache
+luacov.*.out
+luacov.report.out
+
+# ── Copied game data (never publish -- contains character names + account IDs) ─
+# SavedVariables are sometimes copied in from WTF/ to inspect real data. The live
+# file is literally named PetStableManagement.lua, so an accidental drop into the
+# repo root would otherwise look like addon source.
+/PetStableManagement.lua
+/PetStableManagement*.lua.bak
+SavedVariables/
+WTF/
+
+# ── Editors / IDEs ───────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Claude Code local overrides ──────────────────────────────────────────────
+# CLAUDE.md is tracked (shared project docs); these are per-machine and are not.
+CLAUDE.local.md
+.claude/settings.local.json
+
+# ── OS / editor junk ─────────────────────────────────────────────────────────
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.DS_Store
+
+# ── Patch / backup leftovers ─────────────────────────────────────────────────
+*.bak
+*.orig
+*.rej
+*.tmp
