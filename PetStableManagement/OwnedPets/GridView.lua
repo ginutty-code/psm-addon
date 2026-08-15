@@ -192,6 +192,9 @@ function GV:UpdateVisibleRows()
     if PSM.state.scrollFrame.UpdateScrollChildRect then
         PSM.state.scrollFrame:UpdateScrollChildRect()
     end
+    -- Before deriving the row offset below, not after: the offset must come from a
+    -- scroll position that is actually in range.
+    PSM.UI:ClampScrollIntoRange(PSM.state.scrollFrame, content)
 
     local scrollFrameHeight = PSM.state.scrollFrame:GetHeight() or 500
     local visibleRowCount   = math.ceil(scrollFrameHeight / rowHeight) + 3
@@ -204,6 +207,11 @@ function GV:UpdateVisibleRows()
             pool[i] = r
         end
     end
+
+    -- Grid columns are one model wide, so the column count changes every ~120px of
+    -- panel width — this view crosses the blind spot far more often than list view
+    -- does. See PSM.UI:GetScrollRowOffset.
+    PSM.state.panel.gridScrollOffset = PSM.UI:GetScrollRowOffset(rowHeight, rowTotal)
 
     local startRow   = math.max(1, PSM.state.panel.gridScrollOffset + 1)
     local endRow     = math.min(rowTotal, startRow + visibleRowCount - 1)

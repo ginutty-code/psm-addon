@@ -483,8 +483,78 @@ function PSM.UI:_ApplyCachedRender(renderData, preserveScroll)
     if not preserveScroll and PSM.state.scrollFrame.ScrollBar then
         PSM.state.scrollFrame.ScrollBar:SetValue(0)
     end
+    -- The content just changed height; a scroll left past the new end shows nothing.
+    self:ClampScrollIntoRange(PSM.state.scrollFrame, PSM.state.content)
 
     self:UpdateVisibleRows()
+end
+
+-- Keep the scroll frame inside the range its content can actually fill.
+--
+-- Content height shrinks on almost every resize, because the column count is derived
+-- from panel width and fewer rows are needed to hold the same pets. A frame left
+-- scrolled past the new end then displays the region *below* the last row: every row
+-- renders, in the right place, and not one of them is in view. The panel looks
+-- completely empty.
+--
+-- This is the resize blind spot, and it is why it survives in all three views. It is not
+-- a per-view indexing bug — GroupedView shares none of the other views' offset
+-- bookkeeping and blanks identically. It is the one scroll frame they share being left
+-- outside its own range.
+--
+-- The resize handler restored the scrollbar only `if maxScroll > 0`, which is backwards:
+-- `maxScroll == 0` means the content now fits, and that is exactly the case that must
+-- force the scroll back to the top. Nothing else corrects it, which is why the panel
+-- stayed blank until scrolled by hand — and why it only ever happened away from the top,
+-- the one position that is already in range.
+--
+-- Call this after any content:SetHeight. Returns the (possibly corrected) scroll.
+function PSM.UI:ClampScrollIntoRange(scrollFrame, content)
+    if not scrollFrame or not content then return 0 end
+
+    local maxScroll = math.max(0, (content:GetHeight() or 0) - (scrollFrame:GetHeight() or 0))
+    local current   = scrollFrame:GetVerticalScroll() or 0
+    local target    = math.max(0, math.min(current, maxScroll))
+
+    -- Only act on a real discrepancy: SetValue re-enters through the scrollbar hook,
+    -- and sub-pixel churn there would schedule a render on every frame of a drag.
+    if math.abs(target - current) > 0.5 then
+        scrollFrame:SetVerticalScroll(target)
+        if scrollFrame.ScrollBar then scrollFrame.ScrollBar:SetValue(target) end
+    end
+    return target
+end
+
+-- Which row sits at the top of the scroll window, derived from where the frame is
+-- *actually* scrolled to, then clamped to a list that may just have got shorter.
+--
+-- `panel.scrollOffset` and `panel.gridScrollOffset` are caches, written only by the
+-- scrollbar's OnValueChanged hook. A resize can leave either one describing a scroll
+-- position the frame no longer has: the column count is derived from panel width, so
+-- content height changes under it, and the resize handler restores the scrollbar only
+-- when `maxScroll > 0`. Two distinct failures follow, and the resize blind spot has
+-- been both of them at different times:
+--
+--   * offset past the end of a shortened list -> startIndex > endIndex, the render loop
+--     never executes, every row stays hidden;
+--   * offset merely *disagreeing* with the frame -> rows render for the cached window
+--     and are positioned at absolute content coordinates outside the displayed one. The
+--     loop reports drawing them and the panel looks completely empty.
+--
+-- The second is why clamping alone was not enough, and why the top of the list is
+-- immune either way: at offset 0 the cached and displayed windows always agree.
+--
+-- GroupedView has always read GetVerticalScroll() directly and is the one view never
+-- reported blank. This makes list and grid agree with it: the displayed position is the
+-- single source of truth, and the cached field is a consequence of it, not an input.
+--
+-- Floor, not round, in both views: this answers "which row is at the top of the window",
+-- and grid's own snap-to-row logic settles the scrollbar on an exact multiple anyway.
+function PSM.UI:GetScrollRowOffset(rowHeight, rowTotal)
+    local scrollFrame = PSM.state.scrollFrame
+    local scroll      = scrollFrame and scrollFrame:GetVerticalScroll() or 0
+    local offset      = math.floor((scroll or 0) / math.max(1, rowHeight or 1))
+    return math.max(0, math.min(offset, math.max(0, (rowTotal or 0) - 1)))
 end
 
 function PSM.UI:UpdateVisibleRows()
@@ -532,6 +602,7 @@ function PSM.UI:UpdateVisibleRows()
 
     local sfHeight       = PSM.state.scrollFrame:GetHeight() or 500
     local visibleRows    = math.ceil(sfHeight / PSM.Config.ROW_HEIGHT) + 2
+    panel.scrollOffset   = self:GetScrollRowOffset(PSM.Config.ROW_HEIGHT, rowTotal)
     local startRow       = math.max(1, panel.scrollOffset + 1)
     local endRow         = math.min(rowTotal, startRow + visibleRows - 1)
     local startIndex     = (startRow - 1) * colCount + 1

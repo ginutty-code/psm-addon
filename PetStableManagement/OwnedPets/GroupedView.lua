@@ -555,6 +555,9 @@ function PSM.UI.GroupedView:UpdateVisibleRows()
     self:BuildGroupedLayout(renderData, contentWidth)
     content:SetHeight(math.max(groupedLayout.contentHeight, 100))
     if PSM.state.scrollFrame.UpdateScrollChildRect then PSM.state.scrollFrame:UpdateScrollChildRect() end
+    -- Before reading the scroll below: this view's visibility test is purely geometric,
+    -- so a scroll past the end of the content silently matches no section at all.
+    PSM.UI:ClampScrollIntoRange(PSM.state.scrollFrame, content)
 
     local scrollH = PSM.state.scrollFrame:GetHeight() or 500
     local scrollV = PSM.state.scrollFrame:GetVerticalScroll() or 0

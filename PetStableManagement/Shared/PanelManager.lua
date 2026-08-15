@@ -403,10 +403,7 @@ function PSM.PanelManager:CreateScrollPreservingResizeHandler(panel, scrollFrame
     panel._resizeLastWidth  = nil
     panel._resizeLastHeight = nil
 
-    panel:SetScript("OnSizeChanged", function(_, width, height)
-        if math.abs((panel._resizeLastWidth  or 0) - width)  < 10
-        and math.abs((panel._resizeLastHeight or 0) - height) < 10 then return end
-
+    local function Relayout(width, height)
         panel._resizeLastWidth  = width
         panel._resizeLastHeight = height
 
@@ -428,9 +425,19 @@ function PSM.PanelManager:CreateScrollPreservingResizeHandler(panel, scrollFrame
 
         PSM.C_Timer.After(0.05, function()
             if renderCallback then renderCallback(true) end
-            if scrollBar and content and scrollFrame then
+            if content and scrollFrame then
+                -- Restore the proportional position, then clamp. The old form was
+                -- `if maxScroll > 0 then SetValue(...) end`, which skipped the one case
+                -- that had to be handled: maxScroll == 0 means the content now fits, and
+                -- a frame still scrolled to its old position shows the empty region past
+                -- the last row. See PSM.UI:ClampScrollIntoRange.
                 local maxScroll = math.max(0, content:GetHeight() - scrollFrame:GetHeight())
-                if maxScroll > 0 then scrollBar:SetValue(maxScroll * scrollPercentage) end
+                local target    = math.min(maxScroll * scrollPercentage, maxScroll)
+                scrollFrame:SetVerticalScroll(target)
+                if scrollBar then scrollBar:SetValue(target) end
+                if PSM.UI and PSM.UI.ClampScrollIntoRange then
+                    PSM.UI:ClampScrollIntoRange(scrollFrame, content)
+                end
             end
 
             -- PlayerModel widgets can repaint blank after their clipped ancestor
@@ -441,6 +448,29 @@ function PSM.PanelManager:CreateScrollPreservingResizeHandler(panel, scrollFrame
                 if PSM.UI and PSM.UI.UpdateVisibleRows then PSM.UI:UpdateVisibleRows() end
             end)
         end)
+    end
+
+    panel:SetScript("OnSizeChanged", function(_, width, height)
+        -- A trailing pass, always scheduled and always against the *current* size.
+        --
+        -- The 10px early-out below keeps the expensive relayout off most drag frames,
+        -- but it is a leading filter with nothing behind it: whatever size the drag
+        -- comes to rest on can be up to 10px from the last size actually laid out. Nine
+        -- pixels is invisible until a column boundary falls inside them, and then the
+        -- panel keeps a column count its width no longer fits, with no further event
+        -- coming to correct it. That is a resize blind spot by construction, and no
+        -- amount of clamping downstream can see it — the layout is self-consistent, it
+        -- just describes a width the panel no longer has.
+        if panel._resizeSettleTimer then panel._resizeSettleTimer:Cancel() end
+        panel._resizeSettleTimer = PSM.C_Timer.NewTimer(0.15, function()
+            panel._resizeSettleTimer = nil
+            Relayout(panel:GetWidth(), panel:GetHeight())
+        end)
+
+        if math.abs((panel._resizeLastWidth  or 0) - width)  < 10
+        and math.abs((panel._resizeLastHeight or 0) - height) < 10 then return end
+
+        Relayout(width, height)
     end)
 end
 
