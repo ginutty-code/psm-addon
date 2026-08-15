@@ -2,12 +2,9 @@
 -- Unified panel management system for PetStableManagement
 -- Handles creation and management of both OwnedPets and ModelsBrowser panels
 
-local addonName = "PetStableManagement"
+local _, ns = ...
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
-
-PSM.PanelManager = PSM.PanelManager or {}
+ns.PanelManager = ns.PanelManager or {}
 
 -- ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -20,23 +17,23 @@ end
 -- Returns true when no PSM panel is currently visible
 local function IsLastPanel()
     for _, key in ipairs({ "panel", "modelsPanel", "teamsPanel" }) do
-        if PSM.state[key] and PSM.state[key]:IsVisible() then return false end
+        if ns.state[key] and ns.state[key]:IsVisible() then return false end
     end
     return true
 end
 
 -- ─── CreateBasePanel ─────────────────────────────────────────────────────────
 
-function PSM.PanelManager:CreateBasePanel(name, config)
-    if PSM.state[name] then return PSM.state[name] end
+function ns.PanelManager:CreateBasePanel(name, config)
+    if ns.state[name] then return ns.state[name] end
 
-    local Widgets = PSM.Widgets
+    local Widgets = ns.Widgets
     local p = config.position
 
     local panel = Widgets.MovableFrame(UIParent, {
         name   = name,
-        size   = { config.width  or PSM.Config.DEFAULT_PANEL_WIDTH,
-                   config.height or PSM.Config.DEFAULT_PANEL_HEIGHT },
+        size   = { config.width  or ns.Config.DEFAULT_PANEL_WIDTH,
+                   config.height or ns.Config.DEFAULT_PANEL_HEIGHT },
         point  = p and { p.point, p.relativeTo, p.relativePoint, p.x or 0, p.y or 0 }
                    or { "CENTER" },
         strata = config.strata    or "HIGH",
@@ -89,7 +86,7 @@ function PSM.PanelManager:CreateBasePanel(name, config)
     panel.border = Widgets.Frame(panel, {
         allPoints = true,
         backdrop  = "TOOLTIP_HAIRLINE",
-        color     = PSM.Config.COLORS.BACKGROUND,
+        color     = ns.Config.COLORS.BACKGROUND,
         level     = panel:GetFrameLevel() - 1,
     })
 
@@ -115,7 +112,7 @@ function PSM.PanelManager:CreateBasePanel(name, config)
         panel.isMaximized = false
         local maxBtn = Widgets.Button(panel, {
             point      = { "TOPRIGHT", panel.closeButton, "TOPLEFT", -2, 0 },
-            width      = PSM.Theme.CONTROL.BUTTON_W.S,
+            width      = ns.Theme.CONTROL.BUTTON_W.S,
             text       = "Maximize",
             fontObject = "GameFontNormalSmall",
         })
@@ -162,22 +159,22 @@ function PSM.PanelManager:CreateBasePanel(name, config)
             fontSize = 14,
             outline  = true,
             text     = config.title,
-            color    = PSM.Theme.COLOR.GOLD,
+            color    = ns.Theme.COLOR.GOLD,
             point    = { "TOP", 0, config.titleOffset or -35 },
         })
     end
 
-    PSM.state[name] = panel
+    ns.state[name] = panel
     panel:Hide()
     return panel
 end
 
 -- ─── CreateSearchBox ─────────────────────────────────────────────────────────
 
-function PSM.PanelManager:CreateSearchBox(panel, onTextChanged, config)
+function ns.PanelManager:CreateSearchBox(panel, onTextChanged, config)
     config = config or {}
 
-    local Widgets = PSM.Widgets
+    local Widgets = ns.Widgets
 
     local searchBox = Widgets.EditBox(panel, {
         size     = { config.width or 150, config.height or 20 },
@@ -224,7 +221,7 @@ function PSM.PanelManager:CreateSearchBox(panel, onTextChanged, config)
         -- GetSearchText, so the callback can never receive the placeholder either.
         local text = self:GetSearchText()
         if debounceTimer then debounceTimer:Cancel() end
-        debounceTimer = C_Timer.NewTimer(PSM.Config.SEARCH_DELAY or 0.3, function()
+        debounceTimer = C_Timer.NewTimer(ns.Config.SEARCH_DELAY or 0.3, function()
             if onTextChanged then onTextChanged(text) end
             debounceTimer = nil
         end)
@@ -265,8 +262,8 @@ end
 
 -- ─── CleanupPanel ────────────────────────────────────────────────────────────
 
-function PSM.PanelManager:CleanupPanel(panel)
-    if PSM.Data and PSM.Data.SaveSettings then PSM.Data:SaveSettings() end
+function ns.PanelManager:CleanupPanel(panel)
+    if ns.Data and ns.Data.SaveSettings then ns.Data:SaveSettings() end
 
     panel.allModels = nil
     -- allModels' NPC-view counterpart, missing before -- also clears
@@ -285,7 +282,7 @@ function PSM.PanelManager:CleanupPanel(panel)
             if row.model then
                 row.model:SetDisplayInfo(0)
                 row.model:Hide()
-                PSM.RowManager:ReleaseModel(row.model)
+                ns.RowManager:ReleaseModel(row.model)
             end
             if row.favoriteButton then row.favoriteButton:Hide() end
             row:Hide()
@@ -322,21 +319,21 @@ function PSM.PanelManager:CleanupPanel(panel)
     end
 
     if IsLastPanel() then
-        PSM._renderCache        = nil
-        PSM._debounceTimer      = nil
-        PSM._modelsRenderCache  = nil
-        PSM._modelsDebounceTimer = nil
-        PSM._npcRenderCache     = nil
-        PSM._npcDebounceTimer   = nil
+        ns._renderCache        = nil
+        ns._debounceTimer      = nil
+        ns._modelsRenderCache  = nil
+        ns._modelsDebounceTimer = nil
+        ns._npcRenderCache     = nil
+        ns._npcDebounceTimer   = nil
 
-        if PSM.PetModels and PSM.PetModels.ClearCache then
-            PSM.PetModels:ClearCache()
+        if ns.PetModels and ns.PetModels.ClearCache then
+            ns.PetModels:ClearCache()
         end
-        if PSM.Data and PSM.Data.ClearUIRows then
-            PSM.Data:ClearUIRows()
+        if ns.Data and ns.Data.ClearUIRows then
+            ns.Data:ClearUIRows()
         end
-        if PSM.Data and PSM.Data.ClearMemory and not PSM.state.isStableOpen then
-            PSM.Data:ClearMemory()
+        if ns.Data and ns.Data.ClearMemory and not ns.state.isStableOpen then
+            ns.Data:ClearMemory()
         end
     end
 
@@ -345,24 +342,24 @@ end
 
 -- ─── Misc public helpers ──────────────────────────────────────────────────────
 
-function PSM.PanelManager:Initialize()
-    PSM.state = PSM.state or {}
+function ns.PanelManager:Initialize()
+    ns.state = ns.state or {}
 end
 
-function PSM.PanelManager:TogglePanel(panelName, createFunc)
-    if not PSM.state[panelName] then createFunc() end
-    local p = PSM.state[panelName]
+function ns.PanelManager:TogglePanel(panelName, createFunc)
+    if not ns.state[panelName] then createFunc() end
+    local p = ns.state[panelName]
     if p:IsVisible() then p:Hide() else p:Show(); p:Raise() end
 end
 
-function PSM.PanelManager:UpdatePanelBackgrounds()
-    local alpha = PSM.Config:GetOpacity()
-    local bg    = PSM.Config.COLORS.BACKGROUND
+function ns.PanelManager:UpdatePanelBackgrounds()
+    local alpha = ns.Config:GetOpacity()
+    local bg    = ns.Config.COLORS.BACKGROUND
 
     -- Panels with a .border child
     for _, key in ipairs({ "panel", "modelsPanel", "teamsPanel", "abilityBrowser", "specialTames",
                            "menu", "petRoulettePopup", "modelMagnificationPopup" }) do
-        SetBg(PSM.state[key], "border", unpack(
+        SetBg(ns.state[key], "border", unpack(
             (key == "petRoulettePopup" or key == "modelMagnificationPopup")
                 and { 0, 0, 0, alpha } or bg))
     end
@@ -375,27 +372,27 @@ function PSM.PanelManager:UpdatePanelBackgrounds()
         { "teamsPanel",  "teamsFrame"           },
     }
     for _, entry in ipairs(bgFrames) do
-        SetBg(PSM.state[entry[1]], entry[2], unpack(bg))
+        SetBg(ns.state[entry[1]], entry[2], unpack(bg))
     end
 
     -- Export frame
-    local ef = PSM.state.exportFrame
+    local ef = ns.state.exportFrame
     if ef and ef.SetBackdropColor then ef:SetBackdropColor(0, 0, 0, alpha) end
     SetBg(ef, "editBg", 0.1, 0.1, 0.1, alpha)
 
     -- Dropdown backdrops
-    local p = PSM.state.panel
+    local p = ns.state.panel
     for _, dropKey in ipairs({ "specDrop", "familyDrop" }) do
         SetBg(p and p[dropKey], "backdrop", 0.1, 0.1, 0.1, alpha)
     end
 
     -- Teams panel opacity
-    if PSM.state.teamsPanel then
-        PSM.TeamsPanel:UpdateOpacity()
+    if ns.state.teamsPanel then
+        ns.TeamsPanel:UpdateOpacity()
     end
 end
 
-function PSM.PanelManager:CreateScrollPreservingResizeHandler(panel, scrollFrame, content, renderCallback, invalidateCacheCallback)
+function ns.PanelManager:CreateScrollPreservingResizeHandler(panel, scrollFrame, content, renderCallback, invalidateCacheCallback)
     if not panel or not scrollFrame or not content then return end
 
     panel._resizeLastWidth  = nil
@@ -419,9 +416,9 @@ function PSM.PanelManager:CreateScrollPreservingResizeHandler(panel, scrollFrame
         content:SetPoint("TOPLEFT")
         content:SetPoint("TOPRIGHT")
 
-        if invalidateCacheCallback then invalidateCacheCallback() else PSM._renderCache = nil end
+        if invalidateCacheCallback then invalidateCacheCallback() else ns._renderCache = nil end
 
-        PSM.C_Timer.After(0.05, function()
+        ns.C_Timer.After(0.05, function()
             if renderCallback then renderCallback(true) end
             if content and scrollFrame then
                 -- Restore the proportional position, then clamp. The old form was
@@ -433,8 +430,8 @@ function PSM.PanelManager:CreateScrollPreservingResizeHandler(panel, scrollFrame
                 local target    = math.min(maxScroll * scrollPercentage, maxScroll)
                 scrollFrame:SetVerticalScroll(target)
                 if scrollBar then scrollBar:SetValue(target) end
-                if PSM.UI and PSM.UI.ClampScrollIntoRange then
-                    PSM.UI:ClampScrollIntoRange(scrollFrame, content)
+                if ns.UI and ns.UI.ClampScrollIntoRange then
+                    ns.UI:ClampScrollIntoRange(scrollFrame, content)
                 end
             end
 
@@ -442,8 +439,8 @@ function PSM.PanelManager:CreateScrollPreservingResizeHandler(panel, scrollFrame
             -- (scrollFrame/content/row) is resized. A second, immediate
             -- UpdateVisibleRows pass forces them to redraw, mirroring what a
             -- manual scroll already does to "fix" the same symptom.
-            PSM.C_Timer.After(0, function()
-                if PSM.UI and PSM.UI.UpdateVisibleRows then PSM.UI:UpdateVisibleRows() end
+            ns.C_Timer.After(0, function()
+                if ns.UI and ns.UI.UpdateVisibleRows then ns.UI:UpdateVisibleRows() end
             end)
         end)
     end
@@ -460,7 +457,7 @@ function PSM.PanelManager:CreateScrollPreservingResizeHandler(panel, scrollFrame
         -- amount of clamping downstream can see it — the layout is self-consistent, it
         -- just describes a width the panel no longer has.
         if panel._resizeSettleTimer then panel._resizeSettleTimer:Cancel() end
-        panel._resizeSettleTimer = PSM.C_Timer.NewTimer(0.15, function()
+        panel._resizeSettleTimer = ns.C_Timer.NewTimer(0.15, function()
             panel._resizeSettleTimer = nil
             Relayout(panel:GetWidth(), panel:GetHeight())
         end)
@@ -472,4 +469,4 @@ function PSM.PanelManager:CreateScrollPreservingResizeHandler(panel, scrollFrame
     end)
 end
 
-PSM.PanelManager:Initialize()
+ns.PanelManager:Initialize()

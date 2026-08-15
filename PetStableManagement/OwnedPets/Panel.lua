@@ -1,8 +1,7 @@
 -- OwnedPets/Panel.lua
 -- Main panel creation for PetStableManagement
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
+local _, ns = ...
 
 -- ---------------------------------------------------------------------------
 -- Helpers
@@ -10,16 +9,16 @@ local PSM = _G.PSM
 
 -- Apply a saved or explicit view mode, updating all button states.
 local function ApplyViewMode(panel, mode)
-    mode = mode or PSM.state.panelViewMode or PetStableManagementDB.settings.panelViewMode or "list"
+    mode = mode or ns.state.panelViewMode or PetStableManagementDB.settings.panelViewMode or "list"
 
     local isGrid    = (mode == "grid")
     local isGrouped = (mode == "grouped")
 
-    if PSM.UI.GridView then
-        if isGrid then PSM.UI.GridView:Enable() else PSM.UI.GridView:Disable() end
+    if ns.UI.GridView then
+        if isGrid then ns.UI.GridView:Enable() else ns.UI.GridView:Disable() end
     end
-    if PSM.UI.GroupedView then
-        if isGrouped then PSM.UI.GroupedView:Enable() else PSM.UI.GroupedView:Disable() end
+    if ns.UI.GroupedView then
+        if isGrouped then ns.UI.GroupedView:Enable() else ns.UI.GroupedView:Disable() end
     end
 
     -- Reset all three buttons, then disable the active one
@@ -34,24 +33,24 @@ local function ApplyViewMode(panel, mode)
         panel.groupedButton:Disable()
     end
 
-    PSM.state.panelViewMode = mode
+    ns.state.panelViewMode = mode
 end
 
 -- ---------------------------------------------------------------------------
 -- Panel construction
 -- ---------------------------------------------------------------------------
 
-function PSM.UI:BuildPanel()
-    if PSM.state.panel then return end
+function ns.UI:BuildPanel()
+    if ns.state.panel then return end
     self:CreateOwnedPetsPanel()
 end
 
-function PSM.UI:CreateOwnedPetsPanel()
+function ns.UI:CreateOwnedPetsPanel()
     local config = {
-        width        = PSM.Config.DEFAULT_PANEL_WIDTH,
-        height       = PSM.Config.DEFAULT_PANEL_HEIGHT,
-        minWidth     = PSM.Config.MIN_PANEL_WIDTH,
-        minHeight    = PSM.Config.MIN_PANEL_HEIGHT,
+        width        = ns.Config.DEFAULT_PANEL_WIDTH,
+        height       = ns.Config.DEFAULT_PANEL_HEIGHT,
+        minWidth     = ns.Config.MIN_PANEL_WIDTH,
+        minHeight    = ns.Config.MIN_PANEL_HEIGHT,
         position     = {
             point         = "TOPLEFT",
             relativeTo    = "StableFrame",
@@ -61,32 +60,32 @@ function PSM.UI:CreateOwnedPetsPanel()
         title        = "Pet Stable Management",
 
         onHide = function(panel)
-            PSM.PanelManager:CleanupPanel(panel)
+            ns.PanelManager:CleanupPanel(panel)
             -- Stable-pet data is intentionally kept; other panels (e.g. Pet Groups) rely on it.
         end,
 
         onShow = function(panel)
-            if #PSM.state.stablePets == 0 then
-                PSM.Data:LoadPersistentDataForDisplay(false)
+            if #ns.state.stablePets == 0 then
+                ns.Data:LoadPersistentDataForDisplay(false)
             end
-            PSM.UI:RenderPanel()
+            ns.UI:RenderPanel()
 
-            PSM.C_Timer.After(0.05, function() PSM.UI:UpdateFilterUI() end)
+            ns.C_Timer.After(0.05, function() ns.UI:UpdateFilterUI() end)
 
             -- Restore the saved view mode slightly later so buttons exist
-            PSM.C_Timer.After(0.1, function()
+            ns.C_Timer.After(0.1, function()
                 ApplyViewMode(panel, PetStableManagementDB.settings.panelViewMode)
             end)
         end,
 
         onResize = function(panel)
-            PSM.C_Timer.After(0.01, function()
-                PSM.UI:RenderPanel(true)  -- true = preserve scroll position
+            ns.C_Timer.After(0.01, function()
+                ns.UI:RenderPanel(true)  -- true = preserve scroll position
             end)
         end,
     }
 
-    local panel = PSM.PanelManager:CreateBasePanel("panel", config)
+    local panel = ns.PanelManager:CreateBasePanel("panel", config)
     self:AddOwnedPetsElements(panel)
     return panel
 end
@@ -95,20 +94,20 @@ end
 -- OwnedPets-specific UI elements
 -- ---------------------------------------------------------------------------
 
-function PSM.UI:AddOwnedPetsElements(panel)
-    local Widgets = PSM.Widgets
-    local Theme   = PSM.Theme
+function ns.UI:AddOwnedPetsElements(panel)
+    local Widgets = ns.Widgets
+    local Theme   = ns.Theme
 
     -- Search box ----------------------------------------------------------
-    PSM.PanelManager:CreateSearchBox(panel, function()
-        PSM.UI:UpdatePanel()
+    ns.PanelManager:CreateSearchBox(panel, function()
+        ns.UI:UpdatePanel()
     end, {
         placeholder = "Search pets...",
     })
 
     -- Filters & sort buttons ----------------------------------------------
-    PSM.UI:BuildFilters(panel)
-    PSM.UI:BuildSortButtons(panel)
+    ns.UI:BuildFilters(panel)
+    ns.UI:BuildSortButtons(panel)
 
     -- Scroll frame --------------------------------------------------------
     local scrollFrame = Widgets.Frame(panel, {
@@ -124,7 +123,7 @@ function PSM.UI:AddOwnedPetsElements(panel)
     -- Decorative border behind the rows
     local rowsFrame = Widgets.Frame(panel, {
         backdrop = "TOOLTIP",
-        color    = PSM.Config.COLORS.BACKGROUND,
+        color    = ns.Config.COLORS.BACKGROUND,
         level    = panel:GetFrameLevel() - 1,
         point    = {
             { "TOPLEFT",     scrollFrame, "TOPLEFT",     -5,  5 },
@@ -140,7 +139,7 @@ function PSM.UI:AddOwnedPetsElements(panel)
     -- Ensure the scrollbar always occupies its reserved space
     if scrollFrame.ScrollBar then
         scrollFrame.ScrollBar:SetAlpha(1)
-        PSM.Skin.Apply(scrollFrame.ScrollBar, "scrollbar")
+        ns.Skin.Apply(scrollFrame.ScrollBar, "scrollbar")
     end
 
     panel.scrollOffset     = 0
@@ -151,15 +150,15 @@ function PSM.UI:AddOwnedPetsElements(panel)
     -- Virtual-scroll hook -------------------------------------------------
     if scrollFrame.ScrollBar then
         scrollFrame.ScrollBar:HookScript("OnValueChanged", function(self, value)
-            local mode = PSM.state.panelViewMode
+            local mode = ns.state.panelViewMode
 
             if mode == "grid" then
-                local rowH      = PSM.Config.GRID_ROW_HEIGHT
+                local rowH      = ns.Config.GRID_ROW_HEIGHT
                 local newOffset = math.floor(value / rowH + 0.5)
 
                 if newOffset ~= panel.gridScrollOffset then
                     panel.gridScrollOffset = newOffset
-                    PSM.C_Timer.After(0.01, function() PSM.UI:UpdateVisibleRows() end)
+                    ns.C_Timer.After(0.01, function() ns.UI:UpdateVisibleRows() end)
                 end
 
                 -- Snap to row boundary
@@ -173,14 +172,14 @@ function PSM.UI:AddOwnedPetsElements(panel)
                 end
 
             elseif mode == "grouped" then
-                PSM.C_Timer.After(0.01, function() PSM.UI:UpdateVisibleRows() end)
+                ns.C_Timer.After(0.01, function() ns.UI:UpdateVisibleRows() end)
 
             else -- list
-                local rowH      = PSM.Config.ROW_HEIGHT
+                local rowH      = ns.Config.ROW_HEIGHT
                 local newOffset = math.floor(value / rowH)
                 if newOffset ~= panel.scrollOffset then
                     panel.scrollOffset = newOffset
-                    PSM.C_Timer.After(0.01, function() PSM.UI:UpdateVisibleRows() end)
+                    ns.C_Timer.After(0.01, function() ns.UI:UpdateVisibleRows() end)
                 end
             end
         end)
@@ -196,12 +195,12 @@ function PSM.UI:AddOwnedPetsElements(panel)
     })
 
     -- Resize handler (scroll-position-preserving) -------------------------
-    PSM.PanelManager:CreateScrollPreservingResizeHandler(
+    ns.PanelManager:CreateScrollPreservingResizeHandler(
         panel, scrollFrame, content,
-        function(preserveScroll) PSM.UI:RenderPanel(preserveScroll) end
+        function(preserveScroll) ns.UI:RenderPanel(preserveScroll) end
     )
 
-    PSM.C_Timer.After(0.01, function()
+    ns.C_Timer.After(0.01, function()
         content:SetWidth(scrollFrame:GetWidth())
     end)
 
@@ -212,7 +211,7 @@ function PSM.UI:AddOwnedPetsElements(panel)
     local function PanelButton(opts)
         return Widgets.Button(panel, {
             point      = opts.point,
-            width      = PSM.Theme.CONTROL.BUTTON_W.S,
+            width      = ns.Theme.CONTROL.BUTTON_W.S,
             text       = opts.text,
             fontObject = "GameFontNormalSmall",
             onClick    = opts.onClick,
@@ -224,14 +223,14 @@ function PSM.UI:AddOwnedPetsElements(panel)
     panel.exportButton = PanelButton({
         text    = "Export",
         point   = { "TOPLEFT", 10, -5 },
-        onClick = function() PSM.Export:ShowExportDialog() end,
+        onClick = function() ns.Export:ShowExportDialog() end,
     })
 
     panel.teamsButton = PanelButton({
         text    = "Pet Teams",
         point   = { "TOPLEFT", panel.exportButton, "TOPRIGHT", 5, 0 },
-        onClick = function() PSM.TeamsPanel:Show() end,
-        tooltip = PSM.Teams:ButtonTooltipSpec(),
+        onClick = function() ns.TeamsPanel:Show() end,
+        tooltip = ns.Teams:ButtonTooltipSpec(),
     })
 
     -- View-mode buttons (right side, created right-to-left) ---------------
@@ -255,11 +254,11 @@ function PSM.UI:AddOwnedPetsElements(panel)
     panel.listButton    = ViewButton("List",    "list",    panel.gridButton)
 
     -- Disable the button matching the initial view mode
-    ApplyViewMode(panel, PSM.state.panelViewMode or PetStableManagementDB.settings.panelViewMode)
+    ApplyViewMode(panel, ns.state.panelViewMode or PetStableManagementDB.settings.panelViewMode)
 
     -- Store shared references ---------------------------------------------
-    PSM.state.scrollFrame = scrollFrame
-    PSM.state.content     = content
+    ns.state.scrollFrame = scrollFrame
+    ns.state.content     = content
     panel.scrollFrame     = scrollFrame
     panel.content         = content
     panel.rowsFrame       = rowsFrame

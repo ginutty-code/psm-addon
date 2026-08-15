@@ -1,8 +1,7 @@
 -- OptionsPanel.lua
 -- Options panel integration for PetStableManagement
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
+local _, ns = ...
 
 local addonName = "Pet Stable Management"
 
@@ -32,8 +31,8 @@ end
 -------------------------------------------------------------------------------
 
 local function IterateAllVisibleModels(callback)
-    if PSM.state.panel and PSM.state.panel:IsVisible() then
-        for _, row in ipairs(PSM.state.rows) do
+    if ns.state.panel and ns.state.panel:IsVisible() then
+        for _, row in ipairs(ns.state.rows) do
             if row and row.model and row.model:IsVisible() then
                 callback(row.model)
             end
@@ -41,8 +40,8 @@ local function IterateAllVisibleModels(callback)
     end
 
     for _, stateKey in ipairs({ "modelViewRows", "groupedViewRows" }) do
-        if PSM.state[stateKey] then
-            for _, row in ipairs(PSM.state[stateKey]) do
+        if ns.state[stateKey] then
+            for _, row in ipairs(ns.state[stateKey]) do
                 if row and row.model and row.model:IsVisible() then
                     callback(row.model)
                 end
@@ -50,8 +49,8 @@ local function IterateAllVisibleModels(callback)
         end
     end
 
-    if PSM.state.modelsPanel and PSM.state.modelsPanel:IsVisible() then
-        for _, row in ipairs(PSM.state.modelsPanel.modelRows or {}) do
+    if ns.state.modelsPanel and ns.state.modelsPanel:IsVisible() then
+        for _, row in ipairs(ns.state.modelsPanel.modelRows or {}) do
             if row and row.model and row.model:IsVisible() then
                 callback(row.model)
             end
@@ -59,7 +58,7 @@ local function IterateAllVisibleModels(callback)
     end
 
     for _, popupKey in ipairs({ "petRoulettePopup", "modelMagnificationPopup" }) do
-        local popup = PSM.state[popupKey]
+        local popup = ns.state[popupKey]
         if popup and popup:IsVisible() and popup.modelFrame then
             callback(popup.modelFrame)
         end
@@ -89,7 +88,7 @@ end
 
 local function ApplyCurrentGlobalsToAllModels()
     local s   = PetStableManagementDB.settings
-    local cfg = PSM.Config
+    local cfg = ns.Config
     IterateAllVisibleModels(function(model)
         ApplyAllSettingsToModel(
             model,
@@ -110,9 +109,9 @@ end
 -- out four times: twice in the background-type dropdown and twice again in Reset.
 local function RefreshPopupBackgrounds()
     for _, key in ipairs({ "modelMagnificationPopup", "petRoulettePopup" }) do
-        local popup = PSM.state[key]
+        local popup = ns.state[key]
         if popup and popup:IsVisible() then
-            PSM.PopUpManager:UpdatePopupBackground(popup, popup.currentDisplayId, popup.currentPetData)
+            ns.PopUpManager:UpdatePopupBackground(popup, popup.currentDisplayId, popup.currentPetData)
         end
     end
 end
@@ -130,25 +129,25 @@ end
 --               is also what covers the Ability Browser and Special Tames.
 local function RefreshOpenPanels(opts)
     opts = opts or {}
-    local state = PSM.state
+    local state = ns.state
 
-    if state.panel and state.panel:IsVisible() then PSM.UI:RenderPanel() end
+    if state.panel and state.panel:IsVisible() then ns.UI:RenderPanel() end
 
-    if state.modelsPanel and PSM.ModelsPanel then
+    if state.modelsPanel and ns.ModelsPanel then
         if opts.relayout then
-            PSM.ModelsPanel:UpdateModelsPanelLayout()
-            PSM.ModelsPanel:UpdateVisibleRows()
+            ns.ModelsPanel:UpdateModelsPanelLayout()
+            ns.ModelsPanel:UpdateVisibleRows()
         elseif state.modelsPanel:IsVisible() then
-            PSM.ModelsPanel:UpdateVisibleRows()
+            ns.ModelsPanel:UpdateVisibleRows()
         end
     end
 
     if state.ownedPetsPanel and state.ownedPetsPanel:IsVisible() then
-        PSM.OwnedPets:UpdatePanel()
+        ns.OwnedPets:UpdatePanel()
     end
 
     if opts.opacity and state.teamsPanel and state.teamsPanel:IsVisible() then
-        PSM.TeamsPanel:UpdateOpacity()
+        ns.TeamsPanel:UpdateOpacity()
     end
 
     if opts.popups then RefreshPopupBackgrounds() end
@@ -158,7 +157,7 @@ end
 -- Panel definition
 -------------------------------------------------------------------------------
 
-local panel = PSM.Widgets.Frame(nil)
+local panel = ns.Widgets.Frame(nil)
 panel.name = addonName
 panel:Hide()
 
@@ -167,8 +166,8 @@ panel:SetScript("OnShow", function(self)
     -- even if an error occurs partway through.
     self:SetScript("OnShow", nil)
 
-    local Widgets = PSM.Widgets
-    local cfg     = PSM.Config
+    local Widgets = ns.Widgets
+    local cfg     = ns.Config
 
     -- A title above the slider, then the slider under it. The title carries the
     -- anchor because the vertical rhythm of this panel is measured title-to-title.
@@ -210,7 +209,7 @@ panel:SetScript("OnShow", function(self)
         onClick = function(cb)
             local checked = cb:GetChecked()
             PetStableManagementDB.settings.minimapButton.hide = not checked
-            if checked then PSM.Minimap:Show() else PSM.Minimap:Hide() end
+            if checked then ns.Minimap:Show() else ns.Minimap:Hide() end
         end,
     })
 
@@ -238,10 +237,10 @@ panel:SetScript("OnShow", function(self)
         onChange  = function(value)
             local v = math.floor(value * 100) / 100
             PetStableManagementDB.settings.opacity = v
-            PSM.Config:UpdateColors()
+            ns.Config:UpdateColors()
             -- Covers every panel that draws its own backdrop, the Ability Browser and
             -- Special Tames included. Only the teams panel needs telling separately.
-            PSM.PanelManager:UpdatePanelBackgrounds()
+            ns.PanelManager:UpdatePanelBackgrounds()
             RefreshOpenPanels({ opacity = true })
         end,
     })
@@ -266,7 +265,7 @@ panel:SetScript("OnShow", function(self)
     -- new globals to whatever is on screen.
     local function ApplyModelSetting(key, value)
         PetStableManagementDB.settings[key] = value
-        PSM.state.modelViews = {}
+        ns.state.modelViews = {}
         ApplyCurrentGlobalsToAllModels()
     end
 
@@ -351,9 +350,9 @@ panel:SetScript("OnShow", function(self)
                 PetStableManagementDB.settings.petsPerColumn = btn.value
                 UIDropDownMenu_SetText(petsPerColumnDropdown, btn.value)
                 -- Column count only affects the browser's grid; nothing else repaints.
-                if PSM.state.modelsPanel and PSM.ModelsPanel then
-                    PSM.ModelsPanel:UpdateModelsPanelLayout()
-                    PSM.ModelsPanel:UpdateVisibleRows()
+                if ns.state.modelsPanel and ns.ModelsPanel then
+                    ns.ModelsPanel:UpdateModelsPanelLayout()
+                    ns.ModelsPanel:UpdateVisibleRows()
                 end
             end
             UIDropDownMenu_AddButton(info)
@@ -415,7 +414,7 @@ panel:SetScript("OnShow", function(self)
     Widgets.Button(panel, {
         name  = addonName .. "ResetButton",
         text  = "Reset All Settings",
-        width = PSM.Theme.CONTROL.BUTTON_W.L,
+        width = ns.Theme.CONTROL.BUTTON_W.L,
         point = { "BOTTOMRIGHT", panel, "BOTTOMRIGHT", -RESET_BUTTON_MARGIN, RESET_BUTTON_MARGIN },
         onClick = function()
             -- Write defaults to DB
@@ -437,7 +436,7 @@ panel:SetScript("OnShow", function(self)
             -- height from there on the next populate.
             PetStableManagementDB.settings.popupSizes = {}
             for _, key in ipairs({ "modelMagnificationPopup", "petRoulettePopup" }) do
-                local popup = PSM.state[key]
+                local popup = ns.state[key]
                 if popup then
                     popup.userSized = nil
                     if popup.defaultWidth and popup.defaultHeight then
@@ -455,10 +454,10 @@ panel:SetScript("OnShow", function(self)
                 PetStableManagementDB.filters.selectedExpansions = nil
                 PetStableManagementDB.filters.selectedLocations = nil
             end
-            PSM.state.selectedTamingRules = nil
-            PSM.state.familiesAppliedFromAbilities = nil
-            PSM.state.abilitiesFamilySet = nil
-            PSM.state.modelViews = {}
+            ns.state.selectedTamingRules = nil
+            ns.state.familiesAppliedFromAbilities = nil
+            ns.state.abilitiesFamilySet = nil
+            ns.state.modelViews = {}
 
             -- Families/expansions/locations default to *all selected*, not none. Clearing
             -- the tables to {} left every checkbox unticked, which is the one state the
@@ -469,12 +468,12 @@ panel:SetScript("OnShow", function(self)
             -- that rather than keeping a second, worse copy here. Guarded on the module
             -- being *loaded* rather than available: if it was never loaded there is no
             -- panel to fix, and an empty table is exactly what the seeding wants to see.
-            if PSM.ModelsFilters and PSM.state.modelsPanel then
-                PSM.ModelsFilters:ResetAllFilters(PSM.state.modelsPanel)
+            if ns.ModelsFilters and ns.state.modelsPanel then
+                ns.ModelsFilters:ResetAllFilters(ns.state.modelsPanel)
             else
-                PSM.state.selectedModelsFamilies = {}
-                PSM.state.selectedExpansions     = {}
-                PSM.state.selectedLocations      = {}
+                ns.state.selectedModelsFamilies = {}
+                ns.state.selectedExpansions     = {}
+                ns.state.selectedLocations      = {}
             end
 
             -- Move the controls to match the values just written. Silently, or each
@@ -496,8 +495,8 @@ panel:SetScript("OnShow", function(self)
             -- silent SetValue above skipped the slider's own handler. Reset used to
             -- write the default opacity to the DB and repaint nothing with it, so the
             -- UI kept the old opacity until something unrelated forced a redraw.
-            PSM.Config:UpdateColors()
-            PSM.PanelManager:UpdatePanelBackgrounds()
+            ns.Config:UpdateColors()
+            ns.PanelManager:UpdatePanelBackgrounds()
 
             ApplyCurrentGlobalsToAllModels()
             RefreshOpenPanels({ relayout = true, popups = true, opacity = true })
@@ -518,5 +517,5 @@ elseif Settings and Settings.RegisterAddOnCategory and Settings.RegisterCanvasLa
     Settings.RegisterAddOnCategory(category)
 end
 
-PSM.state.optionsPanel      = panel
-PSM.state.optionsCategoryId = categoryId
+ns.state.optionsPanel      = panel
+ns.state.optionsCategoryId = categoryId

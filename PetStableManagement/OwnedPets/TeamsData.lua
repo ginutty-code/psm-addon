@@ -2,11 +2,8 @@
 -- Pet Teams data management for PetStableManagement
 -- Handles CRUD operations for pet team configurations
 
-local addonName = "PetStableManagement"
-
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
-PSM.Teams = PSM.Teams or {}
+local _, ns = ...
+ns.Teams = ns.Teams or {}
 
 -- Apply retry constants
 local APPLY_RETRY_MAX_ATTEMPTS = 3
@@ -64,7 +61,7 @@ local function InsertTeam(name, slots)
         name       = name,
         createdAt  = now,
         modifiedAt = now,
-        slots      = PSM.Utils.DeepCopy(slots),
+        slots      = ns.Utils.DeepCopy(slots),
     }
     table.insert(TeamsArray(), team)
     SortTeamsAlphabetically()
@@ -96,7 +93,7 @@ local function MsgErr(text)  Msg("FFFF0000", text) end
 -- the owned-pets one for no reason a reader could see.
 --
 -- Accepts either shape: a live `C_StableInfo` record or a processed PSM pet.
-function PSM.Teams:SlotRecord(pet)
+function ns.Teams:SlotRecord(pet)
     if not pet or not pet.name then return nil end
     return {
         petNumber  = pet.petNumber,
@@ -110,13 +107,13 @@ function PSM.Teams:SlotRecord(pet)
         isExotic   = pet.isExotic or false,
         -- Only the current character can capture their own slots, so an absent tamer
         -- means "captured now" rather than "unknown".
-        tamer      = pet.tamer or PSM.GetCharacterKey(),
-        abilities  = pet.abilities or PSM.Data:ExtractPetAbilities(pet),
+        tamer      = pet.tamer or ns.GetCharacterKey(),
+        abilities  = pet.abilities or ns.Data:ExtractPetAbilities(pet),
     }
 end
 
-function PSM.Teams:GetCurrentSlots()
-    if not PSM.state.isStableOpen then
+function ns.Teams:GetCurrentSlots()
+    if not ns.state.isStableOpen then
         return nil, "Stable must be open to capture pet slots"
     end
     if not (C_StableInfo and C_StableInfo.GetStablePetInfo) then
@@ -131,7 +128,7 @@ function PSM.Teams:GetCurrentSlots()
     return slots, nil
 end
 
-function PSM.Teams:CompareWithTeam(teamId)
+function ns.Teams:CompareWithTeam(teamId)
     local _, team = FindTeam(teamId)
     if not team then return false, "Team not found" end
 
@@ -153,8 +150,8 @@ end
 -- CRUD OPERATIONS
 ----------------------------------------------------------------------------------------------------------------
 
-function PSM.Teams:GetTeams()      return TeamsArray()       end
-function PSM.Teams:GetTeamCount()  return #TeamsArray()      end
+function ns.Teams:GetTeams()      return TeamsArray()       end
+function ns.Teams:GetTeamCount()  return #TeamsArray()      end
 
 -- The tooltip every "open the teams panel" button shows. A function spec, so the count
 -- is read at hover time -- these buttons outlive any particular number of saved teams.
@@ -162,25 +159,25 @@ function PSM.Teams:GetTeamCount()  return #TeamsArray()      end
 -- One definition because there are three such buttons (the Owned Pets panel, the
 -- floating menu, the stable frame), and the count line has already been got wrong once
 -- by a caller that passed it as a fixed string built when the panel was created.
-function PSM.Teams:ButtonTooltipSpec()
+function ns.Teams:ButtonTooltipSpec()
     return function()
         return {
             anchor = "ANCHOR_BOTTOM",
             title  = "View and manage saved pet teams",
             lines  = {{
-                text  = "You have " .. (PSM.Teams:GetTeamCount() or 0) .. " saved team(s)",
-                color = PSM.Theme.COLOR.WHITE,
+                text  = "You have " .. (ns.Teams:GetTeamCount() or 0) .. " saved team(s)",
+                color = ns.Theme.COLOR.WHITE,
             }},
         }
     end
 end
 
-function PSM.Teams:GetTeamById(teamId)
+function ns.Teams:GetTeamById(teamId)
     local _, team = FindTeam(teamId)
     return team
 end
 
-function PSM.Teams:SaveTeam(name, slots)
+function ns.Teams:SaveTeam(name, slots)
     if not name or name == "" then return nil, "Team name is required" end
 
     if not slots then
@@ -203,7 +200,7 @@ function PSM.Teams:SaveTeam(name, slots)
     return team.id, nil
 end
 
-function PSM.Teams:UpdateTeam(teamId, slots)
+function ns.Teams:UpdateTeam(teamId, slots)
     if not teamId then return false, "Team ID is required" end
 
     local index, team = FindTeam(teamId)
@@ -216,14 +213,14 @@ function PSM.Teams:UpdateTeam(teamId, slots)
     end
 
     local teams = TeamsArray()
-    teams[index].slots      = PSM.Utils.DeepCopy(slots)
+    teams[index].slots      = ns.Utils.DeepCopy(slots)
     teams[index].modifiedAt = time()
 
     MsgOK("Team '" .. team.name .. "' updated.")
     return true, nil
 end
 
-function PSM.Teams:DeleteTeam(teamId)
+function ns.Teams:DeleteTeam(teamId)
     if not teamId then return false, "Team ID is required" end
 
     local index, team = FindTeam(teamId)
@@ -238,7 +235,7 @@ function PSM.Teams:DeleteTeam(teamId)
     return true, nil
 end
 
-function PSM.Teams:RenameTeam(teamId, newName)
+function ns.Teams:RenameTeam(teamId, newName)
     if not teamId              then return false, "Team ID is required"  end
     if not newName or newName == "" then return false, "New name is required" end
 
@@ -255,7 +252,7 @@ function PSM.Teams:RenameTeam(teamId, newName)
     return true, nil
 end
 
-function PSM.Teams:DuplicateTeam(teamId, newName)
+function ns.Teams:DuplicateTeam(teamId, newName)
     if not teamId then return nil, "Team ID is required" end
 
     local _, source = FindTeam(teamId)
@@ -272,10 +269,10 @@ end
 -- APPLY TEAM
 ----------------------------------------------------------------------------------------------------------------
 
-function PSM.Teams:ApplyTeam(teamId, retryCount)
+function ns.Teams:ApplyTeam(teamId, retryCount)
     retryCount = retryCount or 0
 
-    if not PSM.state.isStableOpen then
+    if not ns.state.isStableOpen then
         return false, "Stable must be open to apply a team"
     end
     if not (C_StableInfo and C_StableInfo.SetPetSlot) then
@@ -290,7 +287,7 @@ function PSM.Teams:ApplyTeam(teamId, retryCount)
 
     -- Build petNumber -> current slotID map
     local petLocationMap = {}
-    for _, pet in ipairs(PSM.state.stablePets) do
+    for _, pet in ipairs(ns.state.stablePets) do
         if pet.petNumber then petLocationMap[pet.petNumber] = pet.slotID end
     end
 
@@ -335,13 +332,13 @@ function PSM.Teams:ApplyTeam(teamId, retryCount)
     return true, nil
 end
 
-function PSM.Teams:ValidateAndRetryApply(teamId, retryCount)
+function ns.Teams:ValidateAndRetryApply(teamId, retryCount)
     local _, team = FindTeam(teamId)
     if not team then return end
 
-    PSM.C_Timer.After(APPLY_RETRY_DELAY, function()
-        if PSM.Data and PSM.Data.CollectStablePets then
-            PSM.Data:CollectStablePets()
+    ns.C_Timer.After(APPLY_RETRY_DELAY, function()
+        if ns.Data and ns.Data.CollectStablePets then
+            ns.Data:CollectStablePets()
         end
 
         local currentSlots = self:GetCurrentSlots()
@@ -371,7 +368,7 @@ function PSM.Teams:ValidateAndRetryApply(teamId, retryCount)
     end)
 end
 
-function PSM.Teams:OnTeamApplied(teamId)
+function ns.Teams:OnTeamApplied(teamId)
     local _, team = FindTeam(teamId)
     if not team then return end
 
@@ -398,21 +395,21 @@ function PSM.Teams:OnTeamApplied(teamId)
 
         if allMatch or attempt >= MAX_VERIFY then
             MsgOK("Team '" .. team.name .. "' applied successfully.")
-            if PSM.TeamsPanel and PSM.TeamsPanel.RefreshTeamsList then
-                PSM.TeamsPanel:RefreshTeamsList()
+            if ns.TeamsPanel and ns.TeamsPanel.RefreshTeamsList then
+                ns.TeamsPanel:RefreshTeamsList()
             end
-            if PSM.UI and PSM.UI.UpdatePanel then
-                PSM.UI:UpdatePanel()
+            if ns.UI and ns.UI.UpdatePanel then
+                ns.UI:UpdatePanel()
             end
         else
-            PSM.C_Timer.After(VERIFY_DELAY, function() verifyAndFinalize(attempt + 1) end)
+            ns.C_Timer.After(VERIFY_DELAY, function() verifyAndFinalize(attempt + 1) end)
         end
     end
 
-    PSM.C_Timer.After(0.5, function() verifyAndFinalize(1) end)
+    ns.C_Timer.After(0.5, function() verifyAndFinalize(1) end)
 end
 
-function PSM.Teams:RestorePetSpecializations(team)
+function ns.Teams:RestorePetSpecializations(team)
     if not (team and team.slots)                              then return end
     if not (C_StableInfo and C_StableInfo.GetStablePetInfo)  then return end
 
@@ -467,7 +464,7 @@ end
 -- SLOT OPERATION EXECUTION
 ----------------------------------------------------------------------------------------------------------------
 
-function PSM.Teams:ExecuteClearOperations(operations, index, callback, usedSlots)
+function ns.Teams:ExecuteClearOperations(operations, index, callback, usedSlots)
     if index > #operations then if callback then callback() end; return end
 
     usedSlots = usedSlots or {}
@@ -477,7 +474,7 @@ function PSM.Teams:ExecuteClearOperations(operations, index, callback, usedSlots
     if stableSlot then
         usedSlots[stableSlot] = true
         C_StableInfo.SetPetSlot(op.fromSlot, stableSlot)
-        PSM.C_Timer.After(0.25, function()
+        ns.C_Timer.After(0.25, function()
             self:ExecuteClearOperations(operations, index + 1, callback, usedSlots)
         end)
     else
@@ -486,7 +483,7 @@ function PSM.Teams:ExecuteClearOperations(operations, index, callback, usedSlots
     end
 end
 
-function PSM.Teams:FindEmptyStableSlotExcluding(usedSlots)
+function ns.Teams:FindEmptyStableSlotExcluding(usedSlots)
     if not (C_StableInfo and C_StableInfo.GetStablePetInfo) then return nil end
     usedSlots = usedSlots or {}
     for slot = 7, 205 do
@@ -498,7 +495,7 @@ function PSM.Teams:FindEmptyStableSlotExcluding(usedSlots)
     return nil
 end
 
-function PSM.Teams:ExecuteSlotOperations(operations, index, callback)
+function ns.Teams:ExecuteSlotOperations(operations, index, callback)
     if index > #operations then if callback then callback() end; return end
 
     local op = operations[index]
@@ -519,9 +516,9 @@ function PSM.Teams:ExecuteSlotOperations(operations, index, callback)
                     operations[i].fromSlot = tempSlot; break
                 end
             end
-            PSM.C_Timer.After(0.2, function()
+            ns.C_Timer.After(0.2, function()
                 C_StableInfo.SetPetSlot(op.fromSlot, op.toSlot)
-                PSM.C_Timer.After(0.2, function()
+                ns.C_Timer.After(0.2, function()
                     self:ExecuteSlotOperations(operations, index + 1, callback)
                 end)
             end)
@@ -531,7 +528,7 @@ function PSM.Teams:ExecuteSlotOperations(operations, index, callback)
         end
     else
         C_StableInfo.SetPetSlot(op.fromSlot, op.toSlot)
-        PSM.C_Timer.After(0.2, function()
+        ns.C_Timer.After(0.2, function()
             self:ExecuteSlotOperations(operations, index + 1, callback)
         end)
     end
@@ -541,9 +538,9 @@ end
 -- ACTIVE TEAM TRACKING
 ----------------------------------------------------------------------------------------------------------------
 
-function PSM.Teams:GetActiveTeamId()   return CharData().activeTeamId     end
+function ns.Teams:GetActiveTeamId()   return CharData().activeTeamId     end
 
-function PSM.Teams:HasActiveTeamChanged()
+function ns.Teams:HasActiveTeamChanged()
     local id = self:GetActiveTeamId()
     if not id then return false, "No active team" end
     return not self:CompareWithTeam(id), nil
@@ -553,7 +550,7 @@ end
 -- UTILITY
 ----------------------------------------------------------------------------------------------------------------
 
-function PSM.Teams:FormatTimestamp(ts)
+function ns.Teams:FormatTimestamp(ts)
     return ts and date("%Y-%m-%d %H:%M", ts) or "Unknown"
 end
 
