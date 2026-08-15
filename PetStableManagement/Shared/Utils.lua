@@ -121,24 +121,16 @@ end
 -- UI HELPERS
 --------------------------------------------------------------------------------
 
--- Creates an invisible overlay on a button that shows a tooltip explaining
--- why the button is disabled. Used for buttons whose module is not loaded.
-function PSM.Utils:CreateButtonTooltipOverlay(button, moduleName, helpText)
-    local overlay = CreateFrame("Frame", nil, button)
-    overlay:SetAllPoints()
-    overlay:EnableMouse(true)
-    overlay:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-        GameTooltip:SetText(moduleName .. " module not loaded")
-        GameTooltip:AddLine(helpText, 1, 1, 1)
-        GameTooltip:Show()
-    end)
-    overlay:SetScript("OnLeave", function()
-        GameTooltip:Hide()
-    end)
-    button.tooltipOverlay = overlay
-    return overlay
-end
+-- `CreateButtonTooltipOverlay` used to live here: an invisible, mouse-enabled frame
+-- pinned over a disabled button so it could show a tooltip explaining why. It existed
+-- purely because a disabled Blizzard button never fires OnEnter.
+--
+-- The overlay was the wrong end of the problem. It had to be shown and hidden in step
+-- with a state nothing re-evaluated, and when it fell out of step it silently ate clicks
+-- on a button that had become usable -- which two other files then worked around by
+-- reaching in and tearing the overlay down by hand. Leaving the button *enabled* and
+-- giving it an ordinary live tooltip removes the overlay, both workarounds, and the
+-- possibility of the state going stale, because no state is stored.
 
 -- Shows a context menu at the cursor using WoW's UIDropDownMenu system.
 -- menuList: array of { text, func, notCheckable, isTitle }

@@ -92,19 +92,34 @@ end
 -- So enable state is the only thing that separates "dormant" from "switched off", and
 -- it lives in its own call: GetAddOnInfo lost its `enabled` field in 8.0.
 function PSM.Loader:IsBrowserAvailable()
-    if self:IsBrowserLoaded() then return true end
+    return self:UnavailableReason() == nil
+end
+
+-- Why the browser cannot be used right now, as a sentence to show a player, or nil when
+-- it is fine. `IsBrowserAvailable` is defined as "no reason", so the predicate and the
+-- explanation can never disagree -- they are one evaluation.
+--
+-- This exists because callers kept writing their own version of the explanation. PSM.Menu
+-- hardcoded "Enable 'Pet Stable Management: Models Browser' in your addon list" for every
+-- case, which is wrong when the folder is missing or a dependency is off, and which
+-- duplicated FAILURE_HINT badly. Anything that has to tell the user why should read it
+-- from here; the chat message in Announce reads the same table.
+function PSM.Loader:UnavailableReason()
+    if self:IsBrowserLoaded() then return nil end
 
     if GetEnableStateFn then
         local ok, state = pcall(GetEnableStateFn, BROWSER_ADDON, UnitName("player"))
-        if ok and state == ENABLE_NONE then return false end
+        if ok and state == ENABLE_NONE then return FAILURE_HINT.DISABLED end
     end
 
     local _, _, _, loadable, reason = GetAddOnInfoFn(BROWSER_ADDON)
-    if loadable then return true end
+    if loadable then return nil end
 
     -- Enabled and demand-loaded: dormant, and offering it is correct. Any other reason
     -- (MISSING, DEP_MISSING, CORRUPT, INCOMPATIBLE) is a real absence.
-    return reason == "DEMAND_LOADED"
+    if reason == "DEMAND_LOADED" then return nil end
+
+    return FAILURE_HINT[reason] or ("Reason: " .. tostring(reason) .. ".")
 end
 
 -- Loads the Models Browser and its data tables. Returns true when it is available

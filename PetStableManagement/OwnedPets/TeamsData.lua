@@ -156,6 +156,25 @@ end
 function PSM.Teams:GetTeams()      return TeamsArray()       end
 function PSM.Teams:GetTeamCount()  return #TeamsArray()      end
 
+-- The tooltip every "open the teams panel" button shows. A function spec, so the count
+-- is read at hover time -- these buttons outlive any particular number of saved teams.
+--
+-- One definition because there are three such buttons (the Owned Pets panel, the
+-- floating menu, the stable frame), and the count line has already been got wrong once
+-- by a caller that passed it as a fixed string built when the panel was created.
+function PSM.Teams:ButtonTooltipSpec()
+    return function()
+        return {
+            anchor = "ANCHOR_BOTTOM",
+            title  = "View and manage saved pet teams",
+            lines  = {{
+                text  = "You have " .. (PSM.Teams:GetTeamCount() or 0) .. " saved team(s)",
+                color = PSM.Theme.COLOR.WHITE,
+            }},
+        }
+    end
+end
+
 function PSM.Teams:GetTeamById(teamId)
     local _, team = FindTeam(teamId)
     return team

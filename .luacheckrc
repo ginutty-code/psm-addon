@@ -66,6 +66,7 @@ read_globals = {
     "GetSpecializationInfo",
     "GetSpellInfo",
     "GetTime",
+    "HideUIPanel",
     "InterfaceOptionsFrame",
     "InterfaceOptionsFrame_OpenToCategory",
     "InterfaceOptions_AddCategory",

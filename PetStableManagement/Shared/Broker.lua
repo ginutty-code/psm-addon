@@ -55,11 +55,11 @@ function broker:ToggleOptionsPanel()
 
     -- Close if already open (check both legacy and modern UI)
     if InterfaceOptionsFrame and InterfaceOptionsFrame:IsVisible() then
-        InterfaceOptionsFrame:Hide()
+        HideUIPanel(InterfaceOptionsFrame)
         return
     end
     if SettingsPanel and SettingsPanel:IsVisible() then
-        SettingsPanel:Hide()
+        HideUIPanel(SettingsPanel)
         return
     end
 
@@ -82,12 +82,22 @@ function broker:CloseAllPanels()
     safeHide(PSM.state.modelMagnificationPopup)
     safeHide(PSM.state.exportFrame)
 
+    -- The settings window counts as one of our panels: our options live inside it as a
+    -- category, so "Close All Panels" leaving it open reads as the button not working.
+    --
+    -- It must be closed through HideUIPanel, never a raw :Hide(). SettingsPanel is
+    -- registered with Blizzard's UIPanel system, which tracks which of its slots are
+    -- occupied; hiding the frame behind the system's back leaves a slot marked in use
+    -- forever, and that is what breaks ESC and NPC gossip until a /reload. The note
+    -- that used to sit here recorded the breakage but blamed closing the panel at all,
+    -- so this stayed open while ToggleOptionsPanel closed it anyway with the very
+    -- :Hide() the note warned about -- one path forbidding what the other did.
     if InterfaceOptionsFrame and InterfaceOptionsFrame:IsVisible() then
-        InterfaceOptionsFrame:Hide()
+        HideUIPanel(InterfaceOptionsFrame)
     end
-
-    -- NOTE: Do NOT hide SettingsPanel here — calling SettingsPanel:Hide()
-    -- programmatically breaks ESC and NPC interactions until /reload.
+    if SettingsPanel and SettingsPanel:IsVisible() then
+        HideUIPanel(SettingsPanel)
+    end
 end
 
 --------------------------------------------------------------------------------

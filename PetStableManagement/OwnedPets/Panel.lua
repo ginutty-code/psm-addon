@@ -231,20 +231,7 @@ function PSM.UI:AddOwnedPetsElements(panel)
         text    = "Pet Teams",
         point   = { "TOPLEFT", panel.exportButton, "TOPRIGHT", 5, 0 },
         onClick = function() PSM.TeamsPanel:Show() end,
-        -- A function spec, so the saved-team count is read at hover time rather than
-        -- at panel build time. This is the only tooltip on the panel and the only one
-        -- that needed live contents, which is what the old MakeButton's
-        -- "body may be a string or a function" indirection existed to serve.
-        tooltip = function()
-            return {
-                anchor = "ANCHOR_BOTTOM",
-                title  = "View and manage saved pet teams",
-                lines  = {{
-                    text  = "You have " .. (PSM.Teams:GetTeamCount() or 0) .. " saved team(s)",
-                    color = Theme.COLOR.WHITE,
-                }},
-            }
-        end,
+        tooltip = PSM.Teams:ButtonTooltipSpec(),
     })
 
     -- View-mode buttons (right side, created right-to-left) ---------------

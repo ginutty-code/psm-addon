@@ -102,6 +102,43 @@ describe("Loader:IsBrowserAvailable", function()
     end)
 end)
 
+describe("Loader:UnavailableReason", function()
+    -- IsBrowserAvailable is defined as "UnavailableReason() == nil", so the two can never
+    -- disagree by construction. This block guards the other half: that the reason is
+    -- specific enough to show a player. PSM.Menu used to hardcode "enable it in your
+    -- addon list" for every case, which is simply wrong when the folder is missing.
+    it("gives no reason when the browser is usable", function()
+        eq(loaderFor(STATES.dormant):UnavailableReason(),      nil, "dormant")
+        eq(loaderFor(STATES.loaded):UnavailableReason(),       nil, "loaded")
+        eq(loaderFor(STATES.plainEnabled):UnavailableReason(), nil, "plain enabled")
+        eq(loaderFor(STATES.someChars):UnavailableReason(),    nil, "some characters")
+    end)
+
+    it("blames the AddOns list when it is switched off", function()
+        local why = loaderFor(STATES.disabled):UnavailableReason()
+        eq(type(why), "string", "disabled gives a reason")
+        eq(why:find("AddOns list", 1, true) ~= nil, true, "mentions the AddOns list")
+    end)
+
+    -- The distinction the old hardcoded string could not draw: telling someone to enable
+    -- an addon whose folder is not installed sends them looking for a tickbox that is
+    -- not there.
+    it("distinguishes a missing folder from a disabled addon", function()
+        local missing  = loaderFor(STATES.missing):UnavailableReason()
+        local disabled = loaderFor(STATES.disabled):UnavailableReason()
+        eq(type(missing), "string", "missing gives a reason")
+        eq(missing ~= disabled, true, "missing reads differently from disabled")
+        eq(missing:find("Interface/AddOns", 1, true) ~= nil, true, "points at the folder")
+    end)
+
+    it("has a reason wherever IsBrowserAvailable says no", function()
+        for name, state in pairs(STATES) do
+            local L = loaderFor(state)
+            eq(L:IsBrowserAvailable(), L:UnavailableReason() == nil, name)
+        end
+    end)
+end)
+
 describe("Loader:IsBrowserLoaded", function()
     -- The narrower question, and the one UI must NOT ask: dormant is the normal state
     -- at login, so gating an affordance on this disables it until first use.

@@ -719,40 +719,14 @@ end
 -- ENABLE BUTTONS
 ----------------------------------------------------------------------------------------------------------------
 
-local function EnableButton(btn)
-    if not btn then return end
-    btn:Enable()
-    btn:SetAlpha(1)
-    if btn.tooltipOverlay then
-        btn.tooltipOverlay:Hide()
-        btn.tooltipOverlay:EnableMouse(false)
-    end
-end
-
-local function EnablePetTeamsButtons()
-    local menu  = PSM.state and PSM.state.menu
-    local panel = PSM.state and PSM.state.panel
-
-    if menu and menu.teamsButton then
-        EnableButton(menu.teamsButton)
-        PSM.Tooltip.Attach(menu.teamsButton, function()
-            local count = PSM.Teams and PSM.Teams:GetTeamCount() or 0
-            return {
-                anchor = "ANCHOR_BOTTOM",
-                title  = "View and manage saved pet teams",
-                lines  = { { text = "You have " .. count .. " saved team(s)",
-                             color = PSM.Theme.COLOR.WHITE } },
-            }
-        end)
-    end
-
-    if panel and panel.teamsButton then
-        EnableButton(panel.teamsButton)
-    end
-
-    if StableFrame and StableFrame.PSM_TeamsListButton then
-        EnableButton(StableFrame.PSM_TeamsListButton)
-    end
-end
-
-C_Timer.After(0.1, EnablePetTeamsButtons)
+-- `EnablePetTeamsButtons` used to run 0.1s after this file loaded, re-enabling three
+-- Pet Teams buttons and tearing down any tooltip overlay on them. None of the three is
+-- disabled by anything any more -- the only :Disable() calls left in the addon are the
+-- view-mode buttons marking the active view -- so all it did was race the login sequence
+-- for frames that mostly did not exist yet.
+--
+-- Its one piece of real work was attaching the saved-team-count tooltip to the floating
+-- menu's button, which only landed when that menu happened to already exist. Both that
+-- button and the Owned Pets panel's now take the tooltip from
+-- `PSM.Teams:ButtonTooltipSpec()` at build time, so it is attached every session rather
+-- than when a timer wins a race.

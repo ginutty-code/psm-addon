@@ -18,16 +18,6 @@ local function PrintRoulette(pet)
         pet.familyName or "Unknown", pet.displayId))
 end
 
-local function EnableMenuButton(btn)
-    if not btn then return end
-    btn:Enable()
-    btn:SetAlpha(1)
-    if btn.tooltipOverlay then
-        btn.tooltipOverlay:Hide()
-        btn.tooltipOverlay:EnableMouse(false)
-    end
-end
-
 -- ============================================================
 -- Model pool helpers
 -- ============================================================
@@ -233,13 +223,13 @@ function PetRoulette:ShowPetRoulettePopup(petData)
     popup:Raise()
 end
 
--- ============================================================
--- Module load: enable menu buttons
--- ============================================================
-
-C_Timer.After(0.1, function()
-    local menu = PSM.state and PSM.state.menu
-    if not menu then return end
-    EnableMenuButton(menu.modelsButton)
-    EnableMenuButton(menu.rouletteButton)
-end)
+-- A "module load: enable menu buttons" block used to sit here, reaching back into
+-- PSM.state.menu to re-enable the core menu's browser buttons and tear down the tooltip
+-- overlay pinned over them. That was the visible "wake up" when the browser finally
+-- loaded -- and it was only needed because the menu disabled those buttons in the first
+-- place, on an availability answer it had cached at construction.
+--
+-- The menu no longer disables them: they stay enabled and re-read availability on hover.
+-- Nothing downstream has to reach up and undo a decision that was never sound. A module
+-- patching its parent's widgets on load is a sign the parent is storing state it should
+-- be deriving.
