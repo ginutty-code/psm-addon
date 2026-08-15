@@ -12,9 +12,11 @@ local describe, it, eq, truthy, isType =
       T.describe, T.it, T.eq, T.truthy, T.isType
 
 dofile("Tests/wow/stubs.lua").install()
+local Addon = dofile("Tests/wow/addon.lua")
 
+-- Loaded with the client's calling convention (see Tests/wow/addon.lua), not dofile.
 _G.PSM = nil  -- Utils.lua self-creates the namespace; prove it rather than assume.
-dofile("PetStableManagement/Shared/Utils.lua")
+Addon.load("PetStableManagement/Shared/Utils.lua")
 local U = _G.PSM.Utils
 
 describe("Utils namespace", function()

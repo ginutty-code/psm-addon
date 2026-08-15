@@ -15,6 +15,9 @@
 local T = ...
 local describe, it, eq = T.describe, T.it, T.eq
 
+-- Loaded with the client's calling convention rather than dofile -- see Tests/wow/addon.lua.
+local Addon = dofile("Tests/wow/addon.lua")
+
 -- One row per state the AddOns list can put the browser in. `loadable`/`reason` mirror
 -- GetAddOnInfo's 4th and 5th returns; `enable` mirrors GetAddOnEnableState (0/1/2).
 --
@@ -60,7 +63,7 @@ local function loaderFor(state)
             return state.enable
         end,
     }
-    dofile("PetStableManagement/Shared/Loader.lua")
+    Addon.load("PetStableManagement/Shared/Loader.lua")
     return _G.PSM.Loader
 end
 
