@@ -100,6 +100,40 @@ Theme.CONTROL = {
     -- skin owns it.** Widgets applies `size` before `PSM.Skin.Apply`, so the ordering
     -- that makes this work is guaranteed by the factory, not by luck.
     ROW_ARROW = 24,
+
+    -- Push button height. **One value, everywhere.** The addon previously ran six --
+    -- 18, 20, 22, 25, 28 and 30 -- split across two Config constants (BUTTON_HEIGHT 22,
+    -- PANEL_BUTTON_HEIGHT 25) and two dozen literals that ignored both.
+    --
+    -- Checked before collapsing it, because a split that tracks something real is a role
+    -- and not drift: the 22/25 divide does *not* follow font size. GameFontNormalSmall
+    -- appears on both sides and several 25s set no font at all. There was no rule.
+    --
+    -- 25 rather than 22 because it was already the majority (~28 buttons to 10), so this
+    -- moves ten buttons and leaves the rest exactly where they were.
+    BUTTON = 25,
+
+    -- Push button widths: a named ladder, chosen at the call site.
+    --
+    -- **Fixed tiers, not fit-to-text**, and the reason is buttons that relabel themselves
+    -- at runtime -- Maximize/Restore, Select All/Unselect All, Exotic/!Exotic, NPC view/
+    -- Models view. Measuring at construction sizes for whichever label happens to be
+    -- first (and ModelsPanel's view toggle is built with no text at all, so it would
+    -- measure zero); re-measuring on every SetText makes a button change width when you
+    -- click it. A fixed width survives both, and keeps rows of buttons aligned.
+    --
+    -- Overflow is handled instead by clipping the label -- see Widgets.Button.
+    -- Tiers were picked from the labels, not from the old widths: switching clipping on
+    -- turns a button that was already overflowing into one that visibly truncates, so
+    -- preserving a too-narrow width would have *created* the regression. "Ability
+    -- Browser", "Unselect All" and "Create Waypoints" all move up a tier for that reason.
+    BUTTON_W = {
+        XS =  50,
+        S  =  80,
+        M  = 100,
+        L  = 140,
+        XL = 180,
+    },
 }
 
 --------------------------------------------------------------------------------

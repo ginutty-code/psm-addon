@@ -198,18 +198,64 @@ end
 -- BUTTONS
 --------------------------------------------------------------------------------
 
+-- Labels clipped for being wider than their button, as { text = width overshoot }.
+-- Inspect with `/dump PSM.Widgets.truncatedLabels`, alongside `unknownOptions` and
+-- `PSM.Skin.unhandled`. Clipping is invisible by design -- a chopped word looks like a
+-- short word -- so the tier that was chosen too small has to be findable on demand.
+Widgets.truncatedLabels = {}
+
+local BUTTON_LABEL_PADDING = 12  -- 6px of breathing room each side
+
+-- Give the label an explicit width and no wrapping, so an over-long string is ellipsised
+-- inside the button instead of drawn past it. WoW does not clip child regions, so an
+-- unconstrained FontString simply spills over whatever sits next to the button.
+--
+-- **This is what makes a fixed width tier safe.** Two things about a button's text
+-- cannot be known when it is built: a later `SetText` may be longer (Maximize/Restore,
+-- Select All/Unselect All), and ElvUI restyles the font after we are finished. Neither
+-- can overflow a clipped label, so neither has to be predicted.
+--
+-- Re-run on resize, because a button sized after construction -- Core.lua's stable pair
+-- copy Blizzard's own button width -- would otherwise keep a label clamped to the width
+-- it had at build time.
+local function ClampLabel(button)
+    local fs = button:GetFontString()
+    if not fs then return end
+    local avail = (button:GetWidth() or 0) - BUTTON_LABEL_PADDING
+    if avail <= 0 then return end
+    -- Measured before constraining: once a width is set, GetStringWidth reports the
+    -- clamped width and the overshoot is no longer visible.
+    local natural = fs:GetStringWidth() or 0
+    fs:SetWordWrap(false)
+    fs:SetWidth(avail)
+    if natural > avail then
+        local text = button:GetText()
+        if text then Widgets.truncatedLabels[text] = math.floor(natural - avail + 0.5) end
+    end
+end
+
 -- The standard Blizzard push button, skinned.
+--
+-- Height and width both default (Theme.CONTROL.BUTTON, and the M tier of
+-- Theme.CONTROL.BUTTON_W), so a call site stays silent unless it genuinely differs --
+-- the same rule as CheckBox. Pass `width = Theme.CONTROL.BUTTON_W.<tier>` to pick
+-- another tier; `size` still works and still wins, for the buttons that must match
+-- something outside the addon.
 function Widgets.Button(parent, opts)
     opts = opts or {}
     CheckOptions("Button", opts, OPTIONS.Button)
     local b = CreateFrame("Button", opts.name, parent, opts.template or "UIPanelButtonTemplate")
     ApplyCommon(b, opts)
+    if not (opts.size or opts.width)  then b:SetWidth(PSM.Theme.CONTROL.BUTTON_W.M) end
+    if not (opts.size or opts.height) then b:SetHeight(PSM.Theme.CONTROL.BUTTON)    end
     if opts.text       then b:SetText(opts.text)                   end
     if opts.fontObject then b:SetNormalFontObject(opts.fontObject) end
     if opts.strata     then b:SetFrameStrata(opts.strata)          end
     if opts.level      then b:SetFrameLevel(opts.level)            end
     if opts.onClick    then b:SetScript("OnClick", opts.onClick)   end
     if opts.tooltip    then PSM.Tooltip.Attach(b, opts.tooltip)    end
+    ClampLabel(b)
+    b:HookScript("OnSizeChanged", ClampLabel)
     PSM.Skin.Apply(b, opts.skin or "button")
     return b
 end
