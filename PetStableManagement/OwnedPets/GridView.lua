@@ -297,9 +297,7 @@ function GV:Disable()
                     m:Hide()
                     m:ClearModel()
                     m.isRotating = false
-                    if PSM.RotationFrame and PSM.RotationFrame.activeModels then
-                        PSM.RotationFrame.activeModels[m] = nil
-                    end
+                    PSM.RowManager:ReleaseModel(m)
                 end
             end
         end

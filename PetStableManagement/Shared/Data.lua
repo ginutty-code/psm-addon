@@ -646,9 +646,7 @@ function PSM.Data:ClearUIRows()
         if not m then return end
         m:Hide(); m:ClearModel()
         m.isRotating = false
-        if PSM.RotationFrame and PSM.RotationFrame.activeModels then
-            PSM.RotationFrame.activeModels[m] = nil
-        end
+        PSM.RowManager:ReleaseModel(m)
     end
 
     -- List view

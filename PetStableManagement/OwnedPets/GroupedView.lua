@@ -705,9 +705,7 @@ function PSM.UI.GroupedView:Disable()
                     r.model:Hide(); r.model:ClearModel()
                     r.model.contextMenuPet = nil
                     r.model.isRotating = false
-                    if PSM.RotationFrame and PSM.RotationFrame.activeModels then
-                        PSM.RotationFrame.activeModels[r.model] = nil
-                    end
+                    PSM.RowManager:ReleaseModel(r.model)
                 end
             end
         end

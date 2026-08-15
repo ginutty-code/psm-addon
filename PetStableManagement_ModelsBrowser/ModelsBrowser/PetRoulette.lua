@@ -117,7 +117,7 @@ function PetRoulette:CleanupPetRoulette()
             mf:SetDisplayInfo(0)
             mf:Hide()
             mf.isRotating = false
-            if PSM.RotationFrame then PSM.RotationFrame.activeModels[mf] = nil end
+            PSM.RowManager:ReleaseModel(mf)
         end
         if popup.infoText then popup.infoText:SetText("") end
         if popup.npcsText  then popup.npcsText:SetText("") end
@@ -211,7 +211,7 @@ function PetRoulette:ShowPetRoulettePopup(petData)
     PSM.PopUpManager:UpdatePopupBackground(popup, petData.displayId, petData)
 
     -- Model (deferred)
-    PSM.C_Timer.After(0.1, function() ApplyModelView(popup, petData) end)
+    C_Timer.After(0.1, function() ApplyModelView(popup, petData) end)
 
     -- Favourites button
     popup.SetFavTexCoord(popup.favoritesButton, PSM.state.favoriteModels[petData.displayId])

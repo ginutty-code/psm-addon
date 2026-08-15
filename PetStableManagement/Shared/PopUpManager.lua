@@ -631,8 +631,7 @@ function PSM.PopUpManager:CreateModelPopup(config)
         })
         SetCamDistanceScaleIfChanged(mf, 1.0 / (db.modelZoom or PSM.Config.DEFAULT_MODEL_ZOOM))
         mf.isMoving = false
-        if PSM.RotationFrame then PSM.RotationFrame.activeModels[mf] = nil end
-        if PSM.MovementFrame then PSM.MovementFrame.activeModels[mf] = nil end
+        PSM.RowManager:ReleaseModel(mf)
         SaveView(popup, { rotation = mf.rotation, zoom = mf.zoom, position = {0, hPos, vPos} })
     end)
     PSM.Tooltip.Attach(popup.modelReset, { title = "Reset View" }, {

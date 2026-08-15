@@ -108,7 +108,7 @@ end
 function PSM.NPCDataLoader:LoadNPCsForSelectedFamilies()
     if not PSM.state.modelsPanel then return end
     if PSM._npcDebounceTimer then PSM._npcDebounceTimer:Cancel() end
-    PSM._npcDebounceTimer = PSM.C_Timer.NewTimer(0.15, function()
+    PSM._npcDebounceTimer = C_Timer.NewTimer(0.15, function()
         PSM.NPCDataLoader:_LoadNPCsImmediate()
     end)
 end

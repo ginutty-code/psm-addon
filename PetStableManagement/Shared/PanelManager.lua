@@ -285,9 +285,7 @@ function PSM.PanelManager:CleanupPanel(panel)
             if row.model then
                 row.model:SetDisplayInfo(0)
                 row.model:Hide()
-                if PSM.RotationFrame then
-                    PSM.RotationFrame.activeModels[row.model] = nil
-                end
+                PSM.RowManager:ReleaseModel(row.model)
             end
             if row.favoriteButton then row.favoriteButton:Hide() end
             row:Hide()

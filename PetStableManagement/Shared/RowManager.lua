@@ -56,6 +56,25 @@ local MovementFrame = EnsureUpdateFrame("MovementFrame", function(self)
     end
 end)
 
+-- Stop both tickers from following a model. Call before a model is hidden, pooled,
+-- rebound to another pet, or otherwise stops being the thing the cursor is dragging.
+--
+-- **This exists because eight call sites wrote it by hand and five of them cleared only
+-- RotationFrame.** A model released mid-right-drag stayed in MovementFrame.activeModels
+-- for the rest of the session, iterated on every OnUpdate and never collected. The guards
+-- had drifted too -- three sites tested `PSM.RotationFrame and PSM.RotationFrame.activeModels`,
+-- one tested nothing, and MovementFrame was checked in two of them.
+--
+-- Public because the Models Browser needs it: PetRoulette was reaching straight into
+-- `PSM.RotationFrame.activeModels`, which is a core internal and not on the published
+-- surface. A service is the right answer to that, not a wider surface.
+function PSM.RowManager:ReleaseModel(model)
+    if not model then return end
+    model.isRotating, model.isMoving = false, false
+    RotationFrame.activeModels[model] = nil
+    MovementFrame.activeModels[model] = nil
+end
+
 -- ─── Helpers ─────────────────────────────────────────────────────────────────
 
 local function GetSettings()
@@ -245,9 +264,7 @@ local function CreateResetButton(parent, model)
         model:SetRotation(model.rotation)
         model:SetPosition(0, hp * 2.0, vp * 2.0)
         SetCamDistanceScaleIfChanged(model, 1.0 / gz)
-        model.isRotating, model.isMoving = false, false
-        RotationFrame.activeModels[model] = nil
-        MovementFrame.activeModels[model] = nil
+        PSM.RowManager:ReleaseModel(model)
 
         if model.displayId then
             PSM.state.modelViews[ViewKey(model)] = {
@@ -567,7 +584,7 @@ function PSM.RowManager:HideRow(row)
         row.model:SetDisplayInfo(0)
         row.model:Hide()
         row.model.isRotating = false
-        RotationFrame.activeModels[row.model] = nil
+        PSM.RowManager:ReleaseModel(row.model)
     end
     for _, key in ipairs({ "icon", "abilitiesHeader", "abilitiesList", "separator" }) do
         if row[key] then

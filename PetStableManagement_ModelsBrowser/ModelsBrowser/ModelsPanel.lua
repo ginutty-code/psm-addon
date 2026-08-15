@@ -200,7 +200,7 @@ function PSM.ModelsPanel:CreateModelsPanel()
         onShow = function(p)
             p._layoutDone = false
             p._renderGeneration = 0   -- reset generation on each open
-            PSM.C_Timer.After(0.01, function()
+            C_Timer.After(0.01, function()
                 if p.showPetsInMyZone then
                     p.currentPlayerZone = PSM.ModelsFilters:GetPlayerZone()
                 end
@@ -238,7 +238,10 @@ function PSM.ModelsPanel:RegisterZoneEventListeners()
     local panel = PSM.state.modelsPanel
     if not panel or panel.zoneEventFrame then return end
 
-    local f = PSM.CreateFrame("Frame")
+    -- Raw CreateFrame, not PSM.CreateFrame: the core alias exists so core's headless
+    -- tests can stub it, and reaching for it from the browser is the cross-addon capture
+    -- pattern ModelRow.lua was fixed for.
+    local f = CreateFrame("Frame")
     f:RegisterEvent("ZONE_CHANGED")
     f:RegisterEvent("ZONE_CHANGED_INDOORS")
     f:RegisterEvent("ZONE_CHANGED_NEW_AREA")
