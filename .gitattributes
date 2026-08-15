@@ -1,0 +1,26 @@
+# Line endings.
+#
+# Everything in this repo is text and everything that reads it is happy with LF: the
+# WoW client does not care, luacheck does not care, and CI runs lua5.1 on Linux. The
+# index has been 100% LF since the repo was created, so this file changes no history --
+# it only stops the working tree drifting away from it.
+#
+# Without this, Git for Windows' default core.autocrlf=true converts LF to CRLF on
+# checkout, so files Git writes are CRLF while files an editor or a tool writes are LF.
+# That split is what produces "LF will be replaced by CRLF the next time Git touches it"
+# on every `git add`. Committing this is the fix; `git config core.safecrlf false` only
+# silences the report.
+#
+# eol=lf rather than eol=native deliberately: native would reintroduce exactly the CRLF
+# conversion above on Windows.
+* text=auto eol=lf
+
+# Binary formats a WoW addon might grow. `text=auto` usually detects these correctly,
+# but .blp and .tga are obscure enough to be worth stating rather than trusting.
+*.blp binary
+*.tga binary
+*.png binary
+*.jpg binary
+*.ttf binary
+*.ogg binary
+*.mp3 binary
