@@ -7,6 +7,51 @@ local addonName = "PetStableManagement"
 _G.PSM = _G.PSM or {}
 local PSM = _G.PSM
 
+--------------------------------------------------------------------------------
+-- PUBLIC API -- what the Models Browser addon may consume from core
+--------------------------------------------------------------------------------
+
+-- Core defines ~38 members on PSM. These are the only ones the browser is allowed to
+-- read; everything else is core-internal, and `Tests/spec/boundary_spec.lua` fails the
+-- build if a browser file reaches for anything outside this list.
+--
+-- **Derived from measurement, not designed.** Every name here was found by scanning what
+-- the browser actually references. Two things that measurement corrected: `Loader` was on
+-- the planned list and is *not* used by the browser (sensibly -- Loader is what loads the
+-- browser), and `C_Timer`/`CreateFrame` *were* being used and should not have been. Those
+-- are core's WoW API aliases, kept so core's headless tests can stub them; the browser
+-- calls the globals directly, as ModelRow.lua was already fixed to do.
+--
+-- Adding a name here is a real decision -- it is one more thing that can never be changed
+-- without touching two addons. Prefer giving the browser a *service* to consuming a core
+-- internal; the UI kit (Theme/Skin/Tooltip/Widgets) is the model, being four names with
+-- no back-references.
+--
+-- This is deliberately a `local`. It is a contract about PSM, not a member of it, and
+-- publishing it would make the list itself part of the surface it describes.
+--
+-- It has no runtime reader *yet* -- the boundary spec parses this file's text, and A3's
+-- `ns` conversion will drive core's exports from it. Declared unused rather than given a
+-- decorative consumer, because inventing a fake reader to quiet a warning is how
+-- CHECKBOX_INDENT_X ended up in read_globals.
+--
+-- luacheck: ignore PUBLIC_API
+local PUBLIC_API = {
+    "Config",        -- constants: colours, sizes, strings
+    "Data",          -- SavedVariables access
+    "PanelManager",  -- panel chrome: CreateBasePanel, TogglePanel, search boxes
+    "PopUpManager",  -- shared popups, incl. ShowURLPopup for Wowhead links
+    "RowManager",    -- model rotation/zoom hover controls
+    "Skin",          -- ElvUI skinning (the only file allowed to see the ElvUI global)
+    "Theme",         -- fonts, colour ramp, control sizes, backdrop presets
+    "Tooltip",       -- declarative tooltip attachment
+    "Utils",         -- pure helpers
+    "Widgets",       -- the frame factories
+    "state",         -- shared mutable state -- by far the largest consumer (218 of the
+                     -- browser's ~437 core references). A5 owns shrinking this; until
+                     -- then it is public because it has to be, not because it should be.
+}
+
 -- Initialize persistent data storage
 PetStableManagementDB = PetStableManagementDB or {
     version = "3.0.0",
