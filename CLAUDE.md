@@ -229,11 +229,12 @@ Migrated, each with zero raw `CreateFrame` / `CreateFontString` / `CreateTexture
 `Shared/Broker.lua`, `Shared/PanelManager.lua`, `Shared/OptionsPanel.lua`,
 `OwnedPets/TeamsPanel.lua`, `OwnedPets/Export.lua`, `OwnedPets/Filters.lua`,
 `OwnedPets/GroupedView.lua`, `OwnedPets/GridView.lua`, `OwnedPets/Panel.lua`,
+`OwnedPets/DragDrop.lua`,
 `ModelsBrowser/SpecialTames.lua`, `ModelsBrowser/ModelsFilters.lua`,
 `ModelsBrowser/AbilityBrowser.lua`, `ModelsBrowser/ModelsPanel.lua`,
 `ModelsBrowser/NPCRow.lua`, `ModelsBrowser/ModelRow.lua`.
 
-Repo-wide, twenty files in: `ApplyElvUISkin` **86 → 4**, `CreateFrame` **193 → 29**.
+Repo-wide, twenty-one files in: `ApplyElvUISkin` **86 → 4**, `CreateFrame` **193 → 25**.
 
 **The density score says how much a file does by hand, not what kind.** `GridView`
 scored 17 and every one of them was `GameTooltip:` — zero construction, because
@@ -262,8 +263,7 @@ fixed for.
 Remaining, densest first — **re-measure rather than trusting this list**, the original
 one was a partial survey that omitted the two densest files in the addon:
 
-`OwnedPets/DragDrop.lua` (11), `Shared/Menu.lua` (10), `Shared/Utils.lua` (7),
-`OwnedPets/Row.lua` (6).
+`Shared/Menu.lua` (10), `Shared/Utils.lua` (7), `OwnedPets/Row.lua` (6).
 `Shared/UI.lua` is the `ApplyElvUISkin` shim and goes when its last caller does —
 `Shared/Menu.lua` (3) and `OwnedPets/Row.lua` (1) hold all four that remain.
 
@@ -350,7 +350,7 @@ until the layering work separates it.
 so it doesn't only ever exercise the lupa fallback).
 
 The lint job **gates on errors, not warnings**. luacheck exits 1 for warnings and
-≥2 for errors; the project carries a stable warning baseline (59), so failing on any
+≥2 for errors; the project carries a stable warning baseline (58), so failing on any
 warning would fail every run. The count is printed in the job log — treat a change
 in it as something you caused, and account for it.
 
@@ -366,7 +366,7 @@ path is in `CLAUDE.local.md` (untracked). Run from the repo root:
 luacheck PetStableManagement PetStableManagement_ModelsBrowser Tests
 ```
 
-The current clean baseline is **59 warnings / 0 errors**. Treat any change in it as
+The current clean baseline is **58 warnings / 0 errors**. Treat any change in it as
 something you introduced, and account for it — a drop is as much a claim as a rise,
 and should be attributable to a specific edit.
 

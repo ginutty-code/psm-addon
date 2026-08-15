@@ -1,8 +1,6 @@
 -- OwnedPets/DragDrop.lua
 -- Drag and drop functionality for reordering pets in the Owned Pets panel
 
-local addonName = "PetStableManagement"
-
 _G.PSM = _G.PSM or {}
 local PSM = _G.PSM
 PSM.DragDrop = PSM.DragDrop or {}
@@ -17,6 +15,11 @@ local COLOR = {
 }
 
 local ICON_SIZE = 55
+
+-- The drag frame's ring and its slot caption are deliberately the same yellow -- they
+-- read as one object being carried. Not Theme.COLOR.GOLD, which is dimmer (1, 0.82, 0)
+-- and is the addon's *text* accent; this is a full-intensity highlight.
+local DRAG_HIGHLIGHT = { 1, 1, 0, 1 }
 
 DD.state = {
     isDragging             = false,
@@ -92,12 +95,15 @@ local function SetDropIndicator(row, show)
     if not row then return end
     if show then
         if not row._dropIndicator then
-            local t = row:CreateTexture(nil, "OVERLAY")
-            t:SetWidth(3)
-            t:SetPoint("TOPLEFT",    row, "TOPLEFT",    0, 0)
-            t:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
-            t:SetColorTexture(0.2, 1.0, 0.2, 1)
-            row._dropIndicator = t
+            row._dropIndicator = PSM.Widgets.Texture(row, {
+                layer = "OVERLAY",
+                width = 3,
+                color = { 0.2, 1.0, 0.2, 1 },
+                point = {
+                    { "TOPLEFT",    row, "TOPLEFT",    0, 0 },
+                    { "BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0 },
+                },
+            })
         end
         row._dropIndicator:Show()
     else
@@ -112,27 +118,33 @@ end
 local function GetDragFrame()
     if DD.state.dragFrame then return DD.state.dragFrame end
 
-    local f = CreateFrame("Frame", "PSMDragFrame", UIParent, "BackdropTemplate")
-    f:SetSize(80, 80)
-    f:SetFrameStrata("TOOLTIP")
-    f:SetFrameLevel(100)
-    f:Hide()
+    local Widgets = PSM.Widgets
 
-    f.model = CreateFrame("PlayerModel", nil, f)
-    f.model:SetAllPoints()
+    -- BORDER_ONLY with a 12px edge: a ring around whatever is being dragged, with the
+    -- model or icon showing through. The preset's insets are inert here because there
+    -- is no bgFile to inset.
+    local f = Widgets.Frame(UIParent, {
+        name              = "PSMDragFrame",
+        size              = { 80, 80 },
+        strata            = "TOOLTIP",
+        level             = 100,
+        hidden            = true,
+        backdrop          = "BORDER_ONLY",
+        backdropOverrides = { edgeSize = 12 },
+        borderColor       = DRAG_HIGHLIGHT,
+    })
+
+    f.model = Widgets.Frame(f, { frameType = "PlayerModel", allPoints = true })
     f.model:SetRotation(math.pi * 2)
 
-    f.icon = f:CreateTexture(nil, "ARTWORK")
-    f.icon:SetAllPoints()
-    f.icon:Hide()
+    f.icon = Widgets.Texture(f, { layer = "ARTWORK", allPoints = true, hidden = true })
 
-    f:SetBackdrop({ edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 12 })
-    f:SetBackdropBorderColor(1, 1, 0, 1)
-
-    f.slotText = f:CreateFontString(nil, "OVERLAY")
-    f.slotText:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
-    f.slotText:SetPoint("BOTTOM", f, "BOTTOM", 0, 2)
-    f.slotText:SetTextColor(1, 1, 0)
+    f.slotText = Widgets.Label(f, {
+        fontSize = PSM.Theme.SIZE.LABEL,
+        outline  = true,
+        color    = DRAG_HIGHLIGHT,
+        point    = { "BOTTOM", f, "BOTTOM", 0, 2 },
+    })
 
     DD.state.dragFrame = f
     return f
@@ -141,32 +153,37 @@ end
 local function GetTeamDragFrame()
     if DD.teamState.dragFrame then return DD.teamState.dragFrame end
 
-    local f = CreateFrame("Frame", nil, UIParent)
-    f:SetSize(ICON_SIZE + 45, ICON_SIZE + 45)
-    f:SetFrameStrata("HIGH")
-    f:SetFrameLevel(1000)
-    f:Hide()
+    local Widgets = PSM.Widgets
+
+    local f = Widgets.Frame(UIParent, {
+        size   = { ICON_SIZE + 45, ICON_SIZE + 45 },
+        strata = "HIGH",
+        level  = 1000,
+        hidden = true,
+    })
     f:EnableMouse(true)
     f:SetMovable(true)
     f:SetClampedToScreen(true)
 
-    local portrait = f:CreateTexture(nil, "BACKGROUND", nil, 1)
-    portrait:SetSize(ICON_SIZE, ICON_SIZE)
-    portrait:SetPoint("CENTER", f, "CENTER", 0, 0)
-    f.portrait = portrait
+    f.portrait = Widgets.Texture(f, {
+        layer    = "BACKGROUND",
+        sublayer = 1,
+        size     = { ICON_SIZE, ICON_SIZE },
+        point    = { "CENTER", f, "CENTER", 0, 0 },
+    })
 
-    local mask = f:CreateMaskTexture()
-    mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask",
-        "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-    mask:SetSize(ICON_SIZE, ICON_SIZE)
-    mask:SetPoint("CENTER", f, "CENTER", 0, 0)
-    portrait:AddMaskTexture(mask)
-    f.mask = mask
+    f.mask = Widgets.MaskTexture(f, {
+        texture = "Interface\\CharacterFrame\\TempPortraitAlphaMask",
+        size    = { ICON_SIZE, ICON_SIZE },
+        point   = { "CENTER", f, "CENTER", 0, 0 },
+    })
+    f.portrait:AddMaskTexture(f.mask)
 
-    local border = f:CreateTexture(nil, "BORDER")
-    border:SetAtlas("footer_inactive-ring")
-    border:SetAllPoints(f)
-    f.border = border
+    f.border = Widgets.Texture(f, {
+        layer     = "BORDER",
+        atlas     = "footer_inactive-ring",
+        allPoints = true,
+    })
 
     DD.teamState.dragFrame = f
     return f
@@ -217,9 +234,6 @@ function DD:StartDrag(row, pet, allowOutsideStable)
     df.slotText:SetText("Slot " .. (pet.slotID or "?"))
     df:Show()
     self:UpdateDragFramePosition()
-
-    local interceptor = self:GetDragInterceptor()
-    if interceptor then interceptor:Show() end
 
     return true
 end
@@ -280,8 +294,6 @@ function DD:EndDrag()
     s.targetPet                = nil
     s.originalBackdrop         = nil
     s.lastFocus                = nil
-
-    if self._interceptor then self._interceptor:Hide() end
 end
 
 -- A group's stored pet order, with any visible-but-untracked pets seeded in first.
@@ -550,8 +562,10 @@ function DD:SetupModelDragDrop(model, pet, parentRow, allowOutsideStable)
     end)
 end
 
--- Per-frame position update & mouse-release detection
-local updateFrame = CreateFrame("Frame")
+-- Per-frame position update & mouse-release detection. Parentless and invisible: a
+-- handler holder, not a widget, so it stays out of the kit. PSM.CreateFrame is Core's
+-- alias, which the headless tests can stub.
+local updateFrame = PSM.CreateFrame("Frame")
 updateFrame:SetScript("OnUpdate", function()
     if not DD.state.isDragging then return end
 
@@ -606,16 +620,10 @@ updateFrame:SetScript("OnUpdate", function()
     end
 end)
 
-function DD:GetDragInterceptor()
-    if self._interceptor then return self._interceptor end
-    local f = CreateFrame("Frame", "PSMDragInterceptor", UIParent)
-    f:SetAllPoints(UIParent)
-    f:EnableMouse(false)
-    f:SetFrameStrata("BACKGROUND")
-    f:Hide()
-    self._interceptor = f
-    return f
-end
+-- `DD:GetDragInterceptor` used to live here: a full-screen frame shown for the duration
+-- of a drag and hidden after. It was created with EnableMouse(false), no textures and
+-- BACKGROUND strata, so it could intercept nothing and draw nothing -- the name asserted
+-- a mechanism the construction ruled out. Removed along with its two call sites.
 
 ------------------------------------------------
 -- TEAM SLOT DRAG & DROP
