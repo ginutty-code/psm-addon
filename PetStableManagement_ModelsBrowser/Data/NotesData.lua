@@ -2071,6 +2071,7 @@ PSM.NotesData = {
     [253499] = [[Found just west outside of Maisara Deeps.]],
     [253694] = [[Found during the quest, The Serpent's Tail.]],
     [253695] = [[Found during the quest, The Serpent's Tail.]],
+    [253697] = [[Found during the quest, The Serpent's Tail.]],
     [253764] = [[Found during the quest, The Serpent's Tail.]],
     [253765] = [[Found during the quest, The Serpent's Tail.]],
     [253884] = [[Found during a short sequence of Patch 12.1 Campaign quests, beginning with To the Skybridge. Also spawns during the confrontation with Hexlord Malacrass during the quest, Down With the Skies.]],
@@ -2142,7 +2143,10 @@ PSM.NotesData = {
     [264350] = [[Found during the event, "Temple Strike: Overflowing Venom".]],
     [265048] = [[Located in The Grudge Pit (Delve). Can spawn when the delve story is "The Fungal Pharmacon".]],
     [265051] = [[Located in The Grudge Pit (Delve). Can spawn when the delve story is "The Fungal Pharmacon".]],
+    [265480] = [[Found during the quest, Bravely Burning.]],
+    [265720] = [[Found during the quest, Root of Survival.]],
     [270767] = [[Found during the quest, The Serpent's Tail.]],
+    [271028] = [[Found during the quest, Bravely Burning.]],
     [273290] = [[Spawns when rescuing Naz'ara the Clever during the quest, Into the Vaults of Atal'Utek.]],
 }
 

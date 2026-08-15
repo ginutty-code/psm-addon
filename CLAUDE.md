@@ -308,10 +308,23 @@ failure. The fallback uses lupa's bundled **Lua 5.1** — the client's own diale
 so results match; don't let it pick up a 5.4/5.5 runtime.
 
 - `Tests/spec/models_data_spec.lua` — golden tests for the generated `ModelsData`:
-  7,700 records, `Index`/`NpcId` inverse consistency, 61/12/4/394 lookup counts,
+  the record count, `Index`/`NpcId` inverse consistency, the distinct lookup counts,
   every ID resolving through its lookup table, and the T3 spot-check NPCs. **This is
   the guard against psm-data regenerating a shape the addon can't read** — the
   failure that made the addon unloadable mid-migration and was only found in-game.
+
+  **After a data refresh it fails on exactly two literals, by design** — the record
+  count and the distinct-zone count. Both guard against generation being cut short or a
+  lookup table losing entries, which is otherwise undetectable: a truncated run is
+  perfectly self-consistent. *Read the numbers before bumping them.* Movement of tens is
+  a normal Wowhead refresh; thousands is a generator regression, as is any spot-check
+  failing on a **name, family or zone**.
+
+  Nothing else in that spec is allowed to churn, so those two stay a real checkpoint
+  instead of one of a crowd. In particular the spot-checks assert fields only, never the
+  dense index an npcId resolves to — that index is a *position*, shifted by any earlier
+  insertion, and pinning it produced five guaranteed failures per refresh that taught
+  nothing except the habit of bumping numbers. The counts live in the spec, not here.
 - `Tests/spec/utils_spec.lua` — the pure helpers in `Shared/Utils.lua`.
 
 When adding a spec, append it to `SPECS` in `Tests/suite.lua` (explicit list: Lua has

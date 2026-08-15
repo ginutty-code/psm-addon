@@ -42,9 +42,17 @@ describe("ModelsData structure", function()
         end
     end)
 
-    it("holds 7800 records, consistently across Index and NpcId", function()
-        eq(#M.NpcId, 7800, "#NpcId")
-        eq(count(M.Index), 7800, "Index entry count")
+    -- The one number in this file that has to be re-pointed after a data refresh, and
+    -- deliberately so: it is the only guard against generation being cut short, and a
+    -- truncated run is otherwise perfectly self-consistent. When it fails, *read the
+    -- numbers before bumping them* -- tens is a normal Wowhead refresh, thousands is a
+    -- generator regression. Nothing else here is allowed to churn, so this stays the
+    -- single deliberate human checkpoint rather than one of a crowd of literals.
+    it("holds 7852 records", function()
+        eq(#M.NpcId, 7852, "#NpcId")
+        -- Not compared against the literal too: "exact inverses" below proves Index and
+        -- NpcId are a bijection, so a second literal would restate that, not test it.
+        eq(count(M.Index), #M.NpcId, "Index entry count")
     end)
 
     it("Index and NpcId are exact inverses", function()
@@ -56,6 +64,10 @@ describe("ModelsData structure", function()
         end
     end)
 
+    -- Kept exact for the same reason as the record count: each guards against a lookup
+    -- table *losing* entries, which would render blank cells in-game rather than error.
+    -- Families/Expansions/Classifications are game facts and barely move; the zone count
+    -- tracks the data and will need re-pointing alongside the record count.
     it("has the expected distinct lookup counts", function()
         eq(count(M.Families), 61, "distinct families")
         eq(count(M.Expansions), 12, "distinct expansions")
@@ -135,7 +147,7 @@ end)
 
 describe("ModelsData known records", function()
     -- `displayId` may be a single number or a list: roughly a quarter of records have
-    -- several display IDs (2124 of 7800 at the time of writing), and that has always
+    -- several display IDs (2149 of 7852 at the time of writing), and that has always
     -- been true -- every case here happened to be single-valued until the tail record
     -- changed, so the shape went uncovered. Written as a list, compared elementwise.
     local function eqDisplayIds(actual, expected, label)
@@ -150,28 +162,27 @@ describe("ModelsData known records", function()
         end
     end
 
-    -- The exact NPCs spot-checked by hand during T3, plus the last dense index as
-    -- a canary for truncated generation.
+    -- The exact NPCs spot-checked by hand during T3.
     --
-    -- The canary has to be re-pointed whenever the data grows: it is the *last* record
-    -- that proves generation was not cut short, so a stale one silently stops testing
-    -- that. When updating it, take the record at #M.NpcId, not the previous canary's
-    -- new index.
+    -- Keyed by npcId and asserting only fields, never the dense index the npcId resolves
+    -- to. That index shifts on every refresh that inserts an earlier record -- it is a
+    -- position, not a fact about the pet -- so asserting it produced five guaranteed
+    -- failures per refresh that taught nothing except the habit of bumping numbers.
+    -- What is worth pinning is that 265254 is still a Warp Stalker in Naigtal.
     local CASES = {
-        { npc = 30,     index = 1,    name = "Forest Spider",        family = "Spider",       expansion = "Vanilla",  classification = "Normal", zone = "Elwynn Forest", displayId = 366,    reactA = -1, reactH = -1 },
-        { npc = 43,     index = 2,    name = "Mine Spider",          family = "Spider",       expansion = "Vanilla",  classification = "Normal", zone = "Elwynn Forest", displayId = 368,    reactA = -1, reactH = -1 },
-        { npc = 113,    index = 3,    name = "Stonetusk Boar",       family = "Boar",         expansion = "Vanilla",  classification = "Normal", zone = "Elwynn Forest", displayId = 503,    reactA = 0,  reactH = 0  },
-        { npc = 118,    index = 4,    name = "Prowler",              family = "Wolf",         expansion = "Vanilla",  classification = "Normal", zone = "Elwynn Forest", displayId = 11415,  reactA = -1, reactH = -1 },
-        { npc = 265254, index = 7786, name = "Hal'hadar Leystalker", family = "Warp Stalker", expansion = "Midnight", classification = "Normal", zone = "Naigtal",       displayId = 141335, reactA = -1, reactH = -1 },
-        -- The truncation canary: last dense index, and multi-valued by chance, which is
-        -- the only coverage this spec has of that shape.
-        { npc = 273290, index = 7800, name = "Writhing Coiler",      family = "Serpent",      expansion = "Midnight", classification = "Normal", zone = "Vaults of Atal'Utek", displayId = { 137231, 142379 }, reactA = 0, reactH = 0 },
+        { npc = 30,     name = "Forest Spider",        family = "Spider",       expansion = "Vanilla",  classification = "Normal", zone = "Elwynn Forest", displayId = 366,    reactA = -1, reactH = -1 },
+        { npc = 43,     name = "Mine Spider",          family = "Spider",       expansion = "Vanilla",  classification = "Normal", zone = "Elwynn Forest", displayId = 368,    reactA = -1, reactH = -1 },
+        { npc = 113,    name = "Stonetusk Boar",       family = "Boar",         expansion = "Vanilla",  classification = "Normal", zone = "Elwynn Forest", displayId = 503,    reactA = 0,  reactH = 0  },
+        { npc = 118,    name = "Prowler",              family = "Wolf",         expansion = "Vanilla",  classification = "Normal", zone = "Elwynn Forest", displayId = 11415,  reactA = -1, reactH = -1 },
+        { npc = 265254, name = "Hal'hadar Leystalker", family = "Warp Stalker", expansion = "Midnight", classification = "Normal", zone = "Naigtal",       displayId = 141335, reactA = -1, reactH = -1 },
+        -- Multi-valued by chance, and the only coverage this spec has of that shape.
+        { npc = 273290, name = "Writhing Coiler",      family = "Serpent",      expansion = "Midnight", classification = "Normal", zone = "Vaults of Atal'Utek", displayId = { 137231, 142379 }, reactA = 0, reactH = 0 },
     }
 
     for _, c in ipairs(CASES) do
         it(("npc %d resolves to %s"):format(c.npc, c.name), function()
             local i = M.Index[c.npc]
-            eq(i, c.index, "dense index")
+            truthy(i, ("npc %d is present in Index"):format(c.npc))
             eq(M.Name[i], c.name, "name")
             eq(M.Families[M.FamilyId[i]], c.family, "family")
             eq(M.Expansions[M.ExpansionId[i]], c.expansion, "expansion")
