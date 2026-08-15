@@ -1,9 +1,13 @@
 -- OptionsPanel.lua
 -- Options panel integration for PetStableManagement
 
+_G.PSM = _G.PSM or {}
+local PSM = _G.PSM
+
 local addonName = "Pet Stable Management"
 
 -- Layout constants
+local CHECKBOX_INDENT_X         = 0
 local SLIDER_WIDTH_OFFSET       = 48
 local CHECKBOX_INDENT_Y         = -14
 local SECTION_SPACING           = -18
@@ -12,12 +16,11 @@ local SLIDER_SLIDER_SPACING     = -36
 local DIVIDER_SPACING           = 36
 local DROPDOWN_OFFSET_X         = -20
 local DROPDOWN_OFFSET_Y         = -8
+local DROPDOWN_WIDTH            = 100
+local CHECKBOX_DROPDOWN_OFFSET  = -4  -- centres a checkbox against a dropdown's height
 local RESET_BUTTON_WIDTH        = 100
 local RESET_BUTTON_HEIGHT       = 22
 local RESET_BUTTON_MARGIN       = 16
-
--- Guard flag: suppresses model/DB side-effects during programmatic SetValue calls
-local isResetting = false
 
 local function SetCamDistanceScaleIfChanged(model, scale)
     if model.lastCamDistanceScale ~= scale then
@@ -102,41 +105,62 @@ local function ApplyCurrentGlobalsToAllModels()
 end
 
 -------------------------------------------------------------------------------
--- Widget factories
+-- Panel refresh
 -------------------------------------------------------------------------------
 
-local function CreateLabelledSlider(panel, anchorWidget, anchorOffset, opts)
-    local title = panel:CreateFontString("ARTWORK", nil, "GameFontNormal")
-    title:SetPoint("TOPLEFT", anchorWidget, "BOTTOMLEFT", 0, anchorOffset)
-    title:SetText(opts.title)
-
-    local slider = CreateFrame("Slider", addonName .. opts.name, panel, "OptionsSliderTemplate")
-    slider:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, SLIDER_TITLE_SPACING)
-    slider:SetWidth(panel:GetWidth() - SLIDER_WIDTH_OFFSET)
-    slider:SetMinMaxValues(opts.min, opts.max)
-    slider:SetValueStep(opts.step)
-    slider:SetValue(opts.value)
-
-    _G[slider:GetName() .. "Low"]:SetText(opts.lowLabel)
-    _G[slider:GetName() .. "High"]:SetText(opts.highLabel)
-    _G[slider:GetName() .. "Text"]:SetText(opts.formatLabel(opts.value))
-
-    return slider, title
+-- Both popups redraw their background from the same three fields. This was written
+-- out four times: twice in the background-type dropdown and twice again in Reset.
+local function RefreshPopupBackgrounds()
+    for _, key in ipairs({ "modelMagnificationPopup", "petRoulettePopup" }) do
+        local popup = PSM.state[key]
+        if popup and popup:IsVisible() then
+            PSM.PopUpManager:UpdatePopupBackground(popup, popup.currentDisplayId, popup.currentPetData)
+        end
+    end
 end
 
-local function CreateLabelledCheckbox(panel, anchorWidget, anchorPoint, offsetX, offsetY, name, label, checked)
-    local cb = CreateFrame("CheckButton", addonName .. name, panel, "UICheckButtonTemplate")
-    cb:SetPoint("TOPLEFT", anchorWidget, anchorPoint, offsetX, offsetY)
-    cb:SetChecked(checked)
-    _G[cb:GetName() .. "Text"]:SetText(label)
-    return cb
+-- Repaint whatever is on screen after a settings change. Three call sites used to
+-- each carry their own copy of this list, and they had already drifted apart -- only
+-- one of them refreshed the teams panel, and only one rebuilt the models grid.
+--
+--   relayout -- the models browser's grid must be rebuilt, not just repainted
+--               (the column count changed). Done whether or not it is visible, so a
+--               panel opened later is already correct.
+--   popups   -- the magnification and roulette popups redraw their backgrounds.
+--   opacity  -- the teams panel repaints at the new opacity. Every other panel here
+--               picks opacity up from PanelManager:UpdatePanelBackgrounds(), which
+--               is also what covers the Ability Browser and Special Tames.
+local function RefreshOpenPanels(opts)
+    opts = opts or {}
+    local state = PSM.state
+
+    if state.panel and state.panel:IsVisible() then PSM.UI:RenderPanel() end
+
+    if state.modelsPanel and PSM.ModelsPanel then
+        if opts.relayout then
+            PSM.ModelsPanel:UpdateModelsPanelLayout()
+            PSM.ModelsPanel:UpdateVisibleRows()
+        elseif state.modelsPanel:IsVisible() then
+            PSM.ModelsPanel:UpdateVisibleRows()
+        end
+    end
+
+    if state.ownedPetsPanel and state.ownedPetsPanel:IsVisible() then
+        PSM.OwnedPets:UpdatePanel()
+    end
+
+    if opts.opacity and state.teamsPanel and state.teamsPanel:IsVisible() then
+        PSM.TeamsPanel:UpdateOpacity()
+    end
+
+    if opts.popups then RefreshPopupBackgrounds() end
 end
 
 -------------------------------------------------------------------------------
 -- Panel definition
 -------------------------------------------------------------------------------
 
-local panel = CreateFrame("Frame")
+local panel = PSM.Widgets.Frame(nil)
 panel.name = addonName
 panel:Hide()
 
@@ -145,195 +169,190 @@ panel:SetScript("OnShow", function(self)
     -- even if an error occurs partway through.
     self:SetScript("OnShow", nil)
 
+    local Widgets = PSM.Widgets
+    local cfg     = PSM.Config
+
+    -- A title above the slider, then the slider under it. The title carries the
+    -- anchor because the vertical rhythm of this panel is measured title-to-title.
+    local function LabelledSlider(anchorWidget, anchorOffset, titleText, opts)
+        local title = Widgets.Label(panel, {
+            fontObject = "GameFontNormal",
+            text       = titleText,
+            point      = { "TOPLEFT", anchorWidget, "BOTTOMLEFT", 0, anchorOffset },
+        })
+        opts.point = { "TOPLEFT", title, "BOTTOMLEFT", 0, SLIDER_TITLE_SPACING }
+        opts.width = panel:GetWidth() - SLIDER_WIDTH_OFFSET
+        return Widgets.Slider(panel, opts), title
+    end
+
+    local function Dropdown(name, point)
+        local d = Widgets.Frame(panel, {
+            name     = addonName .. name,
+            template = "UIDropDownMenuTemplate",
+            skin     = "dropdown",
+            point    = point,
+        })
+        UIDropDownMenu_SetWidth(d, DROPDOWN_WIDTH)
+        return d
+    end
+
     -- Title
-    local title = panel:CreateFontString("ARTWORK", nil, "GameFontNormalLarge")
-    title:SetPoint("TOPLEFT", RESET_BUTTON_MARGIN, -RESET_BUTTON_MARGIN)
-    title:SetText(addonName)
+    local title = Widgets.Label(panel, {
+        fontObject = "GameFontNormalLarge",
+        text       = addonName,
+        point      = { "TOPLEFT", RESET_BUTTON_MARGIN, -RESET_BUTTON_MARGIN },
+    })
 
     -- ── Minimap checkbox ────────────────────────────────────────────────────
-    local showMinimapCheckbox = CreateLabelledCheckbox(
-        panel, title, "BOTTOMLEFT", CHECKBOX_INDENT_X, CHECKBOX_INDENT_Y,
-        "ShowMinimapCheckbox", "Show minimap button",
-        not PetStableManagementDB.settings.minimapButton.hide
-    )
-    showMinimapCheckbox:SetScript("OnClick", function(cb)
-        local checked = cb:GetChecked()
-        PetStableManagementDB.settings.minimapButton.hide = not checked
-        if checked then PSM.Minimap:Show() else PSM.Minimap:Hide() end
-    end)
+    local showMinimapCheckbox = Widgets.CheckBox(panel, {
+        name    = addonName .. "ShowMinimapCheckbox",
+        label   = "Show minimap button",
+        checked = not PetStableManagementDB.settings.minimapButton.hide,
+        point   = { "TOPLEFT", title, "BOTTOMLEFT", CHECKBOX_INDENT_X, CHECKBOX_INDENT_Y },
+        onClick = function(cb)
+            local checked = cb:GetChecked()
+            PetStableManagementDB.settings.minimapButton.hide = not checked
+            if checked then PSM.Minimap:Show() else PSM.Minimap:Hide() end
+        end,
+    })
 
     -- ── Open with Stable checkbox (to the right of minimap checkbox) ─────────
-    local openWithStableCheckbox = CreateLabelledCheckbox(
-        panel, showMinimapCheckbox, "TOPRIGHT", 150, 0,
-        "OpenWithStableCheckbox", "Open with the Stable window",
-        PetStableManagementDB.settings.openWithStable ~= false
-    )
-    openWithStableCheckbox:SetScript("OnClick", function(cb)
-        PetStableManagementDB.settings.openWithStable = cb:GetChecked() or false
-    end)
+    local openWithStableCheckbox = Widgets.CheckBox(panel, {
+        name    = addonName .. "OpenWithStableCheckbox",
+        label   = "Open with the Stable window",
+        checked = PetStableManagementDB.settings.openWithStable ~= false,
+        point   = { "TOPLEFT", showMinimapCheckbox, "TOPRIGHT", 150, 0 },
+        onClick = function(cb)
+            PetStableManagementDB.settings.openWithStable = cb:GetChecked() or false
+        end,
+    })
 
     -- ── Opacity slider ──────────────────────────────────────────────────────
-    local function opacityLabel(v) return "Opacity: " .. math.floor(v * 100) .. "%" end
-
-    local opacitySlider = CreateLabelledSlider(panel, showMinimapCheckbox, SECTION_SPACING, {
-        name        = "OpacitySlider",
-        title       = "UI Opacity:",
-        min         = PSM.Config.MIN_TRANSPARENCY,
-        max         = PSM.Config.MAX_TRANSPARENCY,
-        step        = 0.01,
-        value       = PSM.Config:GetOpacity(),
-        lowLabel    = "10%",
-        highLabel   = "100%",
-        formatLabel = opacityLabel,
+    local opacitySlider = LabelledSlider(showMinimapCheckbox, SECTION_SPACING, "UI Opacity:", {
+        name      = addonName .. "OpacitySlider",
+        min       = cfg.MIN_TRANSPARENCY,
+        max       = cfg.MAX_TRANSPARENCY,
+        step      = 0.01,
+        value     = cfg:GetOpacity(),
+        lowLabel  = "10%",
+        highLabel = "100%",
+        format    = function(v) return "Opacity: " .. math.floor(v * 100) .. "%" end,
+        onChange  = function(value)
+            local v = math.floor(value * 100) / 100
+            PetStableManagementDB.settings.opacity = v
+            PSM.Config:UpdateColors()
+            -- Covers every panel that draws its own backdrop, the Ability Browser and
+            -- Special Tames included. Only the teams panel needs telling separately.
+            PSM.PanelManager:UpdatePanelBackgrounds()
+            RefreshOpenPanels({ opacity = true })
+        end,
     })
-    opacitySlider:SetScript("OnValueChanged", function(slider, value)
-        if isResetting then return end
-        local v = math.floor(value * 100) / 100
-        PetStableManagementDB.settings.opacity = v
-        _G[slider:GetName() .. "Text"]:SetText(opacityLabel(v))
-        PSM.Config:UpdateColors()
-        PSM.PanelManager:UpdatePanelBackgrounds()
-        if PSM.state.panel and PSM.state.panel:IsVisible() then PSM.UI:RenderPanel() end
-        if PSM.state.modelsPanel and PSM.state.modelsPanel:IsVisible() and PSM.ModelsPanel then
-            PSM.ModelsPanel:UpdateVisibleRows()
-        end
-        if PSM.state.ownedPetsPanel and PSM.state.ownedPetsPanel:IsVisible() then
-            PSM.OwnedPets:UpdatePanel()
-        end
-        if PSM.state.teamsPanel and PSM.state.teamsPanel:IsVisible() then
-            PSM.TeamsPanel:UpdateOpacity()
-        end
-        if PSM.state.abilityBrowser and PSM.state.abilityBrowser:IsVisible() then
-            -- AbilityBrowser opacity handled by PanelManager:UpdatePanelBackgrounds()
-        end
-        if PSM.state.specialTames and PSM.state.specialTames:IsVisible() then
-            -- SpecialTames opacity handled by PanelManager:UpdatePanelBackgrounds()
-        end
-    end)
 
     -- ── Divider ─────────────────────────────────────────────────────────────
-    local divider = panel:CreateTexture(nil, "BORDER")
-    divider:SetHeight(2)
-    divider:SetPoint("TOPLEFT",  opacitySlider, "BOTTOMLEFT",  0, -DIVIDER_SPACING)
-    divider:SetPoint("TOPRIGHT", opacitySlider, "BOTTOMRIGHT", 0, -DIVIDER_SPACING)
-    divider:SetColorTexture(0.3, 0.3, 0.3, 0.5)
-
-    local petModelTitle = panel:CreateFontString("ARTWORK", nil, "GameFontNormal")
-    petModelTitle:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", 0, SECTION_SPACING)
-    petModelTitle:SetText("Pet Model Settings")
-
-    -- ── Zoom slider ─────────────────────────────────────────────────────────
-    local function zoomLabel(v) return "Zoom: " .. math.floor(v * 100) .. "%" end
-
-    local zoomSlider = CreateLabelledSlider(panel, petModelTitle, SECTION_SPACING, {
-        name        = "ZoomSlider",
-        title       = "Zoom:",
-        min         = PSM.Config.MIN_MODEL_ZOOM,
-        max         = PSM.Config.MAX_MODEL_ZOOM,
-        step        = 0.01,
-        value       = PetStableManagementDB.settings.modelZoom or PSM.Config.DEFAULT_MODEL_ZOOM,
-        lowLabel    = "50%",
-        highLabel   = "200%",
-        formatLabel = zoomLabel,
+    local divider = Widgets.Line(panel, {
+        layer = "BORDER",
+        point = {
+            { "TOPLEFT",  opacitySlider, "BOTTOMLEFT",  0, -DIVIDER_SPACING },
+            { "TOPRIGHT", opacitySlider, "BOTTOMRIGHT", 0, -DIVIDER_SPACING },
+        },
     })
-    zoomSlider:SetScript("OnValueChanged", function(slider, value)
-        if isResetting then return end
-        local v = math.floor(value * 100) / 100
-        PetStableManagementDB.settings.modelZoom = v
-        _G[slider:GetName() .. "Text"]:SetText(zoomLabel(v))
+
+    local petModelTitle = Widgets.Label(panel, {
+        fontObject = "GameFontNormal",
+        text       = "Pet Model Settings",
+        point      = { "TOPLEFT", divider, "BOTTOMLEFT", 0, SECTION_SPACING },
+    })
+
+    -- ── Model sliders ───────────────────────────────────────────────────────
+    -- All four write one setting, discard the cached model views and re-apply the
+    -- new globals to whatever is on screen.
+    local function ApplyModelSetting(key, value)
+        PetStableManagementDB.settings[key] = value
         PSM.state.modelViews = {}
         ApplyCurrentGlobalsToAllModels()
-    end)
+    end
 
-    -- ── View angle slider ───────────────────────────────────────────────────
-    local function angleLabel(v) return "View Angle: " .. v .. "°" end
-
-    local viewAngleSlider = CreateLabelledSlider(panel, zoomSlider, SLIDER_SLIDER_SPACING, {
-        name        = "ViewAngleSlider",
-        title       = "View Angle:",
-        min         = PSM.Config.MIN_MODEL_VIEW_ANGLE,
-        max         = PSM.Config.MAX_MODEL_VIEW_ANGLE,
-        step        = 1,
-        value       = PetStableManagementDB.settings.modelViewAngle or PSM.Config.DEFAULT_MODEL_VIEW_ANGLE,
-        lowLabel    = "-180°",
-        highLabel   = "180°",
-        formatLabel = angleLabel,
+    local zoomSlider = LabelledSlider(petModelTitle, SECTION_SPACING, "Zoom:", {
+        name      = addonName .. "ZoomSlider",
+        min       = cfg.MIN_MODEL_ZOOM,
+        max       = cfg.MAX_MODEL_ZOOM,
+        step      = 0.01,
+        value     = PetStableManagementDB.settings.modelZoom or cfg.DEFAULT_MODEL_ZOOM,
+        lowLabel  = "50%",
+        highLabel = "200%",
+        format    = function(v) return "Zoom: " .. math.floor(v * 100) .. "%" end,
+        onChange  = function(value)
+            ApplyModelSetting("modelZoom", math.floor(value * 100) / 100)
+        end,
     })
-    viewAngleSlider:SetScript("OnValueChanged", function(slider, value)
-        if isResetting then return end
-        local v = math.floor(value)
-        PetStableManagementDB.settings.modelViewAngle = v
-        _G[slider:GetName() .. "Text"]:SetText(angleLabel(v))
-        PSM.state.modelViews = {}
-        ApplyCurrentGlobalsToAllModels()
-    end)
 
-    -- ── Vertical position slider ────────────────────────────────────────────
-    local function vertLabel(v) return "Vertical Position: " .. math.floor(v * 100) .. "%" end
-
-    local verticalPositionSlider = CreateLabelledSlider(panel, viewAngleSlider, SLIDER_SLIDER_SPACING, {
-        name        = "VerticalPositionSlider",
-        title       = "Vertical Positioning (Z-axis):",
-        min         = PSM.Config.MIN_MODEL_VERTICAL_POSITION,
-        max         = PSM.Config.MAX_MODEL_VERTICAL_POSITION,
-        step        = 0.01,
-        value       = PetStableManagementDB.settings.modelVerticalPosition or PSM.Config.DEFAULT_MODEL_VERTICAL_POSITION,
-        lowLabel    = "-100%",
-        highLabel   = "100%",
-        formatLabel = vertLabel,
+    local viewAngleSlider = LabelledSlider(zoomSlider, SLIDER_SLIDER_SPACING, "View Angle:", {
+        name      = addonName .. "ViewAngleSlider",
+        min       = cfg.MIN_MODEL_VIEW_ANGLE,
+        max       = cfg.MAX_MODEL_VIEW_ANGLE,
+        step      = 1,
+        value     = PetStableManagementDB.settings.modelViewAngle or cfg.DEFAULT_MODEL_VIEW_ANGLE,
+        lowLabel  = "-180°",
+        highLabel = "180°",
+        format    = function(v) return "View Angle: " .. math.floor(v) .. "°" end,
+        onChange  = function(value)
+            ApplyModelSetting("modelViewAngle", math.floor(value))
+        end,
     })
-    verticalPositionSlider:SetScript("OnValueChanged", function(slider, value)
-        if isResetting then return end
-        local v = math.floor(value * 100) / 100
-        PetStableManagementDB.settings.modelVerticalPosition = v
-        _G[slider:GetName() .. "Text"]:SetText(vertLabel(v))
-        PSM.state.modelViews = {}
-        ApplyCurrentGlobalsToAllModels()
-    end)
 
-    -- ── Horizontal position slider ──────────────────────────────────────────
-    local function horizLabel(v) return "Horizontal Position: " .. math.floor(v * 100) .. "%" end
-
-    local horizontalPositionSlider = CreateLabelledSlider(panel, verticalPositionSlider, SLIDER_SLIDER_SPACING, {
-        name        = "HorizontalPositionSlider",
-        title       = "Horizontal Positioning (Y-axis):",
-        min         = PSM.Config.MIN_MODEL_HORIZONTAL_POSITION,
-        max         = PSM.Config.MAX_MODEL_HORIZONTAL_POSITION,
-        step        = 0.01,
-        value       = PetStableManagementDB.settings.modelHorizontalPosition or PSM.Config.DEFAULT_MODEL_HORIZONTAL_POSITION,
-        lowLabel    = "-100%",
-        highLabel   = "100%",
-        formatLabel = horizLabel,
+    local verticalPositionSlider = LabelledSlider(viewAngleSlider, SLIDER_SLIDER_SPACING,
+        "Vertical Positioning (Z-axis):", {
+        name      = addonName .. "VerticalPositionSlider",
+        min       = cfg.MIN_MODEL_VERTICAL_POSITION,
+        max       = cfg.MAX_MODEL_VERTICAL_POSITION,
+        step      = 0.01,
+        value     = PetStableManagementDB.settings.modelVerticalPosition or cfg.DEFAULT_MODEL_VERTICAL_POSITION,
+        lowLabel  = "-100%",
+        highLabel = "100%",
+        format    = function(v) return "Vertical Position: " .. math.floor(v * 100) .. "%" end,
+        onChange  = function(value)
+            ApplyModelSetting("modelVerticalPosition", math.floor(value * 100) / 100)
+        end,
     })
-    horizontalPositionSlider:SetScript("OnValueChanged", function(slider, value)
-        if isResetting then return end
-        local v = math.floor(value * 100) / 100
-        PetStableManagementDB.settings.modelHorizontalPosition = v
-        _G[slider:GetName() .. "Text"]:SetText(horizLabel(v))
-        PSM.state.modelViews = {}
-        ApplyCurrentGlobalsToAllModels()
-    end)
+
+    local horizontalPositionSlider = LabelledSlider(verticalPositionSlider, SLIDER_SLIDER_SPACING,
+        "Horizontal Positioning (Y-axis):", {
+        name      = addonName .. "HorizontalPositionSlider",
+        min       = cfg.MIN_MODEL_HORIZONTAL_POSITION,
+        max       = cfg.MAX_MODEL_HORIZONTAL_POSITION,
+        step      = 0.01,
+        value     = PetStableManagementDB.settings.modelHorizontalPosition or cfg.DEFAULT_MODEL_HORIZONTAL_POSITION,
+        lowLabel  = "-100%",
+        highLabel = "100%",
+        format    = function(v) return "Horizontal Position: " .. math.floor(v * 100) .. "%" end,
+        onChange  = function(value)
+            ApplyModelSetting("modelHorizontalPosition", math.floor(value * 100) / 100)
+        end,
+    })
 
     -- ── Pets-per-column dropdown ────────────────────────────────────────────
-    local petsPerColumnTitle = panel:CreateFontString("ARTWORK", nil, "GameFontNormal")
-    petsPerColumnTitle:SetPoint("TOPLEFT", horizontalPositionSlider, "BOTTOMLEFT", 0, SLIDER_SLIDER_SPACING)
-    petsPerColumnTitle:SetText("Pets Per Column in Browser:")
+    local petsPerColumnTitle = Widgets.Label(panel, {
+        fontObject = "GameFontNormal",
+        text       = "Pets Per Column in Browser:",
+        point      = { "TOPLEFT", horizontalPositionSlider, "BOTTOMLEFT", 0, SLIDER_SLIDER_SPACING },
+    })
 
-    local petsPerColumnDropdown = CreateFrame("Frame", addonName .. "PetsPerColumnDropdown", panel, "UIDropDownMenuTemplate")
-    petsPerColumnDropdown:SetPoint("TOPLEFT", petsPerColumnTitle, "BOTTOMLEFT", DROPDOWN_OFFSET_X, DROPDOWN_OFFSET_Y)
-    UIDropDownMenu_SetWidth(petsPerColumnDropdown, 100)
-    UIDropDownMenu_SetText(petsPerColumnDropdown, PetStableManagementDB.settings.petsPerColumn or PSM.Config.DEFAULT_PETS_PER_COLUMN)
+    local petsPerColumnDropdown = Dropdown("PetsPerColumnDropdown",
+        { "TOPLEFT", petsPerColumnTitle, "BOTTOMLEFT", DROPDOWN_OFFSET_X, DROPDOWN_OFFSET_Y })
+    UIDropDownMenu_SetText(petsPerColumnDropdown,
+        PetStableManagementDB.settings.petsPerColumn or cfg.DEFAULT_PETS_PER_COLUMN)
 
-    UIDropDownMenu_Initialize(petsPerColumnDropdown, function(_, _, _)
-        local current = PetStableManagementDB.settings.petsPerColumn or PSM.Config.DEFAULT_PETS_PER_COLUMN
+    UIDropDownMenu_Initialize(petsPerColumnDropdown, function()
+        local current = PetStableManagementDB.settings.petsPerColumn or cfg.DEFAULT_PETS_PER_COLUMN
         local info = UIDropDownMenu_CreateInfo()
-        for i = PSM.Config.MIN_PETS_PER_COLUMN, PSM.Config.MAX_PETS_PER_COLUMN do
+        for i = cfg.MIN_PETS_PER_COLUMN, cfg.MAX_PETS_PER_COLUMN do
             info.text    = "  " .. i
             info.value   = i
             info.checked = (current == i)
             info.func    = function(btn)
                 PetStableManagementDB.settings.petsPerColumn = btn.value
                 UIDropDownMenu_SetText(petsPerColumnDropdown, btn.value)
+                -- Column count only affects the browser's grid; nothing else repaints.
                 if PSM.state.modelsPanel and PSM.ModelsPanel then
                     PSM.ModelsPanel:UpdateModelsPanelLayout()
                     PSM.ModelsPanel:UpdateVisibleRows()
@@ -344,13 +363,14 @@ panel:SetScript("OnShow", function(self)
     end)
 
     -- ── Background type dropdown ────────────────────────────────────────────
-    local backgroundTypeTitle = panel:CreateFontString("ARTWORK", nil, "GameFontNormal")
-    backgroundTypeTitle:SetPoint("TOPLEFT", petsPerColumnTitle, "TOPRIGHT", 20, 0)
-    backgroundTypeTitle:SetText("Pet Model Background:")
+    local backgroundTypeTitle = Widgets.Label(panel, {
+        fontObject = "GameFontNormal",
+        text       = "Pet Model Background:",
+        point      = { "TOPLEFT", petsPerColumnTitle, "TOPRIGHT", 20, 0 },
+    })
 
-    local backgroundTypeDropdown = CreateFrame("Frame", addonName .. "BackgroundTypeDropdown", panel, "UIDropDownMenuTemplate")
-    backgroundTypeDropdown:SetPoint("TOPLEFT", backgroundTypeTitle, "BOTTOMLEFT", DROPDOWN_OFFSET_X, DROPDOWN_OFFSET_Y)
-    UIDropDownMenu_SetWidth(backgroundTypeDropdown, 100)
+    local backgroundTypeDropdown = Dropdown("BackgroundTypeDropdown",
+        { "TOPLEFT", backgroundTypeTitle, "BOTTOMLEFT", DROPDOWN_OFFSET_X, DROPDOWN_OFFSET_Y })
 
     local backgroundTypeLabels = {
         simple = "  Simple",
@@ -358,136 +378,100 @@ panel:SetScript("OnShow", function(self)
         custom = "  Custom",
     }
 
-    local currentBgType = PetStableManagementDB.settings.backgroundType or PSM.Config.DEFAULT_BACKGROUND_TYPE
-    UIDropDownMenu_SetText(backgroundTypeDropdown, backgroundTypeLabels[currentBgType] or backgroundTypeLabels[PSM.Config.DEFAULT_BACKGROUND_TYPE])
+    local currentBgType = PetStableManagementDB.settings.backgroundType or cfg.DEFAULT_BACKGROUND_TYPE
+    UIDropDownMenu_SetText(backgroundTypeDropdown,
+        backgroundTypeLabels[currentBgType] or backgroundTypeLabels[cfg.DEFAULT_BACKGROUND_TYPE])
 
-    UIDropDownMenu_Initialize(backgroundTypeDropdown, function(_, _, _)
-        local current = PetStableManagementDB.settings.backgroundType or PSM.Config.DEFAULT_BACKGROUND_TYPE
+    UIDropDownMenu_Initialize(backgroundTypeDropdown, function()
+        local current = PetStableManagementDB.settings.backgroundType or cfg.DEFAULT_BACKGROUND_TYPE
         local info = UIDropDownMenu_CreateInfo()
-        for _, bgType in ipairs(PSM.Config.BACKGROUND_TYPES) do
+        for _, bgType in ipairs(cfg.BACKGROUND_TYPES) do
             info.text = backgroundTypeLabels[bgType]
             info.value = bgType
             info.checked = (current == bgType)
             info.func = function(btn)
                 PetStableManagementDB.settings.backgroundType = btn.value
                 UIDropDownMenu_SetText(backgroundTypeDropdown, backgroundTypeLabels[btn.value])
-                -- Refresh panels to apply new background
-                if PSM.state.panel and PSM.state.panel:IsVisible() then PSM.UI:RenderPanel() end
-                if PSM.state.modelsPanel and PSM.state.modelsPanel:IsVisible() and PSM.ModelsPanel then
-                    PSM.ModelsPanel:UpdateVisibleRows()
-                end
-                if PSM.state.ownedPetsPanel and PSM.state.ownedPetsPanel:IsVisible() then
-                    PSM.OwnedPets:UpdatePanel()
-                end
-                if PSM.state.modelMagnificationPopup and PSM.state.modelMagnificationPopup:IsVisible() then
-                    PSM.PopUpManager:UpdatePopupBackground(PSM.state.modelMagnificationPopup,
-                        PSM.state.modelMagnificationPopup.currentDisplayId,
-                        PSM.state.modelMagnificationPopup.currentPetData)
-                end
-                if PSM.state.petRoulettePopup and PSM.state.petRoulettePopup:IsVisible() then
-                    PSM.PopUpManager:UpdatePopupBackground(PSM.state.petRoulettePopup,
-                        PSM.state.petRoulettePopup.currentDisplayId,
-                        PSM.state.petRoulettePopup.currentPetData)
-                end
+                RefreshOpenPanels({ popups = true })
             end
             UIDropDownMenu_AddButton(info)
         end
     end)
 
     -- ── Stop-animation checkbox ─────────────────────────────────────────────
-    local stopAnimCheckbox = CreateLabelledCheckbox(
-        panel, backgroundTypeDropdown, "TOPRIGHT", 40, 2,
-        "StopAnimCheckbox", "Stop pet animations",
-        PetStableManagementDB.settings.stopAnimation or PSM.Config.DEFAULT_STOP_ANIMATION
-    )
-    stopAnimCheckbox:SetScript("OnClick", function(cb)
-        local checked = cb:GetChecked()
-        PetStableManagementDB.settings.stopAnimation = checked
-        IterateAllVisibleModels(function(model)
-            ApplyAnimationStateToModel(model, checked)
-        end)
-    end)
+    local stopAnimCheckbox = Widgets.CheckBox(panel, {
+        name    = addonName .. "StopAnimCheckbox",
+        label   = "Stop pet animations",
+        checked = PetStableManagementDB.settings.stopAnimation or cfg.DEFAULT_STOP_ANIMATION,
+        point   = { "TOPLEFT", backgroundTypeDropdown, "TOPRIGHT", 40, CHECKBOX_DROPDOWN_OFFSET },
+        onClick = function(cb)
+            local checked = cb:GetChecked()
+            PetStableManagementDB.settings.stopAnimation = checked
+            IterateAllVisibleModels(function(model)
+                ApplyAnimationStateToModel(model, checked)
+            end)
+        end,
+    })
 
     -- ── Reset button ────────────────────────────────────────────────────────
-    local resetButton = CreateFrame("Button", addonName .. "ResetButton", panel, "UIPanelButtonTemplate")
-    resetButton:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -RESET_BUTTON_MARGIN, RESET_BUTTON_MARGIN)
-    resetButton:SetSize(RESET_BUTTON_WIDTH, RESET_BUTTON_HEIGHT)
-    resetButton:SetText("Reset All Settings")
-    PSM.UI:ApplyElvUISkin(resetButton, "button")
+    Widgets.Button(panel, {
+        name  = addonName .. "ResetButton",
+        text  = "Reset All Settings",
+        size  = { RESET_BUTTON_WIDTH, RESET_BUTTON_HEIGHT },
+        point = { "BOTTOMRIGHT", panel, "BOTTOMRIGHT", -RESET_BUTTON_MARGIN, RESET_BUTTON_MARGIN },
+        onClick = function()
+            -- Write defaults to DB
+            PetStableManagementDB.settings.opacity                 = cfg.DEFAULT_OPACITY
+            PetStableManagementDB.settings.modelZoom               = cfg.DEFAULT_MODEL_ZOOM
+            PetStableManagementDB.settings.modelViewAngle          = cfg.DEFAULT_MODEL_VIEW_ANGLE
+            PetStableManagementDB.settings.modelVerticalPosition   = cfg.DEFAULT_MODEL_VERTICAL_POSITION
+            PetStableManagementDB.settings.modelHorizontalPosition = cfg.DEFAULT_MODEL_HORIZONTAL_POSITION
+            PetStableManagementDB.settings.stopAnimation           = cfg.DEFAULT_STOP_ANIMATION
+            PetStableManagementDB.settings.openWithStable          = cfg.DEFAULT_OPEN_WITH_STABLE
+            PetStableManagementDB.settings.petsPerColumn           = cfg.DEFAULT_PETS_PER_COLUMN
+            PetStableManagementDB.settings.backgroundType          = cfg.DEFAULT_BACKGROUND_TYPE
 
-    resetButton:SetScript("OnClick", function()
-        local cfg = PSM.Config
+            if PetStableManagementDB.filters then
+                PetStableManagementDB.filters.selectedTamingRules = nil
+                PetStableManagementDB.filters.selectedConditions = nil
+                PetStableManagementDB.filters.familiesAppliedFromAbilities = nil
+                PetStableManagementDB.filters.selectedFamiliesFromAbilities = nil
+                PetStableManagementDB.filters.selectedModelsFamilies = nil
+                PetStableManagementDB.filters.selectedExpansions = nil
+                PetStableManagementDB.filters.selectedLocations = nil
+            end
+            PSM.state.selectedTamingRules = nil
+            PSM.state.familiesAppliedFromAbilities = nil
+            PSM.state.abilitiesFamilySet = nil
+            PSM.state.selectedModelsFamilies = {}
+            PSM.state.modelViews = {}
 
-         -- Write defaults to DB
-         PetStableManagementDB.settings.opacity                 = cfg.DEFAULT_OPACITY
-         PetStableManagementDB.settings.modelZoom               = cfg.DEFAULT_MODEL_ZOOM
-         PetStableManagementDB.settings.modelViewAngle          = cfg.DEFAULT_MODEL_VIEW_ANGLE
-         PetStableManagementDB.settings.modelVerticalPosition   = cfg.DEFAULT_MODEL_VERTICAL_POSITION
-         PetStableManagementDB.settings.modelHorizontalPosition = cfg.DEFAULT_MODEL_HORIZONTAL_POSITION
-         PetStableManagementDB.settings.stopAnimation           = cfg.DEFAULT_STOP_ANIMATION
-         PetStableManagementDB.settings.openWithStable          = cfg.DEFAULT_OPEN_WITH_STABLE
-         PetStableManagementDB.settings.petsPerColumn           = cfg.DEFAULT_PETS_PER_COLUMN
-          PetStableManagementDB.settings.backgroundType          = cfg.DEFAULT_BACKGROUND_TYPE
-        if PetStableManagementDB.filters then
-            PetStableManagementDB.filters.selectedTamingRules = nil
-            PetStableManagementDB.filters.selectedConditions = nil
-            PetStableManagementDB.filters.familiesAppliedFromAbilities = nil
-            PetStableManagementDB.filters.selectedFamiliesFromAbilities = nil
-            PetStableManagementDB.filters.selectedModelsFamilies = nil
-            PetStableManagementDB.filters.selectedExpansions = nil
-            PetStableManagementDB.filters.selectedLocations = nil
-        end
-        PSM.state.selectedTamingRules = nil
-        PSM.state.familiesAppliedFromAbilities = nil
-        PSM.state.abilitiesFamilySet = nil
-        PSM.state.selectedModelsFamilies = {}
-        PSM.state.modelViews = {}
+            -- Move the controls to match the values just written. Silently, or each
+            -- slider would re-write the setting we already wrote and rebuild every
+            -- visible model on the way past -- five times over. The value captions
+            -- still repaint; that is the slider's job, not this handler's.
+            opacitySlider:SetValueSilently(cfg.DEFAULT_OPACITY)
+            zoomSlider:SetValueSilently(cfg.DEFAULT_MODEL_ZOOM)
+            viewAngleSlider:SetValueSilently(cfg.DEFAULT_MODEL_VIEW_ANGLE)
+            verticalPositionSlider:SetValueSilently(cfg.DEFAULT_MODEL_VERTICAL_POSITION)
+            horizontalPositionSlider:SetValueSilently(cfg.DEFAULT_MODEL_HORIZONTAL_POSITION)
 
-        -- Suppress OnValueChanged side-effects while pushing default values
-        isResetting = true
-        opacitySlider:SetValue(cfg.DEFAULT_OPACITY)
-        zoomSlider:SetValue(cfg.DEFAULT_MODEL_ZOOM)
-        viewAngleSlider:SetValue(cfg.DEFAULT_MODEL_VIEW_ANGLE)
-        verticalPositionSlider:SetValue(cfg.DEFAULT_MODEL_VERTICAL_POSITION)
-        horizontalPositionSlider:SetValue(cfg.DEFAULT_MODEL_HORIZONTAL_POSITION)
-        isResetting = false
+            stopAnimCheckbox:SetChecked(cfg.DEFAULT_STOP_ANIMATION)
+            openWithStableCheckbox:SetChecked(cfg.DEFAULT_OPEN_WITH_STABLE)
+            UIDropDownMenu_SetText(petsPerColumnDropdown, cfg.DEFAULT_PETS_PER_COLUMN)
+            UIDropDownMenu_SetText(backgroundTypeDropdown, backgroundTypeLabels[cfg.DEFAULT_BACKGROUND_TYPE])
 
-        -- Sync label text
-        _G[opacitySlider:GetName()            .. "Text"]:SetText(opacityLabel(cfg.DEFAULT_OPACITY))
-        _G[zoomSlider:GetName()               .. "Text"]:SetText(zoomLabel(cfg.DEFAULT_MODEL_ZOOM))
-        _G[viewAngleSlider:GetName()          .. "Text"]:SetText(angleLabel(cfg.DEFAULT_MODEL_VIEW_ANGLE))
-        _G[verticalPositionSlider:GetName()   .. "Text"]:SetText(vertLabel(cfg.DEFAULT_MODEL_VERTICAL_POSITION))
-        _G[horizontalPositionSlider:GetName() .. "Text"]:SetText(horizLabel(cfg.DEFAULT_MODEL_HORIZONTAL_POSITION))
+            -- Applying the default opacity is this handler's job precisely because the
+            -- silent SetValue above skipped the slider's own handler. Reset used to
+            -- write the default opacity to the DB and repaint nothing with it, so the
+            -- UI kept the old opacity until something unrelated forced a redraw.
+            PSM.Config:UpdateColors()
+            PSM.PanelManager:UpdatePanelBackgrounds()
 
-         stopAnimCheckbox:SetChecked(cfg.DEFAULT_STOP_ANIMATION)
-         openWithStableCheckbox:SetChecked(cfg.DEFAULT_OPEN_WITH_STABLE)
-         UIDropDownMenu_SetText(petsPerColumnDropdown, cfg.DEFAULT_PETS_PER_COLUMN)
-        UIDropDownMenu_SetText(backgroundTypeDropdown, backgroundTypeLabels[cfg.DEFAULT_BACKGROUND_TYPE])
-
-        -- Apply all defaults to visible models
-        ApplyCurrentGlobalsToAllModels()
-
-        -- Refresh panels to apply reset settings including background
-        if PSM.state.panel and PSM.state.panel:IsVisible() then PSM.UI:RenderPanel() end
-        if PSM.state.modelsPanel and PSM.ModelsPanel then
-            PSM.ModelsPanel:UpdateModelsPanelLayout()
-            PSM.ModelsPanel:UpdateVisibleRows()
-        end
-        if PSM.state.ownedPetsPanel and PSM.state.ownedPetsPanel:IsVisible() then
-            PSM.OwnedPets:UpdatePanel()
-        end
-        if PSM.state.modelMagnificationPopup and PSM.state.modelMagnificationPopup:IsVisible() then
-            PSM.PopUpManager:UpdatePopupBackground(PSM.state.modelMagnificationPopup,
-                PSM.state.modelMagnificationPopup.currentDisplayId,
-                PSM.state.modelMagnificationPopup.currentPetData)
-        end
-        if PSM.state.petRoulettePopup and PSM.state.petRoulettePopup:IsVisible() then
-            PSM.PopUpManager:UpdatePopupBackground(PSM.state.petRoulettePopup,
-                PSM.state.petRoulettePopup.currentDisplayId,
-                PSM.state.petRoulettePopup.currentPetData)
-        end
-        
-    end)
+            ApplyCurrentGlobalsToAllModels()
+            RefreshOpenPanels({ relayout = true, popups = true, opacity = true })
+        end,
+    })
 end)
 
 -------------------------------------------------------------------------------

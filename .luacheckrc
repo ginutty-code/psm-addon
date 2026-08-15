@@ -41,7 +41,6 @@ globals = {
 -- variable" warning (see AGENT_INSTRUCTIONS.md / CLAUDE.md for the command) --
 -- add to this list, don't disable W113, when a new Blizzard API is used.
 read_globals = {
-    "CHECKBOX_INDENT_X",
     "C_AddOns",
     "C_Map",
     "C_PetJournal",

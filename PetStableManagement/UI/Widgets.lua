@@ -44,6 +44,7 @@ local OPTIONS = {
     MaskTexture = { texture = true, wrapH = true, wrapV = true },
     Texture     = { layer = true, sublayer = true, allPoints = true, color = true, texture = true, atlas = true, texCoord = true, vertexColor = true },
     CheckBox    = { name = true, template = true, checked = true, onClick = true, tooltip = true, label = true, labelFontObject = true, labelFontSize = true, labelColor = true },
+    Slider      = { name = true, template = true, min = true, max = true, step = true, value = true, lowLabel = true, highLabel = true, format = true, onChange = true },
     SectionHeader = { palette = true, inset = true, text = true, fontSize = true, fontObject = true, color = true, labelInset = true },
 }
 
@@ -578,4 +579,68 @@ function Widgets.CheckBox(parent, opts)
 
     PSM.Skin.Apply(c, "checkbox")
     return c
+end
+
+--------------------------------------------------------------------------------
+-- SLIDER
+--------------------------------------------------------------------------------
+
+-- A Blizzard slider with its three captions: `lowLabel` and `highLabel` at the ends,
+-- and a live value caption in the middle driven by `format(value)`.
+--
+-- The kit owns the value caption because the caller kept forgetting it. Each of the
+-- five sliders in OptionsPanel spelled its format string out three times -- once at
+-- construction, once in OnValueChanged, and once more in Reset All Settings -- and
+-- that third copy existed only because the second one had been suppressed.
+--
+-- `onChange(value, slider)` fires for user input only. WoW sliders have no `userInput`
+-- flag (EditBox has one, sliders do not), so a programmatic SetValue is
+-- indistinguishable from a drag and every caller ends up inventing the same
+-- module-level `isResetting` guard. `:SetValueSilently(v)` is that guard, done once:
+-- it moves the slider and repaints the caption without calling `onChange`.
+--
+-- Requires `name`: OptionsSliderTemplate builds its captions as global font strings
+-- keyed off the slider's name, so an anonymous slider has no labels to set.
+function Widgets.Slider(parent, opts)
+    opts = opts or {}
+    CheckOptions("Slider", opts, OPTIONS.Slider)
+    if not opts.name then
+        error("PSM.Widgets.Slider: `name` is required -- OptionsSliderTemplate's captions are $parentLow/High/Text", 2)
+    end
+
+    local s = CreateFrame("Slider", opts.name, parent, opts.template or "OptionsSliderTemplate")
+    ApplyCommon(s, opts)
+    s:SetMinMaxValues(opts.min, opts.max)
+    s:SetValueStep(opts.step or 1)
+
+    local caption = _G[opts.name .. "Text"]
+    _G[opts.name .. "Low"]:SetText(opts.lowLabel or "")
+    _G[opts.name .. "High"]:SetText(opts.highLabel or "")
+
+    local formatValue = opts.format or tostring
+    local silent      = false
+
+    -- Move the slider without telling the caller. The caption still updates -- a
+    -- silent move is still a move the user can see.
+    function s:SetValueSilently(value)
+        silent = true
+        self:SetValue(value)
+        silent = false
+        caption:SetText(formatValue(value))
+    end
+
+    -- Initial value before the script is attached, so construction cannot fire a
+    -- handler that writes settings and repaints panels.
+    local initial = opts.value or opts.min
+    s:SetValue(initial)
+    caption:SetText(formatValue(initial))
+
+    s:SetScript("OnValueChanged", function(self, value)
+        caption:SetText(formatValue(value))
+        if silent or not opts.onChange then return end
+        opts.onChange(value, self)
+    end)
+
+    PSM.Skin.Apply(s, "slider")
+    return s
 end

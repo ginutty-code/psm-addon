@@ -117,12 +117,15 @@ frame. They know nothing about pets; they take a parent and an options table.
   **`GameTooltip` has no maximum width**: it sizes to its widest line, so a caller
   emitting a long joined list must break it into lines itself (see `NPCRow`'s
   `WrapJoin`) or set `wrap = true`.
-- **`Widgets.lua`** — 16 factories: `Backdrop`, `Frame`, `MovableFrame`, `Label`,
+- **`Widgets.lua`** — 17 factories: `Backdrop`, `Frame`, `MovableFrame`, `Label`,
   `Button`, `IconButton`, `CloseButton`, `ResizeGrip`, `CloseOnEscape`, `EditBox`,
-  `MaskTexture`, `Line`, `Texture`, `Tab`, `SectionHeader`, `CheckBox`. Read the file —
-  each carries a comment saying what evidence justified it. `CheckBox` returns a box
-  with `:SetTriState(nil | true | "inverted")`; the kit renders the three filter states,
-  the caller owns their meaning and cycle order.
+  `MaskTexture`, `Line`, `Texture`, `Tab`, `SectionHeader`, `CheckBox`, `Slider`. Read
+  the file — each carries a comment saying what evidence justified it. `CheckBox`
+  returns a box with `:SetTriState(nil | true | "inverted")`; the kit renders the three
+  filter states, the caller owns their meaning and cycle order. `Slider` owns its value
+  caption (via `format`) and offers `:SetValueSilently(v)` — **a WoW slider has no
+  `userInput` flag**, so a programmatic `SetValue` is indistinguishable from a drag and
+  every caller otherwise invents the same module-level `isResetting` guard.
 
 **Everything `PSM.Widgets` returns is already skinned.** That is the whole point: the
 count of hand-written `ApplyElvUISkin` calls should only ever go down. `IconButton` is
@@ -221,15 +224,16 @@ copy of the button list instead of walking `model.hoverButtons`.
 ### Migration status (A6, ongoing)
 
 Migrated, each with zero raw `CreateFrame` / `CreateFontString` / `CreateTexture` /
-`GameTooltip:` / skin calls: `Shared/PopUpManager.lua`, `Shared/Dialogs.lua`,
-`Shared/RowManager.lua`, `OwnedPets/TeamsPanel.lua`, `OwnedPets/Export.lua`,
-`OwnedPets/Filters.lua`, `OwnedPets/GroupedView.lua`,
+`GameTooltip:` / skin calls: `Core.lua`, `Shared/PopUpManager.lua`,
+`Shared/Dialogs.lua`, `Shared/RowManager.lua`, `Shared/Minimap.lua`,
+`Shared/Broker.lua`, `Shared/PanelManager.lua`, `Shared/OptionsPanel.lua`,
+`OwnedPets/TeamsPanel.lua`, `OwnedPets/Export.lua`, `OwnedPets/Filters.lua`,
+`OwnedPets/GroupedView.lua`, `OwnedPets/GridView.lua`,
 `ModelsBrowser/SpecialTames.lua`, `ModelsBrowser/ModelsFilters.lua`,
 `ModelsBrowser/AbilityBrowser.lua`, `ModelsBrowser/ModelsPanel.lua`,
-`ModelsBrowser/NPCRow.lua`, `OwnedPets/GridView.lua`,
-`ModelsBrowser/ModelRow.lua`.
+`ModelsBrowser/NPCRow.lua`, `ModelsBrowser/ModelRow.lua`.
 
-Repo-wide, fourteen files in: `ApplyElvUISkin` **86 → 17**, `CreateFrame` **193 → 42**.
+Repo-wide, nineteen files in: `ApplyElvUISkin` **86 → 8**, `CreateFrame` **193 → 35**.
 
 **The density score says how much a file does by hand, not what kind.** `GridView`
 scored 17 and every one of them was `GameTooltip:` — zero construction, because
@@ -258,11 +262,14 @@ fixed for.
 Remaining, densest first — **re-measure rather than trusting this list**, the original
 one was a partial survey that omitted the two densest files in the addon:
 
-`Core.lua` (15), `Shared/Minimap.lua` (14), `Shared/PanelManager.lua` and
-`Shared/OptionsPanel.lua` (13), `OwnedPets/Panel.lua` (12), `OwnedPets/DragDrop.lua` (11),
-`Shared/Menu.lua` and `Shared/Broker.lua` (10), `Shared/Utils.lua` (7),
-`OwnedPets/Row.lua` (6).
-`Shared/UI.lua` is the `ApplyElvUISkin` shim and goes when its last caller does.
+`OwnedPets/Panel.lua` (12), `OwnedPets/DragDrop.lua` (11), `Shared/Menu.lua` (10),
+`Shared/Utils.lua` (7), `OwnedPets/Row.lua` (6).
+`Shared/UI.lua` is the `ApplyElvUISkin` shim and goes when its last caller does — those
+three files hold all eight remaining callers.
+
+Everything else measures 1, and each of those is a deliberate survivor: the event and
+timer frames named below, one `GameTooltip:` inside a comment, and PopUpManager's
+sublayer `CreateTexture`.
 
 ```bash
 for f in $(find PetStableManagement* -name '*.lua' -not -path '*/Data/*' | grep -v /UI/); do
@@ -343,7 +350,7 @@ until the layering work separates it.
 so it doesn't only ever exercise the lupa fallback).
 
 The lint job **gates on errors, not warnings**. luacheck exits 1 for warnings and
-≥2 for errors; the project carries a stable warning baseline (63), so failing on any
+≥2 for errors; the project carries a stable warning baseline (61), so failing on any
 warning would fail every run. The count is printed in the job log — treat a change
 in it as something you caused, and account for it.
 
@@ -359,7 +366,7 @@ path is in `CLAUDE.local.md` (untracked). Run from the repo root:
 luacheck PetStableManagement PetStableManagement_ModelsBrowser Tests
 ```
 
-The current clean baseline is **63 warnings / 0 errors**. Treat any change in it as
+The current clean baseline is **61 warnings / 0 errors**. Treat any change in it as
 something you introduced, and account for it — a drop is as much a claim as a rise,
 and should be attributable to a specific edit.
 
@@ -373,6 +380,14 @@ a new Blizzard API shows up as undefined:
 - Addon reads it but never assigns it → add to `read_globals`.
 - Addon defines/assigns it (a new project-global data module, a new
   SavedVariable, a new slash command) → add to `globals`.
+
+**First ask whether it is a Blizzard API at all.** `read_globals` began with
+`CHECKBOX_INDENT_X` at the top of it — not an API, but a layout constant
+`OptionsPanel.lua` used and never declared. Listing it silenced the warning that was
+correctly reporting a missing local, and the checkbox spent however long anchored at a
+nil offset (SetPoint reads it as 0). A name that isn't `C_Something`, isn't CamelCase
+Blizzard style, and appears in exactly one file is a typo or a missing `local`, not a
+new API — grep for it before adding it.
 
 Don't silence warning 113 (undefined global) wholesale — it's the main
 typo-catcher for WoW API calls in this codebase. `212/self` and `432/self`

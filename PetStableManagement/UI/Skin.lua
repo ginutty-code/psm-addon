@@ -68,6 +68,14 @@ local handlers = {
     checkbox       = function(S, f) S:HandleCheckBox(f)    end,
     scrollbar      = function(S, f) S:HandleScrollBar(f)   end,
 
+    -- Guarded the same way HandleNextPrevButton is above, and for the same reason:
+    -- these are the two ElvUI helpers PSM calls that are not part of its long-stable
+    -- core, and an options panel that errors out mid-build leaves the user with a
+    -- blank settings page. A missing handler here costs a skin, not the panel.
+    slider = function(S, f)
+        if S.HandleSliderFrame then S:HandleSliderFrame(f) end
+    end,
+
     resizegrip = function(_, f)
         f:StripTextures()
         f:SetTemplate()
