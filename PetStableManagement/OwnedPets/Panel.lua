@@ -1,8 +1,6 @@
 -- OwnedPets/Panel.lua
 -- Main panel creation for PetStableManagement
 
-local addonName = "PetStableManagement"
-
 _G.PSM = _G.PSM or {}
 local PSM = _G.PSM
 
@@ -98,8 +96,11 @@ end
 -- ---------------------------------------------------------------------------
 
 function PSM.UI:AddOwnedPetsElements(panel)
+    local Widgets = PSM.Widgets
+    local Theme   = PSM.Theme
+
     -- Search box ----------------------------------------------------------
-    PSM.PanelManager:CreateSearchBox(panel, function(searchText)
+    PSM.PanelManager:CreateSearchBox(panel, function()
         PSM.UI:UpdatePanel()
     end, {
         placeholder = "Search pets...",
@@ -110,30 +111,36 @@ function PSM.UI:AddOwnedPetsElements(panel)
     PSM.UI:BuildSortButtons(panel)
 
     -- Scroll frame --------------------------------------------------------
-    local scrollFrame = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT",     10,  -145)
-    scrollFrame:SetPoint("BOTTOMRIGHT", -30,   35)
+    local scrollFrame = Widgets.Frame(panel, {
+        frameType = "ScrollFrame",
+        template  = "UIPanelScrollFrameTemplate",
+        skin      = "scrollframe",
+        point     = {
+            { "TOPLEFT",      10, -145 },
+            { "BOTTOMRIGHT", -30,   35 },
+        },
+    })
 
     -- Decorative border behind the rows
-    local rowsFrame = CreateFrame("Frame", nil, panel, "BackdropTemplate")
-    rowsFrame:SetPoint("TOPLEFT",     scrollFrame, "TOPLEFT",     -5,  5)
-    rowsFrame:SetPoint("BOTTOMRIGHT", scrollFrame, "BOTTOMRIGHT",  5, -5)
-    rowsFrame:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 16,
-        insets = { left=4, right=4, top=4, bottom=4 },
+    local rowsFrame = Widgets.Frame(panel, {
+        backdrop = "TOOLTIP",
+        color    = PSM.Config.COLORS.BACKGROUND,
+        level    = panel:GetFrameLevel() - 1,
+        point    = {
+            { "TOPLEFT",     scrollFrame, "TOPLEFT",     -5,  5 },
+            { "BOTTOMRIGHT", scrollFrame, "BOTTOMRIGHT",  5, -5 },
+        },
     })
-    rowsFrame:SetBackdropColor(unpack(PSM.Config.COLORS.BACKGROUND))
-    rowsFrame:SetFrameLevel(panel:GetFrameLevel() - 1)
 
-    local content = CreateFrame("Frame", nil, scrollFrame)
-    content:SetSize(scrollFrame:GetWidth() - 10, 500)
+    local content = Widgets.Frame(scrollFrame, {
+        size = { scrollFrame:GetWidth() - 10, 500 },
+    })
     scrollFrame:SetScrollChild(content)
 
     -- Ensure the scrollbar always occupies its reserved space
     if scrollFrame.ScrollBar then
         scrollFrame.ScrollBar:SetAlpha(1)
+        PSM.Skin.Apply(scrollFrame.ScrollBar, "scrollbar")
     end
 
     panel.scrollOffset     = 0
@@ -180,11 +187,13 @@ function PSM.UI:AddOwnedPetsElements(panel)
     end
 
     -- Stats label ---------------------------------------------------------
-    panel.statsText = panel:CreateFontString(nil, "OVERLAY")
-    panel.statsText:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
-    panel.statsText:SetPoint("BOTTOM", 0, 15)
-    panel.statsText:SetText("Showing: 0 pets  |  Duplicates: 0 pets (0 groups)")
-    panel.statsText:SetTextColor(1, 0.82, 0)
+    panel.statsText = Widgets.Label(panel, {
+        fontSize = Theme.SIZE.SMALL,
+        outline  = true,
+        color    = Theme.COLOR.GOLD,
+        point    = { "BOTTOM", 0, 15 },
+        text     = "Showing: 0 pets  |  Duplicates: 0 pets (0 groups)",
+    })
 
     -- Resize handler (scroll-position-preserving) -------------------------
     PSM.PanelManager:CreateScrollPreservingResizeHandler(
@@ -196,73 +205,67 @@ function PSM.UI:AddOwnedPetsElements(panel)
         content:SetWidth(scrollFrame:GetWidth())
     end)
 
-    -- Buttons (bottom-left) -----------------------------------------------
-    local function MakeButton(text, parent, anchor, onClick, tooltip)
-        local btn = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-        btn:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 5, 0)
-        btn:SetSize(PSM.Config.PANEL_BUTTON_WIDTH, PSM.Config.PANEL_BUTTON_HEIGHT)
-        btn:SetText(text)
-        btn:SetNormalFontObject("GameFontNormalSmall")
-        btn:SetScript("OnClick", onClick)
-        if tooltip then
-            -- `body` may be a string or a function returning one -- the Pet Teams
-            -- button passes a function so its saved-team count is read at hover time,
-            -- not at panel build time. The previous version passed `body` straight to
-            -- AddLine, so a function body rendered nothing at all and that count line
-            -- has never appeared on this panel. Resolved per hover now.
-            PSM.Tooltip.Attach(btn, function()
-                local body = tooltip.body
-                if type(body) == "function" then body = body() end
-                return {
-                    anchor = "ANCHOR_BOTTOM",
-                    title  = tooltip.title,
-                    lines  = body and { { text = body, color = PSM.Theme.COLOR.WHITE } } or nil,
-                }
-            end)
-        end
-        PSM.UI:ApplyElvUISkin(btn, "button")
-        return btn
+    -- Buttons -------------------------------------------------------------
+    -- Every button on this panel is the same shape. Three builders used to exist for
+    -- it: MakeButton, MakeViewButton, and Export written out by hand -- differing only
+    -- in where they anchor and what they do on click.
+    local function PanelButton(opts)
+        return Widgets.Button(panel, {
+            point      = opts.point,
+            size       = { PSM.Config.PANEL_BUTTON_WIDTH, PSM.Config.PANEL_BUTTON_HEIGHT },
+            text       = opts.text,
+            fontObject = "GameFontNormalSmall",
+            onClick    = opts.onClick,
+            tooltip    = opts.tooltip,
+        })
     end
 
-    -- Export (leftmost; anchors to panel edge instead of a sibling)
-    panel.exportButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    panel.exportButton:SetPoint("TOPLEFT", 10, -5)
-    panel.exportButton:SetSize(PSM.Config.PANEL_BUTTON_WIDTH, PSM.Config.PANEL_BUTTON_HEIGHT)
-    panel.exportButton:SetText("Export")
-    panel.exportButton:SetNormalFontObject("GameFontNormalSmall")
-    panel.exportButton:SetScript("OnClick", function()
-        PSM.Export:ShowExportDialog()
-    end)
-    PSM.UI:ApplyElvUISkin(panel.exportButton, "button")
+    -- Export (leftmost; anchors to the panel edge instead of a sibling)
+    panel.exportButton = PanelButton({
+        text    = "Export",
+        point   = { "TOPLEFT", 10, -5 },
+        onClick = function() PSM.Export:ShowExportDialog() end,
+    })
 
-    panel.teamsButton = MakeButton("Pet Teams", panel, panel.exportButton,
-        function() PSM.TeamsPanel:Show() end,
-        {
-            title = "View and manage saved pet teams",
-            body  = function()
-                return "You have " .. (PSM.Teams:GetTeamCount() or 0) .. " saved team(s)"
-            end,
-        }
-    )
+    panel.teamsButton = PanelButton({
+        text    = "Pet Teams",
+        point   = { "TOPLEFT", panel.exportButton, "TOPRIGHT", 5, 0 },
+        onClick = function() PSM.TeamsPanel:Show() end,
+        -- A function spec, so the saved-team count is read at hover time rather than
+        -- at panel build time. This is the only tooltip on the panel and the only one
+        -- that needed live contents, which is what the old MakeButton's
+        -- "body may be a string or a function" indirection existed to serve.
+        tooltip = function()
+            return {
+                anchor = "ANCHOR_BOTTOM",
+                title  = "View and manage saved pet teams",
+                lines  = {{
+                    text  = "You have " .. (PSM.Teams:GetTeamCount() or 0) .. " saved team(s)",
+                    color = Theme.COLOR.WHITE,
+                }},
+            }
+        end,
+    })
 
     -- View-mode buttons (right side, created right-to-left) ---------------
-    local function MakeViewButton(text, mode, rightAnchor)
-        local btn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-        btn:SetPoint("TOPRIGHT", rightAnchor, "TOPLEFT", -5, 0)
-        btn:SetSize(PSM.Config.PANEL_BUTTON_WIDTH, PSM.Config.PANEL_BUTTON_HEIGHT)
-        btn:SetText(text)
-        btn:SetNormalFontObject("GameFontNormalSmall")
-        btn:SetScript("OnClick", function()
-            ApplyViewMode(panel, mode)
-            PetStableManagementDB.settings.panelViewMode = mode
-        end)
-        PSM.UI:ApplyElvUISkin(btn, "button")
-        return btn
+    local function ViewButton(text, mode, rightAnchor)
+        return PanelButton({
+            text    = text,
+            point   = { "TOPRIGHT", rightAnchor, "TOPLEFT", -5, 0 },
+            onClick = function()
+                ApplyViewMode(panel, mode)
+                PetStableManagementDB.settings.panelViewMode = mode
+            end,
+        })
     end
 
-    panel.groupedButton = MakeViewButton("Grouped", "grouped", panel.maximizeButton)
-    panel.gridButton    = MakeViewButton("Grid",    "grid",    panel.groupedButton)
-    panel.listButton    = MakeViewButton("List",    "list",    panel.gridButton)
+    -- The maximize button is optional (PanelManager skips it for
+    -- showMaximizeButton = false), and a nil anchor is not an error -- SetPoint would
+    -- quietly fall back to the parent and put this row against the panel's left edge.
+    -- The close button is the one control every panel is guaranteed.
+    panel.groupedButton = ViewButton("Grouped", "grouped", panel.maximizeButton or panel.closeButton)
+    panel.gridButton    = ViewButton("Grid",    "grid",    panel.groupedButton)
+    panel.listButton    = ViewButton("List",    "list",    panel.gridButton)
 
     -- Disable the button matching the initial view mode
     ApplyViewMode(panel, PSM.state.panelViewMode or PetStableManagementDB.settings.panelViewMode)
@@ -273,8 +276,4 @@ function PSM.UI:AddOwnedPetsElements(panel)
     panel.scrollFrame     = scrollFrame
     panel.content         = content
     panel.rowsFrame       = rowsFrame
-
-    if scrollFrame.ScrollBar then
-        PSM.UI:ApplyElvUISkin(scrollFrame.ScrollBar, "scrollbar")
-    end
 end
