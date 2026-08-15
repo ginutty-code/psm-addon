@@ -8,20 +8,10 @@ local PSM = _G.PSM
 
 PSM.UI = PSM.UI or {}
 
---------------------------------------------------------------------------------
--- ELVUI COMPATIBILITY (compatibility shim -- the implementation is UI/Skin.lua)
---------------------------------------------------------------------------------
--- Forwards to PSM.Skin so the call sites that predate the UI kit keep working while
--- they migrate file by file. New code calls PSM.Skin.Apply directly, or -- better --
--- builds the widget with PSM.Widgets, which skins what it returns.
---
--- `PSM.UI.ElvUITexture` used to live here too and is gone: its last caller migrated
--- with GroupedView. This one follows when its own last caller does; check with
---   grep -rn ApplyElvUISkin PetStableManagement PetStableManagement_ModelsBrowser
-
-function PSM.UI:ApplyElvUISkin(frame, skinType)
-    return PSM.Skin.Apply(frame, skinType)
-end
+-- The `PSM.UI:ApplyElvUISkin` / `PSM.UI.ElvUITexture` shims are gone. They forwarded to
+-- PSM.Skin so pre-kit call sites kept working during A6; the last of the 86 migrated with
+-- OwnedPets/Row.lua. Skinning is PSM.Skin.Apply, and almost always PSM.Widgets doing it
+-- for you.
 
 --------------------------------------------------------------------------------
 -- STATE
@@ -207,14 +197,16 @@ function PSM.UI:SetupRowButtons(row, pet)
 
     -- Move Up / Down
     if isStableOpen and pet.slotID and pet.slotID >= 1 and pet.slotID <= 205 then
+        -- Re-attached on every row update, because the target slot is part of the text
+        -- and rows are recycled across pets. PSM.Tooltip.Attach replaces both scripts, so
+        -- re-attaching is how it is meant to be used -- unlike the raw pair, which left a
+        -- stale OnLeave behind if only OnEnter was reassigned.
         local function setupMoveButton(btn, label, targetSlot, action)
             btn:SetScript("OnClick", action)
-            btn:SetScript("OnEnter", function(self)
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:SetText(label .. " (to slot " .. targetSlot .. ")")
-                GameTooltip:Show()
-            end)
-            btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            PSM.Tooltip.Attach(btn, {
+                anchor = "ANCHOR_RIGHT",
+                title  = label .. " (to slot " .. targetSlot .. ")",
+            })
         end
 
         setupMoveButton(row.moveUp,   "Move Up",   pet.slotID - 1, function() PSM.Reorder:MovePetUp(pet)   end)

@@ -78,6 +78,28 @@ Theme.CONTROL = {
     -- picker had a 16px box on an 18px pitch, and the pitch was not touched when the
     -- box grew.
     CHECKBOX_ROW  = 22,
+
+    -- The panel resize grip. Named here because the row arrows below are sized against
+    -- it -- that comparison is the whole reason they have the values they do.
+    RESIZE_GRIP   = 16,
+
+    -- Owned Pets reorder arrows. They borrow the dropdown arrow's texture (see Row.lua),
+    -- so they take its size too and end up indistinguishable from it.
+    --
+    -- **One value, deliberately.** Measured with the Owned Pets panel open:
+    --     /dump PetDupSpecDrop.Button:GetSize()
+    -- a dropdown's arrow button is 24 on the default UI and 18 under ElvUI -- and the
+    -- addon sets neither. It sets nothing at all: 24 is Blizzard's template, and 18 is
+    -- ElvUI's HandleNextPrevButton resizing it, which is the same call the `reorderup` /
+    -- `reorderdown` skins make. Give these buttons 24 and the skin lands them on 18 by
+    -- itself, exactly as it does for every dropdown.
+    --
+    -- This briefly had a second `ROW_ARROW_SKINNED = 18` selected by PSM.Skin.IsActive(),
+    -- which hand-computed a number the skin layer was already producing -- a call site
+    -- reaching into territory Skin.lua owns. **If a difference is a skin difference, the
+    -- skin owns it.** Widgets applies `size` before `PSM.Skin.Apply`, so the ordering
+    -- that makes this work is guaranteed by the factory, not by luck.
+    ROW_ARROW = 24,
 }
 
 --------------------------------------------------------------------------------

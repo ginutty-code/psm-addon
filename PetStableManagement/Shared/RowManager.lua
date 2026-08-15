@@ -446,10 +446,10 @@ function PSM.RowManager:CreateBaseRow(parent, config)
     row.text = Widgets.Label(row, {
         fontSize = PSM.Theme.SIZE.SMALL,
         justify  = "LEFT",
+        justifyV = "MIDDLE",
         width    = PSM.Config.TEXT_WIDTH,
         point    = { "LEFT", row.model, "RIGHT", 6, 0 },
     })
-    row.text:SetJustifyV("MIDDLE")
 
     row.config = config
     return row

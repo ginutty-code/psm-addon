@@ -149,7 +149,10 @@ end
 -- EVENT HANDLER
 --------------------------------------------------------------------------------
 
-local eventFrame = CreateFrame("Frame")
+-- A handler holder, not a widget, so it stays out of the kit -- but PSM.CreateFrame
+-- rather than the raw global, which is the rule for core: it is Core.lua's alias and the
+-- headless tests can stub it.
+local eventFrame = PSM.CreateFrame("Frame")
 eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:RegisterEvent("PET_STABLE_SHOW")
 eventFrame:RegisterEvent("PET_STABLE_UPDATE")

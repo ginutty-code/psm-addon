@@ -1,8 +1,6 @@
 -- Utils.lua
 -- Utility functions for PetStableManagement
 
-local addonName = "PetStableManagement"
-
 _G.PSM = _G.PSM or {}
 local PSM = _G.PSM
 
@@ -138,8 +136,15 @@ function PSM.Utils:ShowContextMenu(menuList)
     PSM.state = PSM.state or {}
 
     if not PSM.state.contextDropDown then
-        PSM.state.contextDropDown = CreateFrame("Frame", "PSMContextMenuDropDown", UIParent, "UIDropDownMenuTemplate")
-        PSM.state.contextDropDown:Hide()
+        -- Deliberately unskinned, unlike every other UIDropDownMenuTemplate frame in the
+        -- addon. This one is never displayed: it is the host ToggleDropDownMenu anchors
+        -- the popup to, and it stays hidden for its whole life. Skinning it would restyle
+        -- nothing, so `skin = "dropdown"` here would read as working and do nothing.
+        PSM.state.contextDropDown = PSM.Widgets.Frame(UIParent, {
+            name     = "PSMContextMenuDropDown",
+            template = "UIDropDownMenuTemplate",
+            hidden   = true,
+        })
     end
 
     UIDropDownMenu_Initialize(PSM.state.contextDropDown, function(self, level)

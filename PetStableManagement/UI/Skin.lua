@@ -76,6 +76,27 @@ local handlers = {
         if S.HandleSliderFrame then S:HandleSliderFrame(f) end
     end,
 
+    -- The Owned Pets reorder arrows. ElvUI's own next/prev treatment, so they match the
+    -- rest of a skinned UI instead of sitting in it as Blizzard scrollbar art.
+    --
+    -- HandleNextPrevButton rather than rotating ElvUI's ArrowUp media by hand, which is
+    -- what `resizegrip` below does: this is ElvUI's function *for* directional arrow
+    -- buttons, so it handles the normal/pushed/disabled states together and keeps
+    -- working if ElvUI changes its arrow art. Rotating the texture ourselves would only
+    -- restyle the normal state and leave the other two as scrollbar art.
+    --
+    -- Guarded like the dropdown handler above: these are the two ElvUI helpers PSM calls
+    -- that are not part of its long-stable core. Without ElvUI, Skin.Apply returns before
+    -- the handler and the buttons keep their Blizzard arrows -- which is the right
+    -- fallback, and better than rotating Skin.Texture("ArrowUp"), whose non-ElvUI
+    -- fallback is a plus sign that looks identical upside down.
+    reorderup = function(S, f)
+        if S.HandleNextPrevButton then S:HandleNextPrevButton(f, "up") end
+    end,
+    reorderdown = function(S, f)
+        if S.HandleNextPrevButton then S:HandleNextPrevButton(f, "down") end
+    end,
+
     resizegrip = function(_, f)
         f:StripTextures()
         f:SetTemplate()

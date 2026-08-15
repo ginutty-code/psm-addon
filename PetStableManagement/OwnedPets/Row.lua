@@ -1,8 +1,6 @@
 -- OwnedPets/Row.lua
 -- Row management for PetStableManagement
 
-local addonName = "PetStableManagement"
-
 -- Initialize global namespace
 _G.PSM = _G.PSM or {}
 local PSM = _G.PSM
@@ -26,13 +24,12 @@ local ACTION_BUTTONS = {
 -- ---------------------------------------------------------------------------
 
 local function CreateActionButton(parent, label)
-    local btn = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-    btn:SetSize(PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT)
-    btn:SetText(label)
-    btn:SetNormalFontObject("GameFontNormalSmall")
-    btn:Hide()
-    PSM.UI:ApplyElvUISkin(btn, "button")
-    return btn
+    return PSM.Widgets.Button(parent, {
+        size       = { PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT },
+        text       = label,
+        fontObject = "GameFontNormalSmall",
+        hidden     = true,
+    })
 end
 
 local function BuildAbilitiesText(abilities)
@@ -94,28 +91,32 @@ function PSM.UI.Row:EnsureRowElements(row)
 
     row.customElements = row.customElements or {}
 
+    local Widgets = PSM.Widgets
+    local Theme   = PSM.Theme
+
     -- Abilities header
-    row.abilitiesHeader = row:CreateFontString(nil, "OVERLAY")
-    row.abilitiesHeader:SetFont("Fonts\\FRIZQT__.TTF", 10)
-    row.abilitiesHeader:SetPoint("TOPLEFT", row.text, "TOPRIGHT", 20, 10)
-    row.abilitiesHeader:SetText("|cFFFFD700Abilities:|r")
-    row.abilitiesHeader:SetJustifyH("LEFT")
-    row.abilitiesHeader:SetJustifyV("MIDDLE")
-    row.abilitiesHeader:SetWidth(PSM.Config.ABILITIES_WIDTH)
-    row.abilitiesHeader:Hide()
+    row.abilitiesHeader = Widgets.Label(row, {
+        fontSize = Theme.SIZE.SMALL,
+        text     = "|cFFFFD700Abilities:|r",
+        justify  = "LEFT",
+        justifyV = "MIDDLE",
+        width    = PSM.Config.ABILITIES_WIDTH,
+        hidden   = true,
+        point    = { "TOPLEFT", row.text, "TOPRIGHT", 20, 10 },
+    })
     table.insert(row.customElements, row.abilitiesHeader)
 
     -- Abilities list
-    row.abilitiesList = row:CreateFontString(nil, "OVERLAY")
-    row.abilitiesList:SetFont("Fonts\\FRIZQT__.TTF", 9)
-    row.abilitiesList:SetPoint("TOPLEFT", row.abilitiesHeader, "BOTTOMLEFT", 0, -2)
-    row.abilitiesList:SetWidth(PSM.Config.ABILITIES_WIDTH)
-    row.abilitiesList:SetHeight(200)
-    row.abilitiesList:SetJustifyH("LEFT")
-    row.abilitiesList:SetJustifyV("TOP")
-    row.abilitiesList:SetWordWrap(true)
-    row.abilitiesList:SetNonSpaceWrap(true)
-    row.abilitiesList:Hide()
+    row.abilitiesList = Widgets.Label(row, {
+        fontSize     = Theme.SIZE.TINY,
+        justify      = "LEFT",
+        justifyV     = "TOP",
+        wordWrap     = true,
+        nonSpaceWrap = true,
+        size         = { PSM.Config.ABILITIES_WIDTH, 200 },
+        hidden       = true,
+        point        = { "TOPLEFT", row.abilitiesHeader, "BOTTOMLEFT", 0, -2 },
+    })
     table.insert(row.customElements, row.abilitiesList)
 
     -- Action buttons
@@ -124,25 +125,60 @@ function PSM.UI.Row:EnsureRowElements(row)
         table.insert(row.customElements, row[def.key])
     end
 
-    -- Move Up button
-    row.moveUp = CreateFrame("Button", nil, row)
-    row.moveUp:SetSize(24, 24)
-    row.moveUp:SetPoint("LEFT", row.text, "LEFT", 0, 0)
-    row.moveUp:SetNormalTexture("Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Up")
-    row.moveUp:SetHighlightTexture("Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Highlight")
-    row.moveUp:SetPushedTexture("Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Down")
-    row.moveUp:Hide()
-    table.insert(row.customElements, row.moveUp)
+    -- Reorder arrows. IconButton rather than Button because ElvUI's HandleButton strips
+    -- exactly the kind of bare texture these are made of -- which is why IconButton is the
+    -- one factory that does not skin by default.
+    --
+    -- The `reorderup`/`reorderdown` skins are the deliberate exception: under ElvUI they
+    -- hand the button to its own next/prev treatment. Without ElvUI the skin is a no-op
+    -- and the texture below is what shows.
+    --
+    -- The dropdown arrow. Despite living under ChatFrame\, this is the texture
+    -- UIDropDownMenuTemplate puts on its button, so the reorder arrows are literally the
+    -- same glyph as every dropdown in the addon rather than merely a similar one.
+    --
+    -- It went through two worse choices first. UI-ScrollBar-ScrollUpButton/DownButton are
+    -- scrollbar *buttons* -- mostly bevel and frame around a small glyph -- which needed
+    -- 24px to stay readable while ElvUI's replacement art looked best at 16, so the size
+    -- had to branch on the skin. UI-MicroStream-Yellow fixed the legibility and removed
+    -- the branch, but was only a lookalike.
+    --
+    -- One texture serves both directions: it points *down*, so `flip` mirrors it
+    -- vertically for the up arrow. That is the only thing separating the two -- if they
+    -- ever render inverted, move that key to the other row; there is no second place to
+    -- check.
+    local ARROW = "Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-%s"
+    local ARROWS = {
+        { key = "moveUp",   skin = "reorderup",   flip = true },
+        { key = "moveDown", skin = "reorderdown"              },
+    }
 
-    -- Move Down button
-    row.moveDown = CreateFrame("Button", nil, row)
-    row.moveDown:SetSize(24, 24)
-    row.moveDown:SetPoint("LEFT", row.moveUp, "RIGHT", 2, 0)
-    row.moveDown:SetNormalTexture("Interface\\Buttons\\UI-ScrollBar-ScrollDownButton-Up")
-    row.moveDown:SetHighlightTexture("Interface\\Buttons\\UI-ScrollBar-ScrollDownButton-Highlight")
-    row.moveDown:SetPushedTexture("Interface\\Buttons\\UI-ScrollBar-ScrollDownButton-Down")
-    row.moveDown:Hide()
-    table.insert(row.customElements, row.moveDown)
+    -- Blizzard's dropdown-arrow size. Under ElvUI the skin resizes these on its own, the
+    -- same way it resizes every dropdown's arrow -- no branch here. See
+    -- Theme.CONTROL.ROW_ARROW.
+    local side = Theme.CONTROL.ROW_ARROW
+    local previous
+    for _, arrow in ipairs(ARROWS) do
+        row[arrow.key] = Widgets.IconButton(row, {
+            size      = { side, side },
+            texture   = ARROW:format("Up"),
+            -- Real pushed art, unlike the bare triangle this replaced: that had a single
+            -- glyph, so a pushed texture would have been identical to the normal one and
+            -- clicking showed no feedback at all.
+            pushed    = ARROW:format("Down"),
+            -- Its own texture as the highlight: SetHighlightTexture blends additively, so
+            -- it brightens on hover without needing separate art.
+            highlight = ARROW:format("Up"),
+            texCoord  = arrow.flip and { 0, 1, 1, 0 } or nil,
+            skin      = arrow.skin,
+            hidden    = true,
+            point     = previous
+                and { "LEFT", previous, "RIGHT", 2, 0 }
+                 or { "LEFT", row.text, "LEFT",  0, 0 },
+        })
+        table.insert(row.customElements, row[arrow.key])
+        previous = row[arrow.key]
+    end
 end
 
 -- ---------------------------------------------------------------------------

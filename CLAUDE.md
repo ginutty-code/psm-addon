@@ -146,9 +146,10 @@ Options tables fail *silently* — a misspelled key is simply never read — so 
 factory declares its vocabulary in `OPTIONS` at the top of `Widgets.lua`. Add new keys
 there or they will be recorded as unknown.
 
-`PSM.UI:ApplyElvUISkin` / `PSM.UI.ElvUITexture` still exist as thin forwarders to
-`PSM.Skin` for the not-yet-migrated call sites. Don't call them in new code, and
-delete them when the last caller is gone.
+`PSM.UI:ApplyElvUISkin` / `PSM.UI.ElvUITexture` are **gone** — they were forwarders to
+`PSM.Skin` for pre-kit call sites, and the last of the 86 migrated with
+`OwnedPets/Row.lua`. Call `PSM.Skin.Apply` directly, or build the widget with
+`PSM.Widgets` and get it for free.
 
 Context menus go through **`PSM.Utils:ShowContextMenu(menuList)`** — the single
 implementation. Two verbatim copies used to exist alongside it.
@@ -221,64 +222,42 @@ wants its own model tooltip must re-attach `OnEnter`/`OnLeave` and would otherwi
 RowManager's pair — which is exactly what both views did, each with its own hardcoded
 copy of the button list instead of walking `model.hoverButtons`.
 
-### Migration status (A6, ongoing)
+### Migration status (A6 — complete)
 
-Migrated, each with zero raw `CreateFrame` / `CreateFontString` / `CreateTexture` /
-`GameTooltip:` / skin calls: `Core.lua`, `Shared/PopUpManager.lua`,
-`Shared/Dialogs.lua`, `Shared/RowManager.lua`, `Shared/Minimap.lua`,
-`Shared/Broker.lua`, `Shared/PanelManager.lua`, `Shared/OptionsPanel.lua`,
-`OwnedPets/TeamsPanel.lua`, `OwnedPets/Export.lua`, `OwnedPets/Filters.lua`,
-`OwnedPets/GroupedView.lua`, `OwnedPets/GridView.lua`, `OwnedPets/Panel.lua`,
-`OwnedPets/DragDrop.lua`,
-`ModelsBrowser/SpecialTames.lua`, `ModelsBrowser/ModelsFilters.lua`,
-`ModelsBrowser/AbilityBrowser.lua`, `ModelsBrowser/ModelsPanel.lua`,
-`ModelsBrowser/NPCRow.lua`, `ModelsBrowser/ModelRow.lua`.
+**Every hand-written file in both addons builds its frames through `PSM.Widgets`.** No
+raw `CreateFrame` / `CreateFontString` / `CreateTexture` / `GameTooltip:` / skin call
+survives outside the kit, apart from the deliberate exceptions below.
 
-Repo-wide, twenty-one files in: `ApplyElvUISkin` **86 → 4**, `CreateFrame` **193 → 25**.
+Repo-wide: `ApplyElvUISkin` **86 → 0** (the `PSM.UI:ApplyElvUISkin` and
+`PSM.UI.ElvUITexture` shims are deleted — skinning is `PSM.Skin.Apply`, and almost
+always `PSM.Widgets` doing it for you), `CreateFrame` **193 → 6**.
 
-**The density score says how much a file does by hand, not what kind.** `GridView`
-scored 17 and every one of them was `GameTooltip:` — zero construction, because
-RowManager's migration had already covered its widgets. Read the file before planning
-the work; the breakdown is a one-liner:
+Those six are all the same thing: an invisible, parentless frame holding `OnUpdate` or
+`RegisterEvent` handlers. **That is not a widget and must not come from the kit** —
+`Events.lua`'s event frame, `RowManager` and `ModelsPanel`'s timer frames,
+`DragDrop`'s cursor-tracking frame, `NPCRow`'s `ResizeDriver`, `TamingChecker`'s cache
+frame. In *core*, use `PSM.CreateFrame` (Core.lua's alias, which the headless tests can
+stub); in the *browser*, use raw `CreateFrame` — reaching for the core alias at browser
+file scope is the cross-addon capture pattern `ModelRow.lua` was fixed for.
 
-```bash
-f=<file>; for p in 'CreateFrame(' ':CreateFontString(' ':CreateTexture(' \
-  'GameTooltip:' 'ApplyElvUISkin' 'SetBackdrop({'; do
-  printf '%3d  %s\n' "$(grep -c -F "$p" $f)" "$p"; done
-```
-
-`PopUpManager.lua` is the reference. The only `SetBackdropColor` left in it is a
-*runtime recolour*, not construction — **that is the line to draw** when migrating
-another file. Density counts that include `SetBackdropColor` overstate a file's real
-construction work; count `SetBackdrop({` instead.
-
-**One `CreateFrame` may legitimately survive a migration:** an invisible, parentless
-frame that exists only to hold `OnUpdate` or `RegisterEvent` handlers is not a widget
-and should not come from the widget kit (`ModelsPanel`'s zone listener, `NPCRow`'s
-`ResizeDriver`). In *core*, prefer `PSM.CreateFrame` (Core.lua's alias, which the
-headless tests can stub); in the *browser*, use raw `CreateFrame` — reaching for the
-core alias at browser file scope is the cross-addon capture pattern `ModelRow.lua` was
-fixed for.
-
-Remaining, densest first — **re-measure rather than trusting this list**, the original
-one was a partial survey that omitted the two densest files in the addon:
-
-`Shared/Menu.lua` (10), `Shared/Utils.lua` (7), `OwnedPets/Row.lua` (6).
-`Shared/UI.lua` is the `ApplyElvUISkin` shim and goes when its last caller does —
-`Shared/Menu.lua` (3) and `OwnedPets/Row.lua` (1) hold all four that remain.
-
-Everything else measures 1, and each of those is a deliberate survivor: the event and
-timer frames named below, one `GameTooltip:` inside a comment, and PopUpManager's
-sublayer `CreateTexture`.
+To confirm nothing has regressed, and to see those six named:
 
 ```bash
 for f in $(find PetStableManagement* -name '*.lua' -not -path '*/Data/*' | grep -v /UI/); do
-  n=$(( $(grep -c -F 'CreateFrame(' $f) + $(grep -c -F ':CreateFontString(' $f) \
-      + $(grep -c -F ':CreateTexture(' $f) + $(grep -c -F 'GameTooltip:' $f) \
-      + $(grep -c -F 'ApplyElvUISkin' $f) + $(grep -c -F 'SetBackdrop({' $f) ))
-  [ "$n" -gt 2 ] && printf '%3d  %s\n' "$n" "$f"
-done | sort -rn
+  grep -Hn -F -e 'CreateFrame(' -e ':CreateFontString(' -e ':CreateTexture(' \
+    -e 'GameTooltip:' -e 'ApplyElvUISkin' -e 'SetBackdrop({' $f
+done
 ```
+
+Two hits it reports are comments, not code — the pattern list matches prose too. Judge by
+reading the line, not by the count.
+
+**Two counting traps, both of which cost time during A6.** A density score says how much
+a file does by hand, not what kind: `GridView` scored 17 and every one was `GameTooltip:`,
+zero construction, because RowManager's migration had already covered its widgets. And
+`SetBackdropColor` is usually a *runtime recolour* rather than construction, so counts
+including it overstate the work — count `SetBackdrop({`. `PopUpManager.lua` is the
+reference file for where that line falls.
 
 The full task record — every measurement, every bug found while migrating, and the
 reasoning behind each kit addition — is in `../ARCHITECTURE_PLAN.md` (outside both
@@ -350,7 +329,7 @@ until the layering work separates it.
 so it doesn't only ever exercise the lupa fallback).
 
 The lint job **gates on errors, not warnings**. luacheck exits 1 for warnings and
-≥2 for errors; the project carries a stable warning baseline (58), so failing on any
+≥2 for errors; the project carries a stable warning baseline (54), so failing on any
 warning would fail every run. The count is printed in the job log — treat a change
 in it as something you caused, and account for it.
 
@@ -366,7 +345,7 @@ path is in `CLAUDE.local.md` (untracked). Run from the repo root:
 luacheck PetStableManagement PetStableManagement_ModelsBrowser Tests
 ```
 
-The current clean baseline is **58 warnings / 0 errors**. Treat any change in it as
+The current clean baseline is **54 warnings / 0 errors**. Treat any change in it as
 something you introduced, and account for it — a drop is as much a claim as a rise,
 and should be attributable to a specific edit.
 

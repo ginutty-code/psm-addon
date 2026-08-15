@@ -506,9 +506,14 @@ function PSM.PopUpManager:CreateModelPopup(config)
         level     = popup:GetFrameLevel() - 1,
     })
 
-    popup.border.specBg = popup.border:CreateTexture(nil, "BACKGROUND", nil, -1)
-    popup.border.specBg:SetAllPoints()
-    popup.border.specBg:Hide()
+    -- Sublayer -1 so the spec artwork sits behind the backdrop's own background rather
+    -- than over it; both are BACKGROUND-layer on the same frame.
+    popup.border.specBg = Widgets.Texture(popup.border, {
+        layer     = "BACKGROUND",
+        sublayer  = -1,
+        allPoints = true,
+        hidden    = true,
+    })
 
     -- Optional: Pet Models back button
     if config.showPetModelsButton then

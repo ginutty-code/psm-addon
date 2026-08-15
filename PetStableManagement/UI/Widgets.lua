@@ -33,9 +33,9 @@ local COMMON_KEYS = { size = true, width = true, height = true, point = true, hi
 -- different factory, and is recorded in Widgets.unknownOptions rather than obeyed.
 local OPTIONS = {
     Frame       = { frameType = true, name = true, template = true, backdrop = true, backdropOverrides = true, color = true, borderColor = true, strata = true, level = true, allPoints = true, skin = true },
-    Label       = { fontSize = true, fontObject = true, outline = true, color = true, justify = true, layer = true, text = true, wordWrap = true, nonSpaceWrap = true },
+    Label       = { fontSize = true, fontObject = true, outline = true, color = true, justify = true, justifyV = true, layer = true, text = true, wordWrap = true, nonSpaceWrap = true },
     Button      = { name = true, template = true, text = true, fontObject = true, strata = true, level = true, onClick = true, tooltip = true, skin = true },
-    IconButton  = { name = true, texture = true, highlight = true, pushed = true, alpha = true, level = true, onClick = true, tooltip = true, skin = true },
+    IconButton  = { name = true, texture = true, highlight = true, pushed = true, alpha = true, level = true, onClick = true, tooltip = true, skin = true, texCoord = true },
     CloseButton = { name = true, level = true, onClick = true, target = true },
     ResizeGrip  = { corner = true },
     EditBox     = { name = true, multiline = true, template = true, fontObject = true, autoFocus = true, textColor = true, text = true, onEscape = true, onEnter = true, closes = true },
@@ -184,6 +184,9 @@ function Widgets.Label(parent, opts)
 
     if opts.color        then fs:SetTextColor(unpack(opts.color))     end
     if opts.justify      then fs:SetJustifyH(opts.justify)            end
+    -- Vertical justification only does anything on a font string with an explicit
+    -- height, which is why it appears far less often than `justify`.
+    if opts.justifyV     then fs:SetJustifyV(opts.justifyV)           end
     if opts.wordWrap ~= nil then fs:SetWordWrap(opts.wordWrap)        end
     if opts.nonSpaceWrap    then fs:SetNonSpaceWrap(true)             end
     ApplyCommon(fs, opts)
@@ -222,6 +225,15 @@ function Widgets.IconButton(parent, opts)
     if opts.texture   then b:SetNormalTexture(opts.texture)                    end
     if opts.highlight then b:SetHighlightTexture(opts.highlight)               end
     if opts.pushed    then b:SetPushedTexture(opts.pushed)                     end
+
+    -- Applied to every state that exists, not just the normal one: a mirrored icon whose
+    -- highlight still points the original way is worse than no highlight at all. This is
+    -- how one arrow texture serves both directions -- {0,1,1,0} flips it vertically.
+    if opts.texCoord then
+        for _, tex in ipairs({ b:GetNormalTexture(), b:GetHighlightTexture(), b:GetPushedTexture() }) do
+            tex:SetTexCoord(unpack(opts.texCoord))
+        end
+    end
     if opts.alpha     then b:SetAlpha(opts.alpha)                              end
     if opts.level     then b:SetFrameLevel(opts.level)                         end
     if opts.onClick   then b:SetScript("OnClick", opts.onClick)                end
@@ -251,7 +263,8 @@ function Widgets.ResizeGrip(frame, opts)
     frame:SetResizable(true)
 
     local grip = CreateFrame("Button", nil, frame)
-    grip:SetSize(unpack(opts.size or { 16, 16 }))
+    local side = PSM.Theme.CONTROL.RESIZE_GRIP
+    grip:SetSize(unpack(opts.size or { side, side }))
     grip:SetPoint(unpack(opts.point or { "BOTTOMRIGHT", frame, "BOTTOMRIGHT", -4, 4 }))
     grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
     grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
