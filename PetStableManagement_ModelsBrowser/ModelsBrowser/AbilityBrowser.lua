@@ -290,7 +290,11 @@ if TooltipDataProcessor and Enum.TooltipDataType and not AB.tooltipHookInstalled
     end)
 end
 
-local function CreateAbilityIcon(parent, entry, panel)
+-- Icons are pooled and rebound, so **nothing here may close over an entry**: every handler
+-- reads `btn.entry`, which BindAbilityIcon reassigns. Capturing it was what made building
+-- a fresh icon per populate the only correct option -- and since WoW frames cannot be
+-- destroyed, every search leaked a complete copy of the panel's icon set.
+local function CreateAbilityIcon(parent, panel)
     local Widgets = PSM.Widgets
 
     local btn = Widgets.Frame(parent, {
@@ -301,7 +305,6 @@ local function CreateAbilityIcon(parent, entry, panel)
     btn.iconTex = Widgets.Texture(btn, {
         layer     = "ARTWORK",
         allPoints = true,
-        texture   = entry.icon and entry.icon ~= "" and ("Interface\\Icons\\" .. entry.icon) or nil,
     })
 
     btn.selBorder = Widgets.Texture(btn, {
@@ -320,14 +323,14 @@ local function CreateAbilityIcon(parent, entry, panel)
         hidden    = true,
     })
 
-    SetIconAppearance(btn, AB.selectedAbilities[entry.spellId])
-
     -- The spell tooltip is Blizzard's own; our extra "Available from" lines are
     -- appended by the TooltipDataProcessor post-call above, which needs
     -- hoveredAbilityEntry set *before* the tooltip is built. Attach runs onEnter
     -- first, so that ordering holds.
     PSM.Tooltip.Attach(btn,
         function()
+            local entry = btn.entry
+            if not entry then return nil end
             if entry.spellId then return { spellId = entry.spellId } end
             return {
                 title      = entry.name or "Unknown",
@@ -339,7 +342,8 @@ local function CreateAbilityIcon(parent, entry, panel)
             onEnter = function()
                 -- Only claimed when there is a spell to hang the post-call off, so a
                 -- spell tooltip raised by anything else never picks up our lines.
-                AB.hoveredAbilityEntry = entry.spellId and entry or nil
+                local entry = btn.entry
+                AB.hoveredAbilityEntry = (entry and entry.spellId) and entry or nil
                 highlight:Show()
             end,
             onLeave = function()
@@ -350,6 +354,8 @@ local function CreateAbilityIcon(parent, entry, panel)
     )
 
     btn:SetScript("OnClick", function()
+        local entry = btn.entry
+        if not entry then return end
         local newState = not AB.selectedAbilities[entry.spellId]
         AB.selectedAbilities[entry.spellId] = newState
         for _, iconBtn in ipairs(panel.abilityIcons or {}) do
@@ -364,10 +370,17 @@ local function CreateAbilityIcon(parent, entry, panel)
         UpdateSelectAllButton(panel)
     end)
 
-    btn.spellId = entry.spellId
-    panel.abilityIcons = panel.abilityIcons or {}
-    table.insert(panel.abilityIcons, btn)
     return btn
+end
+
+-- Point a pooled icon at a different ability. Everything the handlers above read comes
+-- from here.
+local function BindAbilityIcon(btn, entry)
+    btn.entry   = entry
+    btn.spellId = entry.spellId
+    btn.iconTex:SetTexture(
+        entry.icon and entry.icon ~= "" and ("Interface\\Icons\\" .. entry.icon) or nil)
+    SetIconAppearance(btn, AB.selectedAbilities[entry.spellId])
 end
 
 -- ─────────────────────────────────────────────
@@ -376,14 +389,40 @@ end
 
 -- Places icons from entries[startIdx .. startIdx+count-1] into parent.
 -- Icons flow left-to-right, iconsPerRow wide.
-local function PlaceIconGrid(parent, entries, startIdx, count, iconsPerRow, panel)
+-- Fills `area` from the pool it owns, creating only what it has never needed before, and
+-- hiding whatever a previous longer list left over. The area keeps its icons across
+-- repopulations, so nothing is reparented and nothing is orphaned.
+local function PlaceIconGrid(area, entries, startIdx, count, iconsPerRow, panel)
+    area.icons = area.icons or {}
+    local used = 0
+
     for i = 1, count do
         local entry = entries[startIdx + i - 1]
         if not entry then break end
-        local col = (i - 1) % iconsPerRow
-        local row = math.floor((i - 1) / iconsPerRow)
-        local btn = CreateAbilityIcon(parent, entry, panel)
-        btn:SetPoint("TOPLEFT", parent, "TOPLEFT", col * CELL, -row * CELL)
+
+        local btn = area.icons[i]
+        if not btn then
+            btn = CreateAbilityIcon(area, panel)
+            area.icons[i] = btn
+        end
+
+        BindAbilityIcon(btn, entry)
+        btn:ClearAllPoints()
+        btn:SetPoint("TOPLEFT", area, "TOPLEFT",
+            ((i - 1) % iconsPerRow) * CELL,
+            -math.floor((i - 1) / iconsPerRow) * CELL)
+        btn:Show()
+
+        -- Rebuilt per populate: this list is how a click on one icon updates the other
+        -- copy of the same spell (an ability appears in both the partial and expanded
+        -- grids), so it must contain the live icons and only those.
+        panel.abilityIcons[#panel.abilityIcons + 1] = btn
+        used = i
+    end
+
+    for i = used + 1, #area.icons do
+        area.icons[i].entry = nil
+        area.icons[i]:Hide()
     end
 end
 
@@ -393,24 +432,16 @@ end
 
 -- cardW         : width used in partial state (1/3 of scroll area)
 -- expandedInnerW: inner pixel width available when card is full-width
-local function CreateCard(parent, cat, entries, cardW, expandedInnerW, panel, onToggle)
-    local Widgets       = PSM.Widgets
-    local hasMore       = #entries > CFG.PARTIAL_ICONS
-    local hiddenCount   = math.max(0, #entries - CFG.PARTIAL_ICONS)
-
-    -- Icons-per-row for expanded state, based on actual full inner width
-    local expandedIconsPerRow = math.max(1, math.floor(expandedInnerW / CELL))
+local function CreateCard(parent, panel, onToggle)
+    local Widgets = PSM.Widgets
 
     local card = Widgets.Frame(parent, {
-        width       = cardW,
         height      = PARTIAL_CARD_H,   -- all partial cards identical height
         backdrop    = "SOLID_BORDERED",
         color       = CARD.BG,
         borderColor = CARD.BORDER,
     })
     card.isExpanded = false
-    card.entries    = entries
-    card.cat        = cat
 
     -- ── Header ──
     local header = Widgets.Frame(card, {
@@ -432,15 +463,13 @@ local function CreateCard(parent, cat, entries, cardW, expandedInnerW, panel, on
         fontSize = PSM.Config.FONT_SIZES.ABILITY_CATEGORY,
         color    = PSM.Config.COLORS.ABILITY_CATEGORY_LABEL,
         point    = { "LEFT", header, "LEFT", P, 0 },
-        text     = cat,
     })
     card.catLabel = catLabel
 
-    Widgets.Label(header, {
+    card.countLabel = Widgets.Label(header, {
         fontSize = PSM.Config.FONT_SIZES.STATS,
         color    = PSM.Theme.COLOR.FAINT,
         point    = { "RIGHT", header, "RIGHT", -P, 0 },
-        text     = "(" .. #entries .. ")",
     })
 
     Widgets.Line(card, {
@@ -465,18 +494,12 @@ local function CreateCard(parent, cat, entries, cardW, expandedInnerW, panel, on
     end
 
     -- ── Partial icon area (always shown, 1 row of up to 5 icons) ──
-    local partialArea = IconArea(CELL)
-    PlaceIconGrid(partialArea, entries, 1, CFG.PARTIAL_ICONS, CFG.PARTIAL_ICONS, panel)
+    card.partialArea = IconArea(CELL)
 
     -- ── Expanded icon area (hidden until expanded; contains ALL icons) ──
     -- Uses full inner width so icons spread across the whole card.
-    local expandArea = IconArea(CFG.EXPANDED_ROWS * CELL)
-    expandArea:Hide()
-    card.expandArea  = expandArea
-    card.partialArea = partialArea
-
-    -- Place ALL entries into expandArea (full-width grid)
-    PlaceIconGrid(expandArea, entries, 1, #entries, expandedIconsPerRow, panel)
+    card.expandArea = IconArea(CFG.EXPANDED_ROWS * CELL)
+    card.expandArea:Hide()
 
     -- ── "and X more" / "Show less" label — anchored bottom-right always ──
     local moreBtn = Widgets.Frame(card, {
@@ -494,34 +517,31 @@ local function CreateCard(parent, cat, entries, cardW, expandedInnerW, panel, on
     })
     moreBtn.label = moreLabel
 
-    -- Show label only if there are hidden icons
-    if hasMore then
-        moreLabel:SetText("and " .. hiddenCount .. " more...")
-    else
-        moreBtn:Hide()
-    end
-
     -- ── Expand / collapse ──
-    if hasMore then
-        moreBtn:SetScript("OnClick", function()
-            card.isExpanded = not card.isExpanded
-            if card.isExpanded then
-                card:SetHeight(EXPANDED_CARD_H)
-                partialArea:Hide()
-                expandArea:Show()
-                moreLabel:SetText("Show less")
-            else
-                card:SetHeight(PARTIAL_CARD_H)
-                expandArea:Hide()
-                partialArea:Show()
-                moreLabel:SetText("and " .. hiddenCount .. " more...")
-            end
-            if onToggle then onToggle(card) end
-        end)
-    end
+    -- Always attached and guarded on card.hiddenCount, rather than attached only when
+    -- there is something to expand: a pooled card is rebound to categories with different
+    -- entry counts, so "has more" is not a property of the card, only of its current
+    -- contents.
+    moreBtn:SetScript("OnClick", function()
+        if (card.hiddenCount or 0) <= 0 then return end
+        card.isExpanded = not card.isExpanded
+        if card.isExpanded then
+            card:SetHeight(EXPANDED_CARD_H)
+            card.partialArea:Hide()
+            card.expandArea:Show()
+            moreLabel:SetText("Show less")
+        else
+            card:SetHeight(PARTIAL_CARD_H)
+            card.expandArea:Hide()
+            card.partialArea:Show()
+            moreLabel:SetText("and " .. card.hiddenCount .. " more...")
+        end
+        if onToggle then onToggle(card) end
+    end)
 
     -- ── Header: select / unselect all in card ──
     header:SetScript("OnClick", function()
+        local entries = card.entries or {}
         local allSelected = true
         for _, entry in ipairs(entries) do
             if not AB.selectedAbilities[entry.spellId] then allSelected = false; break end
@@ -546,8 +566,40 @@ local function CreateCard(parent, cat, entries, cardW, expandedInnerW, panel, on
         UpdateCardHeader(card)
     end)
 
-    UpdateCardHeader(card)
     return card
+end
+
+-- Point a pooled card at a different category. Everything the card's handlers read --
+-- entries, hiddenCount, the two icon grids -- is (re)set here.
+local function BindCard(card, cat, entries, cardW, expandedInnerW, panel)
+    card.cat         = cat
+    card.entries     = entries
+    card.hiddenCount = math.max(0, #entries - CFG.PARTIAL_ICONS)
+
+    card:SetWidth(cardW)
+    card.catLabel:SetText(cat)
+    card.countLabel:SetText("(" .. #entries .. ")")
+
+    -- Collapsed on every rebind: the expanded state belonged to the previous contents,
+    -- and a card silently keeping it would open at EXPANDED_CARD_H showing a grid built
+    -- for a different category.
+    card.isExpanded = false
+    card:SetHeight(PARTIAL_CARD_H)
+    card.partialArea:Show()
+    card.expandArea:Hide()
+
+    PlaceIconGrid(card.partialArea, entries, 1, CFG.PARTIAL_ICONS, CFG.PARTIAL_ICONS, panel)
+    PlaceIconGrid(card.expandArea, entries, 1, #entries,
+        math.max(1, math.floor(expandedInnerW / CELL)), panel)
+
+    if card.hiddenCount > 0 then
+        card.moreBtn.label:SetText("and " .. card.hiddenCount .. " more...")
+        card.moreBtn:Show()
+    else
+        card.moreBtn:Hide()
+    end
+
+    UpdateCardHeader(card)
 end
 
 -- ─────────────────────────────────────────────
@@ -561,14 +613,18 @@ function AB:PopulateAbilities(panel, query, activeTag)
     query     = query or ""
     activeTag = activeTag or ""
 
-    if panel.scrollChild then
-        panel.scrollChild:Hide()
-        panel.scrollChild = nil
+    -- Built once and reused. This used to create a fresh scroll child, a fresh card per
+    -- category and a fresh icon per ability on *every* call -- and the search box calls it
+    -- per keystroke (debounced, but still). WoW frames cannot be destroyed, so the old set
+    -- was only hidden: every search leaked a complete copy of the panel's frame tree.
+    local scrollChild = panel.scrollChild
+    if not scrollChild then
+        scrollChild = PSM.Widgets.Frame(scrollFrame, {})
+        scrollFrame:SetScrollChild(scrollChild)
+        panel.scrollChild = scrollChild
     end
 
-    local scrollChild = PSM.Widgets.Frame(scrollFrame, {})
-    scrollFrame:SetScrollChild(scrollChild)
-    panel.scrollChild  = scrollChild
+    panel.cardPool     = panel.cardPool or {}
     panel.abilityIcons = {}
     panel.cardBySpell  = {}
 
@@ -601,23 +657,48 @@ function AB:PopulateAbilities(panel, query, activeTag)
 
     scrollChild:SetWidth(scrollW)
 
+    -- Published rather than captured. A pooled card's expand handler outlives the populate
+    -- that built it, so anything it closes over is a snapshot of that first call -- the
+    -- same trap the icons and cards above were just taken out of. These four happen to be
+    -- CFG-derived constants today, which is exactly what would make a future stale capture
+    -- invisible if the panel ever became resizable.
+    panel.layout = { scrollW = scrollW, cardW = cardW, gap = gap, cols = cols }
+
     local cardList = {}
 
+    -- Pooled by category. The set of categories is small and stable across searches, so
+    -- after the first populate this creates nothing at all -- a search only rebinds.
     for _, cat in ipairs(cats) do
         local entries = catMapAll[cat]
         table.sort(entries, function(a, b) return a.name < b.name end)
 
-        local card = CreateCard(scrollChild, cat, entries, cardW, expandedInnerW, panel, function()
-            AB:ReflowCards(panel, cardList, scrollW, cardW, gap, cols)
-            UpdateSelectionNote(panel)
-            UpdateSelectAllButton(panel)
-        end)
+        local card = panel.cardPool[cat]
+        if not card then
+            card = CreateCard(scrollChild, panel, function()
+                -- Reads panel.cardList and panel.layout, never the upvalues: this handler
+                -- outlives the populate that created the card, and both are rebuilt on
+                -- every search.
+                local L = panel.layout
+                AB:ReflowCards(panel, panel.cardList, L.scrollW, L.cardW, L.gap, L.cols)
+                UpdateSelectionNote(panel)
+                UpdateSelectAllButton(panel)
+            end)
+            panel.cardPool[cat] = card
+        end
+
+        BindCard(card, cat, entries, cardW, expandedInnerW, panel)
+        card:Show()
 
         for _, entry in ipairs(entries) do
             panel.cardBySpell[entry.spellId] = card
         end
 
         cardList[#cardList+1] = card
+    end
+
+    -- Categories filtered out by this search keep their card, hidden.
+    for cat, card in pairs(panel.cardPool) do
+        if not catMapAll[cat] then card:Hide() end
     end
 
     panel.cardList = cardList
