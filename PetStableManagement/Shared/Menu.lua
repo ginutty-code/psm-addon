@@ -61,8 +61,9 @@ function menu:Create()
         end,
     })
 
-    -- Buttons
-    local buttonWidth, buttonHeight, buttonSpacing = 160, 30, 10
+    -- Buttons. XL because the longest label is "Toggle Models Browser"; the menu window
+    -- is 200 wide, so 180 still leaves a margin either side.
+    local buttonWidth, buttonSpacing = PSM.Theme.CONTROL.BUTTON_W.XL, 10
 
     -- Browser-dependent buttons are never disabled, and that is deliberate.
     --
@@ -94,7 +95,7 @@ function menu:Create()
 
     local function AddButton(anchorTo, label, onClick, requiresBrowser, tooltip)
         local btn = Widgets.Button(window, {
-            size    = { buttonWidth, buttonHeight },
+            width   = buttonWidth,
             text    = label,
             onClick = onClick,
             tooltip = tooltip or (requiresBrowser and BrowserGateTooltip) or nil,

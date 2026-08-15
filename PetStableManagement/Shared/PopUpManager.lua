@@ -563,7 +563,7 @@ function PSM.PopUpManager:CreateModelPopup(config)
     if config.showPetModelsButton then
         popup.modelsButton = Widgets.Button(popup, {
             point      = { "TOPLEFT", 20, -10 },
-            size       = { 80, 25 },
+            width      = PSM.Theme.CONTROL.BUTTON_W.S,
             text       = "< Pet Models",
             fontObject = "GameFontNormalSmall",
             onClick = function()
@@ -836,7 +836,7 @@ function PSM.PopUpManager:CreateModelPopup(config)
     -- Optional: Try Again button
     if config.showTryAgainButton then
         popup.tryAgainButton = Widgets.Button(popup, {
-            size       = { 80, 25 },
+            width      = PSM.Theme.CONTROL.BUTTON_W.S,
             text       = "Try Again",
             fontObject = "GameFontNormalSmall",
             strata     = "TOOLTIP",
@@ -1121,7 +1121,7 @@ function PSM.PopUpManager:ShowCoordsPopup(text, npcName, location, displayId)
 
         f.pasteButton = Widgets.Button(f, {
             point = { "BOTTOM", f, "BOTTOM", 0, 10 },
-            size  = { 120, 25 },
+            width = PSM.Theme.CONTROL.BUTTON_W.L,
             text  = "Create Waypoints",
             tooltip = {
                 anchor   = "ANCHOR_BOTTOMRIGHT",
@@ -1644,14 +1644,14 @@ function PSM.PopUpManager:ShowNoteEditor(npcId, npcName, parentPopup, onSaved)
 
         -- Save button (its OnClick is wired per-call, below)
         f.saveButton = Widgets.Button(f, {
-            size  = { 80, 25 },
+            width = PSM.Theme.CONTROL.BUTTON_W.S,
             point = { "BOTTOMRIGHT", f, "BOTTOM", -5, 12 },
             text  = "Save",
         })
 
         -- Clear button
         f.clearButton = Widgets.Button(f, {
-            size    = { 80, 25 },
+            width   = PSM.Theme.CONTROL.BUTTON_W.S,
             point   = { "BOTTOMLEFT", f, "BOTTOM", 5, 12 },
             text    = "Clear",
             onClick = function()

@@ -945,14 +945,14 @@ local function CreateFooter(panel)
     })
 
     local applyBtn = Widgets.Button(footer, {
-        size    = { PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT },
+        width   = PSM.Theme.CONTROL.BUTTON_W.M,
         point   = { "RIGHT", footer, "RIGHT", 0, -8 },
         text    = "Apply Filters",
         onClick = function() ApplyAbilityFilters(panel) end,
     })
 
     panel.selectAllBtn = Widgets.Button(footer, {
-        size    = { PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT },
+        width   = PSM.Theme.CONTROL.BUTTON_W.M,
         point   = { "RIGHT", applyBtn, "LEFT", -8, 0 },
         text    = "Select All",
         onClick = function() ToggleSelectAll(panel) end,

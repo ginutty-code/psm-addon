@@ -18,11 +18,9 @@ PSM.Config = {
     GRID_ROW_HEIGHT   = 215,
     GRID_MODEL_SIZE   = 215,
 
-    -- Buttons
-    BUTTON_WIDTH        = 80,
-    BUTTON_HEIGHT       = 22,
-    PANEL_BUTTON_WIDTH  = 70,
-    PANEL_BUTTON_HEIGHT = 25,
+    -- Button sizes live in Theme.CONTROL (BUTTON, BUTTON_W) -- they are a look, not
+    -- configuration, and the two constants here disagreed with each other and with
+    -- two dozen literals.
 
     -- Dropdowns
     DROPDOWN_WIDTH   = 90,

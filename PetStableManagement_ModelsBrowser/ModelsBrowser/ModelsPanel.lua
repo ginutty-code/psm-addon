@@ -431,7 +431,7 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
 
     -- Show Only filters frame
     panel.showOnlyFrame = Widgets.Frame(panel, {
-        size        = { 180, 160 },
+        size        = { 210, 160 },
         point       = { "TOPLEFT", 10, -100 },
         backdrop    = "TOOLTIP",
         color       = PSM.Config.COLORS.BACKGROUND,
@@ -439,7 +439,7 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     })
 
     Widgets.SectionHeader(panel.showOnlyFrame, {
-        size       = { 170, 20 },
+        size       = { 200, 20 },
         point      = { "TOPLEFT", 5, -5 },
         text       = "Show Only",
         fontObject = "GameFontHighlightSmall",
@@ -523,7 +523,10 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     end
 
     local viewToggleButton = Widgets.Button(panel, {
-        size       = { PSM.Config.PANEL_BUTTON_WIDTH, PSM.Config.PANEL_BUTTON_HEIGHT },
+        -- M, not S: this button is created with no text and relabelled to "Models view"
+        -- / "NPC view" later, so it is the one button the truncation audit is blind to
+        -- -- it measured an empty string at build time and reported nothing.
+        width      = PSM.Theme.CONTROL.BUTTON_W.M,
         point      = { "TOPRIGHT", panel.closeButton, "TOPLEFT", -2, 0 },
         fontObject = "GameFontNormalSmall",
     })
@@ -599,21 +602,21 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
 
     -- Navigation buttons
     local firstButton = Widgets.Button(panel, {
-        size    = { 50, 25 },
+        width   = PSM.Theme.CONTROL.BUTTON_W.XS,
         point   = { "BOTTOMLEFT", petsFrame, "BOTTOMLEFT", 0, -35 },
         text    = "First",
         onClick = function() GoToPage(panel, 1) end,
     })
 
     local prevButton = Widgets.Button(panel, {
-        size    = { 80, 25 },
+        width   = PSM.Theme.CONTROL.BUTTON_W.S,
         point   = { "LEFT", firstButton, "RIGHT", 5, 0 },
         text    = "Previous",
         onClick = function() GoToPage(panel, panel.currentPage - 1) end,
     })
 
     local lastButton = Widgets.Button(panel, {
-        size    = { 50, 25 },
+        width   = PSM.Theme.CONTROL.BUTTON_W.XS,
         point   = { "BOTTOMRIGHT", petsFrame, "BOTTOMRIGHT", 0, -35 },
         text    = "Last",
         onClick = function()
@@ -624,7 +627,7 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     })
 
     local nextButton = Widgets.Button(panel, {
-        size    = { 80, 25 },
+        width   = PSM.Theme.CONTROL.BUTTON_W.S,
         point   = { "RIGHT", lastButton, "LEFT", -5, 0 },
         text    = "Next",
         onClick = function() GoToPage(panel, panel.currentPage + 1) end,
@@ -667,7 +670,7 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     pageJumpEditBox:SetJustifyH("CENTER")
 
     local pageJumpButton = Widgets.Button(pageJumpFrame, {
-        size    = { 60, 25 },
+        width   = PSM.Theme.CONTROL.BUTTON_W.XS,
         point   = { "LEFT", pageJumpEditBox, "RIGHT", 5, 0 },
         text    = "Go",
         onClick = CommitPageJump,

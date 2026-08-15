@@ -212,7 +212,7 @@ function PSM.UI:AddOwnedPetsElements(panel)
     local function PanelButton(opts)
         return Widgets.Button(panel, {
             point      = opts.point,
-            size       = { PSM.Config.PANEL_BUTTON_WIDTH, PSM.Config.PANEL_BUTTON_HEIGHT },
+            width      = PSM.Theme.CONTROL.BUTTON_W.S,
             text       = opts.text,
             fontObject = "GameFontNormalSmall",
             onClick    = opts.onClick,

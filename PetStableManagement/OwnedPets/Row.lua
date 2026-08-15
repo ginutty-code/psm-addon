@@ -25,7 +25,7 @@ local ACTION_BUTTONS = {
 
 local function CreateActionButton(parent, label)
     return PSM.Widgets.Button(parent, {
-        size       = { PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT },
+        width      = PSM.Theme.CONTROL.BUTTON_W.M,
         text       = label,
         fontObject = "GameFontNormalSmall",
         hidden     = true,

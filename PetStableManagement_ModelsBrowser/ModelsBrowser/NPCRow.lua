@@ -362,7 +362,7 @@ function PSM.NPCRow:CreateColumnsPicker(panel, anchorTo)
     local Widgets = PSM.Widgets
 
     local btn = Widgets.Button(panel, {
-        size       = { PSM.Config.PANEL_BUTTON_WIDTH, PSM.Config.PANEL_BUTTON_HEIGHT },
+        width      = PSM.Theme.CONTROL.BUTTON_W.S,
         point      = { "TOPRIGHT", anchorTo, "TOPLEFT", -5, 0 },
         text       = "Columns",
         fontObject = "GameFontNormalSmall",

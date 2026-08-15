@@ -331,7 +331,7 @@ end
 function PSM.UI:BuildSortButtons(panel)
     -- Reset Filters button
     panel.resetFiltersButton = PSM.Widgets.Button(panel, {
-        size       = { PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT },
+        width      = PSM.Theme.CONTROL.BUTTON_W.M,
         point      = { "TOPLEFT", panel.searchBox, "TOPRIGHT", 10, 0 },
         text       = "Reset Filters",
         fontObject = "GameFontNormalSmall",

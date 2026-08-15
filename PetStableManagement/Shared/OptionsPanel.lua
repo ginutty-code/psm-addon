@@ -18,8 +18,6 @@ local DROPDOWN_OFFSET_X         = -20
 local DROPDOWN_OFFSET_Y         = -8
 local DROPDOWN_WIDTH            = 100
 local CHECKBOX_DROPDOWN_OFFSET  = -4  -- centres a checkbox against a dropdown's height
-local RESET_BUTTON_WIDTH        = 100
-local RESET_BUTTON_HEIGHT       = 22
 local RESET_BUTTON_MARGIN       = 16
 
 local function SetCamDistanceScaleIfChanged(model, scale)
@@ -417,7 +415,7 @@ panel:SetScript("OnShow", function(self)
     Widgets.Button(panel, {
         name  = addonName .. "ResetButton",
         text  = "Reset All Settings",
-        size  = { RESET_BUTTON_WIDTH, RESET_BUTTON_HEIGHT },
+        width = PSM.Theme.CONTROL.BUTTON_W.L,
         point = { "BOTTOMRIGHT", panel, "BOTTOMRIGHT", -RESET_BUTTON_MARGIN, RESET_BUTTON_MARGIN },
         onClick = function()
             -- Write defaults to DB

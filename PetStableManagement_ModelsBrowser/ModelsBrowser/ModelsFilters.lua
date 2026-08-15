@@ -329,7 +329,7 @@ end
 function PSM.ModelsFilters:CreatePetRouletteButton(panel)
     panel.petRouletteButton = PSM.Widgets.Button(panel, {
         point      = { "TOPRIGHT", panel.searchBox, "TOPLEFT", -10, 0 },
-        size       = { PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT },
+        width      = PSM.Theme.CONTROL.BUTTON_W.M,
         text       = "Pet Roulette",
         fontObject = "GameFontNormalSmall",
         onClick    = function() PSM.PetRoulette:SelectPetRoulette() end,
@@ -339,7 +339,7 @@ end
 function PSM.ModelsFilters:CreateSpecialTamesButton(panel)
     panel.specialTamesButton = PSM.Widgets.Button(panel, {
         point      = { "BOTTOMLEFT", panel.showOnlyFrame, "TOPLEFT", 0, 5 },
-        size       = { PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT },
+        width      = PSM.Theme.CONTROL.BUTTON_W.M,
         text       = "Special Tames",
         fontObject = "GameFontNormalSmall",
         onClick    = function()
@@ -351,7 +351,7 @@ end
 function PSM.ModelsFilters:CreateAbilityBrowserButton(panel)
     panel.abilityBrowserButton = PSM.Widgets.Button(panel, {
         point      = { "BOTTOMRIGHT", panel.showOnlyFrame, "TOPRIGHT", 0, 5 },
-        size       = { PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT },
+        width      = PSM.Theme.CONTROL.BUTTON_W.M,
         text       = "Ability Browser",
         fontObject = "GameFontNormalSmall",
         onClick    = function()
@@ -374,7 +374,7 @@ function PSM.ModelsFilters:CreateResetFiltersButton(panel)
 
     panel.resetFiltersButton = PSM.Widgets.Button(panel, {
         point      = { "TOPLEFT", panel.searchBox, "TOPRIGHT", 10, 0 },
-        size       = { PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT },
+        width      = PSM.Theme.CONTROL.BUTTON_W.M,
         text       = "Reset Filters",
         fontObject = "GameFontNormalSmall",
         tooltip    = {
@@ -655,7 +655,7 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
         ---------- Filter frame ----------
     panel.unifiedFilterFrame = PSM.Widgets.Frame(panel, {
         point       = { "TOPLEFT", panel.showOnlyFrame, "BOTTOMLEFT", 0, -5 },
-        size        = { 180, 505 },
+        size        = { 210, 505 },
         backdrop    = "TOOLTIP",
         color       = PSM.Config.COLORS.BACKGROUND,
         borderColor = { 0.75, 0.75, 0.75, 1 },  -- silver
@@ -664,7 +664,7 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
     ---------- Tab buttons ----------
     local tabFrame = PSM.Widgets.Frame(panel.unifiedFilterFrame, {
         point = { "TOPLEFT", panel.unifiedFilterFrame, "TOPLEFT", 5, -5 },
-        size  = { 150, 20 },
+        size  = { 200, 20 },
     })
 
     local tabDefs = {
@@ -696,11 +696,11 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
 
     for _, def in ipairs(tabDefs) do
         local t = PSM.Widgets.Tab(tabFrame, {
-            size       = { 55, 20 },
+            size       = { 60, 20 },
             fontObject = "GameFontHighlightSmall",
             text       = def.label,
             point      = prevTab
-                and { "LEFT", prevTab,  "RIGHT", 3, 0 }
+                and { "LEFT", prevTab,  "RIGHT", 10, 0 }
                 or  { "LEFT", tabFrame, "LEFT",  0, 0 },
         })
         prevTab = t
@@ -735,10 +735,10 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
     panel.tabButtons = tabs
 
     ---------- All / None / Exotic buttons ----------
-    local function MakeFilterButton(label, anchor, onClick)
+    local function MakeFilterButton(label, anchor, onClick, width)
         return PSM.Widgets.Button(panel.unifiedFilterFrame, {
             point      = { "LEFT", anchor, "RIGHT", 5, 0 },
-            size       = { 50, 20 },
+            width      = width or PSM.Theme.CONTROL.BUTTON_W.XS,
             text       = label,
             fontObject = "GameFontNormalSmall",
             onClick    = onClick,
@@ -747,7 +747,7 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
 
     local selectAllBtn = PSM.Widgets.Button(panel.unifiedFilterFrame, {
         point      = { "TOPLEFT", tabFrame, "BOTTOMLEFT", 5, -5 },
-        size       = { 50, 20 },
+        width      = PSM.Theme.CONTROL.BUTTON_W.XS,
         text       = "All",
         fontObject = "GameFontNormalSmall",
         onClick    = function()
@@ -771,7 +771,13 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
         PSM.ModelsFilters:UpdateDynamicFilters()
     end)
 
-    selectExoticBtn = MakeFilterButton("Exotic", selectNoneBtn, function() end)
+    -- S rather than XS: this button relabels itself to the longer "!Exotic", and at XS
+    -- that cleared the tier by about a pixel. The truncation audit cannot vouch for it
+    -- either way -- it only ever measures the label a button was *built* with, never
+    -- what SetText puts there later -- so the button is given room instead of a margin.
+    -- The widened 210 frame pays for it: 10 + 50 + 5 + 50 + 5 + 80 = 200.
+    selectExoticBtn = MakeFilterButton("Exotic", selectNoneBtn, function() end,
+                                       PSM.Theme.CONTROL.BUTTON_W.S)
     selectExoticBtn.isExoticOnly = false
     panel.selectExoticBtn = selectExoticBtn
 

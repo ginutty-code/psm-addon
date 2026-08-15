@@ -26,6 +26,13 @@ local RENDER_DELAY         = 0.01
 ----------------------------------------------------------------------------------------------------------------
 
 
+-- **The one place that keeps an explicit size**, rather than Theme.CONTROL.BUTTON and a
+-- BUTTON_W tier. These are a compact vertical stack of four (Apply/Copy/Rename/Delete)
+-- in a 64px column, and the column's own height is computed from them
+-- (`4 * buttonHeight + 3 * buttonSpacing`). Taking the standard 25 would add 28px to
+-- every team row and the 80px S tier would overflow the column, so adopting the standard
+-- here means re-laying out the teams row -- a separate change with its own testing, not a
+-- side effect of the sizing pass.
 local function CreateActionButton(parent, text, width, height)
     return PSM.Widgets.Button(parent, {
         size       = { width, height },
@@ -247,7 +254,7 @@ function PSM.TeamsPanel:CreateTeamRow(parent)
     local slotSize       = ICON_SIZE + 45
     local slotSpacing    = -35
     local slot5to6Gap    = 30
-    local buttonWidth    = 55
+    local buttonWidth    = 64   -- 55 clipped "Rename" by 6px; found by truncatedLabels
     local buttonHeight   = 18
     local buttonSpacing  = 5
 

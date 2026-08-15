@@ -96,19 +96,29 @@ local function CreateBaseDialog(name, width, height, title, resizable)
     return d
 end
 
-local function CreateDialogButton(parent, text, width, height)
+-- `width` is a Theme.CONTROL.BUTTON_W tier; omit it for M, which is what every
+-- OK/Cancel/Yes/No in this file wants. Height comes from the factory.
+local function CreateDialogButton(parent, text, width)
     return PSM.Widgets.Button(parent, {
-        size       = { width or 100, height or 25 },
+        width      = width,
         text       = text,
         fontObject = "GameFontNormal",
     })
 end
 
+-- 24, down from 50: team and group names are displayed *inside buttons* -- the team
+-- picker rows below, at 180 and 200 wide -- and a 50-character name overran those by
+-- 116px and 137px respectively (measured via PSM.Widgets.truncatedLabels). 24 fits both,
+-- with the narrower one losing about nine characters to its " (Slot N)" suffix.
+--
+-- This caps *input*, not display: names already saved at up to 50 stay as they are and
+-- clip in those rows, which is the correct outcome -- silently rewriting someone's saved
+-- team name would be worse than a shortened label.
 local function CreateDialogEditBox(parent, width, height)
     local e = PSM.Widgets.EditBox(parent, {
         size = { width or 250, height or 25 },
     })
-    e:SetMaxLetters(50)
+    e:SetMaxLetters(24)
     return e
 end
 
@@ -134,7 +144,7 @@ function PSM.TeamDialogs:ShowNameInputDialog(options)
 
     local bc = PSM.Widgets.Frame(d, { size = { 220, 30 }, point = { "BOTTOM", 0, 15 } })
 
-    d.confirmButton = CreateDialogButton(bc, options.confirmText or "Save", 100, 25)
+    d.confirmButton = CreateDialogButton(bc, options.confirmText or "Save")
     d.confirmButton:SetPoint("LEFT", 0, 0)
     d.confirmButton:SetScript("OnClick", function()
         local name = d.editBox:GetText()
@@ -146,7 +156,7 @@ function PSM.TeamDialogs:ShowNameInputDialog(options)
         end
     end)
 
-    d.cancelButton = CreateDialogButton(bc, "Cancel", 100, 25)
+    d.cancelButton = CreateDialogButton(bc, "Cancel")
     d.cancelButton:SetPoint("LEFT", d.confirmButton, "RIGHT", 10, 0)
     d.cancelButton:SetScript("OnClick", function()
         d:Hide()
@@ -216,14 +226,14 @@ function PSM.TeamDialogs:ShowConfirmDialog(options)
 
     local bc = PSM.Widgets.Frame(d, { size = { 220, 30 }, point = { "BOTTOM", 0, 5 } })
 
-    d.confirmButton = CreateDialogButton(bc, options.confirmText or "Yes", 100, 25)
+    d.confirmButton = CreateDialogButton(bc, options.confirmText or "Yes")
     d.confirmButton:SetPoint("LEFT", 0, 0)
     d.confirmButton:SetScript("OnClick", function()
         d:Hide()
         if options.onConfirm then options.onConfirm() end
     end)
 
-    d.cancelButton = CreateDialogButton(bc, options.cancelText or "No", 100, 25)
+    d.cancelButton = CreateDialogButton(bc, options.cancelText or "No")
     d.cancelButton:SetPoint("LEFT", d.confirmButton, "RIGHT", 10, 0)
     d.cancelButton:SetScript("OnClick", function()
         d:Hide()
@@ -300,14 +310,17 @@ function PSM.TeamDialogs:ShowSaveTeamDialog(options)
 
     local bc = PSM.Widgets.Frame(d, { size = { 350, 70 }, point = { "BOTTOM", 0, 25 } })
 
-    d.updateButton = CreateDialogButton(bc, "Update '" .. options.existingTeamName .. "'", 160, 25)
+    -- "Update Team", not "Update '<name>'": the team name is user-typed and unbounded, so
+    -- it was the one push-button label no fixed width could hold. The message above
+    -- already names the team, so the button was repeating it.
+    d.updateButton = CreateDialogButton(bc, "Update Team", PSM.Theme.CONTROL.BUTTON_W.L)
     d.updateButton:SetPoint("TOP", 0, 0)
     d.updateButton:SetScript("OnClick", function()
         d:Hide()
         if options.onUpdate then options.onUpdate() end
     end)
 
-    d.saveNewButton = CreateDialogButton(bc, "Save as New Team", 160, 25)
+    d.saveNewButton = CreateDialogButton(bc, "Save as New Team", PSM.Theme.CONTROL.BUTTON_W.L)
     d.saveNewButton:SetPoint("TOP", d.updateButton, "BOTTOM", 0, -5)
     d.saveNewButton:SetScript("OnClick", function()
         d:Hide()
@@ -319,7 +332,7 @@ function PSM.TeamDialogs:ShowSaveTeamDialog(options)
         })
     end)
 
-    d.cancelButton = CreateDialogButton(bc, "Cancel", 100, 25)
+    d.cancelButton = CreateDialogButton(bc, "Cancel")
     d.cancelButton:SetPoint("TOP", d.saveNewButton, "BOTTOM", 0, -5)
     d.cancelButton:SetScript("OnClick", function()
         d:Hide()
@@ -398,13 +411,13 @@ function PSM.TeamDialogs:ShowAddToTeamDialog(petData)
         point = { "BOTTOM", d, "BOTTOM", 0, 10 },
     })
 
-    d.createNewButton = CreateDialogButton(bottom, "Create New Team", 180, 25)
+    d.createNewButton = CreateDialogButton(bottom, "Create New Team", PSM.Theme.CONTROL.BUTTON_W.L)
     d.createNewButton:SetScript("OnClick", function()
         d:Hide()
         CreateNewTeamFromPet(petData)
     end)
 
-    d.cancelButton = CreateDialogButton(bottom, "Cancel", 100, 25)
+    d.cancelButton = CreateDialogButton(bottom, "Cancel")
     d.cancelButton:SetScript("OnClick", function() d:Hide() end)
 
     if teamCount == 0 then
@@ -487,7 +500,7 @@ function PSM.TeamDialogs:ShowSelectSlotDialog(team, petData)
                         "'\nat slot " .. slot .. ".\n\nEach pet can only appear once per team.",
                 })
 
-                local ok = CreateDialogButton(d, "OK", 100, 25)
+                local ok = CreateDialogButton(d, "OK")
                 ok:SetPoint("BOTTOM", d, "BOTTOM", 0, 15)
                 ok:SetScript("OnClick", function() d:Hide() end)
                 d:Show()
@@ -570,7 +583,7 @@ function PSM.TeamDialogs:ShowSelectSlotDialog(team, petData)
         table.insert(d.slotButtons, btn)
     end
 
-    d.cancelButton = CreateDialogButton(d, "Cancel", 100, 25)
+    d.cancelButton = CreateDialogButton(d, "Cancel")
     d.cancelButton:SetPoint("BOTTOM", d, "BOTTOM", 0, 15)
     d.cancelButton:SetScript("OnClick", function()
         d:Hide()
@@ -669,7 +682,7 @@ function PSM.TeamDialogs:ShowRemoveFromTeamDialog(petData)
 
     if count == 0 then
         d.description:SetText("This pet is not in any of your saved teams.")
-        local ok = CreateDialogButton(d, "Close", 100, 25)
+        local ok = CreateDialogButton(d, "Close")
         ok:SetPoint("BOTTOM", d, "BOTTOM", 0, 15)
         ok:SetScript("OnClick", function() d:Hide() end)
     else
@@ -691,7 +704,7 @@ function PSM.TeamDialogs:ShowRemoveFromTeamDialog(petData)
             table.insert(d.teamButtons, btn)
         end
 
-        d.cancelButton = CreateDialogButton(d, "Cancel", 100, 25)
+        d.cancelButton = CreateDialogButton(d, "Cancel")
         d.cancelButton:SetPoint("BOTTOM", d, "BOTTOM", 0, 15)
         d.cancelButton:SetScript("OnClick", function() d:Hide() end)
     end

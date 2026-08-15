@@ -619,7 +619,7 @@ function PSM.UI:UpdateVisibleRows()
 
             local leftW   = math.floor(colWidth / 2)
             local rightW  = colWidth - leftW
-            local btnSpace= PSM.Config.BUTTON_WIDTH + 20
+            local btnSpace= PSM.Theme.CONTROL.BUTTON_W.M + 20
             local fixedSp = 2 + PSM.Config.MODEL_SIZE + 6
 
             if row.text then row.text:SetWidth(leftW - fixedSp) end

@@ -115,7 +115,7 @@ function PSM.PanelManager:CreateBasePanel(name, config)
         panel.isMaximized = false
         local maxBtn = Widgets.Button(panel, {
             point      = { "TOPRIGHT", panel.closeButton, "TOPLEFT", -2, 0 },
-            size       = { PSM.Config.PANEL_BUTTON_WIDTH, PSM.Config.PANEL_BUTTON_HEIGHT },
+            width      = PSM.Theme.CONTROL.BUTTON_W.S,
             text       = "Maximize",
             fontObject = "GameFontNormalSmall",
         })

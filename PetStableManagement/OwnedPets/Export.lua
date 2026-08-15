@@ -219,7 +219,7 @@ local function CreateBottomBar(frame)
     })
 
     Widgets.Button(frame, {
-        size    = { 100, 25 },
+        width   = PSM.Theme.CONTROL.BUTTON_W.M,
         point   = { "BOTTOM", -55, 15 },
         text    = "Select All",
         onClick = function()
@@ -229,7 +229,7 @@ local function CreateBottomBar(frame)
     })
 
     Widgets.Button(frame, {
-        size    = { 100, 25 },
+        width   = PSM.Theme.CONTROL.BUTTON_W.M,
         point   = { "BOTTOM", 55, 15 },
         text    = "How to Copy",
         onClick = function()

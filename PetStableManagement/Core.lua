@@ -192,8 +192,8 @@ end
 -- corner when there is not, which is about where that button sits anyway.
 local function PositionStableButtons(teamsListButton, saveButton)
     local anchor = FindPutInStableButton()
-    local width  = (anchor and anchor:GetWidth())  or PSM.Config.BUTTON_WIDTH
-    local height = ((anchor and anchor:GetHeight()) or PSM.Config.PANEL_BUTTON_HEIGHT) + 3
+    local width  = (anchor and anchor:GetWidth())  or PSM.Theme.CONTROL.BUTTON_W.S
+    local height = ((anchor and anchor:GetHeight()) or PSM.Theme.CONTROL.BUTTON) + 3
 
     for _, btn in ipairs({ teamsListButton, saveButton }) do
         btn:SetSize(width, height)

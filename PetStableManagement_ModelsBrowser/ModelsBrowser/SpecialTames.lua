@@ -17,8 +17,6 @@ local CFG = {
     PANEL_HEIGHT   = 600,
     ROW_HEIGHT     = 22,
     STATUS_SIZE    = 16,
-    BUTTON_HEIGHT  = 25,
-    BUTTON_WIDTH   = 100,
     PADDING        = 10,
     CARD_PADDING   = 8,
     HEADER_H       = 22,
@@ -1054,7 +1052,7 @@ local function CreateFooter(panel)
     })
 
     local applyButton = Widgets.Button(footer, {
-        size       = { PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT },
+        width      = PSM.Theme.CONTROL.BUTTON_W.M,
         point      = { "RIGHT", footer, "RIGHT", 0, -8 },
         text       = "Apply Filters",
         fontObject = "GameFontNormalSmall",
@@ -1062,7 +1060,7 @@ local function CreateFooter(panel)
     })
 
     panel.selectAllBtn = Widgets.Button(footer, {
-        size       = { PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT },
+        width      = PSM.Theme.CONTROL.BUTTON_W.M,
         point      = { "RIGHT", applyButton, "LEFT", -8, 0 },
         text       = "Select All",
         fontObject = "GameFontNormalSmall",
