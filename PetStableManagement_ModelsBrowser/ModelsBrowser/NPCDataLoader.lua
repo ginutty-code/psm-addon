@@ -34,7 +34,7 @@ function PSM.NPCDataLoader:GenerateCacheKey()
     local panel = PSM.state.modelsPanel
     if not panel then return "" end
 
-    local searchText  = panel.searchBox and panel.searchBox:GetText() or ""
+    local searchText  = panel.searchBox and panel.searchBox:GetSearchText() or ""
     local searchLower = searchText ~= "" and searchText:lower() or ""
 
     local zoneKey = ""
@@ -150,7 +150,7 @@ function PSM.NPCDataLoader:_CalculateNPCData()
     local selectedFamilies = PSM.state.selectedModelsFamilies
     if not selectedFamilies or not next(selectedFamilies) then return {} end
 
-    local searchText  = panel.searchBox and panel.searchBox:GetText() or ""
+    local searchText  = panel.searchBox and panel.searchBox:GetSearchText() or ""
     local searchLower = searchText ~= "" and searchText:lower() or ""
 
     -- Built once per reload, only when the Hide Owned filter is active.

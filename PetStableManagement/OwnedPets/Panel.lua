@@ -61,7 +61,6 @@ function PSM.UI:CreateOwnedPetsPanel()
             x = 0, y = 0,
         },
         title        = "Pet Stable Management",
-        escKeyframe  = "PetStableManagementPanel",
 
         onHide = function(panel)
             PSM.PanelManager:CleanupPanel(panel)

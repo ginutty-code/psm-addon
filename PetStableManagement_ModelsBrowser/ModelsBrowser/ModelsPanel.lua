@@ -191,7 +191,8 @@ function PSM.ModelsPanel:CreateModelsPanel()
         width              = MODELS_CONFIG.PANEL_WIDTH,
         height             = MODELS_CONFIG.PANEL_HEIGHT,
         title              = "Pet Model Browser",
-        escKeyframe        = "PetStableManagementModelsPanel",
+        -- Higher than the default so it clears this panel's search box.
+        titleOffset        = -20,
         resizable          = false,
         showResizeHandle   = false,
         showMaximizeButton = false,
@@ -534,17 +535,13 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
         viewToggleButton:SetText(panel.modelsViewMode == "npc" and "Models view" or "NPC view")
     end
 
-    -- Swaps the search box placeholder; refreshes the visible text immediately
-    -- if the box is idle (unfocused, still showing the old placeholder).
+    -- Swaps the search box placeholder. PanelManager owns the rules for when the
+    -- visible text may be replaced; this used to reimplement them by assigning
+    -- placeholderText and calling SetText directly, which fired the box's own
+    -- OnTextChanged and blanked it.
     local function SetSearchPlaceholder(newPlaceholder)
         local box = panel.searchBox
-        if not box then return end
-        local old = box.placeholderText
-        box.placeholderText = newPlaceholder
-        if not box:HasFocus() and box:GetText() == old then
-            box:SetText(newPlaceholder)
-            box:SetTextColor(0.5, 0.5, 0.5)
-        end
+        if box then box:SetPlaceholder(newPlaceholder) end
     end
 
     local function ApplyModelsViewMode(mode)

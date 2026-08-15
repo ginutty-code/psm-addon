@@ -447,7 +447,9 @@ function PSM.ModelsFilters:ResetAllFilters(panel)
     ResetTristateCheckbox(panel.petsInMyZoneToggle)
     
 
-    if panel.searchBox then panel.searchBox:SetText("") end
+    -- ClearSearch, not SetText(""): the latter leaves the box blank, because the
+    -- placeholder is only restored on focus loss.
+    if panel.searchBox then panel.searchBox:ClearSearch() end
 
     if panel.familiesList  then SelectAll(PSM.state.selectedModelsFamilies, panel.familiesList)  end
     if panel.expansionList then SelectAll(PSM.state.selectedExpansions,      panel.expansionList) end
@@ -1240,7 +1242,7 @@ function PSM.ModelsFilters:GenerateFilterSummary()
     elseif panel.showHideOwned == true then table.insert(filters, "Not Owned") end
 
     -- Search
-    if (panel.searchBox:GetText() or "") ~= "" then table.insert(filters, "Search") end
+    if (panel.searchBox:GetSearchText() or "") ~= "" then table.insert(filters, "Search") end
 
     -- Abilities (from Ability Browser)
     if hasAbilities then

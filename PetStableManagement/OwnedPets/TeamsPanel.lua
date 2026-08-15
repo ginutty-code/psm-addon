@@ -125,7 +125,6 @@ function PSM.TeamsPanel:CreateTeamsPanel()
         height   = PSM.Data:GetTeamsPanelHeight() or PSM.Config.DEFAULT_PANEL_HEIGHT,
         position = savedPosition,
         title    = "Pet Teams",
-        escKeyframe = "PSMTeamsPanel",
         minWidth  = PSM.Config.MIN_PANEL_WIDTH,
         minHeight = PSM.Config.MIN_PANEL_HEIGHT,
         onHide   = function(p) PSM.PanelManager:CleanupPanel(p) end,

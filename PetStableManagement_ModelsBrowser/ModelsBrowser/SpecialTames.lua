@@ -752,7 +752,7 @@ local function CreatePillBar(panel)
             pill:SetScript("OnClick", function()
                 SetActive(currentIdx)
                 panel.activeTag = currentTag
-                RepopulateRows(panel, panel.searchBox:GetText(), currentTag)
+                RepopulateRows(panel, panel.searchBox:GetSearchText(), currentTag)
             end)
         end
 
@@ -1137,7 +1137,6 @@ function ST:CreateSpecialTamesPanel()
         width              = CFG.PANEL_WIDTH,
         height             = CFG.PANEL_HEIGHT,
         title              = "Special Tames",
-        escKeyframe        = "PetStableManagementSpecialTames",
         resizable          = true,
         showResizeHandle   = true,
         showMaximizeButton = false,
@@ -1149,17 +1148,13 @@ function ST:CreateSpecialTamesPanel()
 
     local Widgets = PSM.Widgets
 
-    local searchBox = Widgets.EditBox(panel, {
-        point    = { "TOP", panel.title, "BOTTOM", 0, -10 },
-        size     = { 150, 20 },
-        text     = "",
-        onEnter  = function(self) self:ClearFocus() end,
-        onEscape = function(self) self:ClearFocus() end,
+    -- Shared search box: see the note in AbilityBrowser. Both panels used to build
+    -- their own, without a placeholder and without debouncing.
+    PSM.PanelManager:CreateSearchBox(panel, function(text)
+        RepopulateRows(panel, text, panel.activeTag)
+    end, {
+        placeholder = "Search tames...",
     })
-    searchBox:SetScript("OnTextChanged", function(self)
-        RepopulateRows(panel, self:GetText(), panel.activeTag)
-    end)
-    panel.searchBox = searchBox
 
     panel.activeTag = "All Skills"
     panel.pillBar   = CreatePillBar(panel)

@@ -74,7 +74,7 @@ function PSM.ModelsDataLoader:GenerateCacheKey()
     local panel = PSM.state.modelsPanel
     if not panel then return "" end
 
-    local searchText = panel.searchBox:GetText() or ""
+    local searchText = panel.searchBox:GetSearchText() or ""
     local searchLower = searchText ~= "" and searchText:lower() or ""
     local zoneKey, raresKey, nameKeepersKey = PanelFilterFragment(panel)
 
@@ -453,7 +453,7 @@ function PSM.ModelsDataLoader:_CalculateModelsData()
         return { allItems = {}, ownedCount = 0, totalCount = 0 }
     end
 
-    local searchText  = panel.searchBox:GetText() or ""
+    local searchText  = panel.searchBox:GetSearchText() or ""
     local searchLower = searchText ~= "" and searchText:lower() or ""
 
     -- Build flat item list, applying favorites + rares filters early

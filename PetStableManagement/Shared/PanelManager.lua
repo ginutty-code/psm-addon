@@ -30,41 +30,39 @@ end
 function PSM.PanelManager:CreateBasePanel(name, config)
     if PSM.state[name] then return PSM.state[name] end
 
-    local panel = CreateFrame("Frame", name, UIParent)
-    panel:SetSize(config.width  or PSM.Config.DEFAULT_PANEL_WIDTH,
-                  config.height or PSM.Config.DEFAULT_PANEL_HEIGHT)
+    local Widgets = PSM.Widgets
+    local p = config.position
 
-    if config.position then
-        local p = config.position
-        panel:SetPoint(p.point, p.relativeTo, p.relativePoint, p.x or 0, p.y or 0)
-    else
-        panel:SetPoint("CENTER")
-    end
-
-    panel:SetFrameStrata(config.strata     or "HIGH")
-    panel:SetFrameLevel(config.frameLevel  or 50)
+    local panel = Widgets.MovableFrame(UIParent, {
+        name   = name,
+        size   = { config.width  or PSM.Config.DEFAULT_PANEL_WIDTH,
+                   config.height or PSM.Config.DEFAULT_PANEL_HEIGHT },
+        point  = p and { p.point, p.relativeTo, p.relativePoint, p.x or 0, p.y or 0 }
+                   or { "CENTER" },
+        strata = config.strata    or "HIGH",
+        level  = config.frameLevel or 50,
+        skin   = "frame",
+    })
     panel:SetToplevel(true)
     panel:SetClampedToScreen(true)
-    panel:SetMovable(true)
-    panel:EnableMouse(true)
-    panel:RegisterForDrag("LeftButton")
-    panel:SetScript("OnDragStart", function() panel:StartMoving() end)
-    panel:SetScript("OnDragStop",  function() panel:StopMovingOrSizing() end)
 
-    PSM.UI:ApplyElvUISkin(panel, "frame")
-
-    -- ESC key
-    panel:SetScript("OnKeyDown", function(self, key)
-        if key == "ESCAPE" then
-            self:Hide()
-            if config.onEscape then config.onEscape(self) end
-            self:SetPropagateKeyboardInput(false)
-        else
-            self:SetPropagateKeyboardInput(true)
-        end
-    end)
-    panel:EnableKeyboard(true)
-    panel:SetPropagateKeyboardInput(true)
+    -- ESC. This looks like it could be left to Blizzard, because every panel used to
+    -- pass an `escKeyframe` for UISpecialFrames -- but those names never resolved. The
+    -- frames are created as "panel", "teamsPanel", "modelsPanel"..., while the strings
+    -- registered were "PetStableManagementPanel", "PSMTeamsPanel" and so on, so
+    -- _G[name] was nil for every one of them and Blizzard's path closed nothing. The
+    -- hand-written handler that used to sit here was the only thing that worked, and
+    -- removing it in favour of the registration broke Escape on all five panels.
+    --
+    -- One owner, and it is the kit's: CloseOnEscape sets propagation *before* hiding,
+    -- where the old hand-written version set it afterwards and only on the following
+    -- keystroke -- which is why the first key pressed after opening a panel used to go
+    -- missing. Non-ESCAPE keys propagate, so keybinds keep working while a panel is up.
+    --
+    -- `config.onEscape` is not wired through: nothing ever passed one. (The onEscape
+    -- options elsewhere in the addon belong to Widgets.EditBox, a different callback on
+    -- a different widget.)
+    Widgets.CloseOnEscape(panel)
 
     -- Resizable
     if config.resizable ~= false then
@@ -78,51 +76,35 @@ function PSM.PanelManager:CreateBasePanel(name, config)
         end
     end
 
-    -- Resize handle
-    if config.showResizeHandle ~= false then
-        local grip = CreateFrame("Button", nil, panel)
-        grip:SetSize(16, 16)
-        grip:SetPoint("BOTTOMRIGHT", -2, 2)
-        grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
-        grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
-        grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
-        grip:SetScript("OnMouseDown", function(_, btn)
-            if btn == "LeftButton" then panel:StartSizing("BOTTOMRIGHT") end
-        end)
-        grip:SetScript("OnMouseUp", function() panel:StopMovingOrSizing() end)
-        PSM.UI:ApplyElvUISkin(grip, "resizegrip")
-        panel.resizeButton = grip
+    -- Resize handle. ResizeGrip calls SetResizable itself, so it is created only when
+    -- the panel is actually resizable -- a grip on a fixed panel used to be built and
+    -- do nothing.
+    if config.showResizeHandle ~= false and config.resizable ~= false then
+        panel.resizeButton = Widgets.ResizeGrip(panel, {
+            point = { "BOTTOMRIGHT", panel, "BOTTOMRIGHT", -2, 2 },
+        })
     end
 
     -- Background / border
-    panel.border = CreateFrame("Frame", nil, panel, "BackdropTemplate")
-    panel.border:SetAllPoints()
-    panel.border:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 30, edgeSize = 5,
-        insets = { left = 4, right = 4, top = 4, bottom = 4 },
+    panel.border = Widgets.Frame(panel, {
+        allPoints = true,
+        backdrop  = "TOOLTIP_HAIRLINE",
+        color     = PSM.Config.COLORS.BACKGROUND,
+        level     = panel:GetFrameLevel() - 1,
     })
-    panel.border:SetBackdropColor(unpack(PSM.Config.COLORS.BACKGROUND))
-    panel.border:SetFrameLevel(panel:GetFrameLevel() - 1)
 
-    -- Close button
-    local closeBtn = CreateFrame("Button", nil, panel, "UIPanelCloseButton")
-    closeBtn:SetPoint("TOPRIGHT", -5, -5)
-    closeBtn:SetSize(20, 20)
-    closeBtn:SetFrameLevel(panel:GetFrameLevel() + 10)
-    closeBtn:SetScript("OnClick", function() panel:Hide() end)
-    PSM.UI:ApplyElvUISkin(closeBtn, "closebutton")
-    panel.closeButton = closeBtn
+    panel.closeButton = Widgets.CloseButton(panel, {
+        point = { "TOPRIGHT", -5, -5 },
+        size  = { 20, 20 },
+        level = panel:GetFrameLevel() + 10,
+    })
 
     -- Show/Hide callbacks
     panel:SetScript("OnHide", function(self)
         -- A context menu opened from this panel is parented to UIParent, so it
         -- outlives the panel unless something closes it. Blizzard's Escape path
-        -- (CloseAllWindows) does that for UISpecialFrames, but our own OnKeyDown
-        -- above consumes ESCAPE and suppresses propagation, so it usually never
-        -- runs -- and the X button, the minimap toggle and /psm never go near it
-        -- at all. Closing here covers every route out of a panel.
+        -- does that for UISpecialFrames, but the X button, the minimap toggle and
+        -- /psm never go near it. Closing here covers every route out of a panel.
         CloseDropDownMenus()
         if config.onHide then config.onHide(self) end
     end)
@@ -131,12 +113,12 @@ function PSM.PanelManager:CreateBasePanel(name, config)
     -- Maximize button
     if config.showMaximizeButton ~= false then
         panel.isMaximized = false
-        local maxBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-        maxBtn:SetPoint("TOPRIGHT", closeBtn, "TOPLEFT", -2, 0)
-        maxBtn:SetSize(PSM.Config.PANEL_BUTTON_WIDTH, PSM.Config.PANEL_BUTTON_HEIGHT)
-        maxBtn:SetText("Maximize")
-        maxBtn:SetNormalFontObject("GameFontNormalSmall")
-        PSM.UI:ApplyElvUISkin(maxBtn, "button")
+        local maxBtn = Widgets.Button(panel, {
+            point      = { "TOPRIGHT", panel.closeButton, "TOPLEFT", -2, 0 },
+            size       = { PSM.Config.PANEL_BUTTON_WIDTH, PSM.Config.PANEL_BUTTON_HEIGHT },
+            text       = "Maximize",
+            fontObject = "GameFontNormalSmall",
+        })
 
         maxBtn:SetScript("OnClick", function()
             if panel.isMaximized then
@@ -171,19 +153,18 @@ function PSM.PanelManager:CreateBasePanel(name, config)
         panel.maximizeButton = maxBtn
     end
 
-    -- Title
+    -- Title. `titleOffset` is a config value rather than a test on the title text: this
+    -- used to read `config.title == "Pet Model Browser" and -20 or -35`, so a shared
+    -- component's layout depended on one caller's exact display string, and renaming
+    -- that panel would silently have moved its title.
     if config.title then
-        local t = panel:CreateFontString(nil, "OVERLAY")
-        t:SetFont("Fonts\\FRIZQT__.TTF", 14, "OUTLINE")
-        -- Models panel title sits higher to avoid search box overlap
-        t:SetPoint("TOP", 0, config.title == "Pet Model Browser" and -20 or -35)
-        t:SetText(config.title)
-        t:SetTextColor(1, 0.82, 0)
-        panel.title = t
-    end
-
-    if config.escKeyframe then
-        table.insert(UISpecialFrames, config.escKeyframe)
+        panel.title = Widgets.Label(panel, {
+            fontSize = 14,
+            outline  = true,
+            text     = config.title,
+            color    = PSM.Theme.COLOR.GOLD,
+            point    = { "TOP", 0, config.titleOffset or -35 },
+        })
     end
 
     PSM.state[name] = panel
@@ -196,15 +177,23 @@ end
 function PSM.PanelManager:CreateSearchBox(panel, onTextChanged, config)
     config = config or {}
 
-    local searchBox = CreateFrame("EditBox", nil, panel, "InputBoxTemplate")
-    searchBox:SetSize(config.width or 150, config.height or 20)
-    searchBox:SetPoint("TOP", panel.title, "BOTTOM", 0, config.yOffset or -10)
-    searchBox:SetAutoFocus(false)
+    local Widgets = PSM.Widgets
+
+    local searchBox = Widgets.EditBox(panel, {
+        size     = { config.width or 150, config.height or 20 },
+        point    = { "TOP", panel.title, "BOTTOM", 0, config.yOffset or -10 },
+        -- Both keys dismiss focus. Search is live, so there is nothing to "submit";
+        -- Enter just means "done typing", and Escape must not fall through to the
+        -- panel's own Escape handler and close the whole window mid-search.
+        onEnter  = function(self) self:ClearFocus() end,
+        onEscape = function(self) self:ClearFocus() end,
+    })
     searchBox:SetMaxLetters(config.maxLetters or 50)
-    -- Mutable so callers (e.g. a view-mode toggle) can retarget the placeholder text later.
+
+    -- Placeholder helpers. `placeholderText` is mutable so a view-mode toggle can
+    -- retarget it; SetPlaceholder below is the supported way to do that.
     searchBox.placeholderText = config.placeholder or "Search..."
 
-    -- Placeholder helpers
     local function ShowPlaceholder(self)
         self:SetTextColor(0.5, 0.5, 0.5)
         self:SetText(self.placeholderText)
@@ -220,15 +209,20 @@ function PSM.PanelManager:CreateSearchBox(panel, onTextChanged, config)
     searchBox:SetScript("OnEditFocusLost", function(self)
         if self:GetText() == "" then ShowPlaceholder(self) end
     end)
-    searchBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 
-    -- Debounced text changed
+    -- `userInput` is the whole fix here, and it was previously ignored.
+    --
+    -- SetText fires OnTextChanged just as typing does. So showing the placeholder ran
+    -- this handler, which saw text == placeholderText, called ClearPlaceholder, and
+    -- blanked the box it had just filled -- the placeholder erased itself, and
+    -- retargeting it erased whatever the user had typed. Blizzard passes userInput =
+    -- false for programmatic changes precisely so a handler can tell the two apart.
     local debounceTimer
-    searchBox:SetScript("OnTextChanged", function(self)
-        local wasPlaceholder = self:GetText() == self.placeholderText
+    searchBox:SetScript("OnTextChanged", function(self, userInput)
+        if not userInput then return end
         ClearPlaceholder(self)
-        local text = self:GetText()
-        if wasPlaceholder and text == "" then return end
+        -- GetSearchText, so the callback can never receive the placeholder either.
+        local text = self:GetSearchText()
         if debounceTimer then debounceTimer:Cancel() end
         debounceTimer = C_Timer.NewTimer(PSM.Config.SEARCH_DELAY or 0.3, function()
             if onTextChanged then onTextChanged(text) end
@@ -236,8 +230,35 @@ function PSM.PanelManager:CreateSearchBox(panel, onTextChanged, config)
         end)
     end)
 
+    -- The query, as opposed to the raw contents: empty while the placeholder is on
+    -- screen. **Read this, never GetText.** The placeholder is decoration; treating it
+    -- as input makes every panel open filtered to a string the user never typed, which
+    -- is exactly what happened once the placeholder started displaying reliably -- nine
+    -- call sites were reading GetText and had only ever worked because the placeholder
+    -- used to erase itself.
+    function searchBox:GetSearchText()
+        local text = self:GetText()
+        if text == self.placeholderText then return "" end
+        return text
+    end
+
+    -- Back to the idle state, placeholder and all. SetText("") alone leaves the box
+    -- blank, since the placeholder is otherwise only restored when focus is lost.
+    function searchBox:ClearSearch()
+        self:ClearFocus()
+        ShowPlaceholder(self)
+    end
+
+    -- Retarget the placeholder without disturbing what the user typed. Callers used to
+    -- assign placeholderText and call SetText themselves, which fired the handler above
+    -- and cleared the box.
+    function searchBox:SetPlaceholder(text)
+        local showing = self:GetText() == self.placeholderText or self:GetText() == ""
+        self.placeholderText = text
+        if showing and not self:HasFocus() then ShowPlaceholder(self) end
+    end
+
     ShowPlaceholder(searchBox)
-    PSM.UI:ApplyElvUISkin(searchBox, "editbox")
     panel.searchBox = searchBox
     return searchBox
 end

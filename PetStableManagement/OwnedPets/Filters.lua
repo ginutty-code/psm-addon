@@ -357,7 +357,9 @@ function PSM.UI:BuildSortButtons(panel)
         end,
 
         onClick = function()
-            if panel.searchBox then panel.searchBox:SetText("") end
+            -- ClearSearch, not SetText(""): the latter leaves the box blank, because the
+            -- placeholder is only restored on focus loss.
+            if panel.searchBox then panel.searchBox:ClearSearch() end
 
             PSM.Utils:ClearTable(PSM.state.selectedSpecs)
             PSM.Utils:ClearTable(PSM.state.selectedFamilies)

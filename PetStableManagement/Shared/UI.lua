@@ -249,7 +249,7 @@ function PSM.UI:CreateRenderCache()
 end
 
 function PSM.UI:GenerateCacheKey()
-    local searchText  = PSM.state.panel and PSM.state.panel.searchBox:GetText() or ""
+    local searchText  = PSM.state.panel and PSM.state.panel.searchBox:GetSearchText() or ""
     local searchLower = searchText ~= "" and PSM.Utils:NormalizeSearchText(searchText) or ""
     return string.format("%d_%s_%s_%s_%s_%s_%s_%s",
         #PSM.state.stablePets,
@@ -295,7 +295,7 @@ function PSM.UI:_RenderPanelImmediate(preserveScroll)
 end
 
 function PSM.UI:_CalculateRenderData()
-    local searchText  = PSM.state.panel.searchBox:GetText() or ""
+    local searchText  = PSM.state.panel.searchBox:GetSearchText() or ""
     local searchLower = searchText ~= "" and PSM.Utils:NormalizeSearchText(searchText) or ""
 
     -- Duplicate groups across ALL pets, account-wide (every character's tamer)

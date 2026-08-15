@@ -716,7 +716,7 @@ local function CreatePillBar(panel)
             SetActive(currentIdx)
             local activeTag = (currentTag == "All") and "" or currentTag
             panel.activeTag = activeTag
-            AB:PopulateAbilities(panel, panel.searchBox:GetText(), activeTag)
+            AB:PopulateAbilities(panel, panel.searchBox:GetSearchText(), activeTag)
             panel.scrollFrame:SetVerticalScroll(0)
         end)
 
@@ -904,7 +904,6 @@ function AB:CreateAbilityBrowser()
         maxWidth           = CFG.PANEL_WIDTH,
         minWidth           = CFG.PANEL_WIDTH,
         title              = "Pet Ability Browser",
-        escKeyframe        = "PetStableManagementAbilityBrowser",
         resizable          = true,
         showResizeHandle   = true,
         showMaximizeButton = false,
@@ -912,18 +911,16 @@ function AB:CreateAbilityBrowser()
 
     local Widgets = PSM.Widgets
 
-    local searchBox = Widgets.EditBox(panel, {
-        size     = { 150, 20 },
-        point    = { "TOP", panel.title, "BOTTOM", 0, -10 },
-        text     = "",
-        onEnter  = function(self) self:ClearFocus() end,
-        onEscape = function(self) self:ClearFocus() end,
-    })
-    searchBox:SetScript("OnTextChanged", function(self)
-        AB:PopulateAbilities(panel, self:GetText(), panel.activeTag or "")
+    -- The shared search box, not a hand-rolled one. This panel and Special Tames each
+    -- built their own, which is why they looked different from the three main panels
+    -- (no placeholder) and behaved differently: they repopulated on every keystroke
+    -- with no debounce, rebuilding the whole card list per character typed.
+    PSM.PanelManager:CreateSearchBox(panel, function(text)
+        AB:PopulateAbilities(panel, text, panel.activeTag or "")
         panel.scrollFrame:SetVerticalScroll(0)
-    end)
-    panel.searchBox = searchBox
+    end, {
+        placeholder = "Search abilities...",
+    })
 
     panel.pillBar = CreatePillBar(panel)
 
