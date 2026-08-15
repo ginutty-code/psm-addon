@@ -1,12 +1,12 @@
 -- Config.lua
 -- Configuration constants for PetStableManagement
 
-_G.PSM = _G.PSM or {}
+local _, ns = ...
 
 -- ============================================================
 -- UI Dimensions
 -- ============================================================
-PSM.Config = {
+ns.Config = {
     -- List View
     ROW_HEIGHT        = 130,
     ICON_SIZE         = 60,
@@ -218,11 +218,11 @@ PSM.Config = {
 -- Methods
 -- ============================================================
 
-function PSM.Config:GetOpacity()
+function ns.Config:GetOpacity()
     return PetStableManagementDB.settings.opacity or self.DEFAULT_OPACITY
 end
 
-function PSM.Config:UpdateColors()
+function ns.Config:UpdateColors()
     local a = self:GetOpacity()
     self.COLORS.BACKGROUND       = { 0.1,  0.1, 0.1, a }
     self.COLORS.BACKGROUND_DUPLICATE       = { 0.35, 0,   0,   a }
@@ -230,8 +230,8 @@ function PSM.Config:UpdateColors()
 end
 
 -- Populate FAMILY_TO_SPEC mapping
-for spec, families in pairs(PSM.Config.FAMILY_SPECS) do
+for spec, families in pairs(ns.Config.FAMILY_SPECS) do
     for _, family in ipairs(families) do
-        PSM.Config.FAMILY_TO_SPEC[family] = spec
+        ns.Config.FAMILY_TO_SPEC[family] = spec
     end
 end

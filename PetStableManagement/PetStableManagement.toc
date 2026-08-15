@@ -53,3 +53,7 @@ OwnedPets/PetGroups.lua
 OwnedPets/TeamsData.lua
 OwnedPets/TeamsPanel.lua
 
+# Loaded last, and it must stay last: it publishes core's public members onto _G.PSM
+# for the Models Browser, which cannot happen until every file above has attached
+# itself. See Shared/PublicAPI.lua.
+Shared/PublicAPI.lua

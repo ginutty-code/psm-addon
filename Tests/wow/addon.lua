@@ -28,8 +28,13 @@ A.BROWSER = "PetStableManagement_ModelsBrowser"
 -- A fresh namespace, as the client would hand an addon on login. Specs that want to prove
 -- a file builds its own state from nothing should take a new one rather than reusing a
 -- namespace another spec has already populated.
+--
+-- TRANSITIONAL (A3) -- simplify in step 3g. While core is half converted Core.lua aliases
+-- `_G.PSM = ns`, one table under two names. A spec loads one file rather than the whole
+-- .toc, so it has no Core.lua to do that; the fallback gives the same reachability for a
+-- single-file load without letting the spec's namespace leak into the global one.
 function A.namespace()
-    return {}
+    return setmetatable({}, { __index = _G.PSM })
 end
 
 -- Load `path`, passing the client's two arguments. Returns the namespace, so a spec can

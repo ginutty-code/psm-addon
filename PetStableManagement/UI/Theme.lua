@@ -11,11 +11,10 @@
 -- previously typed out inline at every call site -- the font path, the size ramp,
 -- the grey ramp, and the four backdrop shapes. Don't duplicate Config here.
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
+local _, ns = ...
 
-PSM.Theme = PSM.Theme or {}
-local Theme = PSM.Theme
+ns.Theme = ns.Theme or {}
+local Theme = ns.Theme
 
 --------------------------------------------------------------------------------
 -- FONT

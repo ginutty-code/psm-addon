@@ -1,56 +1,33 @@
 -- Core.lua
 -- Core initialization and global setup for PetStableManagement
 
-local addonName = "PetStableManagement"
+-- The client hands every file of an addon its folder name and a table private to
+-- that addon. A3 is moving core onto `ns`; `_G.PSM` stays as the bridge to the
+-- Models Browser, which is a separate addon and so gets a different `ns`.
+local _, ns = ...
 
--- Initialize global namespace
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
-
---------------------------------------------------------------------------------
--- PUBLIC API -- what the Models Browser addon may consume from core
---------------------------------------------------------------------------------
-
--- Core defines ~38 members on PSM. These are the only ones the browser is allowed to
--- read; everything else is core-internal, and `Tests/spec/boundary_spec.lua` fails the
--- build if a browser file reaches for anything outside this list.
+-- TRANSITIONAL (A3) -- undone in step 3g, with PublicAPI.lua's PUBLISH_EVERYTHING.
 --
--- **Derived from measurement, not designed.** Every name here was found by scanning what
--- the browser actually references. Two things that measurement corrected: `Loader` was on
--- the planned list and is *not* used by the browser (sensibly -- Loader is what loads the
--- browser), and `C_Timer`/`CreateFrame` *were* being used and should not have been. Those
--- are core's WoW API aliases, kept so core's headless tests can stub them; the browser
--- calls the globals directly, as ModelRow.lua was already fixed to do.
+-- While core is half converted it needs to work in both directions: a converted file
+-- writes `ns.Theme` where an unconverted one reads `PSM.Theme`, and vice versa. Making
+-- them **the same table** does that completely, and does it at the moment of the write
+-- rather than at the end of load.
 --
--- Adding a name here is a real decision -- it is one more thing that can never be changed
--- without touching two addons. Prefer giving the browser a *service* to consuming a core
--- internal; the UI kit (Theme/Skin/Tooltip/Widgets) is the model, being four names with
--- no back-references.
+-- The alternative -- an `__index` fallback each way -- was tried first and is wrong twice
+-- over. It publishes only when PublicAPI.lua runs *last*, so it misses the handful of
+-- file-scope reads that execute during load (`OptionsPanel.lua` calls PSM.Widgets.Frame,
+-- `GridView.lua` reads PSM.UI.GridView, `DragDrop`/`Events` call PSM.CreateFrame). And
+-- fallbacks in both directions form an `__index` cycle, which Lua does not resolve to nil
+-- -- it raises "'__index' chain too long" -- so every `if PSM.ModelsPanel then` browser
+-- gate in the addon would start erroring instead of testing.
 --
--- This is deliberately a `local`. It is a contract about PSM, not a member of it, and
--- publishing it would make the list itself part of the surface it describes.
+-- One table has neither problem. There is no encapsulation during the transition, which
+-- is exactly the status quo; the boundary spec still enforces the browser's side
+-- statically, and 3g is where the split becomes real.
 --
--- It has no runtime reader *yet* -- the boundary spec parses this file's text, and A3's
--- `ns` conversion will drive core's exports from it. Declared unused rather than given a
--- decorative consumer, because inventing a fake reader to quiet a warning is how
--- CHECKBOX_INDENT_X ended up in read_globals.
---
--- luacheck: ignore PUBLIC_API
-local PUBLIC_API = {
-    "Config",        -- constants: colours, sizes, strings
-    "Data",          -- SavedVariables access
-    "PanelManager",  -- panel chrome: CreateBasePanel, TogglePanel, search boxes
-    "PopUpManager",  -- shared popups, incl. ShowURLPopup for Wowhead links
-    "RowManager",    -- model rotation/zoom hover controls
-    "Skin",          -- ElvUI skinning (the only file allowed to see the ElvUI global)
-    "Theme",         -- fonts, colour ramp, control sizes, backdrop presets
-    "Tooltip",       -- declarative tooltip attachment
-    "Utils",         -- pure helpers
-    "Widgets",       -- the frame factories
-    "state",         -- shared mutable state -- by far the largest consumer (218 of the
-                     -- browser's ~437 core references). A5 owns shrinking this; until
-                     -- then it is public because it has to be, not because it should be.
-}
+-- Core.lua is first in the .toc, so this covers every later file.
+_G.PSM = ns
+local PSM = ns
 
 -- Initialize persistent data storage
 PetStableManagementDB = PetStableManagementDB or {

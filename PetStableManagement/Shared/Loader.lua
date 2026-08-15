@@ -12,10 +12,9 @@
 -- back. Worth re-splitting only if the UI-free resolvers are ever separated from
 -- the panel code, which would make data-only loading real rather than theoretical.)
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
+local _, ns = ...
 
-PSM.Loader = {}
+ns.Loader = {}
 
 local BROWSER_ADDON = "PetStableManagement_ModelsBrowser"
 
@@ -61,7 +60,7 @@ end
 -- PUBLIC API
 --------------------------------------------------------------------------------
 
-function PSM.Loader:IsBrowserLoaded()
+function ns.Loader:IsBrowserLoaded()
     if loaded then return true end
     if IsAddOnLoadedFn(BROWSER_ADDON) then
         loaded = true
@@ -91,7 +90,7 @@ end
 --
 -- So enable state is the only thing that separates "dormant" from "switched off", and
 -- it lives in its own call: GetAddOnInfo lost its `enabled` field in 8.0.
-function PSM.Loader:IsBrowserAvailable()
+function ns.Loader:IsBrowserAvailable()
     return self:UnavailableReason() == nil
 end
 
@@ -104,7 +103,7 @@ end
 -- case, which is wrong when the folder is missing or a dependency is off, and which
 -- duplicated FAILURE_HINT badly. Anything that has to tell the user why should read it
 -- from here; the chat message in Announce reads the same table.
-function PSM.Loader:UnavailableReason()
+function ns.Loader:UnavailableReason()
     if self:IsBrowserLoaded() then return nil end
 
     if GetEnableStateFn then
@@ -125,7 +124,7 @@ end
 -- Loads the Models Browser and its data tables. Returns true when it is available
 -- for use. Pass silent=true from passive callers (row rendering, anything that can
 -- fire repeatedly) so a disabled module cannot spam chat.
-function PSM.Loader:EnsureBrowser(silent)
+function ns.Loader:EnsureBrowser(silent)
     if self:IsBrowserLoaded() then return true end
 
     -- Parsing several MB of Lua mid-fight is a visible frame hitch, and the browser

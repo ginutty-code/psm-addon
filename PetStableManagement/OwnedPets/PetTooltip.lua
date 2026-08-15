@@ -13,11 +13,10 @@
 -- block at the bottom -- which is the one part that genuinely differs per view. So
 -- the spec takes its hints as an argument and owns everything above them.
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
+local _, ns = ...
 
-PSM.PetTooltip = {}
-local PetTooltip = PSM.PetTooltip
+ns.PetTooltip = {}
+local PetTooltip = ns.PetTooltip
 
 --------------------------------------------------------------------------------
 -- ABILITY BUCKETS
@@ -66,7 +65,7 @@ function PetTooltip.Spec(pet, opts)
     if not pet then return nil end
     opts = opts or {}
 
-    local Theme = PSM.Theme
+    local Theme = ns.Theme
     local lines = {}
     local function Add(text, color) lines[#lines + 1] = { text = text, color = color } end
 

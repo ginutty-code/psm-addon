@@ -22,7 +22,7 @@ local describe, it, eq, truthy = T.describe, T.it, T.eq, T.truthy
 -- interpreter on PATH while CI uses 5.1.
 local LoadString = loadstring or load
 
-local CORE_FILE   = "PetStableManagement/Core.lua"
+local CORE_FILE   = "PetStableManagement/Shared/PublicAPI.lua"
 local BROWSER_TOC = "PetStableManagement_ModelsBrowser/PetStableManagement_ModelsBrowser.toc"
 local BROWSER_DIR = "PetStableManagement_ModelsBrowser/"
 
@@ -60,7 +60,7 @@ end
 -- The declared surface
 --------------------------------------------------------------------------------
 
--- Parsed out of Core.lua rather than duplicated here: two copies of a contract is how the
+-- Parsed out of PublicAPI.lua rather than duplicated here: two copies of a contract is how the
 -- contract starts being wrong. The block is extracted and compiled as real Lua, so a
 -- malformed declaration fails loudly instead of silently yielding a short list -- which
 -- would make this whole spec pass by testing nothing.
@@ -179,7 +179,7 @@ describe("core/browser boundary", function()
             table.sort(violations)
             error(("browser reaches %d core member(s) outside PUBLIC_API:\n  %s\n\n"
                 .. "Prefer giving the browser a service over widening the surface -- "
-                .. "a name added to PUBLIC_API in Core.lua can never change again "
+                .. "a name added to PUBLIC_API in PublicAPI.lua can never change "
                 .. "without touching both addons.")
                 :format(#violations, table.concat(violations, "\n  ")), 0)
         end

@@ -63,8 +63,10 @@ local function loaderFor(state)
             return state.enable
         end,
     }
-    Addon.load("PetStableManagement/Shared/Loader.lua")
-    return _G.PSM.Loader
+    -- Read off the namespace, not _G.PSM: Loader.lua is A3-converted and attaches
+    -- itself to `ns`. In the game PublicAPI.lua republishes it; here the spec has the
+    -- namespace in hand, which is the more direct assertion anyway.
+    return Addon.load("PetStableManagement/Shared/Loader.lua").Loader
 end
 
 describe("Loader:IsBrowserAvailable", function()

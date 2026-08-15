@@ -28,11 +28,10 @@
 -- instead, for tooltips whose contents depend on live state. Returning nil from
 -- that function suppresses the tooltip entirely.
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
+local _, ns = ...
 
-PSM.Tooltip = PSM.Tooltip or {}
-local Tooltip = PSM.Tooltip
+ns.Tooltip = ns.Tooltip or {}
+local Tooltip = ns.Tooltip
 
 --------------------------------------------------------------------------------
 -- SHOW / HIDE

@@ -11,11 +11,10 @@
 --     a silently unskinned frame -- unskinned frames are invisible on a client
 --     that doesn't run ElvUI, which is most of the ones we test on.
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
+local _, ns = ...
 
-PSM.Skin = PSM.Skin or {}
-local Skin = PSM.Skin
+ns.Skin = ns.Skin or {}
+local Skin = ns.Skin
 
 --------------------------------------------------------------------------------
 -- HANDLERS
@@ -54,8 +53,8 @@ local handlers = {
                 f.backdrop:SetFrameLevel(f:GetFrameLevel() - 1)
                 f.backdrop:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -4)
                 f.backdrop:SetPoint("BOTTOMRIGHT", f.Button, "BOTTOMRIGHT", 2, -2)
-                f.backdrop:SetBackdrop(PSM.Theme.BACKDROP.TOOLTIP)
-                f.backdrop:SetBackdropColor(0.1, 0.1, 0.1, PSM.Config:GetOpacity())
+                f.backdrop:SetBackdrop(ns.Theme.BACKDROP.TOOLTIP)
+                f.backdrop:SetBackdropColor(0.1, 0.1, 0.1, ns.Config:GetOpacity())
                 f.backdrop:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
             end
             if f.Text then
