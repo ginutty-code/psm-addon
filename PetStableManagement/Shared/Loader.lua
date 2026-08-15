@@ -22,28 +22,36 @@ local BROWSER_ADDON = "PetStableManagement_ModelsBrowser"
 -- C_AddOns only: the bare IsAddOnLoaded/LoadAddOn/GetAddOnInfo globals were removed
 -- in 11.0, well below this addon's ## Interface floor, so a fallback to them would
 -- be dead code pointing at names that no longer exist.
-local IsAddOnLoadedFn = C_AddOns.IsAddOnLoaded
-local LoadAddOnFn     = C_AddOns.LoadAddOn
-local GetAddOnInfoFn  = C_AddOns.GetAddOnInfo
+local IsAddOnLoadedFn   = C_AddOns.IsAddOnLoaded
+local LoadAddOnFn       = C_AddOns.LoadAddOn
+local GetAddOnInfoFn    = C_AddOns.GetAddOnInfo
+local GetEnableStateFn  = C_AddOns.GetAddOnEnableState
+
+-- Enum.AddOnEnableState: 0 none, 1 some characters, 2 all.
+local ENABLE_NONE = 0
 
 -- Memoised: passive callers hit this on every popup open, and once the addon is up
 -- the answer can never change back within a session.
 local loaded = false
 
+-- Plain ASCII on purpose. This text goes to the chat frame, whose font has no glyph
+-- for the U+2192 arrow that used to be here -- it rendered as an empty square, which
+-- looks like a broken addon rather than an instruction.
 local FAILURE_HINT = {
-    DISABLED     = "It is disabled in the AddOns list (Esc \226\134\146 AddOns).",
-    DEP_DISABLED = "A module it needs is disabled in the AddOns list (Esc \226\134\146 AddOns).",
+    DISABLED     = "It is disabled in the AddOns list (Esc > AddOns).",
+    DEP_DISABLED = "A module it needs is disabled in the AddOns list (Esc > AddOns).",
     MISSING      = "Its folder is missing from Interface/AddOns.",
     DEP_MISSING  = "A module it needs is missing from Interface/AddOns.",
 }
 
--- Reported once per session: a failed load is a persistent condition (disabled,
--- missing), so repeating it on every subsequent click is pure spam.
-local announced = false
-
+-- Announcing is controlled by the caller's `silent` flag, not by a once-per-session
+-- latch. There used to be one, on the reasoning that a failed load is a persistent
+-- condition so repeating it is spam -- but that conflated two kinds of caller. Passive
+-- ones (row rendering) already pass silent = true, and they are the only spam risk.
+-- Everything else is an explicit user action: /psm models, a menu entry, a magnifier
+-- click. Swallowing the answer to a direct request makes the command look broken, and
+-- the latch meant the *second* thing you tried always failed in silence.
 local function Announce(reason)
-    if announced then return end
-    announced = true
     local hint = FAILURE_HINT[reason] or ("Reason: " .. tostring(reason) .. ".")
     print(string.format(
         "|cFFFF8800Pet Stable Management: could not load the Models Browser. %s|r", hint))
@@ -65,11 +73,38 @@ end
 -- True when the browser is loaded OR could be loaded on demand (present and enabled).
 -- This is the question UI affordances should ask -- "offer the user this action?" --
 -- since under LoadOnDemand "not loaded yet" is the normal state, not an absence.
--- GetAddOnInfo's `loadable` reports false for an already-loaded addon, hence the or.
+--
+-- Two client facts make this harder than it looks, both confirmed by macro rather than
+-- from memory, because guessing at them produced two wrong versions of this function:
+--
+--   1. `loadable` does NOT mean "can be loaded". A LoadOnDemand addon that is present
+--      and enabled but not yet parsed reports loadable = false -- the dormant state,
+--      which is the *normal* state at login. Reading it alone answered "unavailable"
+--      for every fresh session, so affordances hid until something else loaded the
+--      browser: the minimap tooltip listed three clicks instead of four, and PSM.Menu
+--      hid its browser entries.
+--
+--   2. `reason` does not distinguish enabled from disabled. A LoadOnDemand addon
+--      reports "DEMAND_LOADED" *either way* -- verified with the module unticked and
+--      the UI reloaded: loaded = false, loadable = false, reason = DEMAND_LOADED,
+--      identical to the enabled-and-dormant case.
+--
+-- So enable state is the only thing that separates "dormant" from "switched off", and
+-- it lives in its own call: GetAddOnInfo lost its `enabled` field in 8.0.
 function PSM.Loader:IsBrowserAvailable()
     if self:IsBrowserLoaded() then return true end
-    local _, _, _, loadable = GetAddOnInfoFn(BROWSER_ADDON)
-    return loadable and true or false
+
+    if GetEnableStateFn then
+        local ok, state = pcall(GetEnableStateFn, BROWSER_ADDON, UnitName("player"))
+        if ok and state == ENABLE_NONE then return false end
+    end
+
+    local _, _, _, loadable, reason = GetAddOnInfoFn(BROWSER_ADDON)
+    if loadable then return true end
+
+    -- Enabled and demand-loaded: dormant, and offering it is correct. Any other reason
+    -- (MISSING, DEP_MISSING, CORRUPT, INCOMPATIBLE) is a real absence.
+    return reason == "DEMAND_LOADED"
 end
 
 -- Loads the Models Browser and its data tables. Returns true when it is available

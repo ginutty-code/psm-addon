@@ -81,31 +81,39 @@ function PSM.Minimap:CreateButton()
         end
     end
 
-    -- Fallback to custom button
-    local button = CreateFrame("Button", "PetStableManagementMinimapButton", Minimap)
-    button:SetSize(31, 31)
+    -- Fallback to custom button. IconButton rather than Button: it is unskinned by
+    -- design, and ElvUI's HandleButton would strip the tracking border and the icon
+    -- this is entirely made of.
+    local Widgets = PSM.Widgets
+    local button = Widgets.IconButton(Minimap, {
+        name      = "PetStableManagementMinimapButton",
+        size      = { 31, 31 },
+        level     = 8,
+        highlight = "Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight",
+        onClick   = function(self, btn) PSM.Minimap:OnClick(btn) end,
+        tooltip   = PSM.Minimap.TooltipSpec,
+    })
     button:SetFrameStrata("MEDIUM")
-    button:SetFrameLevel(8)
-    button:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
     button:RegisterForDrag("LeftButton")
     button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 
-    local overlay = button:CreateTexture(nil, "OVERLAY")
-    overlay:SetSize(53, 53)
-    overlay:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
-    overlay:SetPoint("TOPLEFT")
+    Widgets.Texture(button, {
+        layer   = "OVERLAY",
+        size    = { 53, 53 },
+        texture = "Interface\\Minimap\\MiniMap-TrackingBorder",
+        point   = { "TOPLEFT" },
+    })
 
-    local icon = button:CreateTexture(nil, "BACKGROUND")
-    icon:SetSize(20, 20)
-    icon:SetTexture("Interface\\Icons\\Ability_Mount_Raptor")
-    icon:SetPoint("CENTER", 0, 1)
-    button.icon = icon
+    button.icon = Widgets.Texture(button, {
+        layer   = "BACKGROUND",
+        size    = { 20, 20 },
+        texture = "Interface\\Icons\\Ability_Mount_Raptor",
+        point   = { "CENTER", 0, 1 },
+    })
 
-    button:SetScript("OnClick",     function(self, btn) PSM.Minimap:OnClick(btn) end)
-    button:SetScript("OnDragStart", function(self)      PSM.Minimap:OnDragStart(self) end)
-    button:SetScript("OnDragStop",  function(self)      PSM.Minimap:OnDragStop(self) end)
-    button:SetScript("OnEnter",     function(self)      PSM.Minimap:OnEnter(self) end)
-    button:SetScript("OnLeave",     function()          GameTooltip:Hide() end)
+    -- Drag stays hand-wired: the kit builds widgets, it does not own dragging.
+    button:SetScript("OnDragStart", function(self) PSM.Minimap:OnDragStart(self) end)
+    button:SetScript("OnDragStop",  function(self) PSM.Minimap:OnDragStop(self) end)
 
     PSM.state.minimapButton = button
     PSM.state.usingLibDBIcon = false
@@ -159,22 +167,36 @@ function PSM.Minimap:OnUpdate()
     PSM.Minimap:UpdatePosition()
 end
 
-function PSM.Minimap:OnEnter(button)
-    GameTooltip:SetOwner(button, "ANCHOR_NONE")
-    GameTooltip:SetPoint("TOPLEFT", button, "BOTTOMLEFT")
-    GameTooltip:ClearLines()
-    GameTooltip:AddLine("Pet Stable Management")
-    GameTooltip:AddLine("Left-click: Toggle Owned Pets Panel",      0.7, 0.7, 1)
+-- The launcher tooltip, shared with the LDB feed in Broker.lua.
+--
+-- The minimap icon and the Broker data object are the same affordance in two hosts --
+-- LibDBIcon literally builds the minimap button *from* the Broker object — so they must
+-- list the same clicks. They had separate copies, and the copies had drifted: Broker
+-- advertised the Models Browser unconditionally, while this one gates it. That gate is
+-- the fix described below, and Broker never received it.
+function PSM.Minimap.TooltipSpec()
+    local lines = {
+        { text = "Left-click: Toggle Owned Pets Panel", color = PSM.Theme.COLOR.HINT },
+    }
+
     -- "Available", not "loaded": under LoadOnDemand the browser is normally unloaded
     -- until first use, so keying the hint on IsBrowserLoaded would hide a working
     -- action. This still omits it when the module is genuinely absent or disabled.
     if PSM.Loader:IsBrowserAvailable() then
-        GameTooltip:AddLine("Right-click: Toggle Pet Models Browser",   0.7, 0.7, 1)
+        lines[#lines + 1] =
+            { text = "Right-click: Toggle Pet Models Browser", color = PSM.Theme.COLOR.HINT }
     end
-    GameTooltip:AddLine("Shift+Left-click: Toggle Menu",            0.7, 0.7, 1)
-    GameTooltip:AddLine("Shift+Right-click: Toggle Options Panel",  0.7, 0.7, 1)
-    GameTooltip:Show()
+
+    lines[#lines + 1] = { text = "Shift+Left-click: Toggle Menu",           color = PSM.Theme.COLOR.HINT }
+    lines[#lines + 1] = { text = "Shift+Right-click: Toggle Options Panel", color = PSM.Theme.COLOR.HINT }
+
+    return {
+        point = { "TOPLEFT", "BOTTOMLEFT" },
+        title = "Pet Stable Management",
+        lines = lines,
+    }
 end
+
 
 -- ============================================================
 -- Panel Toggle
@@ -248,56 +270,14 @@ function PSM.Minimap:Hide()
     PetStableManagementDB.settings.minimapButton.hide = true
 end
 
--- ============================================================
--- Context Menu
--- ============================================================
-
-function PSM.Minimap:ShowContextMenu()
-    local menu = CreateFrame("Frame", "PetStableManagementMinimapMenu", UIParent, "UIDropDownMenuTemplate")
-
-    local MENU_ITEMS = {
-        { text = "Pet Stable Management", isTitle = true, notCheckable = true },
-        {
-            text = "Load Pet Model Browser", notCheckable = true,
-            func = function()
-                if PSM.Loader:EnsureBrowser() and PSM.ModelsPanel then
-                    PSM.ModelsPanel:Toggle()
-                end
-            end,
-        },
-        {
-            text = "Pet Roulette", notCheckable = true,
-            func = function()
-                if PSM.Loader:EnsureBrowser() and PSM.PetRoulette then
-                    PSM.PetRoulette:SelectPetRouletteFromCommand()
-                end
-            end,
-        },
-        {
-            text = "Hide Minimap Button", notCheckable = true,
-            func = function()
-                PSM.Minimap:Hide()
-                print("|cFFFFAA00Pet Stable Management: Minimap button hidden. Use /psm show to show it again.|r")
-            end,
-        },
-        { text = "Cancel", notCheckable = true, func = function() end },
-    }
-
-    -- Called through the globals, not through aliases captured in Core.lua at file
-    -- scope: these come from Blizzard_UIDropDownMenu, which is a separate addon and so
-    -- need not have loaded before us. A capture taken at that moment is frozen -- if it
-    -- was nil then, it stays nil for the session. Resolved here, it works whenever the
-    -- API is there. Everywhere else in the addon already calls them this way.
-    UIDropDownMenu_Initialize(menu, function()
-        for _, item in ipairs(MENU_ITEMS) do
-            local info = UIDropDownMenu_CreateInfo()
-            info.text         = item.text
-            info.isTitle      = item.isTitle
-            info.notCheckable = item.notCheckable
-            info.func         = item.func
-            UIDropDownMenu_AddButton(info)
-        end
-    end)
-
-    ToggleDropDownMenu(1, nil, menu, "cursor", 0, 0, "MENU")
-end
+-- There is deliberately no minimap context menu. `PSM.Minimap:ShowContextMenu` used to
+-- live here with **no callers**: OnClick spends all four combinations on panels
+-- (left/right, shift+left/right), so nothing could ever open it. Every entry it offered
+-- is reachable anyway -- Load Pet Model Browser is right-click and `/psm models`, Pet
+-- Roulette is `/psm roulette`, Hide Minimap Button is `/psm hide`.
+--
+-- It survived an earlier cleanup that removed two other copies of the context-menu
+-- machinery, because it *looked* different: it built its own dropdown frame instead of
+-- repeating the initialiser, and rebuilt that frame under a fixed global name on every
+-- call. Worth remembering that unreachable code is not found by grepping for
+-- duplication -- it has to be found by asking who calls it.

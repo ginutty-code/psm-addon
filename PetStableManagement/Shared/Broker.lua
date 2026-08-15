@@ -122,20 +122,17 @@ function broker:Initialize()
             end
         end,
 
+        -- Same tooltip as the minimap icon, from one definition in Minimap.lua --
+        -- LibDBIcon builds that icon from this very data object, so listing different
+        -- clicks in the two would be a contradiction. This copy used to advertise the
+        -- Models Browser unconditionally, which the minimap side had already been fixed
+        -- not to do: under LoadOnDemand a disabled or absent module must not be offered.
         OnEnter = function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_NONE")
-            GameTooltip:SetPoint("TOPLEFT", self, "BOTTOMLEFT")
-            GameTooltip:ClearLines()
-            GameTooltip:AddLine("Pet Stable Management")
-            GameTooltip:AddLine("Left-click: Toggle Owned Pets Panel",       0.7, 0.7, 1)
-            GameTooltip:AddLine("Right-click: Toggle Pet Models Browser",     0.7, 0.7, 1)
-            GameTooltip:AddLine("Shift+Left-click: Toggle Menu",              0.7, 0.7, 1)
-            GameTooltip:AddLine("Shift+Right-click: Toggle Options Panel",    0.7, 0.7, 1)
-            GameTooltip:Show()
+            PSM.Tooltip.Show(self, PSM.Minimap.TooltipSpec)
         end,
 
-        OnLeave = function(self)
-            GameTooltip:Hide()
+        OnLeave = function()
+            PSM.Tooltip.Hide()
         end,
     })
 end

@@ -50,6 +50,9 @@ Theme.COLOR = {
     DIM    = { 0.7,  0.7,  0.7  },
     GREY   = { 0.6,  0.6,  0.6  },
     FAINT  = { 0.5,  0.5,  0.5  },
+    -- Keybind/click hints. The one non-grey in the ramp, because the launcher tooltip
+    -- lists four click actions and they read as instructions rather than prose.
+    HINT   = { 0.7,  0.7,  1    },
     GREEN  = { 0,    1,    0    },
     RED    = { 1,    0,    0    },
     ORANGE = { 1,    0.5,  0    },

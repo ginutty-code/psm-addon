@@ -11,6 +11,7 @@
 --   {
 --     anchor = "ANCHOR_RIGHT",        -- default ANCHOR_RIGHT
 --     x = 0, y = 0,                   -- optional SetOwner offsets
+--     point = { "TOPLEFT", "BOTTOMLEFT", 0, 0 },  -- place it yourself; see below
 --     title = "Reset View",           -- optional
 --     titleColor = PSM.Theme.COLOR.GOLD,
 --     lines = {                       -- optional; strings or {text=, color=, wrap=}
@@ -66,7 +67,18 @@ function Tooltip.Show(owner, spec)
     spec = Resolve(spec, owner)
     if not spec then return false end
 
-    GameTooltip:SetOwner(owner, spec.anchor or "ANCHOR_RIGHT", spec.x, spec.y)
+    -- `point` places the tooltip against the owner instead of using one of Blizzard's
+    -- ANCHOR_* positions, for the launcher buttons that want it hanging directly below
+    -- them. The frame is always the owner, so the spec stays a plain table -- writing
+    -- the anchor out in full would force every caller to be a function just to name a
+    -- frame the tooltip already knows.
+    if spec.point then
+        local myPoint, relPoint, x, y = unpack(spec.point)
+        GameTooltip:SetOwner(owner, "ANCHOR_NONE")
+        GameTooltip:SetPoint(myPoint, owner, relPoint, x or 0, y or 0)
+    else
+        GameTooltip:SetOwner(owner, spec.anchor or "ANCHOR_RIGHT", spec.x, spec.y)
+    end
 
     if spec.hyperlink then
         GameTooltip:SetHyperlink(spec.hyperlink)
