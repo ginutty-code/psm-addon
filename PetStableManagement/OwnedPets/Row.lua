@@ -2,10 +2,9 @@
 -- Row management for PetStableManagement
 
 -- Initialize global namespace
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
+local _, ns = ...
 
-PSM.UI.Row = {}
+ns.UI.Row = {}
 
 -- Ordered action buttons: { key, label }
 local ACTION_BUTTONS = {
@@ -24,8 +23,8 @@ local ACTION_BUTTONS = {
 -- ---------------------------------------------------------------------------
 
 local function CreateActionButton(parent, label)
-    return PSM.Widgets.Button(parent, {
-        width      = PSM.Theme.CONTROL.BUTTON_W.M,
+    return ns.Widgets.Button(parent, {
+        width      = ns.Theme.CONTROL.BUTTON_W.M,
         text       = label,
         fontObject = "GameFontNormalSmall",
         hidden     = true,
@@ -36,9 +35,9 @@ local function BuildAbilitiesText(abilities)
     local parts = {}
     local hasAbilities = false
 
-    if PSM.PetTooltip.IsBucketed(abilities) then
+    if ns.PetTooltip.IsBucketed(abilities) then
         -- Grouped format
-        for _, group in ipairs(PSM.PetTooltip.ABILITY_BUCKETS) do
+        for _, group in ipairs(ns.PetTooltip.ABILITY_BUCKETS) do
             local list = abilities[group.key]
             if list and #list > 0 then
                 parts[#parts + 1] = group.prefix .. "\n"
@@ -82,7 +81,7 @@ end
 -- Row element initialization
 -- ---------------------------------------------------------------------------
 
-function PSM.UI.Row:EnsureRowElements(row)
+function ns.UI.Row:EnsureRowElements(row)
     if not row or row._ownedPetsInitialized then return end
     row._ownedPetsInitialized = true
 
@@ -91,8 +90,8 @@ function PSM.UI.Row:EnsureRowElements(row)
 
     row.customElements = row.customElements or {}
 
-    local Widgets = PSM.Widgets
-    local Theme   = PSM.Theme
+    local Widgets = ns.Widgets
+    local Theme   = ns.Theme
 
     -- Abilities header
     row.abilitiesHeader = Widgets.Label(row, {
@@ -100,7 +99,7 @@ function PSM.UI.Row:EnsureRowElements(row)
         text     = "|cFFFFD700Abilities:|r",
         justify  = "LEFT",
         justifyV = "MIDDLE",
-        width    = PSM.Config.ABILITIES_WIDTH,
+        width    = ns.Config.ABILITIES_WIDTH,
         hidden   = true,
         point    = { "TOPLEFT", row.text, "TOPRIGHT", 20, 10 },
     })
@@ -113,7 +112,7 @@ function PSM.UI.Row:EnsureRowElements(row)
         justifyV     = "TOP",
         wordWrap     = true,
         nonSpaceWrap = true,
-        size         = { PSM.Config.ABILITIES_WIDTH, 200 },
+        size         = { ns.Config.ABILITIES_WIDTH, 200 },
         hidden       = true,
         point        = { "TOPLEFT", row.abilitiesHeader, "BOTTOMLEFT", 0, -2 },
     })
@@ -185,18 +184,18 @@ end
 -- Row update / hide
 -- ---------------------------------------------------------------------------
 
-function PSM.UI.Row:UpdateRow(row, pet, groups)
+function ns.UI.Row:UpdateRow(row, pet, groups)
     if not row or not pet then return end
 
     self:EnsureRowElements(row)
 
-    PSM.RowManager:UpdateModelDisplay(row, pet.displayID, pet.icon, pet)
+    ns.RowManager:UpdateModelDisplay(row, pet.displayID, pet.icon, pet)
 
     row.text:SetText(BuildPetText(pet))
 
     -- Duplicate highlighting
-    local isSameCharDuplicate, isCrossCharDuplicate = PSM.RowManager:CheckDuplicates(pet, groups)
-    PSM.RowManager:UpdateBackgroundColor(row, isSameCharDuplicate, isCrossCharDuplicate, false, pet.specName)
+    local isSameCharDuplicate, isCrossCharDuplicate = ns.RowManager:CheckDuplicates(pet, groups)
+    ns.RowManager:UpdateBackgroundColor(row, isSameCharDuplicate, isCrossCharDuplicate, false, pet.specName)
 
     -- Abilities
     local abilities = type(pet.abilities) == "table" and pet.abilities or {}
@@ -209,21 +208,21 @@ function PSM.UI.Row:UpdateRow(row, pet, groups)
     row.moveUp:ClearAllPoints()
     row.moveUp:SetPoint("TOPLEFT", row.text, "TOPLEFT", -5, 25)
 
-    PSM.UI:SetupRowButtons(row, pet)
+    ns.UI:SetupRowButtons(row, pet)
 
-    if PSM.DragDrop then
-        PSM.DragDrop:SetupRowDragDrop(row, pet)
-        PSM.DragDrop:SetupModelDragDrop(row.model, pet, row)
+    if ns.DragDrop then
+        ns.DragDrop:SetupRowDragDrop(row, pet)
+        ns.DragDrop:SetupModelDragDrop(row.model, pet, row)
     end
 
     row:Show()
 end
 
-function PSM.UI.Row:HideRow(i)
-    local row = PSM.state.rows[i]
+function ns.UI.Row:HideRow(i)
+    local row = ns.state.rows[i]
     if not row then return end
 
-    PSM.RowManager:HideRow(row)
+    ns.RowManager:HideRow(row)
 
     -- Hide all OwnedPets-specific elements via the registry
     if row.customElements then
@@ -232,5 +231,5 @@ function PSM.UI.Row:HideRow(i)
         end
     end
 
-    PSM.RowManager:HideFavoriteButton(row)
+    ns.RowManager:HideFavoriteButton(row)
 end

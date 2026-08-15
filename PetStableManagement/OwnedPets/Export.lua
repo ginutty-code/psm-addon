@@ -1,12 +1,9 @@
 -- Export.lua
 -- Export functionality for PetStableManagement
 
-local addonName = "PetStableManagement"
+local _, ns = ...
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
-
-PSM.Export = {}
+ns.Export = {}
 
 -- Single source of truth for all exportable columns.
 -- GenerateCSV and ShowExportDialog both reference this table.
@@ -34,7 +31,7 @@ local ABILITY_KEYS = {
 
 -- ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function PSM.Export:EscapeCSVField(field)
+function ns.Export:EscapeCSVField(field)
     if not field then return "" end
     local str = tostring(field)
     if str:find('[,"\n]') then
@@ -77,7 +74,7 @@ end
 
 -- ─── CSV generation ───────────────────────────────────────────────────────────
 
-function PSM.Export:GenerateCSV(selectedColumns)
+function ns.Export:GenerateCSV(selectedColumns)
     local lines = {}
 
     -- Header
@@ -90,7 +87,7 @@ function PSM.Export:GenerateCSV(selectedColumns)
     table.insert(lines, table.concat(header, ","))
 
     -- Sort pets by slot
-    local sorted = {unpack(PSM.state.stablePets)}
+    local sorted = {unpack(ns.state.stablePets)}
     table.sort(sorted, function(a, b)
         return (a.slotID or 999) < (b.slotID or 999)
     end)
@@ -128,7 +125,7 @@ end
 
 -- Updates editBox text and the pet-count label from freshly generated CSV.
 local function RefreshExportContent(frame)
-    local csv = PSM.Export:GenerateCSV(frame.selectedColumns)
+    local csv = ns.Export:GenerateCSV(frame.selectedColumns)
     frame.editBox:SetText(csv)
     frame.editBox:SetCursorPosition(0)
 
@@ -143,15 +140,15 @@ local COLUMNS_PER_ROW = 5
 
 local function CreateCheckboxSection(frame)
     frame.checkboxes = {}
-    frame.selectedColumns = PSM.Export:GetDefaultSelectedColumns()
+    frame.selectedColumns = ns.Export:GetDefaultSelectedColumns()
 
     local y, x, col = -50, 20, 0
     for _, def in ipairs(ALL_COLUMNS) do
-        table.insert(frame.checkboxes, PSM.Widgets.CheckBox(frame, {
+        table.insert(frame.checkboxes, ns.Widgets.CheckBox(frame, {
             point           = { "TOPLEFT", x, y },
             checked         = frame.selectedColumns[def.key],
             label           = def.label,
-            labelFontSize   = PSM.Theme.SIZE.TINY,
+            labelFontSize   = ns.Theme.SIZE.TINY,
             labelColor      = { 0.9, 0.9, 0.9 },
             onClick         = function(self)
                 frame.selectedColumns[def.key] = self:GetChecked()
@@ -161,7 +158,7 @@ local function CreateCheckboxSection(frame)
 
         col = col + 1
         if col >= COLUMNS_PER_ROW then
-            col, y, x = 0, y - PSM.Theme.CONTROL.CHECKBOX_ROW, 20
+            col, y, x = 0, y - ns.Theme.CONTROL.CHECKBOX_ROW, 20
         else
             x = x + COLUMN_PITCH
         end
@@ -172,7 +169,7 @@ local function CreateCheckboxSection(frame)
 end
 
 local function CreateEditBoxSection(frame, topY)
-    local Widgets = PSM.Widgets
+    local Widgets = ns.Widgets
 
     local scrollFrame = Widgets.Frame(frame, {
         frameType = "ScrollFrame",
@@ -183,7 +180,7 @@ local function CreateEditBoxSection(frame, topY)
             { "BOTTOMRIGHT", -40, 80 },
         },
     })
-    PSM.Skin.Apply(scrollFrame.ScrollBar, "scrollbar")
+    ns.Skin.Apply(scrollFrame.ScrollBar, "scrollbar")
 
     local editBox = Widgets.EditBox(scrollFrame, {
         multiline  = true,
@@ -197,7 +194,7 @@ local function CreateEditBoxSection(frame, topY)
     -- Background behind edit box
     Widgets.Frame(scrollFrame, {
         backdrop    = "TOOLTIP",
-        color       = { 0.1, 0.1, 0.1, PSM.Config:GetOpacity() },
+        color       = { 0.1, 0.1, 0.1, ns.Config:GetOpacity() },
         borderColor = { 0.4, 0.4, 0.4, 1 },
         level       = scrollFrame:GetFrameLevel() - 1,
         point       = {
@@ -210,16 +207,16 @@ local function CreateEditBoxSection(frame, topY)
 end
 
 local function CreateBottomBar(frame)
-    local Widgets = PSM.Widgets
+    local Widgets = ns.Widgets
 
     frame.petCount = Widgets.Label(frame, {
-        fontSize = PSM.Theme.SIZE.BODY,
+        fontSize = ns.Theme.SIZE.BODY,
         color    = { 0.7, 0.9, 1 },
         point    = { "BOTTOM", 0, 50 },
     })
 
     Widgets.Button(frame, {
-        width   = PSM.Theme.CONTROL.BUTTON_W.M,
+        width   = ns.Theme.CONTROL.BUTTON_W.M,
         point   = { "BOTTOM", -55, 15 },
         text    = "Select All",
         onClick = function()
@@ -229,7 +226,7 @@ local function CreateBottomBar(frame)
     })
 
     Widgets.Button(frame, {
-        width   = PSM.Theme.CONTROL.BUTTON_W.M,
+        width   = ns.Theme.CONTROL.BUTTON_W.M,
         point   = { "BOTTOM", 55, 15 },
         text    = "How to Copy",
         onClick = function()
@@ -242,17 +239,17 @@ local function CreateBottomBar(frame)
     })
 end
 
-function PSM.Export:ShowExportDialog()
+function ns.Export:ShowExportDialog()
     -- Reuse existing frame if already open
-    if PSM.state.exportFrame then
-        local f = PSM.state.exportFrame
+    if ns.state.exportFrame then
+        local f = ns.state.exportFrame
         RefreshExportContent(f)
         f:Show()
         f:Raise()
         return
     end
 
-    local Widgets = PSM.Widgets
+    local Widgets = ns.Widgets
 
     local frame = Widgets.MovableFrame(UIParent, {
         name              = "PetStableExportFrame",
@@ -264,7 +261,7 @@ function PSM.Export:ShowExportDialog()
         -- Wider tile than the default preset: this dialog is 600px of flat
         -- background and a 16px tile visibly repeats across it.
         backdropOverrides = { tileSize = 32 },
-        color             = { 0, 0, 0, PSM.Config:GetOpacity() },
+        color             = { 0, 0, 0, ns.Config:GetOpacity() },
         skin              = "frame",
     })
     frame:SetToplevel(true)
@@ -279,16 +276,16 @@ function PSM.Export:ShowExportDialog()
     Widgets.CloseButton(frame, { point = { "TOPRIGHT", -5, -5 } })
 
     local title = Widgets.Label(frame, {
-        fontSize = PSM.Theme.SIZE.HEADING,
+        fontSize = ns.Theme.SIZE.HEADING,
         outline  = true,
-        color    = PSM.Theme.COLOR.GOLD,
+        color    = ns.Theme.COLOR.GOLD,
         point    = { "TOP", 0, -15 },
         text     = "Export Pet Data (CSV)",
     })
 
     Widgets.Label(frame, {
-        fontSize = PSM.Theme.SIZE.SMALL,
-        color    = PSM.Theme.COLOR.MUTED,
+        fontSize = ns.Theme.SIZE.SMALL,
+        color    = ns.Theme.COLOR.MUTED,
         point    = { "TOP", title, "BOTTOM", 0, -10 },
         text     = "Select the columns to export, then copy the text below and paste it into a .csv file or spreadsheet",
     })
@@ -298,13 +295,13 @@ function PSM.Export:ShowExportDialog()
     CreateBottomBar(frame)
 
     table.insert(UISpecialFrames, "PetStableExportFrame")
-    PSM.state.exportFrame = frame
+    ns.state.exportFrame = frame
 
     RefreshExportContent(frame)
     frame:Show()
 end
 
-function PSM.Export:GetDefaultSelectedColumns()
+function ns.Export:GetDefaultSelectedColumns()
     local selected = {}
     for _, col in ipairs(ALL_COLUMNS) do
         selected[col.key] = true

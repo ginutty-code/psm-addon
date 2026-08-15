@@ -9,11 +9,10 @@
 -- options and returns a frame; it never reads PSM.state and never calls back into
 -- a feature module.
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
+local _, ns = ...
 
-PSM.Widgets = PSM.Widgets or {}
-local Widgets = PSM.Widgets
+ns.Widgets = ns.Widgets or {}
+local Widgets = ns.Widgets
 
 --------------------------------------------------------------------------------
 -- SHARED OPTION HANDLING
@@ -96,7 +95,7 @@ end
 -- does not exist otherwise, and has not since 9.0.
 function Widgets.Backdrop(frame, preset, opts)
     opts = opts or {}
-    local base = PSM.Theme.BACKDROP[preset]
+    local base = ns.Theme.BACKDROP[preset]
     if not base then
         error("PSM.Widgets.Backdrop: unknown preset '" .. tostring(preset) .. "'", 2)
     end
@@ -141,7 +140,7 @@ function Widgets.Frame(parent, opts)
     if opts.strata     then f:SetFrameStrata(opts.strata)   end
     if opts.level      then f:SetFrameLevel(opts.level)     end
     if opts.allPoints  then f:SetAllPoints()                end
-    if opts.skin       then PSM.Skin.Apply(f, opts.skin)    end
+    if opts.skin       then ns.Skin.Apply(f, opts.skin)    end
     return f
 end
 
@@ -178,7 +177,7 @@ function Widgets.Label(parent, opts)
 
     local fs = parent:CreateFontString(nil, opts.layer or "OVERLAY", opts.fontObject)
     if not opts.fontObject then
-        fs:SetFont(PSM.Theme.FONT, opts.fontSize or PSM.Theme.SIZE.LABEL,
+        fs:SetFont(ns.Theme.FONT, opts.fontSize or ns.Theme.SIZE.LABEL,
                    opts.outline and "OUTLINE" or "")
     end
 
@@ -246,17 +245,17 @@ function Widgets.Button(parent, opts)
     CheckOptions("Button", opts, OPTIONS.Button)
     local b = CreateFrame("Button", opts.name, parent, opts.template or "UIPanelButtonTemplate")
     ApplyCommon(b, opts)
-    if not (opts.size or opts.width)  then b:SetWidth(PSM.Theme.CONTROL.BUTTON_W.M) end
-    if not (opts.size or opts.height) then b:SetHeight(PSM.Theme.CONTROL.BUTTON)    end
+    if not (opts.size or opts.width)  then b:SetWidth(ns.Theme.CONTROL.BUTTON_W.M) end
+    if not (opts.size or opts.height) then b:SetHeight(ns.Theme.CONTROL.BUTTON)    end
     if opts.text       then b:SetText(opts.text)                   end
     if opts.fontObject then b:SetNormalFontObject(opts.fontObject) end
     if opts.strata     then b:SetFrameStrata(opts.strata)          end
     if opts.level      then b:SetFrameLevel(opts.level)            end
     if opts.onClick    then b:SetScript("OnClick", opts.onClick)   end
-    if opts.tooltip    then PSM.Tooltip.Attach(b, opts.tooltip)    end
+    if opts.tooltip    then ns.Tooltip.Attach(b, opts.tooltip)    end
     ClampLabel(b)
     b:HookScript("OnSizeChanged", ClampLabel)
-    PSM.Skin.Apply(b, opts.skin or "button")
+    ns.Skin.Apply(b, opts.skin or "button")
     return b
 end
 
@@ -283,8 +282,8 @@ function Widgets.IconButton(parent, opts)
     if opts.alpha     then b:SetAlpha(opts.alpha)                              end
     if opts.level     then b:SetFrameLevel(opts.level)                         end
     if opts.onClick   then b:SetScript("OnClick", opts.onClick)                end
-    if opts.tooltip   then PSM.Tooltip.Attach(b, opts.tooltip)                 end
-    if opts.skin      then PSM.Skin.Apply(b, opts.skin)                        end
+    if opts.tooltip   then ns.Tooltip.Attach(b, opts.tooltip)                 end
+    if opts.skin      then ns.Skin.Apply(b, opts.skin)                        end
     return b
 end
 
@@ -297,7 +296,7 @@ function Widgets.CloseButton(parent, opts)
     if opts.size  then b:SetSize(unpack(opts.size))  end
     if opts.level then b:SetFrameLevel(opts.level)   end
     b:SetScript("OnClick", opts.onClick or function() (opts.target or parent):Hide() end)
-    PSM.Skin.Apply(b, "closebutton")
+    ns.Skin.Apply(b, "closebutton")
     return b
 end
 
@@ -309,7 +308,7 @@ function Widgets.ResizeGrip(frame, opts)
     frame:SetResizable(true)
 
     local grip = CreateFrame("Button", nil, frame)
-    local side = PSM.Theme.CONTROL.RESIZE_GRIP
+    local side = ns.Theme.CONTROL.RESIZE_GRIP
     grip:SetSize(unpack(opts.size or { side, side }))
     grip:SetPoint(unpack(opts.point or { "BOTTOMRIGHT", frame, "BOTTOMRIGHT", -4, 4 }))
     grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
@@ -327,7 +326,7 @@ function Widgets.ResizeGrip(frame, opts)
         frame:StopMovingOrSizing()
         if opts.onStop then opts.onStop(frame) end
     end)
-    PSM.Skin.Apply(grip, "resizegrip")
+    ns.Skin.Apply(grip, "resizegrip")
     return grip
 end
 
@@ -389,7 +388,7 @@ function Widgets.EditBox(parent, opts)
     if onEscape then e:SetScript("OnEscapePressed", onEscape) end
     if opts.onEnter then e:SetScript("OnEnterPressed", opts.onEnter) end
 
-    PSM.Skin.Apply(e, "editbox")
+    ns.Skin.Apply(e, "editbox")
     return e
 end
 
@@ -419,7 +418,7 @@ function Widgets.Line(parent, opts)
     return Widgets.Texture(parent, {
         layer  = opts.layer  or "OVERLAY",
         height = opts.height or 1,
-        color  = opts.color  or PSM.Theme.FILL.SEPARATOR,
+        color  = opts.color  or ns.Theme.FILL.SEPARATOR,
         point  = opts.point,
         width  = opts.width,
         hidden = opts.hidden,
@@ -464,7 +463,7 @@ function Widgets.Tab(parent, opts)
     opts = opts or {}
     CheckOptions("Tab", opts, OPTIONS.Tab)
 
-    local palette = opts.palette or PSM.Config.TAB
+    local palette = opts.palette or ns.Config.TAB
 
     local tab = Widgets.Frame(parent, {
         frameType = opts.frameType or "Frame",
@@ -530,7 +529,7 @@ function Widgets.SectionHeader(parent, opts)
     opts = opts or {}
     CheckOptions("SectionHeader", opts, OPTIONS.SectionHeader)
 
-    local palette = opts.palette or PSM.Config.TAB
+    local palette = opts.palette or ns.Config.TAB
     local inset   = opts.inset or 2
 
     local header = Widgets.Frame(parent, {
@@ -561,7 +560,7 @@ function Widgets.SectionHeader(parent, opts)
         header.label = Widgets.Label(header, {
             fontObject = opts.fontObject,
             fontSize   = opts.fontObject and nil or opts.fontSize,
-            color      = opts.color or PSM.Theme.COLOR.GOLD,
+            color      = opts.color or ns.Theme.COLOR.GOLD,
             justify    = "LEFT",
             point      = { "LEFT", opts.labelInset or 5, 0 },
             text       = opts.text,
@@ -592,12 +591,12 @@ function Widgets.CheckBox(parent, opts)
     -- that is the difference between a kit that permits consistency and one that
     -- produces it. Pass `size` only when a box genuinely needs to differ.
     if not opts.size then
-        c:SetSize(PSM.Theme.CONTROL.CHECKBOX, PSM.Theme.CONTROL.CHECKBOX)
+        c:SetSize(ns.Theme.CONTROL.CHECKBOX, ns.Theme.CONTROL.CHECKBOX)
     end
     ApplyCommon(c, opts)
     if opts.checked then c:SetChecked(true)                   end
     if opts.onClick then c:SetScript("OnClick", opts.onClick) end
-    if opts.tooltip then PSM.Tooltip.Attach(c, opts.tooltip)  end
+    if opts.tooltip then ns.Tooltip.Attach(c, opts.tooltip)  end
 
     if opts.label then
         -- Either a font object, or an explicit size/colour -- the same two styles
@@ -634,7 +633,7 @@ function Widgets.CheckBox(parent, opts)
             self.invertedTexture = Widgets.Texture(self, {
                 layer   = "OVERLAY",
                 texture = "Interface\\Buttons\\UI-GroupLoot-Pass-Up",
-                size    = { PSM.Theme.CONTROL.CHECKBOX_MARK, PSM.Theme.CONTROL.CHECKBOX_MARK },
+                size    = { ns.Theme.CONTROL.CHECKBOX_MARK, ns.Theme.CONTROL.CHECKBOX_MARK },
                 point   = { "CENTER", self, "CENTER", 0, 0 },
             })
         end
@@ -642,7 +641,7 @@ function Widgets.CheckBox(parent, opts)
         self.triState = state
     end
 
-    PSM.Skin.Apply(c, "checkbox")
+    ns.Skin.Apply(c, "checkbox")
     return c
 end
 
@@ -706,6 +705,6 @@ function Widgets.Slider(parent, opts)
         opts.onChange(value, self)
     end)
 
-    PSM.Skin.Apply(s, "slider")
+    ns.Skin.Apply(s, "slider")
     return s
 end

@@ -1,16 +1,15 @@
 -- Utils.lua
 -- Utility functions for PetStableManagement
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
+local _, ns = ...
 
-PSM.Utils = {}
+ns.Utils = {}
 
 --------------------------------------------------------------------------------
 -- SAFE CALL / ERROR HANDLING
 --------------------------------------------------------------------------------
 
-function PSM.Utils.SafeCall(func, ...)
+function ns.Utils.SafeCall(func, ...)
     if type(func) ~= "function" then return nil end
     local ok, result = pcall(func, ...)
     if ok then return result end
@@ -21,12 +20,12 @@ end
 -- STRING UTILITIES
 --------------------------------------------------------------------------------
 
-function PSM.Utils:NormalizeSearchText(text)
+function ns.Utils:NormalizeSearchText(text)
     if type(text) ~= "string" then return "" end
     return strtrim(text):lower()
 end
 
-function PSM.Utils:FormatColorText(text, color)
+function ns.Utils:FormatColorText(text, color)
     if not text or not color then return text or "" end
     return string.format("|cff%02x%02x%02x%s|r",
         math.floor((color[1] or 1) * 255),
@@ -39,16 +38,16 @@ end
 -- TABLE UTILITIES
 --------------------------------------------------------------------------------
 
-function PSM.Utils.DeepCopy(original)
+function ns.Utils.DeepCopy(original)
     if type(original) ~= "table" then return original end
     local copy = {}
     for k, v in pairs(original) do
-        copy[k] = type(v) == "table" and PSM.Utils.DeepCopy(v) or v
+        copy[k] = type(v) == "table" and ns.Utils.DeepCopy(v) or v
     end
     return copy
 end
 
-function PSM.Utils:ClearTable(tbl)
+function ns.Utils:ClearTable(tbl)
     if type(tbl) == "table" then
         for k in pairs(tbl) do tbl[k] = nil end
     end
@@ -56,7 +55,7 @@ end
 
 -- Note: iteration order in Lua is not guaranteed, so this hash is only reliable
 -- for same-session comparisons (e.g. render cache keys), not persistent storage.
-function PSM.Utils:GetTableHash(tbl)
+function ns.Utils:GetTableHash(tbl)
     if not tbl or not next(tbl) then return "empty" end
     local parts = {}
     for k, v in pairs(tbl) do
@@ -72,7 +71,7 @@ end
 -- same model, which was causing matching duplicates to silently miss each other.
 -- Only fall back to icon when displayID is unavailable, to avoid grouping
 -- unrelated pets together under a shared "unknown model" key.
-function PSM.Utils:GetPetDuplicateKey(pet)
+function ns.Utils:GetPetDuplicateKey(pet)
     if pet.displayID and pet.displayID > 0 then
         return "d:" .. tostring(pet.displayID)
     end
@@ -83,15 +82,15 @@ end
 -- DEBOUNCE
 --------------------------------------------------------------------------------
 
-function PSM.Utils:Debounce(func, delay)
+function ns.Utils:Debounce(func, delay)
     if type(func) ~= "function" then return function() end end
     local timer
-    delay = delay or PSM.Config.UPDATE_DELAY
+    delay = delay or ns.Config.UPDATE_DELAY
     return function(...)
         local args = {...}
         if timer then timer:Cancel() end
-        timer = PSM.C_Timer.NewTimer(delay, function()
-            PSM.Utils.SafeCall(func, unpack(args))
+        timer = ns.C_Timer.NewTimer(delay, function()
+            ns.Utils.SafeCall(func, unpack(args))
         end)
     end
 end
@@ -100,18 +99,18 @@ end
 -- SPELL / TALENT HELPERS
 --------------------------------------------------------------------------------
 
-function PSM.Utils:GetSpellNameCompat(spellID)
+function ns.Utils:GetSpellNameCompat(spellID)
     if type(spellID) ~= "number" then return nil end
-    if PSM.C_Spell and PSM.C_Spell.GetSpellName then
-        local name = PSM.Utils.SafeCall(PSM.C_Spell.GetSpellName, spellID)
+    if ns.C_Spell and ns.C_Spell.GetSpellName then
+        local name = ns.Utils.SafeCall(ns.C_Spell.GetSpellName, spellID)
         if name then return name end
     end
-    if PSM.GetSpellInfo then
-        return PSM.Utils.SafeCall(PSM.GetSpellInfo, spellID)
+    if ns.GetSpellInfo then
+        return ns.Utils.SafeCall(ns.GetSpellInfo, spellID)
     end
 end
 
-function PSM.Utils:HasAnimalCompanionTalent()
+function ns.Utils:HasAnimalCompanionTalent()
     return IsPlayerSpell(267116) == true
 end
 
@@ -132,22 +131,22 @@ end
 
 -- Shows a context menu at the cursor using WoW's UIDropDownMenu system.
 -- menuList: array of { text, func, notCheckable, isTitle }
-function PSM.Utils:ShowContextMenu(menuList)
-    PSM.state = PSM.state or {}
+function ns.Utils:ShowContextMenu(menuList)
+    ns.state = ns.state or {}
 
-    if not PSM.state.contextDropDown then
+    if not ns.state.contextDropDown then
         -- Deliberately unskinned, unlike every other UIDropDownMenuTemplate frame in the
         -- addon. This one is never displayed: it is the host ToggleDropDownMenu anchors
         -- the popup to, and it stays hidden for its whole life. Skinning it would restyle
         -- nothing, so `skin = "dropdown"` here would read as working and do nothing.
-        PSM.state.contextDropDown = PSM.Widgets.Frame(UIParent, {
+        ns.state.contextDropDown = ns.Widgets.Frame(UIParent, {
             name     = "PSMContextMenuDropDown",
             template = "UIDropDownMenuTemplate",
             hidden   = true,
         })
     end
 
-    UIDropDownMenu_Initialize(PSM.state.contextDropDown, function(self, level)
+    UIDropDownMenu_Initialize(ns.state.contextDropDown, function(self, level)
         for _, item in ipairs(menuList) do
             local info = UIDropDownMenu_CreateInfo()
             info.text = item.text
@@ -160,5 +159,5 @@ function PSM.Utils:ShowContextMenu(menuList)
         end
     end, "MENU")
 
-    ToggleDropDownMenu(1, nil, PSM.state.contextDropDown, "cursor", 0, 0)
+    ToggleDropDownMenu(1, nil, ns.state.contextDropDown, "cursor", 0, 0)
 end

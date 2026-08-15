@@ -1,12 +1,9 @@
 -- OwnedPets/PetGroups.lua
 -- Built-in groups functionality for Owned Pets panel
 
-local addonName = "PetStableManagement"
+local _, ns = ...
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
-
-PSM.PetGroups = PSM.PetGroups or {}
+ns.PetGroups = ns.PetGroups or {}
 
 local UNGROUPED_ID   = "ungrouped"
 local UNGROUPED_NAME = "Ungrouped"
@@ -29,8 +26,8 @@ local function EnsureStorage()
 end
 
 local function Save()
-    if PSM.Data and PSM.Data.SavePersistentData then
-        PSM.Data:SavePersistentData()
+    if ns.Data and ns.Data.SavePersistentData then
+        ns.Data:SavePersistentData()
     end
 end
 
@@ -61,7 +58,7 @@ end
 -- Public API
 -------------------------------------------------------------------------------
 
-function PSM.PetGroups:GetGroups()
+function ns.PetGroups:GetGroups()
     local storage, ungroupedStorage = EnsureStorage()
     local groups = { { id = UNGROUPED_ID, name = UNGROUPED_NAME, pets = ungroupedStorage } }
     for id, group in pairs(storage) do
@@ -70,7 +67,7 @@ function PSM.PetGroups:GetGroups()
     return groups
 end
 
-function PSM.PetGroups:GetGroupById(groupId)
+function ns.PetGroups:GetGroupById(groupId)
     if not groupId then return nil end
     local storage, ungroupedStorage = EnsureStorage()
     if groupId == UNGROUPED_ID then
@@ -83,7 +80,7 @@ function PSM.PetGroups:GetGroupById(groupId)
     return nil
 end
 
-function PSM.PetGroups:CreateGroup(name, silent)
+function ns.PetGroups:CreateGroup(name, silent)
     if not name or name == "" then return nil, "Group name is required" end
     if name == UNGROUPED_NAME   then return nil, "Cannot create a group named 'Ungrouped'" end
 
@@ -102,7 +99,7 @@ function PSM.PetGroups:CreateGroup(name, silent)
     return groupId, nil
 end
 
-function PSM.PetGroups:MovePetToGroup(petGUID, targetGroupId, targetPosition)
+function ns.PetGroups:MovePetToGroup(petGUID, targetGroupId, targetPosition)
     if not petGUID      then return false, "Pet GUID is required" end
     if not targetGroupId then return false, "Target group ID is required" end
 
@@ -124,7 +121,7 @@ function PSM.PetGroups:MovePetToGroup(petGUID, targetGroupId, targetPosition)
     return true, nil
 end
 
-function PSM.PetGroups:SeedUngroupedPets(guids)
+function ns.PetGroups:SeedUngroupedPets(guids)
     if not guids or #guids == 0 then return end
     local _, ungroupedStorage = EnsureStorage()
     local tracked = {}
@@ -138,7 +135,7 @@ function PSM.PetGroups:SeedUngroupedPets(guids)
     Save()
 end
 
-function PSM.PetGroups:ReorderPetInGroup(groupId, petGUID, newPosition)
+function ns.PetGroups:ReorderPetInGroup(groupId, petGUID, newPosition)
     if not groupId  then return false, "Group ID is required" end
     if not petGUID  then return false, "Pet GUID is required" end
 
@@ -169,7 +166,7 @@ function PSM.PetGroups:ReorderPetInGroup(groupId, petGUID, newPosition)
     return true, nil
 end
 
-function PSM.PetGroups:DeleteGroup(groupId)
+function ns.PetGroups:DeleteGroup(groupId)
     if not groupId            then return false, "Group ID is required" end
     if groupId == UNGROUPED_ID then return false, "Cannot delete the Ungrouped group" end
 
@@ -187,7 +184,7 @@ function PSM.PetGroups:DeleteGroup(groupId)
     return true, nil
 end
 
-function PSM.PetGroups:RenameGroup(groupId, newName)
+function ns.PetGroups:RenameGroup(groupId, newName)
     if not groupId             then return false, "Group ID is required" end
     if not newName or newName == "" then return false, "New name is required" end
     if groupId == UNGROUPED_ID  then return false, "Cannot rename the Ungrouped group" end
@@ -200,7 +197,7 @@ function PSM.PetGroups:RenameGroup(groupId, newName)
     return true, nil
 end
 
-function PSM.PetGroups:AutoGroupPets(pets, criteria)
+function ns.PetGroups:AutoGroupPets(pets, criteria)
     if not pets or #pets == 0 then return {} end
 
     local storage, ungroupedStorage = EnsureStorage()
@@ -252,7 +249,7 @@ function PSM.PetGroups:AutoGroupPets(pets, criteria)
     return { createdCount = createdCount, movedCount = movedCount }
 end
 
-function PSM.PetGroups:DeleteAllGroups()
+function ns.PetGroups:DeleteAllGroups()
     local storage = EnsureStorage()
     local count = 0
     for id in pairs(storage) do storage[id] = nil; count = count + 1 end

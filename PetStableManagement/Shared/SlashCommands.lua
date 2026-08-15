@@ -1,7 +1,7 @@
 -- SlashCommands.lua
 -- Slash command registration for PetStableManagement
 
-_G.PSM = _G.PSM or {}
+local _, ns = ...
 
 -- ============================================================
 -- Helpers
@@ -27,43 +27,43 @@ SLASH_PETSTABLE2 = "/petstable"
 
 local PETSTABLE_COMMANDS = {
     show = function()
-        PSM.Minimap:Show()
+        ns.Minimap:Show()
         print("|cFF00FF00Pet Stable Management: Minimap button shown.|r")
     end,
 
     hide = function()
-        PSM.Minimap:Hide()
+        ns.Minimap:Hide()
         print("|cFFFFAA00Pet Stable Management: Minimap button hidden. Use /psm show to show it again.|r")
     end,
 
     menu = function()
-        PSM.Menu:Toggle()
+        ns.Menu:Toggle()
     end,
 
     models = function()
         if InCombat() then return end
-        if PSM.Loader:EnsureBrowser() and PSM.ModelsPanel then
-            PSM.ModelsPanel:Toggle()
+        if ns.Loader:EnsureBrowser() and ns.ModelsPanel then
+            ns.ModelsPanel:Toggle()
         end
     end,
 
     options = function()
-        if PSM.state.optionsPanel and InterfaceOptionsFrame_OpenToCategory then
-            InterfaceOptionsFrame_OpenToCategory(PSM.state.optionsPanel)
-            InterfaceOptionsFrame_OpenToCategory(PSM.state.optionsPanel)  -- called twice intentionally (Blizzard quirk)
-        elseif PSM.state.optionsCategoryId then
-            Settings.OpenToCategory(PSM.state.optionsCategoryId)
+        if ns.state.optionsPanel and InterfaceOptionsFrame_OpenToCategory then
+            InterfaceOptionsFrame_OpenToCategory(ns.state.optionsPanel)
+            InterfaceOptionsFrame_OpenToCategory(ns.state.optionsPanel)  -- called twice intentionally (Blizzard quirk)
+        elseif ns.state.optionsCategoryId then
+            Settings.OpenToCategory(ns.state.optionsCategoryId)
         end
     end,
 
     roulette = function()
-        if PSM.Loader:EnsureBrowser() and PSM.PetRoulette then
-            PSM.PetRoulette:SelectPetRouletteFromCommand()
+        if ns.Loader:EnsureBrowser() and ns.PetRoulette then
+            ns.PetRoulette:SelectPetRouletteFromCommand()
         end
     end,
 
     teams = function()
-        PSM.Broker:TogglePetTeamsPanel()
+        ns.Broker:TogglePetTeamsPanel()
     end,
 }
 
@@ -75,7 +75,7 @@ SlashCmdList["PETSTABLE"] = function(msg)
         handler()
     else
         if InCombat() then return end
-        PSM.Minimap:TogglePanel()
+        ns.Minimap:TogglePanel()
     end
 end
 
@@ -95,7 +95,7 @@ SLASH_PETSWAP1 = "/petswap"
 -- quoting the wrong number. **A guarded capture fails more quietly than an unguarded
 -- one, which makes it worse, not safer.**
 local function MaxStableSlot()
-    return (PSM.Config and PSM.Config.MAX_STABLE_SLOTS) or 205
+    return (ns.Config and ns.Config.MAX_STABLE_SLOTS) or 205
 end
 
 SlashCmdList["PETSWAP"] = function(msg)
@@ -123,7 +123,7 @@ SlashCmdList["PETSWAP"] = function(msg)
         return
     end
 
-    if not PSM.state.isStableOpen then
+    if not ns.state.isStableOpen then
         print("|cFFFF0000You must be at a stable master to change pet slots.|r")
         return
     end
@@ -133,7 +133,7 @@ SlashCmdList["PETSWAP"] = function(msg)
         return
     end
 
-    if not PSM.Reorder:SwapPetSlots(startSlot, destSlot) then
+    if not ns.Reorder:SwapPetSlots(startSlot, destSlot) then
         print("|cFFFF0000Failed to move pet.|r")
     end
 end

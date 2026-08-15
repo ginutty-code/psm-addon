@@ -4,35 +4,34 @@
 local addonName = "PetStableManagement"
 
 -- Initialize global namespace
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
+local _, ns = ...
 
-PSM.Reorder = PSM.Reorder or {}
+ns.Reorder = ns.Reorder or {}
 
 local MAX_STABLE_SLOT = 205
 
 -- Counter for scroll lock management (handles rapid clicks)
-PSM._scrollLockCount = PSM._scrollLockCount or 0
+ns._scrollLockCount = ns._scrollLockCount or 0
 
 local function AcquireScrollLock()
-    PSM._scrollLockCount = PSM._scrollLockCount + 1
-    PSM._scrollLock = true
+    ns._scrollLockCount = ns._scrollLockCount + 1
+    ns._scrollLock = true
 end
 
 local function ReleaseScrollLock()
-    PSM._scrollLockCount = PSM._scrollLockCount - 1
-    if PSM._scrollLockCount <= 0 then
-        PSM._scrollLockCount = 0
-        PSM._scrollLock = false
+    ns._scrollLockCount = ns._scrollLockCount - 1
+    if ns._scrollLockCount <= 0 then
+        ns._scrollLockCount = 0
+        ns._scrollLock = false
     end
 end
 
-function PSM.Reorder:CanReorderPets()
-    return PSM.state.isStableOpen
+function ns.Reorder:CanReorderPets()
+    return ns.state.isStableOpen
 end
 
-function PSM.Reorder:SwapPetSlots(slot1, slot2, skipUpdate)
-    if not PSM.Reorder:CanReorderPets() then
+function ns.Reorder:SwapPetSlots(slot1, slot2, skipUpdate)
+    if not ns.Reorder:CanReorderPets() then
         print("|cFFFF0000Must be at stable master to reorder pets|r")
         return false
     end
@@ -60,11 +59,11 @@ function PSM.Reorder:SwapPetSlots(slot1, slot2, skipUpdate)
 
     -- SetPetSlot handles both move (empty target) and swap (occupied target)
     print("|cFFFFAA00Moving pet from slot " .. slot1 .. " to slot " .. slot2 .. "...|r")
-    PSM.Utils.SafeCall(C_StableInfo.SetPetSlot, slot1, slot2)
+    ns.Utils.SafeCall(C_StableInfo.SetPetSlot, slot1, slot2)
 
     if not skipUpdate then
-        PSM.C_Timer.After(0.3, function()
-            PSM.UI:UpdatePanel()
+        ns.C_Timer.After(0.3, function()
+            ns.UI:UpdatePanel()
         end)
     end
 
@@ -72,7 +71,7 @@ function PSM.Reorder:SwapPetSlots(slot1, slot2, skipUpdate)
 end
 
 -- Moves a pet by a signed slot offset (negative = up, positive = down)
-function PSM.Reorder:MovePet(pet, offset)
+function ns.Reorder:MovePet(pet, offset)
     if not pet or not pet.slotID then return false end
 
     local currentSlot = pet.slotID
@@ -94,16 +93,16 @@ function PSM.Reorder:MovePet(pet, offset)
     if not success then
         ReleaseScrollLock()
     else
-        PSM.C_Timer.After(2.0, ReleaseScrollLock)
+        ns.C_Timer.After(2.0, ReleaseScrollLock)
     end
 
     return success
 end
 
-function PSM.Reorder:MovePetUp(pet)
+function ns.Reorder:MovePetUp(pet)
     return self:MovePet(pet, -1)
 end
 
-function PSM.Reorder:MovePetDown(pet)
+function ns.Reorder:MovePetDown(pet)
     return self:MovePet(pet, 1)
 end

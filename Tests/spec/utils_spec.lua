@@ -15,14 +15,19 @@ dofile("Tests/wow/stubs.lua").install()
 local Addon = dofile("Tests/wow/addon.lua")
 
 -- Loaded with the client's calling convention (see Tests/wow/addon.lua), not dofile.
-_G.PSM = nil  -- Utils.lua self-creates the namespace; prove it rather than assume.
-Addon.load("PetStableManagement/Shared/Utils.lua")
-local U = _G.PSM.Utils
+--
+-- Utils.lua is A3-converted, so it attaches to the namespace the client hands it rather
+-- than to a global it creates itself. _G.PSM is cleared first to prove exactly that: the
+-- file no longer needs a global to exist, and in the game Core.lua is what makes one.
+_G.PSM = nil
+local ns = Addon.load("PetStableManagement/Shared/Utils.lua")
+local U = ns.Utils
 
 describe("Utils namespace", function()
-    it("creates PSM and attaches Utils", function()
-        isType(_G.PSM, "table", "_G.PSM")
-        isType(U, "table", "PSM.Utils")
+    it("attaches Utils to the addon namespace without needing a global", function()
+        isType(ns, "table", "ns")
+        isType(U, "table", "ns.Utils")
+        eq(_G.PSM, nil, "_G.PSM untouched by a converted file")
     end)
 end)
 

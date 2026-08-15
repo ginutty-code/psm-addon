@@ -27,7 +27,6 @@ local _, ns = ...
 --
 -- Core.lua is first in the .toc, so this covers every later file.
 _G.PSM = ns
-local PSM = ns
 
 -- Initialize persistent data storage
 PetStableManagementDB = PetStableManagementDB or {
@@ -105,23 +104,23 @@ PetStableManagementDB = PetStableManagementDB or {
 -- PSM.StableFrame field on purpose: a field would be a snapshot again, and there are
 -- eight entry points into pet collection, so no single handler can be trusted to have
 -- refreshed it first.
-function PSM.GetStableFrame()
+function ns.GetStableFrame()
     return StableFrame
 end
 
-PSM.CreateFrame = CreateFrame
-PSM.C_Timer = C_Timer
-PSM.hooksecurefunc = hooksecurefunc
-PSM.C_StableInfo = C_StableInfo
-PSM.C_Spell = C_Spell
-PSM.GetSpellInfo = GetSpellInfo
-PSM.UIParent = UIParent
-PSM.GameTooltip = GameTooltip
-PSM.GetCursorPosition = GetCursorPosition
-PSM.GetCharacterKey = function() return UnitName("player") .. "-" .. GetRealmName() end
+ns.CreateFrame = CreateFrame
+ns.C_Timer = C_Timer
+ns.hooksecurefunc = hooksecurefunc
+ns.C_StableInfo = C_StableInfo
+ns.C_Spell = C_Spell
+ns.GetSpellInfo = GetSpellInfo
+ns.UIParent = UIParent
+ns.GameTooltip = GameTooltip
+ns.GetCursorPosition = GetCursorPosition
+ns.GetCharacterKey = function() return UnitName("player") .. "-" .. GetRealmName() end
 
 -- Check if current character is a hunter
-PSM.IsCurrentCharacterHunter = function()
+ns.IsCurrentCharacterHunter = function()
     local _, class = UnitClass("player")
     return class and string.upper(class) == "HUNTER"
 end
@@ -129,7 +128,7 @@ end
 --------------------------------------------------------------------------------
 -- STATE MANAGEMENT
 --------------------------------------------------------------------------------
-PSM.state = {
+ns.state = {
     panel = nil,
     scrollFrame = nil,
     content = nil,
@@ -171,9 +170,9 @@ function PSM:InitializeOpacity()
         PetStableManagementDB.settings.opacity = 0.8 -- Default opacity
     end
     -- Update colors with current opacity
-    PSM.Config:UpdateColors()
+    ns.Config:UpdateColors()
     -- Refresh all panel backgrounds with current opacity
-    PSM.PanelManager:UpdatePanelBackgrounds()
+    ns.PanelManager:UpdatePanelBackgrounds()
 end
 
 -- ─── Stable-frame buttons ────────────────────────────────────────────────────
@@ -214,8 +213,8 @@ end
 -- corner when there is not, which is about where that button sits anyway.
 local function PositionStableButtons(teamsListButton, saveButton)
     local anchor = FindPutInStableButton()
-    local width  = (anchor and anchor:GetWidth())  or PSM.Theme.CONTROL.BUTTON_W.S
-    local height = ((anchor and anchor:GetHeight()) or PSM.Theme.CONTROL.BUTTON) + 3
+    local width  = (anchor and anchor:GetWidth())  or ns.Theme.CONTROL.BUTTON_W.S
+    local height = ((anchor and anchor:GetHeight()) or ns.Theme.CONTROL.BUTTON) + 3
 
     for _, btn in ipairs({ teamsListButton, saveButton }) do
         btn:SetSize(width, height)
@@ -252,8 +251,8 @@ function PSM:CreateSaveTeamButtonOnStable()
     -- Read here, not at file scope: this file loads before UI/Theme.lua and
     -- UI/Widgets.lua, so at parse time neither exists. By the time a stable opens they
     -- do. Same rule the browser addon follows for core tables.
-    local Widgets = PSM.Widgets
-    local Theme   = PSM.Theme
+    local Widgets = ns.Widgets
+    local Theme   = ns.Theme
 
     -- Anchored below the button because these sit near the bottom of the stable frame,
     -- where a tooltip to the right would run off the model scene.
@@ -265,14 +264,14 @@ function PSM:CreateSaveTeamButtonOnStable()
         fontObject = "GameFontNormal",
         strata     = "HIGH",   -- above the stable's model scene
         level      = 10,
-        onClick    = function() PSM.TeamsPanel:Toggle() end,
+        onClick    = function() ns.TeamsPanel:Toggle() end,
         -- A function spec: the team count changes while the button exists.
         tooltip    = function()
             return {
                 anchor = ANCHOR,
                 title  = "View and manage saved pet teams",
                 lines  = {
-                    { text  = ("You have %d saved team(s)"):format(PSM.Teams:GetTeamCount() or 0),
+                    { text  = ("You have %d saved team(s)"):format(ns.Teams:GetTeamCount() or 0),
                       color = Theme.COLOR.WHITE },
                 },
             }
@@ -308,11 +307,11 @@ function PSM:CreateSaveTeamButtonOnStable()
         onClick    = function()
             -- Kept as a guard, not as UI: if this button's visibility ever changes,
             -- capturing slots without a stable would silently save an empty team.
-            if not PSM.state.isStableOpen then
+            if not ns.state.isStableOpen then
                 print("|cFFFF8800PetStableManagement: You must be at a Stable Master to save a team.|r")
                 return
             end
-            PSM.UI:HandleSaveTeamClick()
+            ns.UI:HandleSaveTeamClick()
         end,
         tooltip    = { anchor = ANCHOR, title = "Save current pets in slots 1-6 as a team" },
     })

@@ -1,20 +1,19 @@
 -- Shared/Menu.lua
 -- Floating menu window for PetStableManagement
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
+local _, ns = ...
 
-PSM.Menu = PSM.Menu or {}
-local menu = PSM.Menu
+ns.Menu = ns.Menu or {}
+local menu = ns.Menu
 
 --------------------------------------------------------------------------------
 -- WINDOW CREATION
 --------------------------------------------------------------------------------
 
 function menu:Create()
-    if PSM.state.menu then return PSM.state.menu end
+    if ns.state.menu then return ns.state.menu end
 
-    local Widgets = PSM.Widgets
+    local Widgets = ns.Widgets
     local pos     = PetStableManagementDB.settings.menuPosition
 
     local window = Widgets.MovableFrame(UIParent, {
@@ -41,14 +40,14 @@ function menu:Create()
     window.border = Widgets.Frame(window, {
         allPoints = true,
         backdrop  = "TOOLTIP_HAIRLINE",
-        color     = PSM.Config.COLORS.BACKGROUND,
+        color     = ns.Config.COLORS.BACKGROUND,
         level     = window:GetFrameLevel() - 1,
     })
 
     window.title = Widgets.Label(window.border, {
-        fontSize = PSM.Theme.SIZE.HEADING,
+        fontSize = ns.Theme.SIZE.HEADING,
         outline  = true,
-        color    = PSM.Theme.COLOR.GOLD,
+        color    = ns.Theme.COLOR.GOLD,
         text     = "PSM Menu",
         point    = { "TOP", 0, -10 },
     })
@@ -63,7 +62,7 @@ function menu:Create()
 
     -- Buttons. XL because the longest label is "Toggle Models Browser"; the menu window
     -- is 200 wide, so 180 still leaves a margin either side.
-    local buttonWidth, buttonSpacing = PSM.Theme.CONTROL.BUTTON_W.XL, 10
+    local buttonWidth, buttonSpacing = ns.Theme.CONTROL.BUTTON_W.XL, 10
 
     -- Browser-dependent buttons are never disabled, and that is deliberate.
     --
@@ -83,13 +82,13 @@ function menu:Create()
     -- Evaluated per hover. Returning nil suppresses the tooltip entirely, so a working
     -- button says nothing, and the dimming is corrected on the way past.
     local function BrowserGateTooltip(self)
-        local why = PSM.Loader:UnavailableReason()
+        local why = ns.Loader:UnavailableReason()
         self:SetAlpha(why and 0.5 or 1)
         if not why then return nil end
         return {
             anchor = "ANCHOR_BOTTOM",
             title  = "Models Browser not available",
-            lines  = {{ text = why, color = PSM.Theme.COLOR.WHITE, wrap = true }},
+            lines  = {{ text = why, color = ns.Theme.COLOR.WHITE, wrap = true }},
         }
     end
 
@@ -107,19 +106,19 @@ function menu:Create()
         return btn
     end
 
-    window.ownedButton    = AddButton(nil,                   "Toggle Owned Pets",     function() PSM.Broker:ToggleOwnedPetsPanel() end)
-    window.modelsButton   = AddButton(window.ownedButton,    "Toggle Models Browser", function() PSM.Broker:ToggleModelsBrowserPanel() end, true)
-    window.rouletteButton = AddButton(window.modelsButton,   "Toggle Pet Roulette",   function() PSM.Broker:TogglePetRoulette() end,        true)
-    window.teamsButton    = AddButton(window.rouletteButton, "Toggle Pet Teams",      function() PSM.Broker:TogglePetTeamsPanel() end, false, PSM.Teams:ButtonTooltipSpec())
-    window.optionsButton  = AddButton(window.teamsButton,    "Toggle Options",        function() PSM.Broker:ToggleOptionsPanel() end)
-    window.closeAllButton = AddButton(window.optionsButton,  "Close All Panels",      function() PSM.Broker:CloseAllPanels() end)
+    window.ownedButton    = AddButton(nil,                   "Toggle Owned Pets",     function() ns.Broker:ToggleOwnedPetsPanel() end)
+    window.modelsButton   = AddButton(window.ownedButton,    "Toggle Models Browser", function() ns.Broker:ToggleModelsBrowserPanel() end, true)
+    window.rouletteButton = AddButton(window.modelsButton,   "Toggle Pet Roulette",   function() ns.Broker:TogglePetRoulette() end,        true)
+    window.teamsButton    = AddButton(window.rouletteButton, "Toggle Pet Teams",      function() ns.Broker:TogglePetTeamsPanel() end, false, ns.Teams:ButtonTooltipSpec())
+    window.optionsButton  = AddButton(window.teamsButton,    "Toggle Options",        function() ns.Broker:ToggleOptionsPanel() end)
+    window.closeAllButton = AddButton(window.optionsButton,  "Close All Panels",      function() ns.Broker:CloseAllPanels() end)
 
     -- The dimming is only a hint, and the tooltip corrects it on hover — but reopening
     -- the menu is the other moment the answer can have changed, so refresh it there too.
     -- Availability changes without a reload: ticking the module in the AddOns list takes
     -- effect immediately.
     local function RefreshDimming()
-        local available = PSM.Loader:IsBrowserAvailable()
+        local available = ns.Loader:IsBrowserAvailable()
         for _, btn in ipairs(gatedButtons) do
             btn:SetAlpha(available and 1 or 0.5)
         end
@@ -128,7 +127,7 @@ function menu:Create()
     window:SetScript("OnShow", RefreshDimming)
     RefreshDimming()
 
-    PSM.state.menu = window
+    ns.state.menu = window
     window:Hide()
     return window
 end
@@ -138,14 +137,14 @@ end
 --------------------------------------------------------------------------------
 
 function menu:Toggle()
-    if not PSM.state.menu then menu:Create() end
+    if not ns.state.menu then menu:Create() end
 
-    if PSM.state.menu:IsVisible() then
-        PSM.state.menu:Hide()
+    if ns.state.menu:IsVisible() then
+        ns.state.menu:Hide()
         PetStableManagementDB.settings.showFloatingMenu = false
     else
-        PSM.state.menu:Show()
-        PSM.state.menu:Raise()
+        ns.state.menu:Show()
+        ns.state.menu:Raise()
         PetStableManagementDB.settings.showFloatingMenu = true
     end
 end
