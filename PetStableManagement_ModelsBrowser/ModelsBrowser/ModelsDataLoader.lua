@@ -402,7 +402,9 @@ function PSM.ModelsDataLoader:LoadModelsForSelectedFamilies()
     if not PSM.state.modelsPanel or not PSM.PetModels then return end
     if PSM._modelsDebounceTimer then PSM._modelsDebounceTimer:Cancel() end
     PSM._modelsRenderCache = nil
-    PSM._modelsDebounceTimer = C_Timer.NewTimer(0.01, function()
+    -- Shared with NPCDataLoader, which is the point -- see the comment there for how the
+    -- two drifted apart while both were hardcoded.
+    PSM._modelsDebounceTimer = C_Timer.NewTimer(PSM.Config.RENDER_DELAY, function()
         PSM.ModelsDataLoader:_LoadModelsImmediate()
     end)
 end

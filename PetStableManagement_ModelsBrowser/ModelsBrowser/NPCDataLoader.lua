@@ -194,10 +194,20 @@ end
 -- LOADING PIPELINE
 --------------------------------------------------------------------------------
 
+-- **The same delay as the models loader, read from the same place.** These were 0.01 and
+-- 0.15, and the gap was visible: switching into the NPC view paints `panel.allNPCs` --
+-- last load's list -- synchronously, so for 150ms the panel showed rows the current filter
+-- excludes. The models view has the identical window at 0.01s and nobody can see it.
+--
+-- The 0.15 was raised from 0.01 in 069c646 to absorb bursts of this call, back when one
+-- continent click meant fifteen of them. `PSM.Store`'s flush coalesces those upstream now,
+-- and search has always been debounced separately (`SEARCH_DELAY`, in the search box
+-- itself), so nothing is left for the longer window to absorb. Two literals that had to
+-- agree and silently stopped agreeing is what `Config.RENDER_DELAY` is for.
 function PSM.NPCDataLoader:LoadNPCsForSelectedFamilies()
     if not PSM.state.modelsPanel then return end
     if PSM._npcDebounceTimer then PSM._npcDebounceTimer:Cancel() end
-    PSM._npcDebounceTimer = C_Timer.NewTimer(0.15, function()
+    PSM._npcDebounceTimer = C_Timer.NewTimer(PSM.Config.RENDER_DELAY, function()
         PSM.NPCDataLoader:_LoadNPCsImmediate()
     end)
 end

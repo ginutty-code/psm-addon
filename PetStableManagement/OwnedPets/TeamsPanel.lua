@@ -16,7 +16,6 @@ local renderQueue          = {}
 local isRendering          = false
 local refreshDebounceTimer = nil
 local TEAMS_PER_FRAME      = 10
-local RENDER_DELAY         = 0.01
 
 ----------------------------------------------------------------------------------------------------------------
 -- LOCAL HELPERS
@@ -541,7 +540,7 @@ local function ProcessRenderQueue()
         end
     end
     if #renderQueue > 0 then
-        C_Timer.After(RENDER_DELAY, ProcessRenderQueue)
+        C_Timer.After(ns.Config.RENDER_DELAY, ProcessRenderQueue)
     else
         isRendering = false
     end
