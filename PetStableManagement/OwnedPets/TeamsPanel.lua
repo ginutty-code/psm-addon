@@ -546,9 +546,28 @@ local function ProcessRenderQueue()
     end
 end
 
+-- **This defers; the coalescing is a side effect.** Investigated because a bare 0.03 next
+-- to `Config.RENDER_DELAY` looked like a third copy of the render delay that had drifted.
+-- It is not, and it is not a debounce either in the sense the shape suggests: every one of
+-- the ~15 call sites fires once per user action or per event, and the only back-to-back
+-- pair in the codebase was a duplicated block in Events.lua, now removed. There is no
+-- burst left to absorb.
+--
+-- What the delay actually buys is getting `DoRefreshTeamsList` **out of the caller's call
+-- stack**. It rebuilds and re-lays out every team row, and several callers are mid-operation
+-- on those very rows when they ask -- `DragDrop:SwapTeamSlots` refreshes and then returns
+-- true to a handler still holding a row, and the dialog paths refresh from inside a
+-- confirm handler. Running it synchronously would tear down frames underneath their own
+-- callbacks.
+--
+-- So it stays, and the name says what it is. **Not folded into RENDER_DELAY**: that is a
+-- progressive-render tick, this is a reentrancy guard, and the two agreeing at 0.01 would
+-- be a coincidence rather than a shared meaning.
+local REFRESH_DEFER = 0.03
+
 function ns.TeamsPanel:RefreshTeamsList()
     if refreshDebounceTimer then refreshDebounceTimer:Cancel() end
-    refreshDebounceTimer = C_Timer.NewTimer(0.03, function()
+    refreshDebounceTimer = C_Timer.NewTimer(REFRESH_DEFER, function()
         ns.TeamsPanel:DoRefreshTeamsList()
         refreshDebounceTimer = nil
     end)

@@ -228,10 +228,6 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
                 ns.TeamsPanel:RefreshTeamsList()
             end
 
-            if ns.state.teamsPanel and ns.state.teamsPanel:IsVisible() then
-                ns.TeamsPanel:RefreshTeamsList()
-            end
-
         elseif event == "PLAYER_LOGOUT" then
             CancelPendingUpdate()
 
