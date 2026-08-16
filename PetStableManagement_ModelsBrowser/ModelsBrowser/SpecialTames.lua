@@ -1078,7 +1078,11 @@ function ST:ResetInternalState()
 
     local panel = PSM.state.specialTames
     if panel then
-        if panel.searchBox then panel.searchBox:SetText("") end
+        -- ClearSearch, not SetText(""): the latter empties the box but leaves it blank,
+        -- because the placeholder is only restored on focus loss. So Reset All Filters
+        -- left "Search tames..." missing until the user clicked into the box and out
+        -- again. Same fix ModelsFilters:ResetAllFilters already carries.
+        if panel.searchBox then panel.searchBox:ClearSearch() end
         RepopulateRows(panel, "", panel.activeTag or "All")
     end
 end
