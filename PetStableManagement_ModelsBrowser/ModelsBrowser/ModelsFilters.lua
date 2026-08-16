@@ -193,10 +193,11 @@ end
 -- **`panel` is deliberately not watched.** It bumps when the filter system is rebuilt, and
 -- a rebuild already populates; watching it would turn construction into a reload.
 --
--- **`search` is not a slice**, so the search box keeps its explicit pair -- see CreateSearchBox.
+-- `search` is fingerprinted off the search box, so it needs `Store:Touch()` to wake a
+-- flush -- see CreateSearchBox below.
 local FILTER_SLICES = {
     "families", "expansions", "locations", "tamingRules", "conditions",
-    "toggles", "favorites", "pets", "zone",
+    "toggles", "favorites", "pets", "zone", "search",
 }
 
 local watching = false
@@ -295,10 +296,16 @@ end
 -- SEARCH BOX
 --------------------------------------------------------------------------------
 
+-- The last hand-written refresh pair, and it goes the same way as the other nine -- except
+-- that a widget cannot bump a slice, so it asks the store to re-read instead.
+--
+-- **The text is not passed on, deliberately.** The `search` slice fingerprints the box
+-- directly, so handing the value to a setter here would create a second copy that could
+-- disagree with the widget -- which is the shape of every bug this section of the plan has
+-- been unwinding. `Touch` says only "look again"; the store finds the text itself.
 function PSM.ModelsFilters:CreateSearchBox(panel)
-    PSM.PanelManager:CreateSearchBox(panel, function(searchText)
-        ReloadAndSummarise()
-        PSM.ModelsFilters:UpdateDynamicFilters()
+    PSM.PanelManager:CreateSearchBox(panel, function()
+        PSM.Store:Touch()
     end, {
         placeholder = "Search models...",
     })
@@ -434,10 +441,12 @@ function PSM.ModelsFilters:ResetAllFilters(panel)
     if panel.locationList  then SelectAll("locations",  panel.locationList)  end
 
     RepopulateAllTabs(panel)
-    -- Kept, unlike the nine pairs the store's watcher replaced: this also clears the search
-    -- box, and `search` is not a slice, so nothing above would refresh for it. Harmless when
-    -- the watcher fires too -- ReloadAndSummarise cancels and re-arms one debounce timer.
-    ReloadAndSummarise()
+    -- **A re-check, not a reload.** Everything above either bumps a slice or moves a
+    -- fingerprint, so asking the store to look again is strictly better than calling the
+    -- loader by hand: it cannot miss an input the watcher covers, and -- unlike the
+    -- unconditional reload that used to sit here -- it does no work at all when Reset is
+    -- pressed on filters that were already at their defaults.
+    PSM.Store:Touch()
 
     if PSM.SpecialTames and PSM.SpecialTames.ResetInternalState then
         PSM.SpecialTames:ResetInternalState()

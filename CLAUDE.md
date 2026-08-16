@@ -316,9 +316,16 @@ writes like that one. They are gone; adding a tenth is a regression, not a preca
 The store coalesces a burst into one flush on the next frame, so a bulk write
 (`SetAll` over fifteen locations) reloads once rather than fifteen times.
 
-**The explicit helper is still right for anything that is *not* a slice.** Search is the
-live example — `panel.searchBox` has no slice, so `CreateSearchBox` keeps its own pair, and
-`ResetAllFilters` keeps its reload because it clears the search box. In those cases call:
+**When state changes somewhere the store can see but nothing can bump, call
+`PSM.Store:Touch()`.** Fingerprinted slices (`search`, `pets`, `favorites`, `zone`) have no
+write funnel, so nothing announces them; `Touch` asks every watcher to re-read its
+dependencies. It takes no argument on purpose — it does not claim *what* changed, so it
+cannot claim wrong, and it fires nothing when nothing moved. The search box is the live
+example: its home is a widget, so it fingerprints rather than counts, and its callback is
+one `Touch`.
+
+**The explicit helper is still right for a refresh that isn't driven by state at all** —
+a view-mode switch, say:
 
 ```lua
 PSM.ModelsFilters:ReloadAndSummarise()
@@ -332,9 +339,8 @@ branches on `panel.modelsViewMode`, calls the right loader (`ModelsDataLoader` v
 
 Two things the watcher deliberately does not cover, both asserted in `store_spec`:
 `panel` is not watched (it bumps when the filter system is rebuilt, and watching it would
-turn construction into a reload), and **only a `Bump` wakes a flush** — so the
-fingerprinted slices (`pets`, `favorites`, `zone`) do not trigger one on their own and keep
-their existing refresh paths.
+turn construction into a reload), and **only a `Bump` or a `Touch` wakes a flush** — so
+`pets` and `favorites`, which nothing Touches yet, keep their existing refresh paths.
 
 ## README.md is a feature list, not a changelog
 
@@ -393,7 +399,7 @@ until the layering work separates it.
 so it doesn't only ever exercise the lupa fallback).
 
 The lint job **gates on errors, not warnings**. luacheck exits 1 for warnings and
-≥2 for errors; the project carries a stable warning baseline (39), so failing on any
+≥2 for errors; the project carries a stable warning baseline (38), so failing on any
 warning would fail every run. The count is printed in the job log — treat a change
 in it as something you caused, and account for it.
 
@@ -409,7 +415,7 @@ path is in `CLAUDE.local.md` (untracked). Run from the repo root:
 luacheck PetStableManagement PetStableManagement_ModelsBrowser Tests
 ```
 
-The current clean baseline is **39 warnings / 0 errors**. Treat any change in it as
+The current clean baseline is **38 warnings / 0 errors**. Treat any change in it as
 something you introduced, and account for it — a drop is as much a claim as a rise,
 and should be attributable to a specific edit.
 

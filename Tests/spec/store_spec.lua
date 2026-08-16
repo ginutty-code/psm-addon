@@ -301,6 +301,42 @@ describe("Store watchers", function()
         eq(fired, 0, "so the watcher did not fire")
     end)
 
+    -- Touch is what makes a fingerprinted slice usable as a watcher dependency: the value
+    -- is always truthful, but nothing announces it. `search` is the live case -- the home
+    -- is a search box, and Blizzard fires OnTextChanged, not us.
+    it("wakes a flush from Touch when a fingerprinted slice moved", function()
+        local Store, _, _, ns, _, drain = withScheduler()
+        ns.state.stablePets = { { displayID = 111 } }
+        local fired = 0
+        Store:Watch({ "pets" }, function() fired = fired + 1 end)
+
+        ns.state.stablePets = { { displayID = 222 } }
+        Store:Touch()
+        drain()
+        eq(fired, 1, "Touch got the change noticed")
+    end)
+
+    -- **Touch asks watchers to look; it does not tell them they changed.** A Touch that
+    -- fired unconditionally would be a reload button wearing a store's clothes, and every
+    -- caller would reach for it instead of modelling their input.
+    it("fires nothing when Touch finds nothing moved", function()
+        local Store, _, _, _, _, drain = withScheduler()
+        local fired = 0
+        Store:Watch({ "families", "pets" }, function() fired = fired + 1 end)
+        Store:Touch()
+        drain()
+        eq(fired, 0, "a Touch with nothing behind it is free")
+    end)
+
+    it("coalesces Touch with a bump into one flush", function()
+        local Store, Selections, _, _, queue = withScheduler()
+        Store:Watch({ "families" }, function() end)
+        Selections:Set("families", "Wolf", true)
+        Store:Touch()
+        Store:Touch()
+        eq(#queue, 1, "three wake calls, one flush")
+    end)
+
     it("lets a callback's own write schedule the next flush", function()
         -- Flush clears the queued flag before running callbacks. If it cleared it after, a
         -- bump made *by* a callback would be swallowed and that change would never refresh.

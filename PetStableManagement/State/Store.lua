@@ -164,6 +164,21 @@ NotifyWatchers = function()
     schedule(function() Store:Flush() end)
 end
 
+-- **The manual wake, for change a fingerprint can see but no funnel can announce.**
+--
+-- Only `Bump` schedules a flush, and fingerprinted slices have no funnel to bump from --
+-- so something that changes `search` or `zone` has to say so. `Touch` is that, and it is
+-- deliberately argument-free: it does not claim *what* changed, it only asks the watchers
+-- to re-read their dependencies. A caller that named a slice could name the wrong one and
+-- be believed; a caller that names nothing cannot be wrong, because every version is
+-- recomputed from the data either way.
+--
+-- Cheap for the same reason: a Touch with nothing behind it costs one composite-key
+-- comparison per watcher on the next frame and fires nothing.
+function Store:Touch()
+    NotifyWatchers()
+end
+
 -- `fn` runs when the composite version of `deps` moves -- never on registration, which
 -- records the current key so that arriving does not read as a change.
 function Store:Watch(deps, fn)

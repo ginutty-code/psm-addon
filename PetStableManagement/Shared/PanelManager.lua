@@ -215,6 +215,14 @@ function ns.PanelManager:CreateSearchBox(panel, onTextChanged, config)
     -- retargeting it erased whatever the user had typed. Blizzard passes userInput =
     -- false for programmatic changes precisely so a handler can tell the two apart.
     local debounceTimer
+
+    -- Deliver at once, cancelling any pending typing debounce. A programmatic change is a
+    -- discrete event, not typing, so there is nothing to coalesce and nothing to wait for.
+    local function NotifyNow(text)
+        if debounceTimer then debounceTimer:Cancel(); debounceTimer = nil end
+        if onTextChanged then onTextChanged(text) end
+    end
+
     searchBox:SetScript("OnTextChanged", function(self, userInput)
         if not userInput then return end
         ClearPlaceholder(self)
@@ -241,9 +249,20 @@ function ns.PanelManager:CreateSearchBox(panel, onTextChanged, config)
 
     -- Back to the idle state, placeholder and all. SetText("") alone leaves the box
     -- blank, since the placeholder is otherwise only restored when focus is lost.
+    -- **A programmatic clear still notifies, and that is the whole point of NotifyNow.**
+    -- `ShowPlaceholder` goes through SetText, which fires OnTextChanged with
+    -- `userInput = false` -- correctly ignored by the handler above, since that is how the
+    -- placeholder used to erase itself. The consequence was that clearing the box changed
+    -- what the user sees and told nobody. Every caller papered over it by following
+    -- ClearSearch with an explicit reload, so it never showed; the moment a *store* reads
+    -- the box, an unannounced clear becomes silent staleness on Reset All Filters.
+    --
+    -- Guarded on an actual change, so clearing an already-empty box stays quiet.
     function searchBox:ClearSearch()
+        local hadText = self:GetSearchText() ~= ""
         self:ClearFocus()
         ShowPlaceholder(self)
+        if hadText then NotifyNow("") end
     end
 
     -- Retarget the placeholder without disturbing what the user typed. Callers used to

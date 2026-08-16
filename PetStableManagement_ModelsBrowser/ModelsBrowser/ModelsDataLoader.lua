@@ -29,6 +29,25 @@ end)
 
 PSM.Store:Declare("panel")
 
+-- **Fingerprinted rather than counted, because the home is a widget.**
+--
+-- Search is the last unmodelled input, and it is the one input whose state lives in a
+-- frame instead of a table: five panels each own a search box, and seven sites read
+-- `searchBox:GetSearchText()` directly. A counted slice would need every one of those
+-- writes funnelled and enforced, and a widget's writes cannot be enforced by a spec --
+-- Blizzard fires OnTextChanged, not us.
+--
+-- Reading the box at flush time sidesteps that entirely: the fingerprint *is* the truth,
+-- so it cannot go stale no matter who typed what. The cost is that a fingerprint cannot
+-- announce itself, which is what `Store:Touch()` is for -- and the failure mode of a
+-- missed Touch is a late refresh, never a wrong one. That is the same trade the whole
+-- design makes: an unfunnelled input costs speed, not correctness.
+PSM.Store:Declare("search", function()
+    local panel = PSM.state.modelsPanel
+    local box   = panel and panel.searchBox
+    return box and box:GetSearchText() or ""
+end)
+
 --------------------------------------------------------------------------------
 -- CONSTANTS
 --------------------------------------------------------------------------------
