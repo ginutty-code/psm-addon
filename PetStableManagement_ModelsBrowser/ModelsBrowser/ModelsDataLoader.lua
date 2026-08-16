@@ -244,17 +244,14 @@ function PSM.ModelsDataLoader:_IsZoneMatch(npc, playerMapId)
         end
     end
 
-    -- Fallback: legacy zone name match if playerMapId happens to be string
+    -- Fallback: legacy zone name match if playerMapId happens to be a string.
+    --
+    -- This used to split NpcLocation on "|" and then, separately, compare
+    -- `UiMapNames[uiMapId]` -- which is the same value NpcLocation resolves, so the two
+    -- comparisons were the same comparison. Both are leftovers from the free-text location
+    -- era: an NPC now carries a single `UiMapId`, so its location is one name.
     if type(playerMapId) == "string" then
-        -- NpcLocation() always returns a string ("Unknown" when absent), so
-        -- this loop is safe unguarded.
-        for loc in string.gmatch(PSM.PetModels.NpcLocation(npc), "[^|]+") do
-            if strtrim(loc) == playerMapId then return true end
-        end
-        local uiMapName = uiMapId and _G.ModelsData.UiMapNames[uiMapId]
-        if uiMapName and uiMapName == playerMapId then
-            return true
-        end
+        if PSM.PetModels.NpcLocation(npc) == playerMapId then return true end
     end
 
     return false
@@ -265,44 +262,18 @@ end
 -- outcome as absent, and ModelsFilters folds any saved value into nil on load, so nothing
 -- can reach here with one.
 --
--- Passes if there is no active selection at all, or if the location matches one.
+-- Thin wrappers over the shared rule in PetModels, kept as methods because the dynamic
+-- filter selectors call them as `ML:_IsLocationSelected(...)`. Both used to return true for
+-- an empty selection while the result-list blocks below treated the same state as "None";
+-- every caller guards them with its own `hasLocFilter` / `hasExpFilter`, so that
+-- disagreement was never reachable -- but it is the disagreement that shipped in
+-- NPCDataLoader, where nothing guarded it.
 function PSM.ModelsDataLoader:_IsLocationSelected(locationString, selectedLocations)
-    if not locationString or not selectedLocations then return true end
-    if type(selectedLocations) == "table" and not selectedLocations[1] then
-        if not next(selectedLocations) then return true end
-
-        local userHasActive = false
-        for _, state in pairs(selectedLocations) do
-            if state == true then userHasActive = true; break end
-        end
-        if not userHasActive then return true end
-
-        for loc in string.gmatch(locationString, "[^|]+") do
-            if selectedLocations[strtrim(loc)] == true then return true end
-        end
-        return false
-    end
-    if #selectedLocations == 0 then return true end
-    for loc in string.gmatch(locationString, "[^|]+") do
-        loc = strtrim(loc)
-        for _, sel in ipairs(selectedLocations) do
-            if sel == loc then return true end
-        end
-    end
-    return false
+    return PSM.PetModels.SelectionAllows(selectedLocations, locationString)
 end
 
 function PSM.ModelsDataLoader:_IsExpansionSelected(expansion, selectedExpansions)
-    if not expansion or not selectedExpansions then return true end
-    if type(selectedExpansions) == "table" and not selectedExpansions[1] then
-        if not next(selectedExpansions) then return true end
-        return selectedExpansions[expansion] == true
-    end
-    if #selectedExpansions == 0 then return true end
-    for _, sel in ipairs(selectedExpansions) do
-        if sel == expansion then return true end
-    end
-    return false
+    return PSM.PetModels.SelectionAllows(selectedExpansions, expansion)
 end
 
 --------------------------------------------------------------------------------
@@ -495,67 +466,37 @@ function PSM.ModelsDataLoader:_CalculateModelsData()
         allItems = filtered
     end
 
-    -- Expansion filter
-    if PSM.state.selectedExpansions then
-        local hasSelection = next(PSM.state.selectedExpansions) ~= nil
+    -- Expansion and location filters. Both ask the same question of every NPC behind a
+    -- display -- "does any one of them qualify?" -- so they are one loop over one shared
+    -- rule rather than two near-copies that drifted. `SelectionMode` is resolved once per
+    -- filter rather than per NPC: this runs over every display of every selected family.
+    local PetModels     = PSM.PetModels
+    local selExpansions = PSM.state.selectedExpansions
+    local selLocations  = PSM.state.selectedLocations
+    local expansionMode = PetModels.SelectionMode(selExpansions)
+    local locationMode  = PetModels.SelectionMode(selLocations)
+
+    if selExpansions or selLocations then
         local filtered = {}
         for _, item in ipairs(allItems) do
-            local match = false
-            if item.npcs then
-                for _, npc in ipairs(item.npcs) do
-                    local expansion = PSM.PetModels.NpcExpansion(npc)
-                    if hasSelection then
-                        if expansion and PSM.state.selectedExpansions[expansion] then
-                            match = true; break
-                        end
-                    else
-                        -- "none selected" means exclude items that have expansion data
-                        if not expansion then match = true; break end
-                    end
-                end
-            end
-            if match then table.insert(filtered, item) end
-        end
-        allItems = filtered
-    end
+            local expansionOk = selExpansions == nil
+            local locationOk  = selLocations  == nil
 
-    -- Location filter (two-state: true = show, absent = hide). Third copy of this rule --
-    -- see also _IsLocationSelected above and NPCDataLoader's IsLocationSelected -- kept
-    -- separate because this one walks an item's NPC list rather than a single string.
-    if PSM.state.selectedLocations then
-        local hasSelection = next(PSM.state.selectedLocations) ~= nil
-        local userHasActive = false
-        if hasSelection then
-            for _, state in pairs(PSM.state.selectedLocations) do
-                if state == true then userHasActive = true; break end
-            end
-        end
-
-        local filtered = {}
-        for _, item in ipairs(allItems) do
-            local match = false
-            if item.npcs then
-                for _, npc in ipairs(item.npcs) do
-                    if hasSelection then
-                        local npcMatchedActive = false
-                        -- NpcLocation() always returns a string ("Unknown" fallback),
-                        -- so no nil guard needed.
-                        for loc in string.gmatch(PSM.PetModels.NpcLocation(npc), "[^|]+") do
-                            if PSM.state.selectedLocations[strtrim(loc)] == true then
-                                npcMatchedActive = true; break
-                            end
-                        end
-                        if not userHasActive or npcMatchedActive then
-                            match = true; break
-                        end
-                    end
-                    -- else: selectedLocations is present but empty ("Select None" was
-                    -- clicked) -- every NPC always resolves to a location string (even
-                    -- "Unknown" is a real, selectable filter value), so nothing should
-                    -- match; match stays false.
+            for _, npc in ipairs(item.npcs or {}) do
+                if not expansionOk then
+                    local expansion = PetModels.NpcExpansion(npc)
+                    expansionOk = PetModels.SelectionAllows(selExpansions, expansion, expansionMode)
                 end
+                -- NpcLocation() always returns a string ("Unknown" fallback), so an empty
+                -- location selection excludes every NPC -- there is no nil to survive it.
+                if not locationOk then
+                    local location = PetModels.NpcLocation(npc)
+                    locationOk = PetModels.SelectionAllows(selLocations, location, locationMode)
+                end
+                if expansionOk and locationOk then break end
             end
-            if match then table.insert(filtered, item) end
+
+            if expansionOk and locationOk then table.insert(filtered, item) end
         end
         allItems = filtered
     end
@@ -808,12 +749,10 @@ local function ComputeAvailableLocations()
                                             table.insert(result, zoneName)
                                         end
                                     else
-                                        for loc in string.gmatch(PSM.PetModels.NpcLocation(npc), "[^|]+") do
-                                            loc = strtrim(loc)
-                                            if not seen[loc] then
-                                                seen[loc] = true
-                                                table.insert(result, loc)
-                                            end
+                                        local loc = PSM.PetModels.NpcLocation(npc)
+                                        if not seen[loc] then
+                                            seen[loc] = true
+                                            table.insert(result, loc)
                                         end
                                     end
                                 end

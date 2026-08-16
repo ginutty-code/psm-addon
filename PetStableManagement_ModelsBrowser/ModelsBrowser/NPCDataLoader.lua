@@ -136,36 +136,10 @@ local function IsAnyDisplayIdOwned(displayIds, ownedSet)
     return false
 end
 
--- Two-state single-zone match, mirroring ModelsDataLoader:_IsLocationSelected. The
--- "inverted" third state is gone; see that function for why it never meant anything
--- distinct here.
-local function IsLocationSelected(uiMapName, selectedLocations)
-    -- **Absent and empty are different answers, and conflating them was a real bug.**
-    -- No table at all means the filter has never been initialised, so nothing is being
-    -- asked -- show everything. An *empty* table is the player having clicked "None", which
-    -- is a filter that matches nothing. Both used to return true here, so "None" on the
-    -- Locations tab left the NPC list untouched while the Models view correctly emptied.
-    if not selectedLocations then return true end
-    if not next(selectedLocations) then return false end
-
-    local userHasActive = false
-    for _, state in pairs(selectedLocations) do
-        if state == true then userHasActive = true; break end
-    end
-    if not userHasActive then return true end
-
-    if not uiMapName then return false end
-    return selectedLocations[uiMapName] == true
-end
-
--- The same absent/empty distinction for expansions, which had the identical defect written
--- inline at the filter site. Mirrors `_CalculateModelsData`'s expansion block: with nothing
--- selected, the only things that still qualify are entries carrying no expansion data.
-local function IsExpansionSelected(expansion, selectedExpansions)
-    if not selectedExpansions then return true end
-    if not next(selectedExpansions) then return not expansion end
-    return (expansion and selectedExpansions[expansion]) and true or false
-end
+-- Locations and expansions are `PetModels.SelectionAllows*` now. These were two local
+-- copies, and their "absent vs empty" bug is the one that reached players: both returned
+-- true for an empty selection, so "None" on the Locations or Expansions tab emptied the
+-- Models view and left the NPC list untouched.
 
 --------------------------------------------------------------------------------
 -- LOADING PIPELINE
@@ -235,6 +209,13 @@ function PSM.NPCDataLoader:_CalculateNPCData()
     local hasConds  = selConds and next(selConds) ~= nil
     local condsHaveActive = hasConds and PSM.PetModels.ConditionsHaveActive(selConds)
 
+    -- Same reason: resolving the selection mode is a scan of the selection table, and this
+    -- loop runs over every NPC of every selected family.
+    local selExpansions = PSM.state.selectedExpansions
+    local selLocations  = PSM.state.selectedLocations
+    local expansionMode = PSM.PetModels.SelectionMode(selExpansions)
+    local locationMode  = PSM.PetModels.SelectionMode(selLocations)
+
     -- Iterate only selected families via the shared family index instead of
     -- scanning all ~7700 ModelsData entries and rejecting non-matches.
     -- byFamily[name] is an array of denseIndex values.
@@ -296,8 +277,8 @@ function PSM.NPCDataLoader:_CalculateNPCData()
                    and TristateMatch(PSM.FilterState:Get("showNameKeepers"), nameKeeper or false)
                    and TristateMatch(PSM.FilterState:Get("showFavorites"), IsAnyDisplayIdFavorite(displayIds))
                    and TristateMatch(PSM.FilterState:Get("showHideOwned"), not IsAnyDisplayIdOwned(displayIds, ownedSet))
-                   and IsExpansionSelected(expansion, PSM.state.selectedExpansions)
-                   and IsLocationSelected(uiMapName, PSM.state.selectedLocations)
+                   and PetModels.SelectionAllows(selExpansions, expansion, expansionMode)
+                   and PetModels.SelectionAllows(selLocations, uiMapName, locationMode)
                 then
                     local zoneOk = true
                     if PSM.FilterState:Get("showPetsInMyZone") and panel.currentPlayerZone then

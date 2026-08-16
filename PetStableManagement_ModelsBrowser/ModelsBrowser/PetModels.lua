@@ -15,6 +15,51 @@ _G.PSM.PetModels = M
 -- GetModelsRecord below. GetModelsRecord is for cold, one-off lookups only;
 -- it allocates a new table and does several lookup-table joins per call.
 
+-- ─── Selection filters (locations, expansions) ────────────────────────────
+-- **Locations and expansions are the same shape, and the rule is one function.** They look
+-- different only because location matching used to split on "|": that dates from free-text
+-- locations, before the move to `UiMapId`. An NPC now carries a single map id, so
+-- `NpcLocation` resolves exactly one name -- checked across the data, no `UiMapNames` value
+-- contains a pipe and no row has a table-valued `UiMapId`. The splitting had nothing to
+-- split.
+--
+-- One rule, previously six hand-written copies: `_IsLocationSelected`,
+-- `_IsExpansionSelected`, the two inline blocks in `_CalculateModelsData`, and
+-- NPCDataLoader's pair. They disagreed, and one of the disagreements shipped -- "None" on
+-- the Locations tab emptied the Models view and did nothing at all to the NPC view.
+--
+-- **The three answers are distinct and conflating any two is the bug.**
+--
+--   nil table   -- the filter was never initialised. Nothing is being asked; everything
+--                  passes.
+--   no `true`   -- the player chose "None". Only a value the data does not have passes,
+--                  which is how an NPC with no expansion recorded survives an empty
+--                  expansion selection.
+--   otherwise   -- the value must be actively selected.
+--
+-- **`false` counts as absent, and that is load-bearing rather than defensive.** The two
+-- slices store differently: expansions go through `checkbox:GetChecked()`, which writes
+-- `false` on uncheck, while locations write `nil`. So "every box unticked" is an all-false
+-- table for one and an empty table for the other, and they must mean the same thing.
+--
+-- `mode` is optional and exists for the hot loops: callers filtering thousands of rows
+-- resolve it once with `SelectionMode` rather than rescanning the selection per row.
+
+function M.SelectionMode(selection)
+    if not selection then return "all" end
+    for _, state in pairs(selection) do
+        if state == true then return "match" end
+    end
+    return "none"
+end
+
+function M.SelectionAllows(selection, value, mode)
+    mode = mode or M.SelectionMode(selection)
+    if mode == "all"  then return true end
+    if mode == "none" then return value == nil end
+    return value ~= nil and selection[value] == true
+end
+
 -- ─── Special Tames predicates ─────────────────────────────────────────────
 -- The taming-rule and condition tests, in one place because they had drifted into two
 -- and were about to become three. Both views and SpecialTames' own family computation
