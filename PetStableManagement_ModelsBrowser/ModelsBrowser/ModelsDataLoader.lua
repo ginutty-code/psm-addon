@@ -9,6 +9,27 @@ local PSM = _G.PSM
 PSM.ModelsDataLoader = PSM.ModelsDataLoader or {}
 
 --------------------------------------------------------------------------------
+-- STORE SLICES OWNED BY THIS ADDON
+--------------------------------------------------------------------------------
+
+-- Registered here rather than in core's Store.lua because both live on this addon's panel
+-- frame, and core reaching across to read `ns.state.modelsPanel.currentPlayerZone` is the
+-- cross-addon field access the boundary work has been removing everywhere else.
+--
+-- `zone` fingerprints rather than counts: `currentPlayerZone` is a plain frame field written
+-- from three places, so there is no funnel to hook and no spec proving one. It is a single
+-- string, so the fingerprint is free.
+--
+-- `panel` is counted, and covers `panel.familiesList` -- the universe of families the
+-- dynamic-filter selectors iterate. It moves only when the filter system is rebuilt.
+PSM.Store:Declare("zone", function()
+    local panel = PSM.state.modelsPanel
+    return tostring(panel and panel.currentPlayerZone or "")
+end)
+
+PSM.Store:Declare("panel")
+
+--------------------------------------------------------------------------------
 -- CONSTANTS
 --------------------------------------------------------------------------------
 
@@ -660,7 +681,13 @@ end
 
 
 
-function PSM.ModelsDataLoader:GetAvailableFamiliesForFilters()
+-- The families still reachable given every filter **except** the family selection.
+--
+-- Deliberately leave-one-out: it loops `panel.familiesList`, the full list, and never reads
+-- `selectedModelsFamilies`. That is why `families` is absent from the dependency list on the
+-- selector below, and why the selector is worth having -- ticking a family box cannot change
+-- this answer, but under one shared cache key it rescanned all 61 families anyway.
+local function ComputeAvailableFamilies()
     local panel = PSM.state.modelsPanel
     if not panel then return {} end
 
@@ -693,10 +720,11 @@ function PSM.ModelsDataLoader:GetAvailableFamiliesForFilters()
                    and DisplayPassesFilters(displayData, ownedSet) then
                     if displayData.npcs then
                         for _, npc in ipairs(displayData.npcs) do
-                            local expOk = not hasExpFilter or self:_IsExpansionSelected(PSM.PetModels.NpcExpansion(npc), selectedExpansions)
-                            local locOk = not hasLocFilter or self:_IsLocationSelected(PSM.PetModels.NpcLocation(npc), selectedLocations)
+                            local ML = PSM.ModelsDataLoader
+                            local expOk = not hasExpFilter or ML:_IsExpansionSelected(PSM.PetModels.NpcExpansion(npc), selectedExpansions)
+                            local locOk = not hasLocFilter or ML:_IsLocationSelected(PSM.PetModels.NpcLocation(npc), selectedLocations)
                             local zoneOk = not (PSM.FilterState:Get("showPetsInMyZone") and panel.currentPlayerZone)
-                                        or TristateMatch(PSM.FilterState:Get("showPetsInMyZone"), self:_IsZoneMatch(npc, panel.currentPlayerZone))
+                                        or TristateMatch(PSM.FilterState:Get("showPetsInMyZone"), ML:_IsZoneMatch(npc, panel.currentPlayerZone))
                             if expOk and locOk and zoneOk then matched = true; break end
                         end
                     end
@@ -711,6 +739,24 @@ function PSM.ModelsDataLoader:GetAvailableFamiliesForFilters()
     end
     table.sort(result)
     return result
+end
+
+-- Built on first use, not at file scope: `PSM.Store` belongs to core, which is loaded by
+-- then, but this file is parsed as part of a LoadOnDemand addon and must not capture
+-- another module's table at parse time. That is the cross-addon snapshot trap ModelRow.lua
+-- was fixed for.
+--
+-- `families` is absent from the dependency list, and that absence is the entire feature.
+-- `panel` covers `panel.familiesList`, the universe this iterates, which only changes when
+-- the filter system is rebuilt.
+local availableFamilies
+
+function PSM.ModelsDataLoader:GetAvailableFamiliesForFilters()
+    availableFamilies = availableFamilies or PSM.Store:Selector({
+        "expansions", "locations", "toggles", "tamingRules", "conditions",
+        "favorites", "pets", "zone", "panel",
+    }, ComputeAvailableFamilies)
+    return availableFamilies()
 end
 
 function PSM.ModelsDataLoader:GetAvailableExpansionsForFilters()

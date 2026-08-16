@@ -57,9 +57,19 @@ function Selections:Get(slice)
     return ns.state[field]
 end
 
+-- Every mutation below routes through here, so this is the single place the store has to
+-- be told. **A no-op write does not bump**: writing the value a key already holds is what
+-- rebuilding a checkbox row does on every repopulate, and treating those as changes would
+-- invalidate a selector on every redraw -- the cache would exist and never hit.
+local function Write(slice, set, key, value)
+    if set[key] == value then return end
+    set[key] = value
+    if ns.Store then ns.Store:Bump(slice) end
+end
+
 function Selections:Set(slice, key, value)
     if key == nil then return end
-    self:Get(slice)[key] = value
+    Write(slice, self:Get(slice), key, value)
 end
 
 -- `keys` is an array of names -- a families/expansions/locations list as the panel holds
@@ -68,7 +78,7 @@ end
 function Selections:SetAll(slice, keys, value)
     local set = self:Get(slice)
     for _, key in ipairs(keys or {}) do
-        set[key] = value
+        Write(slice, set, key, value)
     end
 end
 
@@ -78,17 +88,24 @@ end
 -- table identity for the session removes the question.
 function Selections:Clear(slice)
     local set = self:Get(slice)
+    if next(set) == nil then return end
     for key in pairs(set) do set[key] = nil end
+    if ns.Store then ns.Store:Bump(slice) end
 end
 
 -- Clear, then copy `source`. Same identity-preserving reason as Clear: SpecialTames used to
 -- hand its freshly built map straight to `ns.state.selectedTamingRules`, replacing the
 -- table rather than its contents.
+--
+-- The copy goes through Write like everything else. Writing `set[key] = value` here instead
+-- -- which is how this was first written -- left a hole in the one function whose job is to
+-- have none: Clear does not bump an already-empty slice, so Replace onto an empty one
+-- bumped nothing, and SpecialTames' Apply on a fresh session invalidated no selector.
 function Selections:Replace(slice, source)
     self:Clear(slice)
     if not source then return end
     local set = self:Get(slice)
-    for key, value in pairs(source) do set[key] = value end
+    for key, value in pairs(source) do Write(slice, set, key, value) end
 end
 
 -- Fill only if empty, for seeding a fresh panel from a full list without overwriting a

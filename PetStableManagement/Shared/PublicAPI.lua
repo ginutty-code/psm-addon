@@ -37,6 +37,7 @@ local PUBLIC_API = {
     "RowManager",    -- model rotation/zoom hover controls, ReleaseModel
     "Selections",    -- the five multi-select filter sets; the only writer of ns.state.selected*
     "Skin",          -- ElvUI skinning (the only file allowed to see the ElvUI global)
+    "Store",         -- slice versions and pull-based selectors
     "Theme",         -- fonts, colour ramp, control sizes, backdrop presets
     "Tooltip",       -- declarative tooltip attachment
     "Utils",         -- pure helpers

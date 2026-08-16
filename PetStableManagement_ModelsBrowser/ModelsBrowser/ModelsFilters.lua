@@ -581,6 +581,10 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
     InitStateIfEmpty("expansions", expansionList, "selectedExpansions")
     InitStateIfEmpty("locations",  locationList,  "selectedLocations")
 
+    -- The dynamic-filter selectors iterate panel.familiesList, set below. This is the only
+    -- place it changes, so it is the only place the slice needs bumping.
+    PSM.Store:Bump("panel")
+
     -- Locations are two-state now. A saved "inverted" from the old three-state cycle
     -- already meant the same thing as unselected -- both excluded the location -- so fold
     -- it in rather than leaving a value the UI can render but no longer produce. Setting an

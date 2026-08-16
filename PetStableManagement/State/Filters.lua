@@ -72,15 +72,16 @@ function FilterState:Set(name, value)
     Assert(name)
     if value == false then value = nil end
     local saved = Saved()
-    if saved then saved[name] = value end
+    if not saved or saved[name] == value then return end
+    saved[name] = value
+    -- A no-op write does not bump; see Selections.lua for why that matters.
+    if ns.Store then ns.Store:Bump("toggles") end
 end
 
 -- Every toggle off. Callers that also reset selections and widgets do that themselves;
 -- this owns the five toggles and nothing else.
 function FilterState:Reset()
-    local saved = Saved()
-    if not saved then return end
-    for name in pairs(TOGGLES) do saved[name] = nil end
+    for name in pairs(TOGGLES) do self:Set(name, nil) end
 end
 
 -- There is deliberately no `AnyActive()` here. Three sites in ModelsDataLoader build an
