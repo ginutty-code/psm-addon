@@ -85,7 +85,72 @@ local function IsAnyDisplayIdFavorite(displayIds)
     return false
 end
 
--- ownedSet is built once per pass (below), not once per NPC -- 
+-- Every display ID the player has tamed, for the Hide Owned filter pass. Cheap -- the
+-- stable holds a couple of hundred pets at most -- but it must be built once per pass
+-- rather than once per NPC, which is the O(displayIds x stablePets) trap this file already
+-- fell into once. Named rather than inlined for that reason, and because it is the mirror
+-- of ShownDisplayIdSet below: what is in the stable, against what is on screen.
+local function OwnedDisplayIdSet()
+    local owned = {}
+    for _, pet in ipairs(PSM.state.stablePets) do
+        if pet.displayID then owned[tonumber(pet.displayID)] = true end
+    end
+    return owned
+end
+
+-- The set of display IDs any NPC in this list uses. The inverse direction to
+-- OwnedDisplayIdSet: what is on screen, rather than what is in the stable.
+local function ShownDisplayIdSet(items)
+    local shown = {}
+    for _, item in ipairs(items) do
+        for _, id in ipairs(item.displayIds or {}) do shown[id] = true end
+    end
+    return shown
+end
+
+-- The player's pets represented in this list, counted two ways: `unique` collapses pets
+-- that share a model, `total` counts every pet record.
+--
+-- **Ownership is only knowable per display ID.** Blizzard's stable API reports a pet's
+-- displayID, petNumber and specID -- but not the creature it was tamed from -- so "do I own
+-- this NPC" has no answer available. What the player wants to know has one: how many of
+-- *their pets* are represented here.
+--
+-- **Both numbers come from walking the stable, not the NPC list, and that is the design.**
+-- Walking the NPC list and asking "is this owned" counts one pet once per NPC sharing its
+-- model, which is how a stable of 207 first reported 414 owned. Walking the stable counts
+-- each pet exactly once by construction.
+--
+-- One record is one pet: LoadPersistentDataForDisplay appends each character's snapshot
+-- whole and no pet belongs to two characters, so `petNumber` is not needed to tell them
+-- apart. It would be if that loader ever merged overlapping snapshots -- and `total` is
+-- what would expose that, since an unfiltered list should report the stable's own size.
+--
+-- Why both: `unique` is the honest answer to "how many different pets is that", and `total`
+-- is the one that reconciles with the count in the Owned Pets panel. Reporting only `total`
+-- produced "28 NPCs found | 33 owned", which is true and reads as nonsense.
+--
+-- A pet whose display ID is in no NPC record is in neither figure, so an unfiltered list
+-- can read slightly under the stable total. That is the addon reporting honestly that it
+-- has no NPC for that model -- a pet from a removed creature, or one tamed since the last
+-- data refresh -- not an off-by-one.
+local function OwnedPetCounts(items)
+    local shown = ShownDisplayIdSet(items)
+    local seen, unique, total = {}, 0, 0
+    for _, pet in ipairs(PSM.state.stablePets) do
+        local id = pet.displayID and tonumber(pet.displayID)
+        if id and shown[id] then
+            total = total + 1
+            if not seen[id] then
+                seen[id] = true
+                unique = unique + 1
+            end
+        end
+    end
+    return unique, total
+end
+
+-- ownedSet is built once per pass (below), not once per NPC --
 local function IsAnyDisplayIdOwned(displayIds, ownedSet)
     if not displayIds or not ownedSet then return false end
     for _, id in ipairs(displayIds) do
@@ -162,13 +227,7 @@ function PSM.NPCDataLoader:_CalculateNPCData()
     local searchLower = searchText ~= "" and searchText:lower() or ""
 
     -- Built once per reload, only when the Hide Owned filter is active.
-    local ownedSet = nil
-    if PSM.FilterState:Get("showHideOwned") then
-        ownedSet = {}
-        for _, pet in ipairs(PSM.state.stablePets) do
-            if pet.displayID then ownedSet[tonumber(pet.displayID)] = true end
-        end
-    end
+    local ownedSet = PSM.FilterState:Get("showHideOwned") and OwnedDisplayIdSet() or nil
 
     -- Iterate only selected families via the shared family index instead of
     -- scanning all ~7700 ModelsData entries and rejecting non-matches.
@@ -265,27 +324,21 @@ function PSM.NPCDataLoader:_ApplyNPCData(items)
     end
 
     if panel.infoText then
-        -- "Show only owned" (showHideOwned == "inverted") matches an NPC if ANY
-        -- of its display IDs is owned, so a single owned display ID shared by
-        -- many NPCs inflates the NPC count well past what was actually tamed.
-        -- Report the distinct owned-display-ID count alongside it in that case.
-        if PSM.FilterState:Get("showHideOwned") == "inverted" then
-            local ownedIds = {}
-            for _, pet in ipairs(PSM.state.stablePets) do
-                if pet.displayID then ownedIds[tonumber(pet.displayID)] = true end
-            end
-            local relevantOwned, distinctCount = {}, 0
-            for _, item in ipairs(items) do
-                for _, id in ipairs(item.displayIds or {}) do
-                    if ownedIds[id] and not relevantOwned[id] then
-                        relevantOwned[id] = true
-                        distinctCount = distinctCount + 1
-                    end
-                end
-            end
-            panel.infoText:SetText(string.format("%d Display IDs owned, corresponding to %d NPCs", distinctCount, #items))
+        -- One caption in every filter state, reading the same as the Models view's
+        -- "N display IDs | M owned" -- with the duplicate note appearing only when there
+        -- are duplicates to note. Silence is the common case and carries information too:
+        -- no bracket means every owned pet here is a different model.
+        --
+        -- "Show only owned" used to get its own sentence -- "N Display IDs owned,
+        -- corresponding to M NPCs" -- because the count beside it was measured in the wrong
+        -- unit and needed explaining. That explanation is now the bracket, and it applies
+        -- in every filter state rather than one.
+        local unique, total = OwnedPetCounts(items)
+        if total > unique then
+            panel.infoText:SetText(string.format("%d NPCs found | %d owned (%d including duplicates)",
+                #items, unique, total))
         else
-            panel.infoText:SetText(string.format("%d NPCs found", #items))
+            panel.infoText:SetText(string.format("%d NPCs found | %d owned", #items, unique))
         end
     end
 
