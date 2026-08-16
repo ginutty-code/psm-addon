@@ -14,6 +14,10 @@
 # Core modules (loaded first)
 Core.lua
 
+# State -- one home per piece of shared mutable state, with the accessor that owns it.
+# Early, because it depends on nothing but SavedVariables.
+State/Filters.lua
+
 # Shared modules
 Shared/Config.lua
 Shared/Utils.lua

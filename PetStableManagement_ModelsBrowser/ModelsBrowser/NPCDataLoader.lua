@@ -47,8 +47,8 @@ function PSM.NPCDataLoader:GenerateCacheKey()
     local searchLower = searchText ~= "" and searchText:lower() or ""
 
     local zoneKey = ""
-    if panel.showPetsInMyZone and panel.currentPlayerZone then
-        zoneKey = panel.currentPlayerZone .. (panel.showPetsInMyZone == "inverted" and "_inv," or ",")
+    if PSM.FilterState:Get("showPetsInMyZone") and panel.currentPlayerZone then
+        zoneKey = panel.currentPlayerZone .. (PSM.FilterState:Get("showPetsInMyZone") == "inverted" and "_inv," or ",")
     end
 
     return string.format("%s_%s_%s_%s_%s_%s_%s_%s_%s_%s_%d",
@@ -57,10 +57,10 @@ function PSM.NPCDataLoader:GenerateCacheKey()
         SelectedMapKey(PSM.state.selectedExpansions),
         SelectedMapKey(PSM.state.selectedLocations),
         zoneKey,
-        tostring(panel.showRares or "none"),
-        tostring(panel.showNameKeepers or "none"),
-        tostring(panel.showFavorites or "none"),
-        tostring(panel.showHideOwned or "none"),
+        tostring(PSM.FilterState:Get("showRares") or "none"),
+        tostring(PSM.FilterState:Get("showNameKeepers") or "none"),
+        tostring(PSM.FilterState:Get("showFavorites") or "none"),
+        tostring(PSM.FilterState:Get("showHideOwned") or "none"),
         SelectedMapKey(PSM.state.favoriteModels),
         #PSM.state.stablePets
     )
@@ -163,7 +163,7 @@ function PSM.NPCDataLoader:_CalculateNPCData()
 
     -- Built once per reload, only when the Hide Owned filter is active.
     local ownedSet = nil
-    if panel.showHideOwned then
+    if PSM.FilterState:Get("showHideOwned") then
         ownedSet = {}
         for _, pet in ipairs(PSM.state.stablePets) do
             if pet.displayID then ownedSet[tonumber(pet.displayID)] = true end
@@ -211,20 +211,20 @@ function PSM.NPCDataLoader:_CalculateNPCData()
                 local isRare = classification == "Rare" or classification == "Rare Elite"
 
                 if matchesSearch
-                   and TristateMatch(panel.showRares, isRare)
-                   and TristateMatch(panel.showNameKeepers, nameKeeper or false)
-                   and TristateMatch(panel.showFavorites, IsAnyDisplayIdFavorite(displayIds))
-                   and TristateMatch(panel.showHideOwned, not IsAnyDisplayIdOwned(displayIds, ownedSet))
+                   and TristateMatch(PSM.FilterState:Get("showRares"), isRare)
+                   and TristateMatch(PSM.FilterState:Get("showNameKeepers"), nameKeeper or false)
+                   and TristateMatch(PSM.FilterState:Get("showFavorites"), IsAnyDisplayIdFavorite(displayIds))
+                   and TristateMatch(PSM.FilterState:Get("showHideOwned"), not IsAnyDisplayIdOwned(displayIds, ownedSet))
                    and (not PSM.state.selectedExpansions or not next(PSM.state.selectedExpansions)
                         or PSM.state.selectedExpansions[expansion])
                    and IsLocationSelected(uiMapName, PSM.state.selectedLocations)
                 then
                     local zoneOk = true
-                    if panel.showPetsInMyZone and panel.currentPlayerZone then
+                    if PSM.FilterState:Get("showPetsInMyZone") and panel.currentPlayerZone then
                         -- _IsZoneMatch reads columns via a denseIndex directly -- no need
                         -- to build a temporary {uiMapId=, npcId=, uiMapName=} shim.
                         local zoneMatch = PSM.ModelsDataLoader:_IsZoneMatch(i, panel.currentPlayerZone)
-                        zoneOk = TristateMatch(panel.showPetsInMyZone, zoneMatch)
+                        zoneOk = TristateMatch(PSM.FilterState:Get("showPetsInMyZone"), zoneMatch)
                     end
 
                     if zoneOk then
@@ -269,7 +269,7 @@ function PSM.NPCDataLoader:_ApplyNPCData(items)
         -- of its display IDs is owned, so a single owned display ID shared by
         -- many NPCs inflates the NPC count well past what was actually tamed.
         -- Report the distinct owned-display-ID count alongside it in that case.
-        if panel.showHideOwned == "inverted" then
+        if PSM.FilterState:Get("showHideOwned") == "inverted" then
             local ownedIds = {}
             for _, pet in ipairs(PSM.state.stablePets) do
                 if pet.displayID then ownedIds[tonumber(pet.displayID)] = true end

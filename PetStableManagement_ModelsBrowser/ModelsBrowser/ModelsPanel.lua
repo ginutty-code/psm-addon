@@ -266,7 +266,7 @@ function PSM.ModelsPanel:RegisterZoneEventListeners()
     f:RegisterEvent("ZONE_CHANGED_INDOORS")
     f:RegisterEvent("ZONE_CHANGED_NEW_AREA")
     f:SetScript("OnEvent", function()
-        if not (panel:IsVisible() and panel.showPetsInMyZone) then return end
+        if not (panel:IsVisible() and PSM.FilterState:Get("showPetsInMyZone")) then return end
 
         local newZone = PSM.ModelsFilters:GetPlayerZone()
         if newZone and newZone ~= panel.currentPlayerZone then

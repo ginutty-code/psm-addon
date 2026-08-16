@@ -1,4 +1,4 @@
-﻿-- ModelsBrowser/ModelsFilters.lua
+-- ModelsBrowser/ModelsFilters.lua
 -- Filtering system for the Pet Models Browser
 
 local addonName = "PetStableManagement"
@@ -182,104 +182,65 @@ end
 -- TRISTATE TOGGLES
 --------------------------------------------------------------------------------
 
-function PSM.ModelsFilters:CreateRaresToggle(panel)
-    -- Load saved state directly from SavedVariables
-    local db = PetStableManagementDB and PetStableManagementDB.filters
-    local savedState = db and db.showRares
-    panel.showRares = savedState
-    panel.raresToggle = CreateTristateCheckbox(panel, panel.showOnlyFrame, "Rares", function(state)
-        panel.showRares = state
-        PetStableManagementDB.filters = PetStableManagementDB.filters or {}
-        PetStableManagementDB.filters.showRares = state
+-- The three plain toggles differ only in their name, label and anchor, so they are one
+-- function called three times rather than three near-copies of the same eight lines. The
+-- two below this are genuinely different -- one inverts its meaning for display, the other
+-- has to resolve the player's zone -- and stay separate for that reason, not by accident.
+local function CreatePlainToggle(panel, key, label, anchorTo)
+    local toggle = CreateTristateCheckbox(panel, anchorTo, label, function(state)
+        PSM.FilterState:Set(key, state)
         ReloadAndSummarise()
         PSM.ModelsFilters:UpdateDynamicFilters()
     end)
-    -- Initialize checkbox state from loaded value
-    InitTristateCheckboxFromState(panel.raresToggle, panel.showRares)
+    InitTristateCheckboxFromState(toggle, PSM.FilterState:Get(key))
+    return toggle
+end
+
+function PSM.ModelsFilters:CreateRaresToggle(panel)
+    panel.raresToggle = CreatePlainToggle(panel, "showRares", "Rares", panel.showOnlyFrame)
 end
 
 function PSM.ModelsFilters:CreateFavoritesToggle(panel)
-    -- Load saved state directly from SavedVariables
-    local db = PetStableManagementDB and PetStableManagementDB.filters
-    local savedState = db and db.showFavorites
-    panel.showFavorites = savedState
-    panel.favoritesToggle = CreateTristateCheckbox(panel, panel.raresToggle, "Favorites", function(state)
-        panel.showFavorites = state
-        PetStableManagementDB.filters = PetStableManagementDB.filters or {}
-        PetStableManagementDB.filters.showFavorites = state
-        ReloadAndSummarise()
-        PSM.ModelsFilters:UpdateDynamicFilters()
-    end)
-    -- Initialize checkbox state from loaded value
-    InitTristateCheckboxFromState(panel.favoritesToggle, panel.showFavorites)
+    panel.favoritesToggle = CreatePlainToggle(panel, "showFavorites", "Favorites", panel.raresToggle)
 end
 
 function PSM.ModelsFilters:CreateHideOwnedToggle(panel)
-    -- Load saved state directly from SavedVariables
-    local db = PetStableManagementDB and PetStableManagementDB.filters
-    local savedState = db and db.showHideOwned
-    panel.showHideOwned = savedState
+    -- The checkbox and the filter mean opposite things here: a ticked box reads as "show
+    -- only owned" to the player, and is stored as "inverted". The mapping is applied in
+    -- both directions -- on change below, and on load when seeding the checkbox.
+    local function ToStored(state)
+        if state == true then return "inverted" end
+        if state == "inverted" then return true end
+        return nil
+    end
+
     panel.hideOwnedToggle = CreateTristateCheckbox(panel, panel.favoritesToggle, "Owned", function(state)
-        -- Logic change: true = show only owned, inverted = hide owned
-        if state == true then
-            panel.showHideOwned = "inverted"
-        elseif state == "inverted" then
-            panel.showHideOwned = true
-        else
-            panel.showHideOwned = nil
-        end
-        PetStableManagementDB.filters = PetStableManagementDB.filters or {}
-        PetStableManagementDB.filters.showHideOwned = panel.showHideOwned
+        PSM.FilterState:Set("showHideOwned", ToStored(state))
         ReloadAndSummarise()
         PSM.ModelsFilters:UpdateDynamicFilters()
     end)
-    -- Initialize checkbox state from loaded value, mapping the logic
-    local mappedState
-    if panel.showHideOwned == "inverted" then
-        mappedState = true
-    elseif panel.showHideOwned == true then
-        mappedState = "inverted"
-    else
-        mappedState = nil
-    end
-    InitTristateCheckboxFromState(panel.hideOwnedToggle, mappedState)
+    -- ToStored is its own inverse (true <-> "inverted", nil -> nil), so it serves both ways.
+    InitTristateCheckboxFromState(panel.hideOwnedToggle, ToStored(PSM.FilterState:Get("showHideOwned")))
 end
 
 function PSM.ModelsFilters:CreateNameKeepersToggle(panel)
-    -- Load saved state directly from SavedVariables
-    local db = PetStableManagementDB and PetStableManagementDB.filters
-    local savedState = db and db.showNameKeepers
-    panel.showNameKeepers = savedState
-    panel.nameKeepersToggle = CreateTristateCheckbox(panel, panel.hideOwnedToggle, "Name Keepers", function(state)
-        panel.showNameKeepers = state
-        PetStableManagementDB.filters = PetStableManagementDB.filters or {}
-        PetStableManagementDB.filters.showNameKeepers = state
-        ReloadAndSummarise()
-        PSM.ModelsFilters:UpdateDynamicFilters()
-    end)
-    -- Initialize checkbox state from loaded value
-    InitTristateCheckboxFromState(panel.nameKeepersToggle, panel.showNameKeepers)
+    panel.nameKeepersToggle = CreatePlainToggle(panel, "showNameKeepers", "Name Keepers", panel.hideOwnedToggle)
 end
 
 function PSM.ModelsFilters:CreatePetsInMyZoneToggle(panel)
-    -- Load saved state directly from SavedVariables
-    local db = PetStableManagementDB and PetStableManagementDB.filters
-    local savedState = db and db.showPetsInMyZone
-    panel.showPetsInMyZone = savedState
     -- A persisted "on" state needs currentPlayerZone resolved now too, or the zone check is
     -- silently a no-op (showPetsInMyZone true, currentPlayerZone nil) until the toggle is
     -- clicked again this session.
-    panel.currentPlayerZone = (savedState ~= nil) and PSM.ModelsFilters:GetPlayerZone() or nil
+    local saved = PSM.FilterState:Get("showPetsInMyZone")
+    panel.currentPlayerZone = (saved ~= nil) and PSM.ModelsFilters:GetPlayerZone() or nil
+
     panel.petsInMyZoneToggle = CreateTristateCheckbox(panel, panel.nameKeepersToggle, "Pets in My Zone", function(state)
         panel.currentPlayerZone = (state ~= nil) and PSM.ModelsFilters:GetPlayerZone() or nil
-        panel.showPetsInMyZone  = state
-        PetStableManagementDB.filters = PetStableManagementDB.filters or {}
-        PetStableManagementDB.filters.showPetsInMyZone = state
+        PSM.FilterState:Set("showPetsInMyZone", state)
         ReloadAndSummarise()
         PSM.ModelsFilters:UpdateDynamicFilters()
     end)
-    -- Initialize checkbox state from loaded value
-    InitTristateCheckboxFromState(panel.petsInMyZoneToggle, panel.showPetsInMyZone)
+    InitTristateCheckboxFromState(panel.petsInMyZoneToggle, saved)
 end
 
 function PSM.ModelsFilters:GetPlayerZone()
@@ -399,12 +360,11 @@ local function RepopulateAllTabs(panel)
 end
 
 function PSM.ModelsFilters:ResetAllFilters(panel)
-    panel.showRares        = false
-    panel.showFavorites    = false
-    panel.showNameKeepers  = false
-    panel.showPetsInMyZone = false
-    panel.showHideOwned    = false
-    panel.currentPlayerZone= nil
+    -- One call clears all five, and it clears them where they live. This used to set five
+    -- fields on the frame to `false` and the same five in SavedVariables to `nil` -- two
+    -- lists, kept in step by hand, that had to agree because both were read.
+    PSM.FilterState:Reset()
+    panel.currentPlayerZone = nil
 
     -- Reset state variables
     PSM.state.selectedTamingRules = nil
@@ -414,11 +374,6 @@ function PSM.ModelsFilters:ResetAllFilters(panel)
 
     -- Persist resets to SavedVariables
     if PetStableManagementDB and PetStableManagementDB.filters then
-        PetStableManagementDB.filters.showRares = nil
-        PetStableManagementDB.filters.showFavorites = nil
-        PetStableManagementDB.filters.showNameKeepers = nil
-        PetStableManagementDB.filters.showPetsInMyZone = nil
-        PetStableManagementDB.filters.showHideOwned = nil
         PetStableManagementDB.filters.selectedTamingRules = nil
         PetStableManagementDB.filters.selectedConditions = nil
         PetStableManagementDB.filters.selectedFamiliesFromAbilities = nil
@@ -1181,23 +1136,23 @@ function PSM.ModelsFilters:GenerateFilterSummary()
     end
 
         -- Tristate toggles
-    if panel.showRares == true then table.insert(filters, "Rares")
-    elseif panel.showRares == "inverted" then table.insert(filters, "Not Rares") end
+    if PSM.FilterState:Get("showRares") == true then table.insert(filters, "Rares")
+    elseif PSM.FilterState:Get("showRares") == "inverted" then table.insert(filters, "Not Rares") end
 
-    if panel.showFavorites == true then table.insert(filters, "Favorites")
-    elseif panel.showFavorites == "inverted" then table.insert(filters, "Not Favorites") end
+    if PSM.FilterState:Get("showFavorites") == true then table.insert(filters, "Favorites")
+    elseif PSM.FilterState:Get("showFavorites") == "inverted" then table.insert(filters, "Not Favorites") end
 
-    if panel.showNameKeepers == true then table.insert(filters, "Name Keepers")
-    elseif panel.showNameKeepers == "inverted" then table.insert(filters, "Not Name Keepers") end
+    if PSM.FilterState:Get("showNameKeepers") == true then table.insert(filters, "Name Keepers")
+    elseif PSM.FilterState:Get("showNameKeepers") == "inverted" then table.insert(filters, "Not Name Keepers") end
 
-    if panel.showPetsInMyZone and panel.currentPlayerZone then
-        local prefix = panel.showPetsInMyZone == "inverted" and "Not My Zone" or "My Zone"
+    if PSM.FilterState:Get("showPetsInMyZone") and panel.currentPlayerZone then
+        local prefix = PSM.FilterState:Get("showPetsInMyZone") == "inverted" and "Not My Zone" or "My Zone"
         local zoneName = self:GetPlayerZoneName(panel.currentPlayerZone)
         table.insert(filters, prefix .. " (" .. zoneName .. ")")
     end
 
-    if panel.showHideOwned == "inverted" then table.insert(filters, "Owned")
-    elseif panel.showHideOwned == true then table.insert(filters, "Not Owned") end
+    if PSM.FilterState:Get("showHideOwned") == "inverted" then table.insert(filters, "Owned")
+    elseif PSM.FilterState:Get("showHideOwned") == true then table.insert(filters, "Not Owned") end
 
     -- Search
     if (panel.searchBox:GetSearchText() or "") ~= "" then table.insert(filters, "Search") end

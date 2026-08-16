@@ -709,7 +709,7 @@ function ns.PopUpManager:CreateModelPopup(config)
         SetFavTexCoord(self, ns.state.favoriteModels[id])
         if ns.Data and ns.Data.SaveSettings then ns.Data:SaveSettings() end
         local panel = ns.state.modelsPanel
-        if panel and panel.showFavorites and ns.Browser.ModelsDataLoader then
+        if panel and ns.FilterState:Get("showFavorites") and ns.Browser.ModelsDataLoader then
             ns.Browser.ModelsDataLoader:LoadModelsForSelectedFamilies()
         end
     end)

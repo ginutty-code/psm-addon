@@ -447,7 +447,7 @@ function ns.RowManager:CreateBaseRow(parent, config)
         SetFavTexCoords(isFav)
         if ns.Data and ns.Data.SaveSettings then ns.Data:SaveSettings() end
         local panel = ns.state.modelsPanel
-        if panel and panel.showFavorites then
+        if panel and ns.FilterState:Get("showFavorites") then
             ns.Browser.ModelsDataLoader:LoadModelsForSelectedFamilies()
         end
     end)

@@ -71,18 +71,18 @@ end
 -- Build the portion of any cache key that describes active panel filters.
 local function PanelFilterFragment(panel)
     local zoneKey = ""
-    if panel and panel.showPetsInMyZone and panel.currentPlayerZone then
-        zoneKey = panel.currentPlayerZone .. (panel.showPetsInMyZone == "inverted" and "_inv," or ",")
+    if panel and PSM.FilterState:Get("showPetsInMyZone") and panel.currentPlayerZone then
+        zoneKey = panel.currentPlayerZone .. (PSM.FilterState:Get("showPetsInMyZone") == "inverted" and "_inv," or ",")
     end
 
     local raresKey = ""
-    if panel and panel.showRares then
-        raresKey = (panel.showRares == "inverted" and "not_rares," or "rares,")
+    if panel and PSM.FilterState:Get("showRares") then
+        raresKey = (PSM.FilterState:Get("showRares") == "inverted" and "not_rares," or "rares,")
     end
 
     local nameKeepersKey = ""
-    if panel and panel.showNameKeepers then
-        nameKeepersKey = (panel.showNameKeepers == "inverted" and "not_namekeepers," or "namekeepers,")
+    if panel and PSM.FilterState:Get("showNameKeepers") then
+        nameKeepersKey = (PSM.FilterState:Get("showNameKeepers") == "inverted" and "not_namekeepers," or "namekeepers,")
     end
 
     return zoneKey, raresKey, nameKeepersKey
@@ -98,8 +98,8 @@ function PSM.ModelsDataLoader:GenerateCacheKey()
 
     local favoritesKey = SelectedMapKey(PSM.state.favoriteModels)
 
-    local modeKey = panel.showFavorites == true and "favorites"
-               or (panel.showFavorites == "inverted" and "not_favorites" or "browse")
+    local modeKey = PSM.FilterState:Get("showFavorites") == true and "favorites"
+               or (PSM.FilterState:Get("showFavorites") == "inverted" and "not_favorites" or "browse")
 
     local tamingKey = ""
     local selRules = PSM.state.selectedTamingRules
@@ -111,7 +111,7 @@ function PSM.ModelsDataLoader:GenerateCacheKey()
     end
 
     local condKey = SelectedMapKey(PSM.state.selectedConditions)
-    local ownedKey = tostring(panel.showHideOwned or "none")
+    local ownedKey = tostring(PSM.FilterState:Get("showHideOwned") or "none")
 
     return string.format("%s_%s_%s_%s_%s_%s_%s_%s_%s_%s_%s_%s_%s",
         modeKey,
@@ -143,8 +143,8 @@ end
 
 -- Builds a displayId -> true set once per caller pass, only when Hide Owned
 -- is active -- avoids the same O(displayIds x stablePets) trap NPCDataLoader had.
-local function BuildOwnedDisplaySet(panel)
-    if not panel.showHideOwned then return nil end
+local function BuildOwnedDisplaySet()
+    if not PSM.FilterState:Get("showHideOwned") then return nil end
     local set = {}
     for _, pet in ipairs(PSM.state.stablePets) do
         if pet.displayID then set[tonumber(pet.displayID)] = true end
@@ -153,8 +153,8 @@ local function BuildOwnedDisplaySet(panel)
 end
 
 -- Check whether a display entry passes the current favorites + rares + ownership filters.
-local function DisplayPassesFilters(panel, displayData, ownedSet)
-    local favOk = TristateMatch(panel.showFavorites,
+local function DisplayPassesFilters(displayData, ownedSet)
+    local favOk = TristateMatch(PSM.FilterState:Get("showFavorites"),
         PSM.state.favoriteModels and PSM.state.favoriteModels[displayData.displayId] or false)
     if not favOk then return false end
 
@@ -167,7 +167,7 @@ local function DisplayPassesFilters(panel, displayData, ownedSet)
             end
         end
     end
-    if not TristateMatch(panel.showRares, isRare) then return false end
+    if not TristateMatch(PSM.FilterState:Get("showRares"), isRare) then return false end
 
     -- Name Keepers filter
     local isNameKeeper = false
@@ -178,13 +178,13 @@ local function DisplayPassesFilters(panel, displayData, ownedSet)
             end
         end
     end
-    if not TristateMatch(panel.showNameKeepers, isNameKeeper) then return false end
+    if not TristateMatch(PSM.FilterState:Get("showNameKeepers"), isNameKeeper) then return false end
 
     -- Ownership filter: check if display is owned
     local isOwned = ownedSet and ownedSet[displayData.displayId] or false
     -- For "Hide Owned": true means hide owned (show not owned), inverted means show only owned
     local ownedMatch = not isOwned
-    if not TristateMatch(panel.showHideOwned, ownedMatch) then return false end
+    if not TristateMatch(PSM.FilterState:Get("showHideOwned"), ownedMatch) then return false end
 
     -- Taming rules filter (OR logic: show models requiring ANY of the selected rules)
     local selRules = PSM.state.selectedTamingRules
@@ -473,14 +473,14 @@ function PSM.ModelsDataLoader:_CalculateModelsData()
     local searchLower = searchText ~= "" and searchText:lower() or ""
 
     -- Build flat item list, applying favorites + rares filters early
-    local ownedSet = BuildOwnedDisplaySet(panel)
+    local ownedSet = BuildOwnedDisplaySet()
     local allItems = {}
     for _, familyName in ipairs(selectedFamilies) do
         local familyData = PSM.PetModels:GetFamilyModels(familyName)
         if familyData and familyData.displayIds then
             for _, displayData in ipairs(familyData.displayIds) do
                 if not PSM.Config.EXCLUDED_DISPLAY_IDS[displayData.displayId]
-                   and DisplayPassesFilters(panel, displayData, ownedSet) then
+                   and DisplayPassesFilters(displayData, ownedSet) then
                      
                      -- Cache NPC descriptions in a side-table keyed by denseIndex (npc is
                      -- a bare index, not an object, so it can't hold its own field) so
@@ -621,7 +621,7 @@ function PSM.ModelsDataLoader:_CalculateModelsData()
     end
 
     -- Zone filter
-    if panel.showPetsInMyZone and panel.currentPlayerZone then
+    if PSM.FilterState:Get("showPetsInMyZone") and panel.currentPlayerZone then
         local filtered = {}
         for _, item in ipairs(allItems) do
             local zoneMatch = false
@@ -632,7 +632,7 @@ function PSM.ModelsDataLoader:_CalculateModelsData()
                     end
                 end
             end
-            if TristateMatch(panel.showPetsInMyZone, zoneMatch) then
+            if TristateMatch(PSM.FilterState:Get("showPetsInMyZone"), zoneMatch) then
                 table.insert(filtered, item)
             end
         end
@@ -674,15 +674,15 @@ function PSM.ModelsDataLoader:GetAvailableFamiliesForFilters()
     for _, s in pairs(selectedLocations) do if s then hasLocFilter = true; break end end
 
     local hasOtherFilters = hasExpFilter or hasLocFilter
-                         or panel.showRares ~= nil or panel.showFavorites ~= nil
-                         or panel.showNameKeepers ~= nil or panel.showHideOwned ~= nil
-                         or (panel.showPetsInMyZone and panel.currentPlayerZone)
+                         or PSM.FilterState:Get("showRares") ~= nil or PSM.FilterState:Get("showFavorites") ~= nil
+                         or PSM.FilterState:Get("showNameKeepers") ~= nil or PSM.FilterState:Get("showHideOwned") ~= nil
+                         or (PSM.FilterState:Get("showPetsInMyZone") and panel.currentPlayerZone)
                          or (PSM.state.selectedTamingRules and next(PSM.state.selectedTamingRules))
                          or (PSM.state.selectedConditions and next(PSM.state.selectedConditions))
 
     if not hasOtherFilters then return panel.familiesList or {} end
 
-    local ownedSet = BuildOwnedDisplaySet(panel)
+    local ownedSet = BuildOwnedDisplaySet()
     local result, seen = {}, {}
     for _, familyName in ipairs(panel.familiesList or {}) do
         local fd = PSM.PetModels:GetFamilyModels(familyName)
@@ -690,13 +690,13 @@ function PSM.ModelsDataLoader:GetAvailableFamiliesForFilters()
             local matched = false
             for _, displayData in ipairs(fd.displayIds) do
                 if not PSM.Config.EXCLUDED_DISPLAY_IDS[displayData.displayId]
-                   and DisplayPassesFilters(panel, displayData, ownedSet) then
+                   and DisplayPassesFilters(displayData, ownedSet) then
                     if displayData.npcs then
                         for _, npc in ipairs(displayData.npcs) do
                             local expOk = not hasExpFilter or self:_IsExpansionSelected(PSM.PetModels.NpcExpansion(npc), selectedExpansions)
                             local locOk = not hasLocFilter or self:_IsLocationSelected(PSM.PetModels.NpcLocation(npc), selectedLocations)
-                            local zoneOk = not (panel.showPetsInMyZone and panel.currentPlayerZone)
-                                        or TristateMatch(panel.showPetsInMyZone, self:_IsZoneMatch(npc, panel.currentPlayerZone))
+                            local zoneOk = not (PSM.FilterState:Get("showPetsInMyZone") and panel.currentPlayerZone)
+                                        or TristateMatch(PSM.FilterState:Get("showPetsInMyZone"), self:_IsZoneMatch(npc, panel.currentPlayerZone))
                             if expOk and locOk and zoneOk then matched = true; break end
                         end
                     end
@@ -727,9 +727,9 @@ function PSM.ModelsDataLoader:GetAvailableExpansionsForFilters()
     for _, s in pairs(selectedLocations) do if s then hasLocFilter = true; break end end
 
     local hasOtherFilters = hasFamFilter or hasLocFilter
-                         or panel.showRares ~= nil or panel.showFavorites ~= nil
-                         or panel.showNameKeepers ~= nil or panel.showHideOwned ~= nil
-                         or (panel.showPetsInMyZone and panel.currentPlayerZone)
+                         or PSM.FilterState:Get("showRares") ~= nil or PSM.FilterState:Get("showFavorites") ~= nil
+                         or PSM.FilterState:Get("showNameKeepers") ~= nil or PSM.FilterState:Get("showHideOwned") ~= nil
+                         or (PSM.FilterState:Get("showPetsInMyZone") and panel.currentPlayerZone)
                          or (PSM.state.selectedTamingRules and next(PSM.state.selectedTamingRules))
                          or (PSM.state.selectedConditions and next(PSM.state.selectedConditions))
 
@@ -740,7 +740,7 @@ function PSM.ModelsDataLoader:GetAvailableExpansionsForFilters()
         return result
     end
 
-    local ownedSet = BuildOwnedDisplaySet(panel)
+    local ownedSet = BuildOwnedDisplaySet()
     local result, seen = {}, {}
     for _, familyName in ipairs(panel.familiesList or {}) do
         if not hasFamFilter or PSM.state.selectedModelsFamilies[familyName] then
@@ -748,12 +748,12 @@ function PSM.ModelsDataLoader:GetAvailableExpansionsForFilters()
             if fd and fd.displayIds then
                 for _, displayData in ipairs(fd.displayIds) do
                     if not PSM.Config.EXCLUDED_DISPLAY_IDS[displayData.displayId]
-                       and DisplayPassesFilters(panel, displayData, ownedSet) then
+                       and DisplayPassesFilters(displayData, ownedSet) then
                         if displayData.npcs then
                             for _, npc in ipairs(displayData.npcs) do
                                 local locOk = not hasLocFilter or self:_IsLocationSelected(PSM.PetModels.NpcLocation(npc), selectedLocations)
-                                local zoneOk = not (panel.showPetsInMyZone and panel.currentPlayerZone)
-                                            or TristateMatch(panel.showPetsInMyZone, self:_IsZoneMatch(npc, panel.currentPlayerZone))
+                                local zoneOk = not (PSM.FilterState:Get("showPetsInMyZone") and panel.currentPlayerZone)
+                                            or TristateMatch(PSM.FilterState:Get("showPetsInMyZone"), self:_IsZoneMatch(npc, panel.currentPlayerZone))
                                 local expansion = PSM.PetModels.NpcExpansion(npc)
                                 if locOk and zoneOk and expansion and not seen[expansion] then
                                     seen[expansion] = true
@@ -784,9 +784,9 @@ function PSM.ModelsDataLoader:GetAvailableLocationsForFilters()
     for _, s in pairs(selectedExpansions) do if s then hasExpFilter = true; break end end
 
     local hasOtherFilters = hasFamFilter or hasExpFilter
-                         or panel.showRares ~= nil or panel.showFavorites ~= nil
-                         or panel.showNameKeepers ~= nil or panel.showHideOwned ~= nil
-                         or (panel.showPetsInMyZone and panel.currentPlayerZone)
+                         or PSM.FilterState:Get("showRares") ~= nil or PSM.FilterState:Get("showFavorites") ~= nil
+                         or PSM.FilterState:Get("showNameKeepers") ~= nil or PSM.FilterState:Get("showHideOwned") ~= nil
+                         or (PSM.FilterState:Get("showPetsInMyZone") and panel.currentPlayerZone)
                          or (PSM.state.selectedTamingRules and next(PSM.state.selectedTamingRules))
                          or (PSM.state.selectedConditions and next(PSM.state.selectedConditions))
 
@@ -797,7 +797,7 @@ function PSM.ModelsDataLoader:GetAvailableLocationsForFilters()
         return result
     end
 
-    local ownedSet = BuildOwnedDisplaySet(panel)
+    local ownedSet = BuildOwnedDisplaySet()
     local result, seen = {}, {}
     for _, familyName in ipairs(panel.familiesList or {}) do
         if not hasFamFilter or PSM.state.selectedModelsFamilies[familyName] then
@@ -805,19 +805,19 @@ function PSM.ModelsDataLoader:GetAvailableLocationsForFilters()
             if fd and fd.displayIds then
                 for _, displayData in ipairs(fd.displayIds) do
                     if not PSM.Config.EXCLUDED_DISPLAY_IDS[displayData.displayId]
-                       and DisplayPassesFilters(panel, displayData, ownedSet) then
+                       and DisplayPassesFilters(displayData, ownedSet) then
                         if displayData.npcs then
                             for _, npc in ipairs(displayData.npcs) do
                                 local expOk = not hasExpFilter or self:_IsExpansionSelected(PSM.PetModels.NpcExpansion(npc), selectedExpansions)
-                                local inMyZone = panel.showPetsInMyZone and panel.currentPlayerZone
+                                local inMyZone = PSM.FilterState:Get("showPetsInMyZone") and panel.currentPlayerZone
                                               and self:_IsZoneMatch(npc, panel.currentPlayerZone)
-                                local zoneOk = not (panel.showPetsInMyZone and panel.currentPlayerZone)
-                                            or TristateMatch(panel.showPetsInMyZone, inMyZone)
+                                local zoneOk = not (PSM.FilterState:Get("showPetsInMyZone") and panel.currentPlayerZone)
+                                            or TristateMatch(PSM.FilterState:Get("showPetsInMyZone"), inMyZone)
                                 if expOk and zoneOk then
-                                    if panel.showPetsInMyZone == true and inMyZone then
+                                    if PSM.FilterState:Get("showPetsInMyZone") == true and inMyZone then
                                         -- _IsZoneMatch also matches via CoordsData (an NPC can
                                         -- spawn in more zones than the single one ModelsData
-                                        -- recorded for it) — attribute the player's own zone
+                                        -- recorded for it) â€” attribute the player's own zone
                                         -- here rather than npc.location, or NPCs that also
                                         -- spawn elsewhere leak their other zone into the list.
                                         local zone = _G.CoordsData and _G.CoordsData[tonumber(panel.currentPlayerZone)]

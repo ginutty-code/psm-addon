@@ -31,6 +31,7 @@ local _, ns = ...
 local PUBLIC_API = {
     "Config",        -- constants: colours, sizes, strings
     "Data",          -- SavedVariables access
+    "FilterState",   -- the Models Browser's five tristate toggles, and their only accessor
     "PanelManager",  -- panel chrome: CreateBasePanel, TogglePanel, search boxes
     "PopUpManager",  -- shared popups, incl. ShowURLPopup for Wowhead links
     "RowManager",    -- model rotation/zoom hover controls, ReleaseModel
