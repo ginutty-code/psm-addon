@@ -163,7 +163,13 @@ end
 -- "inverted" third state is gone; see that function for why it never meant anything
 -- distinct here.
 local function IsLocationSelected(uiMapName, selectedLocations)
-    if not selectedLocations or not next(selectedLocations) then return true end
+    -- **Absent and empty are different answers, and conflating them was a real bug.**
+    -- No table at all means the filter has never been initialised, so nothing is being
+    -- asked -- show everything. An *empty* table is the player having clicked "None", which
+    -- is a filter that matches nothing. Both used to return true here, so "None" on the
+    -- Locations tab left the NPC list untouched while the Models view correctly emptied.
+    if not selectedLocations then return true end
+    if not next(selectedLocations) then return false end
 
     local userHasActive = false
     for _, state in pairs(selectedLocations) do
@@ -173,6 +179,15 @@ local function IsLocationSelected(uiMapName, selectedLocations)
 
     if not uiMapName then return false end
     return selectedLocations[uiMapName] == true
+end
+
+-- The same absent/empty distinction for expansions, which had the identical defect written
+-- inline at the filter site. Mirrors `_CalculateModelsData`'s expansion block: with nothing
+-- selected, the only things that still qualify are entries carrying no expansion data.
+local function IsExpansionSelected(expansion, selectedExpansions)
+    if not selectedExpansions then return true end
+    if not next(selectedExpansions) then return not expansion end
+    return (expansion and selectedExpansions[expansion]) and true or false
 end
 
 --------------------------------------------------------------------------------
@@ -274,8 +289,7 @@ function PSM.NPCDataLoader:_CalculateNPCData()
                    and TristateMatch(PSM.FilterState:Get("showNameKeepers"), nameKeeper or false)
                    and TristateMatch(PSM.FilterState:Get("showFavorites"), IsAnyDisplayIdFavorite(displayIds))
                    and TristateMatch(PSM.FilterState:Get("showHideOwned"), not IsAnyDisplayIdOwned(displayIds, ownedSet))
-                   and (not PSM.state.selectedExpansions or not next(PSM.state.selectedExpansions)
-                        or PSM.state.selectedExpansions[expansion])
+                   and IsExpansionSelected(expansion, PSM.state.selectedExpansions)
                    and IsLocationSelected(uiMapName, PSM.state.selectedLocations)
                 then
                     local zoneOk = true

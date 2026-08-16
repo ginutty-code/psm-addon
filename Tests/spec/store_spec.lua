@@ -189,3 +189,133 @@ describe("Store selectors", function()
         truthy(Store:Version("pets"):sub(1, 1) == "f", "fingerprinted slices prefix f")
     end)
 end)
+
+-- A5.1 step 4. The watcher is what let the eleven hand-written refresh pairs go, so the
+-- properties that make it a safe replacement have to be established, not assumed.
+describe("Store watchers", function()
+    -- Stands in for C_Timer.After(0, ...). Holding the callbacks rather than running them
+    -- is what makes coalescing observable: the count of queued flushes *is* the assertion.
+    local function withScheduler()
+        local Store, Selections, FilterState, ns = freshStore()
+        local queue = {}
+        Store:SetScheduler(function(fn) queue[#queue + 1] = fn end)
+        -- **Emptied in place, never rebound.** `queue` is handed back by reference, so
+        -- `queue = {}` here would leave every caller measuring a table this stopped writing
+        -- to -- which is exactly how the re-entrancy test below first passed against code
+        -- that was broken. Same identity-preserving reason as Selections:Clear.
+        local function drain()
+            local pending = {}
+            for i = 1, #queue do pending[i] = queue[i]; queue[i] = nil end
+            for _, fn in ipairs(pending) do fn() end
+        end
+        return Store, Selections, FilterState, ns, queue, drain
+    end
+
+    it("refuses to register without a scheduler", function()
+        local Store = freshStore()
+        local ok = pcall(function() Store:Watch({ "families" }, function() end) end)
+        eq(ok, false, "a watcher with no scheduler would never fire, so registering fails")
+    end)
+
+    it("does not fire on registration", function()
+        local Store, _, _, _, _, drain = withScheduler()
+        local fired = 0
+        Store:Watch({ "families" }, function() fired = fired + 1 end)
+        drain()
+        eq(fired, 0, "arriving is not a change")
+    end)
+
+    it("fires once after a dependency moves", function()
+        local Store, Selections, _, _, _, drain = withScheduler()
+        local fired = 0
+        Store:Watch({ "families" }, function() fired = fired + 1 end)
+        Selections:Set("families", "Wolf", true)
+        drain()
+        eq(fired, 1, "fired")
+        drain()
+        eq(fired, 1, "and not again while nothing moves")
+    end)
+
+    -- **The reason the watcher is scheduled rather than called straight from Bump.**
+    -- Selections:SetAll writes one key at a time, so selecting a continent bumps `locations`
+    -- once per location. Firing per bump would reload the whole model list fifteen times for
+    -- a single click -- worse than the hand-written pairs it replaces.
+    it("coalesces a burst of writes into one flush", function()
+        local Store, Selections, _, _, queue, drain = withScheduler()
+        local fired = 0
+        Store:Watch({ "locations" }, function() fired = fired + 1 end)
+
+        local locs = {}
+        for i = 1, 15 do locs[i] = "Zone" .. i end
+        Selections:SetAll("locations", locs, true)
+
+        eq(#queue, 1, "fifteen bumps queued one flush")
+        drain()
+        eq(fired, 1, "and the watcher ran once")
+    end)
+
+    it("does not fire for a slice outside its dependency list", function()
+        local Store, Selections, _, _, _, drain = withScheduler()
+        local fired = 0
+        Store:Watch({ "expansions" }, function() fired = fired + 1 end)
+        Selections:Set("families", "Wolf", true)
+        drain()
+        eq(fired, 0, "families is not watched")
+    end)
+
+    it("does not fire for a no-op write", function()
+        local Store, Selections, _, _, _, drain = withScheduler()
+        Selections:Set("families", "Wolf", true)
+        local fired = 0
+        Store:Watch({ "families" }, function() fired = fired + 1 end)
+        Selections:Set("families", "Wolf", true)
+        drain()
+        eq(fired, 0, "writing the same value again is not a change")
+    end)
+
+    -- A fingerprinted dependency is compared at flush time like any other, so once a flush
+    -- happens the swapped pet is seen. What wakes the flush is the separate question below.
+    it("sees a fingerprinted dependency change once a flush happens", function()
+        local Store, Selections, _, ns, _, drain = withScheduler()
+        ns.state.stablePets = { { displayID = 111 } }
+        local fired = 0
+        Store:Watch({ "pets", "families" }, function() fired = fired + 1 end)
+
+        ns.state.stablePets = { { displayID = 222 } }
+        Selections:Set("families", "Wolf", true)   -- the bump that wakes the flush
+        drain()
+        eq(fired, 1, "the pets change was picked up at flush time")
+    end)
+
+    -- **The known gap, asserted rather than left to be discovered.** Only a Bump schedules a
+    -- flush, and fingerprinted slices have no write funnel to bump from -- so a pet tamed
+    -- with nothing else touched does not wake a watcher by itself. Those slices keep their
+    -- own refresh paths (stable events, the favourite click), so nothing regressed; this
+    -- test exists so the limit is visible and a future funnel has something to flip.
+    it("is not woken by a fingerprinted slice on its own", function()
+        local Store, _, _, ns, queue = withScheduler()
+        local fired = 0
+        Store:Watch({ "pets" }, function() fired = fired + 1 end)
+        ns.state.stablePets = { { displayID = 999 } }
+        eq(#queue, 0, "no flush was scheduled")
+        eq(fired, 0, "so the watcher did not fire")
+    end)
+
+    it("lets a callback's own write schedule the next flush", function()
+        -- Flush clears the queued flag before running callbacks. If it cleared it after, a
+        -- bump made *by* a callback would be swallowed and that change would never refresh.
+        local Store, Selections, _, _, queue, drain = withScheduler()
+        local fired = 0
+        Store:Watch({ "families" }, function()
+            fired = fired + 1
+            if fired == 1 then Selections:Set("expansions", "Classic", true) end
+        end)
+        Store:Watch({ "expansions" }, function() fired = fired + 100 end)
+
+        Selections:Set("families", "Wolf", true)
+        drain()
+        eq(#queue, 1, "the callback's write queued another flush")
+        drain()
+        eq(fired, 101, "and the second watcher ran on it")
+    end)
+end)

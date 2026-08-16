@@ -302,19 +302,39 @@ The Models Browser panel has two render modes controlled by
 components. Both modes read the *same* `PSM.state.selectedModelsFamilies` /
 `.selectedExpansions` / `.selectedLocations` filters.
 
-Whenever you change filter state and need to refresh the visible list, call
-the shared helper — **don't call `PSM.ModelsDataLoader` directly**, or you'll
-silently skip refreshing the NPC view when it's the active mode (this was a
-real bug, fixed 2026-08-09):
+**Writing a filter slice is enough — do not call a reload as well.** The five
+selection sets and the toggles are store slices, and `ModelsFilters` holds one
+`PSM.Store:Watch` subscription over them. Writing through `PSM.Selections` or
+`PSM.FilterState` schedules the refresh:
+
+```lua
+PSM.Selections:Set("families", "Wolf", true)   -- that is the whole call site
+```
+
+Nine hand-written `ReloadAndSummarise() + UpdateDynamicFilters()` pairs used to sit after
+writes like that one. They are gone; adding a tenth is a regression, not a precaution.
+The store coalesces a burst into one flush on the next frame, so a bulk write
+(`SetAll` over fifteen locations) reloads once rather than fifteen times.
+
+**The explicit helper is still right for anything that is *not* a slice.** Search is the
+live example — `panel.searchBox` has no slice, so `CreateSearchBox` keeps its own pair, and
+`ResetAllFilters` keeps its reload because it clears the search box. In those cases call:
 
 ```lua
 PSM.ModelsFilters:ReloadAndSummarise()
 ```
 
-It branches on `panel.modelsViewMode`, calls the right loader
-(`ModelsDataLoader` vs `NPCDataLoader`), then updates the filter summary and
-persists selections. `AbilityBrowser.lua`'s and `SpecialTames.lua`'s "Apply"
-buttons both route through this now.
+**Don't call `PSM.ModelsDataLoader` directly** — you'll silently skip refreshing the NPC
+view when it's the active mode (a real bug, fixed 2026-08-09). `ReloadAndSummarise`
+branches on `panel.modelsViewMode`, calls the right loader (`ModelsDataLoader` vs
+`NPCDataLoader`), then updates the filter summary and persists selections.
+`AbilityBrowser.lua`'s and `SpecialTames.lua`'s "Apply" buttons still route through it.
+
+Two things the watcher deliberately does not cover, both asserted in `store_spec`:
+`panel` is not watched (it bumps when the filter system is rebuilt, and watching it would
+turn construction into a reload), and **only a `Bump` wakes a flush** — so the
+fingerprinted slices (`pets`, `favorites`, `zone`) do not trigger one on their own and keep
+their existing refresh paths.
 
 ## README.md is a feature list, not a changelog
 

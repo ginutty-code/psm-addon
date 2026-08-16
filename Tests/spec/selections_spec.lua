@@ -209,6 +209,7 @@ describe("Selections is the only writer", function()
         DeepCopy = true,                    -- Utils, returns a copy
         SelectedMapKey = true,              -- both loaders, builds a cache-key string
         IsLocationSelected = true,          -- NPCDataLoader, pure predicate
+        IsExpansionSelected = true,         -- NPCDataLoader, pure predicate
         _IsLocationSelected = true,         -- ModelsDataLoader, pure predicate
         _IsExpansionSelected = true,        -- ModelsDataLoader, pure predicate
         ComputeMatchingFamilies = true,     -- SpecialTames, returns a new set

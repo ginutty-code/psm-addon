@@ -175,6 +175,45 @@ function PSM.ModelsFilters:ReloadAndSummarise()
 end
 
 --------------------------------------------------------------------------------
+-- THE FILTER-CHANGE SUBSCRIPTION
+--------------------------------------------------------------------------------
+
+-- **A5.1 step 4.** This replaces nine hand-written
+-- `ReloadAndSummarise() + UpdateDynamicFilters()` pairs. They were not two steps that both
+-- had to happen: `ReloadAndSummarise` arms a debounce timer and returns, and the timer's
+-- callback ends by calling `UpdateDynamicFilters` itself. The hand-written second half ran
+-- *first*, synchronously, so the pill list narrowed on the click instead of 10-150ms later.
+-- Preserved here, in one place, rather than retyped at every write site -- which is the
+-- point, because a refresh a call site has to remember is one a call site can forget.
+--
+-- Three of those sites also called `PopulateUnifiedFilterCheckboxes(panel)` immediately
+-- before `UpdateDynamicFilters()`, which is that same function behind a nil-panel guard.
+-- Each rebuilt the entire checkbox list twice per click. They go with the rest.
+--
+-- **`panel` is deliberately not watched.** It bumps when the filter system is rebuilt, and
+-- a rebuild already populates; watching it would turn construction into a reload.
+--
+-- **`search` is not a slice**, so the search box keeps its explicit pair -- see CreateSearchBox.
+local FILTER_SLICES = {
+    "families", "expansions", "locations", "tamingRules", "conditions",
+    "toggles", "favorites", "pets", "zone",
+}
+
+local watching = false
+
+local function WatchFilterState()
+    -- BuildUnifiedFilterSystem runs again whenever the panel is rebuilt, and a second
+    -- watcher would mean a second reload per change.
+    if watching then return end
+    watching = true
+
+    PSM.Store:Watch(FILTER_SLICES, function()
+        ReloadAndSummarise()
+        PSM.ModelsFilters:UpdateDynamicFilters()
+    end)
+end
+
+--------------------------------------------------------------------------------
 -- TRISTATE TOGGLES
 --------------------------------------------------------------------------------
 
@@ -185,8 +224,6 @@ end
 local function CreatePlainToggle(panel, key, label, anchorTo)
     local toggle = CreateTristateCheckbox(panel, anchorTo, label, function(state)
         PSM.FilterState:Set(key, state)
-        ReloadAndSummarise()
-        PSM.ModelsFilters:UpdateDynamicFilters()
     end)
     InitTristateCheckboxFromState(toggle, PSM.FilterState:Get(key))
     return toggle
@@ -212,8 +249,6 @@ function PSM.ModelsFilters:CreateHideOwnedToggle(panel)
 
     panel.hideOwnedToggle = CreateTristateCheckbox(panel, panel.favoritesToggle, "Owned", function(state)
         PSM.FilterState:Set("showHideOwned", ToStored(state))
-        ReloadAndSummarise()
-        PSM.ModelsFilters:UpdateDynamicFilters()
     end)
     -- ToStored is its own inverse (true <-> "inverted", nil -> nil), so it serves both ways.
     InitTristateCheckboxFromState(panel.hideOwnedToggle, ToStored(PSM.FilterState:Get("showHideOwned")))
@@ -231,10 +266,10 @@ function PSM.ModelsFilters:CreatePetsInMyZoneToggle(panel)
     panel.currentPlayerZone = (saved ~= nil) and PSM.ModelsFilters:GetPlayerZone() or nil
 
     panel.petsInMyZoneToggle = CreateTristateCheckbox(panel, panel.nameKeepersToggle, "Pets in My Zone", function(state)
+        -- The zone is resolved *before* the toggle is stored, so the flush the store
+        -- schedules off that write already sees the new `zone` fingerprint.
         panel.currentPlayerZone = (state ~= nil) and PSM.ModelsFilters:GetPlayerZone() or nil
         PSM.FilterState:Set("showPetsInMyZone", state)
-        ReloadAndSummarise()
-        PSM.ModelsFilters:UpdateDynamicFilters()
     end)
     InitTristateCheckboxFromState(panel.petsInMyZoneToggle, saved)
 end
@@ -399,6 +434,9 @@ function PSM.ModelsFilters:ResetAllFilters(panel)
     if panel.locationList  then SelectAll("locations",  panel.locationList)  end
 
     RepopulateAllTabs(panel)
+    -- Kept, unlike the nine pairs the store's watcher replaced: this also clears the search
+    -- box, and `search` is not a slice, so nothing above would refresh for it. Harmless when
+    -- the watcher fires too -- ReloadAndSummarise cancels and re-arms one debounce timer.
     ReloadAndSummarise()
 
     if PSM.SpecialTames and PSM.SpecialTames.ResetInternalState then
@@ -585,6 +623,11 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
     -- place it changes, so it is the only place the slice needs bumping.
     PSM.Store:Bump("panel")
 
+    -- Registered *after* the InitStateIfEmpty writes above, not before: Watch records the
+    -- current version as its baseline, so registering here means seeding a fresh panel's
+    -- selections does not read as a filter change and trigger a reload on construction.
+    WatchFilterState()
+
     -- Locations are two-state now. A saved "inverted" from the old three-state cycle
     -- already meant the same thing as unselected -- both excluded the location -- so fold
     -- it in rather than leaving a value the UI can render but no longer produce. Setting an
@@ -704,9 +747,6 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
             elseif panel.currentFilterType == "expansions" then SelectAll("expansions", expansionList)
             elseif panel.currentFilterType == "locations"  then SelectAll("locations",  locationList)
             end
-            PSM.ModelsFilters:PopulateUnifiedFilterCheckboxes(panel)
-            ReloadAndSummarise()
-            PSM.ModelsFilters:UpdateDynamicFilters()
         end,
     })
 
@@ -715,9 +755,6 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
         elseif panel.currentFilterType == "expansions" then PSM.Selections:Clear("expansions")
         elseif panel.currentFilterType == "locations"  then PSM.Selections:Clear("locations")
         end
-        PSM.ModelsFilters:PopulateUnifiedFilterCheckboxes(panel)
-        ReloadAndSummarise()
-        PSM.ModelsFilters:UpdateDynamicFilters()
     end)
 
     -- S rather than XS: this button relabels itself to the longer "!Exotic", and at XS
@@ -782,9 +819,6 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
                 selectExoticBtn:SetText("Exotic")
             end
         end
-        PSM.ModelsFilters:PopulateUnifiedFilterCheckboxes(panel)
-        ReloadAndSummarise()
-        PSM.ModelsFilters:UpdateDynamicFilters()
     end)
 
     ---------- Scroll frame for checkboxes ----------
@@ -882,8 +916,6 @@ function PSM.ModelsFilters:PopulateUnifiedFilterCheckboxes(panel)
             if     panel.currentFilterType == "families"   then PSM.Selections:Set("families",   item, self:GetChecked())
             elseif panel.currentFilterType == "expansions" then PSM.Selections:Set("expansions", item, self:GetChecked())
             end
-            ReloadAndSummarise()
-            PSM.ModelsFilters:UpdateDynamicFilters()
         end)
         cb:Show()
         table.insert(panel.filterCheckboxes, cb)
@@ -949,8 +981,6 @@ local function CreateLocationRow(panel, index, item, yOffset)
         local selected = PSM.Selections:Get("locations")[item] == true
         PSM.Selections:Set("locations", item, (not selected) or nil)
         UpdateVisual()
-        ReloadAndSummarise()
-        PSM.ModelsFilters:UpdateDynamicFilters()
     end)
 
     cb:Show()
@@ -1036,9 +1066,10 @@ local function CreateContinentHeader(panel, index, continentName, locs, yOffset)
                 if PSM.state.selectedLocations[loc] ~= true then hasUnselected = true break end
             end
             local nextState = hasUnselected or nil
+            -- One write per location, so this bumps `locations` up to fifteen times for one
+            -- click. The store coalesces them into a single flush; that is why the watcher
+            -- is scheduled rather than called from Bump.
             PSM.Selections:SetAll("locations", locs, nextState)
-            ReloadAndSummarise()
-            PSM.ModelsFilters:UpdateDynamicFilters()
         elseif button == "RightButton" then
             ShowContinentContextMenu(panel)
         end
