@@ -133,12 +133,12 @@ local function RefreshOpenPanels(opts)
 
     if state.panel and state.panel:IsVisible() then ns.UI:RenderPanel() end
 
-    if state.modelsPanel and ns.ModelsPanel then
+    if state.modelsPanel and ns.Browser.ModelsPanel then
         if opts.relayout then
-            ns.ModelsPanel:UpdateModelsPanelLayout()
-            ns.ModelsPanel:UpdateVisibleRows()
+            ns.Browser.ModelsPanel:UpdateModelsPanelLayout()
+            ns.Browser.ModelsPanel:UpdateVisibleRows()
         elseif state.modelsPanel:IsVisible() then
-            ns.ModelsPanel:UpdateVisibleRows()
+            ns.Browser.ModelsPanel:UpdateVisibleRows()
         end
     end
 
@@ -350,9 +350,9 @@ panel:SetScript("OnShow", function(self)
                 PetStableManagementDB.settings.petsPerColumn = btn.value
                 UIDropDownMenu_SetText(petsPerColumnDropdown, btn.value)
                 -- Column count only affects the browser's grid; nothing else repaints.
-                if ns.state.modelsPanel and ns.ModelsPanel then
-                    ns.ModelsPanel:UpdateModelsPanelLayout()
-                    ns.ModelsPanel:UpdateVisibleRows()
+                if ns.state.modelsPanel and ns.Browser.ModelsPanel then
+                    ns.Browser.ModelsPanel:UpdateModelsPanelLayout()
+                    ns.Browser.ModelsPanel:UpdateVisibleRows()
                 end
             end
             UIDropDownMenu_AddButton(info)
@@ -468,8 +468,8 @@ panel:SetScript("OnShow", function(self)
             -- that rather than keeping a second, worse copy here. Guarded on the module
             -- being *loaded* rather than available: if it was never loaded there is no
             -- panel to fix, and an empty table is exactly what the seeding wants to see.
-            if ns.ModelsFilters and ns.state.modelsPanel then
-                ns.ModelsFilters:ResetAllFilters(ns.state.modelsPanel)
+            if ns.Browser.ModelsFilters and ns.state.modelsPanel then
+                ns.Browser.ModelsFilters:ResetAllFilters(ns.state.modelsPanel)
             else
                 ns.state.selectedModelsFamilies = {}
                 ns.state.selectedExpansions     = {}

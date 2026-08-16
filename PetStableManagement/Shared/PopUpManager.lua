@@ -89,9 +89,9 @@ local function GetPopupSpecialization(displayId, petData)
             end
         end
 
-        if ns.PetModels then
-            for _, familyName in ipairs(ns.PetModels:GetAvailableFamilies()) do
-                local info = ns.PetModels:GetModelInfo(familyName, displayId)
+        if ns.Browser.PetModels then
+            for _, familyName in ipairs(ns.Browser.PetModels:GetAvailableFamilies()) do
+                local info = ns.Browser.PetModels:GetModelInfo(familyName, displayId)
                 if info then
                     local spec = ns.Config.FAMILY_TO_SPEC[familyName]
                     if spec then return spec end
@@ -127,7 +127,7 @@ end
 local function BuildNoteLink(npcId)
     local id = tonumber(npcId)
     if not id then return "" end
-    local hasSeed = ns.NotesData and ns.NotesData[id]
+    local hasSeed = ns.Browser.NotesData and ns.Browser.NotesData[id]
     local hasUser = PSM_UserNotes and PSM_UserNotes[id] and PSM_UserNotes[id] ~= ""
     local texture
     if hasUser then
@@ -195,7 +195,7 @@ local function CreateNPCRow(parent, npc, rowWidth)
 
     -- Condition hint
     local npcID = tonumber(npc.npcId)
-    local condList = npcID and ns.ConditionsData and ns.ConditionsData.Get(npcID)
+    local condList = npcID and ns.Browser.ConditionsData and ns.Browser.ConditionsData.Get(npcID)
     local conditionHint = ""
     if condList and #condList > 0 then
         conditionHint = " |cffff8800|Hpsmcond:" .. npcID .. "|h[*]|h|r"
@@ -247,7 +247,7 @@ local function CreateNPCRow(parent, npc, rowWidth)
         end
 
         if linkType == "psmcond" then
-            local conds = id2 and ns.ConditionsData and ns.ConditionsData.Get(id2)
+            local conds = id2 and ns.Browser.ConditionsData and ns.Browser.ConditionsData.Get(id2)
             if not (conds and #conds > 0) then return {} end
             local lines = {}
             for _, c in ipairs(conds) do
@@ -264,7 +264,7 @@ local function CreateNPCRow(parent, npc, rowWidth)
                     lines = { { text = userNote, color = { 1, 1, 0 }, wrap = true } },
                 }
             end
-            local seedNote = id2 and ns.NotesData and ns.NotesData[id2]
+            local seedNote = id2 and ns.Browser.NotesData and ns.Browser.NotesData[id2]
             if seedNote then
                 return {
                     title = "Add your own note",
@@ -573,8 +573,8 @@ function ns.PopUpManager:CreateModelPopup(config)
                     return  -- Loader has already reported why
                 elseif ns.PanelManager and ns.PanelManager.TogglePanel then
                     ns.PanelManager:TogglePanel("modelsPanel", function()
-                        if ns.ModelsPanel and ns.ModelsPanel.CreateModelsPanel then
-                            ns.ModelsPanel:CreateModelsPanel()
+                        if ns.Browser.ModelsPanel and ns.Browser.ModelsPanel.CreateModelsPanel then
+                            ns.Browser.ModelsPanel:CreateModelsPanel()
                         end
                     end)
                 elseif ns.state.modelsPanel then
@@ -709,8 +709,8 @@ function ns.PopUpManager:CreateModelPopup(config)
         SetFavTexCoord(self, ns.state.favoriteModels[id])
         if ns.Data and ns.Data.SaveSettings then ns.Data:SaveSettings() end
         local panel = ns.state.modelsPanel
-        if panel and panel.showFavorites and ns.ModelsDataLoader then
-            ns.ModelsDataLoader:LoadModelsForSelectedFamilies()
+        if panel and panel.showFavorites and ns.Browser.ModelsDataLoader then
+            ns.Browser.ModelsDataLoader:LoadModelsForSelectedFamilies()
         end
     end)
     popup.SetFavTexCoord = SetFavTexCoord
@@ -764,7 +764,7 @@ function ns.PopUpManager:CreateModelPopup(config)
     popup.tamingHTML:SetScript("OnHyperlinkEnter", function(_, link)
         local linkType, data = strsplit(":", link, 2)
         if linkType ~= "psmtaming" then return end
-        local rule = ns.TamingRules and ns.TamingRules[data]
+        local rule = ns.Browser.TamingRules and ns.Browser.TamingRules[data]
         if not rule or not rule.hint then return end
 
         local hyperlink
@@ -781,7 +781,7 @@ function ns.PopUpManager:CreateModelPopup(config)
     popup.tamingHTML:SetScript("OnHyperlinkClick", function(_, link, _, button)
         local linkType, data = strsplit(":", link, 2)
         if linkType ~= "psmtaming" then return end
-        local rule = ns.TamingRules and ns.TamingRules[data]
+        local rule = ns.Browser.TamingRules and ns.Browser.TamingRules[data]
         if rule then
             if button == "LeftButton" then
                 if rule.itemID then
@@ -1311,9 +1311,9 @@ function ns.PopUpManager:ShowMagnificationPopup(displayId, petData)
     end
 
     -- Fallback: Search via PetModels API (Part of ModelsBrowser module)
-    if #npcs == 0 and ns.PetModels then
-        for _, fam in ipairs(ns.PetModels:GetAvailableFamilies()) do
-            local info = ns.PetModels:GetModelInfo(fam, displayId)
+    if #npcs == 0 and ns.Browser.PetModels then
+        for _, fam in ipairs(ns.Browser.PetModels:GetAvailableFamilies()) do
+            local info = ns.Browser.PetModels:GetModelInfo(fam, displayId)
             if info then
                 familyName = fam
                 npcs = (info.npcs and #info.npcs > 0) and info.npcs or npcs
@@ -1326,8 +1326,8 @@ function ns.PopUpManager:ShowMagnificationPopup(displayId, petData)
     -- (or a petData built from the same), whose .npcs arrays are bare
     -- denseIndex numbers -- resolve to full records here so BuildNPCRows/
     -- CreateNPCRow (expect npc.name etc.) still work.
-    if #npcs > 0 and type(npcs[1]) == "number" and ns.PetModels then
-        npcs = ns.PetModels:ResolveNpcRecords(npcs)
+    if #npcs > 0 and type(npcs[1]) == "number" and ns.Browser.PetModels then
+        npcs = ns.Browser.PetModels:ResolveNpcRecords(npcs)
     end
 
     -- 4. Final Fallback: Direct lookup in ModelsData (crucial for magnification from Owned Pets panel)
@@ -1346,7 +1346,7 @@ function ns.PopUpManager:ShowMagnificationPopup(displayId, petData)
                     -- GetModelsRecord's shape already matches what this fallback used to
                     -- build by hand (npcId/name/location/uiMapId/uiMapName/expansion/
                     -- classification/factionReaction/nameKeeper), plus a few extra fields.
-                    local record = ns.PetModels:GetModelsRecord(modelsData.NpcId[i])
+                    local record = ns.Browser.PetModels:GetModelsRecord(modelsData.NpcId[i])
                     if record then
                         if record.family then familyName = record.family end
                         table.insert(npcs, record)
@@ -1440,14 +1440,14 @@ function ns.PopUpManager:PopulateModelPopup(popup, displayId, petData, npcs)
         end
     end
 
-    if tamingData and ns.TamingChecker then
+    if tamingData and ns.Browser.TamingChecker then
         local parts = {}
         for _, ruleKey in ipairs(tamingData) do
-            local rule = ns.TamingRules and ns.TamingRules[ruleKey]
+            local rule = ns.Browser.TamingRules and ns.Browser.TamingRules[ruleKey]
             
             -- Only display formal taming unlocks at the model level; skip situational conditions
             if rule and not rule.isCondition then
-                local status = ns.TamingChecker.GetRuleStatus(ruleKey)
+                local status = ns.Browser.TamingChecker.GetRuleStatus(ruleKey)
                 local label  = rule and rule.label or ruleKey
                 local hint   = rule and rule.hint
                 local color  = status == "met" and "ff00ff00" or "ffff4444"
@@ -1675,7 +1675,7 @@ function ns.PopUpManager:ShowNoteEditor(npcId, npcName, parentPopup, onSaved)
     local f = self.noteEditor
 
     -- Populate seed note section
-    local seedNote = ns.NotesData and ns.NotesData[npcId]
+    local seedNote = ns.Browser.NotesData and ns.Browser.NotesData[npcId]
     if seedNote then
         f.seedLabel:Show()
         f.seedText:Show()
@@ -1703,7 +1703,7 @@ function ns.PopUpManager:ShowNoteEditor(npcId, npcName, parentPopup, onSaved)
     -- Save wires up per-call npcId and refreshes the parent popup's NPC text
     f.saveButton:SetScript("OnClick", function()
         local text = f.editBox:GetText()
-        ns.NotesData.SetUserNote(npcId, text)
+        ns.Browser.NotesData.SetUserNote(npcId, text)
         f:Hide()
         if parentPopup and parentPopup.currentNPCs then
             BuildNPCRows(parentPopup, parentPopup.currentNPCs)

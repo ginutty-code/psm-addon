@@ -319,15 +319,21 @@ function ns.PanelManager:CleanupPanel(panel)
     end
 
     if IsLastPanel() then
-        ns._renderCache        = nil
-        ns._debounceTimer      = nil
-        ns._modelsRenderCache  = nil
-        ns._modelsDebounceTimer = nil
-        ns._npcRenderCache     = nil
-        ns._npcDebounceTimer   = nil
+        ns._renderCache   = nil
+        ns._debounceTimer = nil
 
-        if ns.PetModels and ns.PetModels.ClearCache then
-            ns.PetModels:ClearCache()
+        -- The four below belong to the *other addon*, and core clearing them by hand is a
+        -- layering violation the bridge only makes visible -- it does not excuse it. The
+        -- fix is a service the browser owns (`ns.Browser.ModelsPanel:ReleaseCaches()`),
+        -- which also means it stops needing four names on the surface. Deliberately left
+        -- for its own change: this one is meant to be behaviour-preserving.
+        ns.Browser._modelsRenderCache   = nil
+        ns.Browser._modelsDebounceTimer = nil
+        ns.Browser._npcRenderCache      = nil
+        ns.Browser._npcDebounceTimer    = nil
+
+        if ns.Browser.PetModels and ns.Browser.PetModels.ClearCache then
+            ns.Browser.PetModels:ClearCache()
         end
         if ns.Data and ns.Data.ClearUIRows then
             ns.Data:ClearUIRows()

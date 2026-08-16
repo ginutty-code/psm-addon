@@ -448,7 +448,7 @@ function ns.RowManager:CreateBaseRow(parent, config)
         if ns.Data and ns.Data.SaveSettings then ns.Data:SaveSettings() end
         local panel = ns.state.modelsPanel
         if panel and panel.showFavorites then
-            ns.ModelsDataLoader:LoadModelsForSelectedFamilies()
+            ns.Browser.ModelsDataLoader:LoadModelsForSelectedFamilies()
         end
     end)
     row.favoriteButton  = favBtn

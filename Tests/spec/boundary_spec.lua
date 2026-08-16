@@ -23,6 +23,8 @@ local describe, it, eq, truthy = T.describe, T.it, T.eq, T.truthy
 local LoadString = loadstring or load
 
 local CORE_FILE   = "PetStableManagement/Shared/PublicAPI.lua"
+local CORE_TOC    = "PetStableManagement/PetStableManagement.toc"
+local CORE_DIR    = "PetStableManagement/"
 local BROWSER_TOC = "PetStableManagement_ModelsBrowser/PetStableManagement_ModelsBrowser.toc"
 local BROWSER_DIR = "PetStableManagement_ModelsBrowser/"
 
@@ -89,18 +91,21 @@ end
 -- Taken from the .toc, not a hand-kept list: the .toc is what the client actually loads,
 -- so a new browser file is covered the moment it ships rather than whenever someone
 -- remembers to add it here.
-local function BrowserFiles()
-    local toc = ReadFile(BROWSER_TOC)
+local function TocFiles(tocPath, dir)
+    local toc = ReadFile(tocPath)
     if not toc then return nil end
     local files = {}
     for line in toc:gmatch("[^\r\n]+") do
         local trimmed = line:match("^%s*(.-)%s*$")
         if trimmed:match("%.lua$") and not trimmed:match("^#") then
-            files[#files + 1] = BROWSER_DIR .. trimmed:gsub("\\", "/")
+            files[#files + 1] = dir .. trimmed:gsub("\\", "/")
         end
     end
     return files
 end
+
+local function BrowserFiles() return TocFiles(BROWSER_TOC, BROWSER_DIR) end
+local function CoreFiles()    return TocFiles(CORE_TOC,    CORE_DIR)    end
 
 -- `PSM.Foo = ...` and `function PSM.Foo...` -- the browser's own members. Collected from
 -- every browser file including Data/, because the generated tables define members
@@ -208,5 +213,68 @@ describe("core/browser boundary", function()
         table.sort(unused)
         eq(#unused, 0,
             "PUBLIC_API entries with no browser consumer (" .. table.concat(unused, ", ") .. ")")
+    end)
+end)
+
+--------------------------------------------------------------------------------
+-- The other direction
+--------------------------------------------------------------------------------
+
+-- Core calls the browser too -- the minimap and slash commands toggle its panels, the
+-- popups resolve models and taming rules through it -- and until 3g *nothing checked that
+-- direction*. It did not need checking while `_G.PSM = ns` made one table of two names:
+-- the browser's `PSM.ModelsPanel = {}` landed in core's namespace, so core's
+-- `ns.ModelsPanel` found it.
+--
+-- Separating the tables made all 47 of those reads nil. Every one is guarded, so none of
+-- them would have errored -- the browser would have loaded and the feature would quietly
+-- not be there, which is the failure mode this repo keeps re-learning. They now go through
+-- `ns.Browser`, and this is what keeps them there: the next core file to write
+-- `ns.ModelsPanel` is named here rather than discovered in-game.
+describe("core -> browser boundary", function()
+    local coreFiles    = CoreFiles() or {}
+    local browserFiles = BrowserFiles() or {}
+
+    it("finds core's files via its .toc", function()
+        truthy(#coreFiles > 0, "core .lua files listed in the .toc")
+    end)
+
+    it("reaches the browser only through ns.Browser", function()
+        local owned      = OwnedByBrowser(browserFiles)
+        local violations = {}
+
+        -- `ns.Browser.ModelsPanel` is not a match: the pattern captures `Browser`, and the
+        -- name after it is never preceded by `ns.`. So the bridge is invisible here and
+        -- only the direct reads are reported, which is the whole point.
+        for _, path in ipairs(coreFiles) do
+            local source = ReadFile(path)
+            for n, line in ipairs(source and CodeLines(source) or {}) do
+                for name in line:gmatch("ns%.([%a_][%w_]*)") do
+                    if owned[name] then
+                        violations[#violations + 1] = ("%s:%d  ns.%s"):format(path, n, name)
+                    end
+                end
+            end
+        end
+
+        if #violations > 0 then
+            table.sort(violations)
+            error(("core reads %d browser-owned name(s) off its own namespace:\n  %s\n\n"
+                .. "The browser is a separate addon with its own `ns`, so these resolve to "
+                .. "nil -- silently, since each one is guarded. Use `ns.Browser.X`, which "
+                .. "forwards to the shared global (see Core.lua).")
+                :format(#violations, table.concat(violations, "\n  ")), 0)
+        end
+        eq(#violations, 0, "core reads of browser members off ns")
+    end)
+
+    -- Guards the guard. If `OwnedByBrowser` ever returned an empty set -- a renamed .toc, a
+    -- changed definition pattern -- the check above would pass by examining nothing, and
+    -- would keep passing forever.
+    it("knows which names the browser owns", function()
+        local owned, count = OwnedByBrowser(browserFiles), 0
+        for _ in pairs(owned) do count = count + 1 end
+        truthy(count >= 10, "browser-owned names found (got " .. count .. ")")
+        truthy(owned.ModelsPanel, "ModelsPanel is recognised as browser-owned")
     end)
 end)

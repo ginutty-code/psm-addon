@@ -44,29 +44,43 @@ local PUBLIC_API = {
                      -- then it is public because it has to be, not because it should be.
 }
 
---------------------------------------------------------------------------------
--- TRANSITIONAL -- remove when every core file has been converted (A3 step 3g)
---------------------------------------------------------------------------------
-
--- While core is half converted, Core.lua aliases `_G.PSM = ns` -- one table under two
--- names -- so converted and unconverted files already see each other's writes and there
--- is nothing to publish. See Core.lua for why an `__index` fallback was not enough.
---
--- Flip this to false in 3g, when Core.lua stops aliasing and `_G.PSM` becomes a separate,
--- deliberately narrow table. That is the moment nil becomes possible, so it lands with the
--- trap metatable and its own round of testing -- the conversions themselves are not where
--- the risk is.
-local TRANSITIONAL = true
-
---------------------------------------------------------------------------------
-
-local function Publish()
-    -- Same table during the transition: every member is already reachable as PSM.x.
-    if TRANSITIONAL then return end
-
-    for _, name in ipairs(PUBLIC_API) do
-        _G.PSM[name] = ns[name]
-    end
+local published = {}
+for _, name in ipairs(PUBLIC_API) do
+    published[name] = true
+    _G.PSM[name] = ns[name]
 end
 
-Publish()
+--------------------------------------------------------------------------------
+-- The trap
+--------------------------------------------------------------------------------
+
+-- Everything core defined that is *not* on the list above. Computed rather than written
+-- out, because a list typed here would go stale the first time a module is added.
+--
+-- `pairs` walks own keys only, and this runs last in the .toc, so `ns` is complete.
+local internal = {}
+for name in pairs(ns) do
+    if not published[name] then internal[name] = true end
+end
+
+-- **An `__index` that errors on every miss would be wrong**, and the reason is the whole
+-- shape of this addon: under LoadOnDemand the browser is legitimately absent, so
+-- `if PSM.ModelsPanel then` reading nil is not a mistake, it is the mechanism. Erroring
+-- there would break exactly the gates that make the module optional.
+--
+-- So the trap fires on one case only: a name core owns and did not publish. That is never
+-- a legitimate read -- it is a file reaching past the boundary -- and it is the failure
+-- mode this whole step introduces, since before 3g every such read quietly worked.
+--
+-- boundary_spec.lua already proves no browser file does this today. The trap is for the
+-- edit made a year from now, and it turns a silent nil into a stack trace naming the key.
+setmetatable(_G.PSM, {
+    __index = function(_, key)
+        if internal[key] then
+            error(("PSM.%s is internal to PetStableManagement and is not part of its "
+                .. "public API. See Shared/PublicAPI.lua -- either use a published "
+                .. "member, or add a service there deliberately."):format(tostring(key)), 2)
+        end
+        return nil
+    end,
+})

@@ -6,27 +6,35 @@
 -- Models Browser, which is a separate addon and so gets a different `ns`.
 local _, ns = ...
 
--- TRANSITIONAL (A3) -- undone in step 3g, with PublicAPI.lua's PUBLISH_EVERYTHING.
+-- The shared global. It is no longer core's namespace -- it is the *bridge* between two
+-- addons, and holds only what Shared/PublicAPI.lua deliberately publishes plus whatever
+-- the Models Browser attaches to it when it loads. Core.lua is first in the .toc, so
+-- creating it here means it exists for every later file of either addon.
+_G.PSM = _G.PSM or {}
+
+-- ─── Reaching the Models Browser ─────────────────────────────────────────────
 --
--- While core is half converted it needs to work in both directions: a converted file
--- writes `ns.Theme` where an unconverted one reads `PSM.Theme`, and vice versa. Making
--- them **the same table** does that completely, and does it at the moment of the write
--- rather than at the end of load.
+-- The browser is a separate addon, so it gets a different `ns` and there is no way to
+-- reach it except the shared global. This names that reach once, instead of restating it
+-- at each of the ~47 call sites, and makes it greppable: `ns.Browser.` in a core file
+-- means "this crosses into the other addon", and nothing else does.
 --
--- The alternative -- an `__index` fallback each way -- was tried first and is wrong twice
--- over. It publishes only when PublicAPI.lua runs *last*, so it misses the handful of
--- file-scope reads that execute during load (`OptionsPanel.lua` calls PSM.Widgets.Frame,
--- `GridView.lua` reads PSM.UI.GridView, `DragDrop`/`Events` call PSM.CreateFrame). And
--- fallbacks in both directions form an `__index` cycle, which Lua does not resolve to nil
--- -- it raises "'__index' chain too long" -- so every `if PSM.ModelsPanel then` browser
--- gate in the addon would start erroring instead of testing.
+-- **Writes forward too, and that is not decoration.** PanelManager clears four of the
+-- browser's caches by hand. Had this table only forwarded reads, those four assignments
+-- would have landed in this empty table instead of the global, and the caches would
+-- simply have stopped being cleared -- no error, just memory held for the session. Those
+-- four writes are a layering violation (core reaching into another addon's internals) and
+-- are the next thing to remove, replaced by a service the browser owns. Forwarding them
+-- is what keeps 3g a mechanical change rather than a behavioural one.
 --
--- One table has neither problem. There is no encapsulation during the transition, which
--- is exactly the status quo; the boundary spec still enforces the browser's side
--- statically, and 3g is where the split becomes real.
---
--- Core.lua is first in the .toc, so this covers every later file.
-_G.PSM = ns
+-- Reading a name the browser has not loaded yet gives nil, which is what every
+-- `if ns.Browser.ModelsPanel then` gate expects. Reading a *core* name through it raises,
+-- via the trap PublicAPI.lua installs -- that would mean a file asking the other addon
+-- for something it owns itself.
+ns.Browser = setmetatable({}, {
+    __index    = function(_, key) return _G.PSM[key] end,
+    __newindex = function(_, key, value) _G.PSM[key] = value end,
+})
 
 -- Initialize persistent data storage
 PetStableManagementDB = PetStableManagementDB or {

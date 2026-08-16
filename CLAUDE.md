@@ -79,18 +79,49 @@ command rather than trying to run it.
 
 ## Global architecture
 
-Everything hangs off one global table, `_G.PSM`, created once in
-`PetStableManagement/Core.lua`. Every module file opens with:
+**Core is private; the global is a bridge.** Every core file opens with the client's
+own calling convention and attaches itself to the addon's private namespace:
 
 ```lua
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
+local _, ns = ...
+
+ns.Utils = {}
 ```
 
-then attaches itself as `PSM.Utils`, `PSM.ModelsFilters`, `PSM.NPCDataLoader`,
-etc. There is no per-component/per-view local state — filter state lives in
-one shared mutable table, `PSM.state` (declared in `Core.lua`), persisted to
-`PetStableManagementDB` (SavedVariables) plus a second SavedVariable,
+The client hands each *addon* one table and passes it to every file in that addon, so
+`ns` is shared across core and reachable from nowhere else. `PetStableManagement` and
+`PetStableManagement_ModelsBrowser` are two addons and therefore get two different
+namespaces — which is why `_G.PSM` still exists, and all it is now is the bridge
+between them.
+
+Three rules follow, and they are enforced by tests rather than by memory:
+
+- **What core exports is declared, in `Shared/PublicAPI.lua`** — eleven names, loaded
+  last in the `.toc` so every module has attached itself first. Everything else stays
+  private. `_G.PSM` carries a trap: reading a core member that was *not* published
+  raises an error naming the key, instead of returning the nil that used to be silently
+  guarded away. Adding a name is a real decision — it can never change again without
+  touching both addons — so prefer giving the browser a *service* (`RowManager:ReleaseModel`
+  is the model) over widening the surface.
+- **Core reaches the browser through `ns.Browser`**, never `ns` directly. It forwards
+  reads *and writes* to `_G.PSM`, so `ns.Browser.` in a core file means exactly one
+  thing: this crosses into the other addon. `ns.Browser.ModelsPanel` is nil when the
+  browser has not loaded, which is what every gate expects.
+- **The browser is unconverted** and still uses `_G.PSM` throughout — it is the
+  consumer side of the bridge, so that is correct, not leftover.
+
+`Tests/spec/boundary_spec.lua` enforces both directions statically (browser → core
+against `PUBLIC_API`, core → browser against `ns.Browser`), and
+`Tests/spec/publicapi_spec.lua` runs the real file to prove the trap raises on an
+internal, stays quiet for an absent browser member, and lets writes through.
+
+Elsewhere in this document a module is named `PSM.Widgets`, `PSM.Skin`, `PSM.state` and
+so on. That is the name a *user* types (`/dump PSM.Skin.unhandled`) and the name the
+browser uses; inside core the same table is `ns.Widgets`, `ns.Skin`, `ns.state`.
+
+There is no per-component/per-view local state — filter state lives in one shared
+mutable table, `ns.state` (declared in `Core.lua`, published as `PSM.state`), persisted
+to `PetStableManagementDB` (SavedVariables) plus a second SavedVariable,
 `PSM_UserNotes`.
 
 ## The UI kit — build frames with `PSM.Widgets`, not `CreateFrame`
@@ -342,7 +373,7 @@ until the layering work separates it.
 so it doesn't only ever exercise the lupa fallback).
 
 The lint job **gates on errors, not warnings**. luacheck exits 1 for warnings and
-≥2 for errors; the project carries a stable warning baseline (54), so failing on any
+≥2 for errors; the project carries a stable warning baseline (40), so failing on any
 warning would fail every run. The count is printed in the job log — treat a change
 in it as something you caused, and account for it.
 
@@ -358,7 +389,7 @@ path is in `CLAUDE.local.md` (untracked). Run from the repo root:
 luacheck PetStableManagement PetStableManagement_ModelsBrowser Tests
 ```
 
-The current clean baseline is **54 warnings / 0 errors**. Treat any change in it as
+The current clean baseline is **40 warnings / 0 errors**. Treat any change in it as
 something you introduced, and account for it — a drop is as much a claim as a rise,
 and should be attributable to a specific edit.
 

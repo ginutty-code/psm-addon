@@ -42,8 +42,8 @@ local PETSTABLE_COMMANDS = {
 
     models = function()
         if InCombat() then return end
-        if ns.Loader:EnsureBrowser() and ns.ModelsPanel then
-            ns.ModelsPanel:Toggle()
+        if ns.Loader:EnsureBrowser() and ns.Browser.ModelsPanel then
+            ns.Browser.ModelsPanel:Toggle()
         end
     end,
 
@@ -57,8 +57,8 @@ local PETSTABLE_COMMANDS = {
     end,
 
     roulette = function()
-        if ns.Loader:EnsureBrowser() and ns.PetRoulette then
-            ns.PetRoulette:SelectPetRouletteFromCommand()
+        if ns.Loader:EnsureBrowser() and ns.Browser.PetRoulette then
+            ns.Browser.PetRoulette:SelectPetRouletteFromCommand()
         end
     end,
 

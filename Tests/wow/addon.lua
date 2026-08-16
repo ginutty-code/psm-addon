@@ -29,12 +29,13 @@ A.BROWSER = "PetStableManagement_ModelsBrowser"
 -- a file builds its own state from nothing should take a new one rather than reusing a
 -- namespace another spec has already populated.
 --
--- TRANSITIONAL (A3) -- simplify in step 3g. While core is half converted Core.lua aliases
--- `_G.PSM = ns`, one table under two names. A spec loads one file rather than the whole
--- .toc, so it has no Core.lua to do that; the fallback gives the same reachability for a
--- single-file load without letting the spec's namespace leak into the global one.
+-- A plain table, with no fallback to `_G.PSM`. It carried one through A3's transition,
+-- when the two were the same table anyway; keeping it past 3g would be a lie, because
+-- `_G.PSM` is now the cross-addon *bridge* and holds eleven published names rather than
+-- core's namespace. A spec needing one file to see another's members loads both into the
+-- same namespace -- `A.load(path, ns)` takes one -- which is what the client does too.
 function A.namespace()
-    return setmetatable({}, { __index = _G.PSM })
+    return {}
 end
 
 -- Load `path`, passing the client's two arguments. Returns the namespace, so a spec can

@@ -26,8 +26,8 @@ end
 -- PSM.Loader pulls the LoadOnDemand browser in on first use and reports a precise
 -- reason if it can't, so these no longer print a "module not loaded" message.
 function broker:ToggleModelsBrowserPanel()
-    if ns.Loader:EnsureBrowser() and ns.ModelsPanel then
-        ns.ModelsPanel:Toggle()
+    if ns.Loader:EnsureBrowser() and ns.Browser.ModelsPanel then
+        ns.Browser.ModelsPanel:Toggle()
     end
 end
 
@@ -38,8 +38,8 @@ function broker:TogglePetRoulette()
         popup:Hide()
         return
     end
-    if ns.Loader:EnsureBrowser() and ns.PetRoulette then
-        ns.PetRoulette:SelectPetRouletteFromCommand()
+    if ns.Loader:EnsureBrowser() and ns.Browser.PetRoulette then
+        ns.Browser.PetRoulette:SelectPetRouletteFromCommand()
     end
 end
 

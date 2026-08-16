@@ -16,6 +16,7 @@ local SPECS = {
     "Tests/spec/utils_spec.lua",
     "Tests/spec/loader_spec.lua",
     "Tests/spec/boundary_spec.lua",
+    "Tests/spec/publicapi_spec.lua",
 }
 
 return function()
