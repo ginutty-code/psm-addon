@@ -1,13 +1,10 @@
 -- Dialogs.lua
 -- Reusable dialog windows for PetStableManagement
 
-local addonName = "PetStableManagement"
+local _, ns = ...
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
-
-PSM.Dialogs = PSM.Dialogs or {}
-PSM.Dialogs.activeDialog = nil
+ns.Dialogs = ns.Dialogs or {}
+ns.Dialogs.activeDialog = nil
 
 --------------------------------------------------------------------------------
 -- HELPERS
@@ -22,9 +19,9 @@ PSM.Dialogs.activeDialog = nil
 -- Body text inside a dialog: the message/description lines every dialog has one or
 -- two of. Centralised here rather than repeated per dialog, so they can't drift.
 local function CreateDialogText(parent, opts)
-    return PSM.Widgets.Label(parent, {
-        fontSize = opts.fontSize or PSM.Theme.SIZE.BODY,
-        color    = opts.color or PSM.Theme.COLOR.WHITE,
+    return ns.Widgets.Label(parent, {
+        fontSize = opts.fontSize or ns.Theme.SIZE.BODY,
+        color    = opts.color or ns.Theme.COLOR.WHITE,
         justify  = opts.justify,
         width    = opts.width,
         point    = opts.point,
@@ -34,11 +31,11 @@ end
 
 -- Creates a styled dialog frame. Pass resizable=true for a resize handle.
 local function CreateBaseDialog(name, width, height, title, resizable)
-    if PSM.Dialogs.activeDialog then
-        PSM.Dialogs.activeDialog:Hide()
+    if ns.Dialogs.activeDialog then
+        ns.Dialogs.activeDialog:Hide()
     end
 
-    local Theme, Widgets = PSM.Theme, PSM.Widgets
+    local Theme, Widgets = ns.Theme, ns.Widgets
 
     local d = Widgets.MovableFrame(UIParent, {
         name        = name,
@@ -84,12 +81,12 @@ local function CreateBaseDialog(name, width, height, title, resizable)
 
     Widgets.CloseOnEscape(d, Cancel)
 
-    PSM.Skin.Apply(d, "frame")
+    ns.Skin.Apply(d, "frame")
 
-    PSM.Dialogs.activeDialog = d
+    ns.Dialogs.activeDialog = d
     d:SetScript("OnHide", function(self)
-        if PSM.Dialogs.activeDialog == self then
-            PSM.Dialogs.activeDialog = nil
+        if ns.Dialogs.activeDialog == self then
+            ns.Dialogs.activeDialog = nil
         end
     end)
 
@@ -99,7 +96,7 @@ end
 -- `width` is a Theme.CONTROL.BUTTON_W tier; omit it for M, which is what every
 -- OK/Cancel/Yes/No in this file wants. Height comes from the factory.
 local function CreateDialogButton(parent, text, width)
-    return PSM.Widgets.Button(parent, {
+    return ns.Widgets.Button(parent, {
         width      = width,
         text       = text,
         fontObject = "GameFontNormal",
@@ -115,7 +112,7 @@ end
 -- clip in those rows, which is the correct outcome -- silently rewriting someone's saved
 -- team name would be worse than a shortened label.
 local function CreateDialogEditBox(parent, width, height)
-    local e = PSM.Widgets.EditBox(parent, {
+    local e = ns.Widgets.EditBox(parent, {
         size = { width or 250, height or 25 },
     })
     e:SetMaxLetters(24)
@@ -126,7 +123,7 @@ end
 -- NAME INPUT DIALOG  (used by several callers)
 --------------------------------------------------------------------------------
 
-function PSM.Dialogs:ShowNameInputDialog(options)
+function ns.Dialogs:ShowNameInputDialog(options)
     options = options or {}
 
     local d = CreateBaseDialog("PSMTeamNameDialog", 350, 140, options.title or "Enter Team Name")
@@ -142,7 +139,7 @@ function PSM.Dialogs:ShowNameInputDialog(options)
     d.editBox:SetFocus()
     if options.highlightText then d.editBox:HighlightText() end
 
-    local bc = PSM.Widgets.Frame(d, { size = { 220, 30 }, point = { "BOTTOM", 0, 15 } })
+    local bc = ns.Widgets.Frame(d, { size = { 220, 30 }, point = { "BOTTOM", 0, 15 } })
 
     d.confirmButton = CreateDialogButton(bc, options.confirmText or "Save")
     d.confirmButton:SetPoint("LEFT", 0, 0)
@@ -180,7 +177,7 @@ end
 -- @param options.suggestedName  pre-filled text (for create)
 -- @param options.onConfirm  function(name)
 -- @param options.onCancel   function()
-function PSM.Dialogs:ShowGroupNameDialog(options)
+function ns.Dialogs:ShowGroupNameDialog(options)
     options = options or {}
     local isRename = options.mode == "rename"
 
@@ -196,13 +193,13 @@ function PSM.Dialogs:ShowGroupNameDialog(options)
 end
 
 -- Convenience shims kept for callers that use the old names
-function PSM.Dialogs:ShowCreateGroupDialog(options)
+function ns.Dialogs:ShowCreateGroupDialog(options)
     options = options or {}
     options.mode = "create"
     return self:ShowGroupNameDialog(options)
 end
 
-function PSM.Dialogs:ShowRenameGroupDialog(options)
+function ns.Dialogs:ShowRenameGroupDialog(options)
     options = options or {}
     options.mode = "rename"
     return self:ShowGroupNameDialog(options)
@@ -212,7 +209,7 @@ end
 -- CONFIRMATION DIALOG
 --------------------------------------------------------------------------------
 
-function PSM.Dialogs:ShowConfirmDialog(options)
+function ns.Dialogs:ShowConfirmDialog(options)
     options = options or {}
 
     local d = CreateBaseDialog("PSMTeamConfirmDialog", 350, 130, options.title or "Confirm")
@@ -224,7 +221,7 @@ function PSM.Dialogs:ShowConfirmDialog(options)
         text    = options.message or "Are you sure?",
     })
 
-    local bc = PSM.Widgets.Frame(d, { size = { 220, 30 }, point = { "BOTTOM", 0, 5 } })
+    local bc = ns.Widgets.Frame(d, { size = { 220, 30 }, point = { "BOTTOM", 0, 5 } })
 
     d.confirmButton = CreateDialogButton(bc, options.confirmText or "Yes")
     d.confirmButton:SetPoint("LEFT", 0, 0)
@@ -246,7 +243,7 @@ function PSM.Dialogs:ShowConfirmDialog(options)
 end
 
 -- Confirm-dialog convenience wrappers
-function PSM.Dialogs:ShowDeleteConfirmDialog(teamName, onConfirm, onCancel)
+function ns.Dialogs:ShowDeleteConfirmDialog(teamName, onConfirm, onCancel)
     return self:ShowConfirmDialog({
         title       = "Delete Team",
         message     = "Are you sure you want to delete the team\n'" .. (teamName or "Unknown") .. "'?\n\nThis action cannot be undone.",
@@ -255,7 +252,7 @@ function PSM.Dialogs:ShowDeleteConfirmDialog(teamName, onConfirm, onCancel)
     })
 end
 
-function PSM.Dialogs:ShowApplyConfirmDialog(teamName, onConfirm, onCancel)
+function ns.Dialogs:ShowApplyConfirmDialog(teamName, onConfirm, onCancel)
     return self:ShowConfirmDialog({
         title       = "Apply Team",
         message     = "Apply team '" .. (teamName or "Unknown") .. "' to your active pet slots?\n\nThis will rearrange your pets in slots 1-6.",
@@ -264,7 +261,7 @@ function PSM.Dialogs:ShowApplyConfirmDialog(teamName, onConfirm, onCancel)
     })
 end
 
-function PSM.Dialogs:ShowDeleteGroupConfirmDialog(groupName, onConfirm, onCancel)
+function ns.Dialogs:ShowDeleteGroupConfirmDialog(groupName, onConfirm, onCancel)
     return self:ShowConfirmDialog({
         title       = "Delete Group",
         message     = "Are you sure you want to delete the group\n'" .. (groupName or "Unknown") .. "'?\n\nAll pets in this group will be moved to Ungrouped.",
@@ -273,7 +270,7 @@ function PSM.Dialogs:ShowDeleteGroupConfirmDialog(groupName, onConfirm, onCancel
     })
 end
 
-function PSM.Dialogs:ShowDeleteAllGroupsConfirmDialog(onConfirm, onCancel)
+function ns.Dialogs:ShowDeleteAllGroupsConfirmDialog(onConfirm, onCancel)
     return self:ShowConfirmDialog({
         title       = "Delete All Groups",
         message     = "Are you sure you want to delete ALL groups?\n\nAll pets will be moved to Ungrouped.\nThis action cannot be undone.",
@@ -286,7 +283,7 @@ end
 -- SAVE TEAM DIALOG
 --------------------------------------------------------------------------------
 
-function PSM.Dialogs:ShowSaveTeamDialog(options)
+function ns.Dialogs:ShowSaveTeamDialog(options)
     options = options or {}
 
     local hasExisting = options.existingTeamId and options.existingTeamName
@@ -308,19 +305,19 @@ function PSM.Dialogs:ShowSaveTeamDialog(options)
         text    = "Current slots differ from team '" .. options.existingTeamName .. "'.\nWhat would you like to do?",
     })
 
-    local bc = PSM.Widgets.Frame(d, { size = { 350, 70 }, point = { "BOTTOM", 0, 25 } })
+    local bc = ns.Widgets.Frame(d, { size = { 350, 70 }, point = { "BOTTOM", 0, 25 } })
 
     -- "Update Team", not "Update '<name>'": the team name is user-typed and unbounded, so
     -- it was the one push-button label no fixed width could hold. The message above
     -- already names the team, so the button was repeating it.
-    d.updateButton = CreateDialogButton(bc, "Update Team", PSM.Theme.CONTROL.BUTTON_W.L)
+    d.updateButton = CreateDialogButton(bc, "Update Team", ns.Theme.CONTROL.BUTTON_W.L)
     d.updateButton:SetPoint("TOP", 0, 0)
     d.updateButton:SetScript("OnClick", function()
         d:Hide()
         if options.onUpdate then options.onUpdate() end
     end)
 
-    d.saveNewButton = CreateDialogButton(bc, "Save as New Team", PSM.Theme.CONTROL.BUTTON_W.L)
+    d.saveNewButton = CreateDialogButton(bc, "Save as New Team", ns.Theme.CONTROL.BUTTON_W.L)
     d.saveNewButton:SetPoint("TOP", d.updateButton, "BOTTOM", 0, -5)
     d.saveNewButton:SetScript("OnClick", function()
         d:Hide()
@@ -356,14 +353,14 @@ end
 -- the empty-teams branch and the has-teams branch).
 local function CreateNewTeamFromPet(petData)
     local slots = {}
-    slots[1] = PSM.Teams:SlotRecord(petData)
-    PSM.Dialogs:ShowNameInputDialog({
+    slots[1] = ns.Teams:SlotRecord(petData)
+    ns.Dialogs:ShowNameInputDialog({
         title       = "New Team Name",
         description = "Enter a name for your new team:",
         onConfirm   = function(teamName)
-            local teamId, err = PSM.Teams:SaveTeam(teamName, slots)
-            if teamId and PSM.TeamsPanel then
-                PSM.TeamsPanel:RefreshTeamsList()
+            local teamId, err = ns.Teams:SaveTeam(teamName, slots)
+            if teamId and ns.TeamsPanel then
+                ns.TeamsPanel:RefreshTeamsList()
             else
                 print("|cFFFF0000PetStableManagement: " .. (err or "Failed to save team") .. "|r")
             end
@@ -371,10 +368,10 @@ local function CreateNewTeamFromPet(petData)
     })
 end
 
-function PSM.Dialogs:ShowAddToTeamDialog(petData)
+function ns.Dialogs:ShowAddToTeamDialog(petData)
     if not petData then return end
 
-    local teams = PSM.Teams:GetTeams()
+    local teams = ns.Teams:GetTeams()
     table.sort(teams, function(a, b)
         return string.lower(a.name or "") < string.lower(b.name or "")
     end)
@@ -395,8 +392,8 @@ function PSM.Dialogs:ShowAddToTeamDialog(petData)
         headerH + (needsScroll and maxBtnAreaH or btnAreaH) + footerH, "Add Pet to Team", true)
 
     d.petInfoText = CreateDialogText(d, {
-        fontSize = PSM.Theme.SIZE.LABEL,
-        color    = PSM.Theme.COLOR.GOLD,
+        fontSize = ns.Theme.SIZE.LABEL,
+        color    = ns.Theme.COLOR.GOLD,
         point    = { "TOP", d.title, "BOTTOM", 0, -10 },
         text     = "Pet: " .. (petData.name or "Unknown"),
     })
@@ -406,12 +403,12 @@ function PSM.Dialogs:ShowAddToTeamDialog(petData)
     })
 
     -- Bottom button area (shared by both branches)
-    local bottom = PSM.Widgets.Frame(d, {
+    local bottom = ns.Widgets.Frame(d, {
         size  = { dialogW - 40, 60 },
         point = { "BOTTOM", d, "BOTTOM", 0, 10 },
     })
 
-    d.createNewButton = CreateDialogButton(bottom, "Create New Team", PSM.Theme.CONTROL.BUTTON_W.L)
+    d.createNewButton = CreateDialogButton(bottom, "Create New Team", ns.Theme.CONTROL.BUTTON_W.L)
     d.createNewButton:SetScript("OnClick", function()
         d:Hide()
         CreateNewTeamFromPet(petData)
@@ -436,14 +433,14 @@ function PSM.Dialogs:ShowAddToTeamDialog(petData)
                 local col = (i-1) % cols
                 local row = math.floor((i-1) / cols)
 
-                local btn = PSM.Widgets.Button(container, {
+                local btn = ns.Widgets.Button(container, {
                     size       = { btnW, btnH },
                     text       = team.name,
                     fontObject = "GameFontNormalSmall",
                     point      = { "TOPLEFT", 5 + col*(btnW+spacing), -row*(btnH+spacing) },
                     onClick    = function()
                         d:Hide()
-                        PSM.Dialogs:ShowSelectSlotDialog(team, petData)
+                        ns.Dialogs:ShowSelectSlotDialog(team, petData)
                     end,
                 })
                 table.insert(d.teamButtons, btn)
@@ -451,7 +448,7 @@ function PSM.Dialogs:ShowAddToTeamDialog(petData)
         end
 
         if needsScroll then
-            local sf = PSM.Widgets.Frame(d, {
+            local sf = ns.Widgets.Frame(d, {
                 frameType = "ScrollFrame",
                 template  = "UIPanelScrollFrameTemplate",
                 skin      = "scrollframe",
@@ -462,13 +459,13 @@ function PSM.Dialogs:ShowAddToTeamDialog(petData)
                 },
             })
 
-            local content = PSM.Widgets.Frame(sf, {
+            local content = ns.Widgets.Frame(sf, {
                 size = { sf:GetWidth() - 20, numRows * btnH + (numRows-1) * spacing },
             })
             sf:SetScrollChild(content)
             PlaceTeamButtons(content)
         else
-            local frame = PSM.Widgets.Frame(d, {
+            local frame = ns.Widgets.Frame(d, {
                 size  = { dialogW - 40, btnAreaH },
                 point = { "TOP", d.description, "BOTTOM", 0, -10 },
             })
@@ -484,7 +481,7 @@ end
 -- SELECT SLOT DIALOG
 --------------------------------------------------------------------------------
 
-function PSM.Dialogs:ShowSelectSlotDialog(team, petData)
+function ns.Dialogs:ShowSelectSlotDialog(team, petData)
     if not team or not petData then return end
 
     -- Duplicate-pet guard
@@ -512,8 +509,8 @@ function PSM.Dialogs:ShowSelectSlotDialog(team, petData)
     local d = CreateBaseDialog("PSMSelectSlotDialog", 420, 280, "Select Slot", true)
 
     d.teamInfoText = CreateDialogText(d, {
-        fontSize = PSM.Theme.SIZE.LABEL,
-        color    = PSM.Theme.COLOR.GOLD,
+        fontSize = ns.Theme.SIZE.LABEL,
+        color    = ns.Theme.COLOR.GOLD,
         point    = { "TOP", d.title, "BOTTOM", 0, -10 },
         text     = "Team: " .. team.name,
     })
@@ -524,7 +521,7 @@ function PSM.Dialogs:ShowSelectSlotDialog(team, petData)
     })
 
     d.description = CreateDialogText(d, {
-        color = PSM.Theme.COLOR.MUTED,
+        color = ns.Theme.COLOR.MUTED,
         point = { "TOP", d.petInfoText, "BOTTOM", 0, -5 },
         text  = "Select a slot to add this pet to:",
     })
@@ -542,7 +539,7 @@ function PSM.Dialogs:ShowSelectSlotDialog(team, petData)
         local col = (slot-1) % cols
         local isOccupied = team.slots and team.slots[slot] ~= nil
 
-        local btn = PSM.Widgets.Frame(d, {
+        local btn = ns.Widgets.Frame(d, {
             frameType = "Button",
             size      = { btnSize, btnSize },
             point     = { "TOPLEFT", d, "TOPLEFT",
@@ -552,12 +549,12 @@ function PSM.Dialogs:ShowSelectSlotDialog(team, petData)
                 tileSize = 8, edgeSize = 8,
                 insets = { left = 2, right = 2, top = 2, bottom = 2 },
             },
-            color       = PSM.Config.COLORS.BACKGROUND,
+            color       = ns.Config.COLORS.BACKGROUND,
             borderColor = isOccupied and { 0.3, 0.3, 0.3, 1 } or { 0.3, 0.5, 0.3, 1 },
         })
 
-        PSM.Widgets.Label(btn, {
-            fontSize = PSM.Theme.SIZE.BODY,
+        ns.Widgets.Label(btn, {
+            fontSize = ns.Theme.SIZE.BODY,
             color    = isOccupied and { 0.8, 0.8, 0.8 } or { 0.5, 1.0, 0.5 },
             point    = { "CENTER" },
             text     = "Slot " .. slot,
@@ -565,15 +562,15 @@ function PSM.Dialogs:ShowSelectSlotDialog(team, petData)
 
         btn:SetScript("OnClick", function()
             d:Hide()
-            PSM.Dialogs:ConfirmAddToTeam(team, petData, slot)
+            ns.Dialogs:ConfirmAddToTeam(team, petData, slot)
         end)
 
-        PSM.Tooltip.Attach(btn, isOccupied
+        ns.Tooltip.Attach(btn, isOccupied
             and {
                 title      = "Slot " .. slot .. " (Occupied)",
-                titleColor = PSM.Theme.COLOR.GOLD,
+                titleColor = ns.Theme.COLOR.GOLD,
                 lines      = { { text = team.slots[slot].name or "Unknown Pet",
-                                 color = PSM.Theme.COLOR.WHITE } },
+                                 color = ns.Theme.COLOR.WHITE } },
             }
             or {
                 title      = "Slot " .. slot .. " (Available)",
@@ -587,7 +584,7 @@ function PSM.Dialogs:ShowSelectSlotDialog(team, petData)
     d.cancelButton:SetPoint("BOTTOM", d, "BOTTOM", 0, 15)
     d.cancelButton:SetScript("OnClick", function()
         d:Hide()
-        PSM.Dialogs:ShowAddToTeamDialog(petData)
+        ns.Dialogs:ShowAddToTeamDialog(petData)
     end)
 
     d:Show()
@@ -598,7 +595,7 @@ end
 -- CONFIRM ADD / REMOVE
 --------------------------------------------------------------------------------
 
-function PSM.Dialogs:ConfirmAddToTeam(team, petData, slot)
+function ns.Dialogs:ConfirmAddToTeam(team, petData, slot)
     if not team or not petData or not slot then return end
 
     -- Duplicate guard
@@ -614,13 +611,13 @@ function PSM.Dialogs:ConfirmAddToTeam(team, petData, slot)
 
     local slots = {}
     for i = 1, 6 do
-        if team.slots and team.slots[i] then slots[i] = PSM.Utils.DeepCopy(team.slots[i]) end
+        if team.slots and team.slots[i] then slots[i] = ns.Utils.DeepCopy(team.slots[i]) end
     end
-    slots[slot] = PSM.Teams:SlotRecord(petData)
+    slots[slot] = ns.Teams:SlotRecord(petData)
 
-    local ok, err = PSM.Teams:UpdateTeam(team.id, slots)
+    local ok, err = ns.Teams:UpdateTeam(team.id, slots)
     if ok then
-        if PSM.TeamsPanel then PSM.TeamsPanel:RefreshTeamsList() end
+        if ns.TeamsPanel then ns.TeamsPanel:RefreshTeamsList() end
         print("|cFF00FF00PetStableManagement: Added '" .. (petData.name or "Unknown") ..
             "' to team '" .. team.name .. "' at slot " .. slot .. ".|r")
     else
@@ -628,19 +625,19 @@ function PSM.Dialogs:ConfirmAddToTeam(team, petData, slot)
     end
 end
 
-function PSM.Dialogs:ConfirmRemoveFromTeam(team, slot, petName)
+function ns.Dialogs:ConfirmRemoveFromTeam(team, slot, petName)
     if not team or not slot then return end
 
     local slots = {}
     for i = 1, 6 do
         if team.slots and team.slots[i] and i ~= slot then
-            slots[i] = PSM.Utils.DeepCopy(team.slots[i])
+            slots[i] = ns.Utils.DeepCopy(team.slots[i])
         end
     end
 
-    local ok, err = PSM.Teams:UpdateTeam(team.id, slots)
+    local ok, err = ns.Teams:UpdateTeam(team.id, slots)
     if ok then
-        if PSM.TeamsPanel then PSM.TeamsPanel:RefreshTeamsList() end
+        if ns.TeamsPanel then ns.TeamsPanel:RefreshTeamsList() end
         print("|cFF00FF00PetStableManagement: Removed pet from team '" .. team.name .. "'.|r")
     else
         print("|cFFFF0000PetStableManagement: " .. (err or "Failed to remove pet from team") .. "|r")
@@ -651,10 +648,10 @@ end
 -- REMOVE FROM TEAM DIALOG
 --------------------------------------------------------------------------------
 
-function PSM.Dialogs:ShowRemoveFromTeamDialog(petData)
+function ns.Dialogs:ShowRemoveFromTeamDialog(petData)
     if not petData then return end
 
-    local teams = PSM.Teams:GetTeams()
+    local teams = ns.Teams:GetTeams()
     local matches = {}
     for _, team in ipairs(teams) do
         for slot = 1, 6 do
@@ -670,8 +667,8 @@ function PSM.Dialogs:ShowRemoveFromTeamDialog(petData)
     local d = CreateBaseDialog("PSMRemoveFromTeamDialog", 420, dialogH, "Remove from Team", true)
 
     d.petInfoText = CreateDialogText(d, {
-        fontSize = PSM.Theme.SIZE.LABEL,
-        color    = PSM.Theme.COLOR.GOLD,
+        fontSize = ns.Theme.SIZE.LABEL,
+        color    = ns.Theme.COLOR.GOLD,
         point    = { "TOP", d.title, "BOTTOM", 0, -10 },
         text     = "Pet: " .. (petData.name or "Unknown"),
     })
@@ -691,14 +688,14 @@ function PSM.Dialogs:ShowRemoveFromTeamDialog(petData)
         d.teamButtons = {}
         local btnW, btnH = 200, 28
         for i, match in ipairs(matches) do
-            local btn = PSM.Widgets.Button(d, {
+            local btn = ns.Widgets.Button(d, {
                 size       = { btnW, btnH },
                 text       = match.team.name .. " (Slot " .. match.slot .. ")",
                 fontObject = "GameFontNormalSmall",
                 point      = { "TOP", d, "TOP", 0, -100 - (i-1)*(btnH+5) },
                 onClick    = function()
                     d:Hide()
-                    PSM.Dialogs:ConfirmRemoveFromTeam(match.team, match.slot, petData.name)
+                    ns.Dialogs:ConfirmRemoveFromTeam(match.team, match.slot, petData.name)
                 end,
             })
             table.insert(d.teamButtons, btn)

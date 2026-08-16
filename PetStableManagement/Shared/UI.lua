@@ -1,12 +1,9 @@
 -- UI.lua
 -- Optimized UI components for PetStableManagement with performance improvements
 
-local addonName = "PetStableManagement"
+local _, ns = ...
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
-
-PSM.UI = PSM.UI or {}
+ns.UI = ns.UI or {}
 
 -- The `PSM.UI:ApplyElvUISkin` / `PSM.UI.ElvUITexture` shims are gone. They forwarded to
 -- PSM.Skin so pre-kit call sites kept working during A6; the last of the 86 migrated with
@@ -22,7 +19,7 @@ PSM.UI = PSM.UI or {}
 -- to it, silently dropping fields Core.lua had that this list didn't (e.g.
 -- selectedExpansions/selectedLocations ended up nil, crashing BuildUnifiedFilterSystem on
 -- a fresh character). Only fall back to this literal if PSM.state doesn't exist yet.
-PSM.state = PSM.state or {
+ns.state = ns.state or {
     panel = nil, scrollFrame = nil, content = nil,
     rows = {}, stablePets = {}, stablePetsSnapshot = {},
     sortBy = nil,
@@ -31,7 +28,7 @@ PSM.state = PSM.state or {
     favoriteModels = {}, favoriteModelsLoaded = false, specList = {}, familyList = {},
     isStableOpen = false, minimapButton = nil, exportFrame = nil,
 }
-PSM.UI.state = PSM.state  -- backward-compat alias
+ns.UI.state = ns.state  -- backward-compat alias
 
 --------------------------------------------------------------------------------
 -- SLOT HELPERS
@@ -40,17 +37,17 @@ PSM.UI.state = PSM.state  -- backward-compat alias
 -- Scan a range of slot numbers and return the first unoccupied one.
 local function FindFreeSlot(fromSlot, toSlot)
     local occupied = {}
-    for _, p in ipairs(PSM.state.stablePets) do occupied[p.slotID] = true end
+    for _, p in ipairs(ns.state.stablePets) do occupied[p.slotID] = true end
     for slot = fromSlot, toSlot do
         if not occupied[slot] then return slot end
     end
 end
 
-function PSM.UI:FindDisplacementSlot()
+function ns.UI:FindDisplacementSlot()
     return FindFreeSlot(2, 5) or FindFreeSlot(7, 205)
 end
 
-function PSM.UI:FindAvailableStableSlot()
+function ns.UI:FindAvailableStableSlot()
     return FindFreeSlot(7, 205)
 end
 
@@ -58,7 +55,7 @@ end
 -- ROW BUTTONS
 --------------------------------------------------------------------------------
 
-function PSM.UI:SetupRowButtons(row, pet)
+function ns.UI:SetupRowButtons(row, pet)
     if not row or not pet or not pet.slotID or pet.slotID <= 0 then
         if row then
             row.makeActive:Hide(); row.companion:Hide()
@@ -67,37 +64,37 @@ function PSM.UI:SetupRowButtons(row, pet)
         return
     end
 
-    local isStableOpen = PSM.state.isStableOpen
+    local isStableOpen = ns.state.isStableOpen
 
     -- Make Active
     row.makeActive:SetScript("OnClick", function()
         if not isStableOpen then
-            print(string.format(PSM.Config.MESSAGES.STABLE_MUST_BE_OPEN, "make a pet active"))
+            print(string.format(ns.Config.MESSAGES.STABLE_MUST_BE_OPEN, "make a pet active"))
             return
         end
         if not C_StableInfo or not C_StableInfo.SetPetSlot then
             print("|cFFFF0000C_StableInfo.SetPetSlot not available.|r")
             return
         end
-        PSM.Utils.SafeCall(function()
+        ns.Utils.SafeCall(function()
             local slot1Pet = nil
-            for _, p in ipairs(PSM.state.stablePets) do
+            for _, p in ipairs(ns.state.stablePets) do
                 if p.slotID == 1 then slot1Pet = p; break end
             end
             if slot1Pet then
                 local dispSlot = self:FindDisplacementSlot()
                 if dispSlot then
                     C_StableInfo.SetPetSlot(1, dispSlot)
-                    PSM.C_Timer.After(0.1, function()
+                    ns.C_Timer.After(0.1, function()
                         C_StableInfo.SetPetSlot(pet.slotID, 1)
-                        PSM.C_Timer.After(0.2, function() PSM.UI:UpdatePanel() end)
+                        ns.C_Timer.After(0.2, function() ns.UI:UpdatePanel() end)
                     end)
                 else
-                    print(PSM.Config.MESSAGES.NO_AVAILABLE_SLOTS)
+                    print(ns.Config.MESSAGES.NO_AVAILABLE_SLOTS)
                 end
             else
                 C_StableInfo.SetPetSlot(pet.slotID, 1)
-                PSM.C_Timer.After(0.2, function() PSM.UI:UpdatePanel() end)
+                ns.C_Timer.After(0.2, function() ns.UI:UpdatePanel() end)
             end
         end)
     end)
@@ -110,15 +107,15 @@ function PSM.UI:SetupRowButtons(row, pet)
     -- Companion
     row.companion:SetScript("OnClick", function()
         if not isStableOpen then
-            print(string.format(PSM.Config.MESSAGES.STABLE_MUST_BE_OPEN, "set a pet as companion"))
+            print(string.format(ns.Config.MESSAGES.STABLE_MUST_BE_OPEN, "set a pet as companion"))
             return
         end
         if C_StableInfo and C_StableInfo.SetPetSlot then
             C_StableInfo.SetPetSlot(pet.slotID, 6)
-            PSM.C_Timer.After(0.2, function() PSM.UI:UpdatePanel() end)
+            ns.C_Timer.After(0.2, function() ns.UI:UpdatePanel() end)
         end
     end)
-    if not PSM.Utils:HasAnimalCompanionTalent() or not isStableOpen or pet.slotID == 6 then
+    if not ns.Utils:HasAnimalCompanionTalent() or not isStableOpen or pet.slotID == 6 then
         row.companion:Hide()
     else
         row.companion:Show()
@@ -127,16 +124,16 @@ function PSM.UI:SetupRowButtons(row, pet)
     -- Stable
     row.stable:SetScript("OnClick", function()
         if not isStableOpen then
-            print(string.format(PSM.Config.MESSAGES.STABLE_MUST_BE_OPEN, "stable a pet"))
+            print(string.format(ns.Config.MESSAGES.STABLE_MUST_BE_OPEN, "stable a pet"))
             return
         end
         if C_StableInfo and C_StableInfo.SetPetSlot then
             local targetSlot = self:FindAvailableStableSlot()
             if targetSlot then
                 C_StableInfo.SetPetSlot(pet.slotID, targetSlot)
-                PSM.C_Timer.After(0.2, function() PSM.UI:UpdatePanel() end)
+                ns.C_Timer.After(0.2, function() ns.UI:UpdatePanel() end)
             else
-                print(PSM.Config.MESSAGES.NO_STABLE_SLOTS)
+                print(ns.Config.MESSAGES.NO_STABLE_SLOTS)
             end
         end
     end)
@@ -153,13 +150,13 @@ function PSM.UI:SetupRowButtons(row, pet)
         local function doRelease()
             local onClick = StableFrame.ReleasePetButton:GetScript("OnClick")
             if onClick then
-                PSM.Utils.SafeCall(onClick, StableFrame.ReleasePetButton)
-                for i = #PSM.state.stablePets, 1, -1 do
-                    if PSM.state.stablePets[i].slotID == pet.slotID then
-                        table.remove(PSM.state.stablePets, i); break
+                ns.Utils.SafeCall(onClick, StableFrame.ReleasePetButton)
+                for i = #ns.state.stablePets, 1, -1 do
+                    if ns.state.stablePets[i].slotID == pet.slotID then
+                        table.remove(ns.state.stablePets, i); break
                     end
                 end
-                PSM.UI:UpdatePanel()
+                ns.UI:UpdatePanel()
             end
         end
 
@@ -168,7 +165,7 @@ function PSM.UI:SetupRowButtons(row, pet)
                 local info = C_StableInfo.GetStablePetInfo(pet.slotID)
                 if info then
                     StableFrame:OnPetSelected(info)
-                    PSM.C_Timer.After(0.05, doRelease)
+                    ns.C_Timer.After(0.05, doRelease)
                 end
             end
         else
@@ -187,7 +184,7 @@ function PSM.UI:SetupRowButtons(row, pet)
                     end, false)
                     if found then
                         StableFrame:OnPetSelected(found)
-                        PSM.C_Timer.After(0.05, doRelease)
+                        ns.C_Timer.After(0.05, doRelease)
                     end
                 end
             end
@@ -203,14 +200,14 @@ function PSM.UI:SetupRowButtons(row, pet)
         -- stale OnLeave behind if only OnEnter was reassigned.
         local function setupMoveButton(btn, label, targetSlot, action)
             btn:SetScript("OnClick", action)
-            PSM.Tooltip.Attach(btn, {
+            ns.Tooltip.Attach(btn, {
                 anchor = "ANCHOR_RIGHT",
                 title  = label .. " (to slot " .. targetSlot .. ")",
             })
         end
 
-        setupMoveButton(row.moveUp,   "Move Up",   pet.slotID - 1, function() PSM.Reorder:MovePetUp(pet)   end)
-        setupMoveButton(row.moveDown, "Move Down", pet.slotID + 1, function() PSM.Reorder:MovePetDown(pet) end)
+        setupMoveButton(row.moveUp,   "Move Up",   pet.slotID - 1, function() ns.Reorder:MovePetUp(pet)   end)
+        setupMoveButton(row.moveDown, "Move Down", pet.slotID + 1, function() ns.Reorder:MovePetDown(pet) end)
 
         if pet.slotID > 1   then row.moveUp:Show()   else row.moveUp:Hide()   end
         if pet.slotID < 205 then row.moveDown:Show() else row.moveDown:Hide() end
@@ -233,25 +230,25 @@ end
 -- RENDER CACHE
 --------------------------------------------------------------------------------
 
-function PSM.UI:CreateRenderCache()
-    PSM._renderCache        = nil
-    PSM._renderDebounceTimer= nil
-    PSM._lastLayoutWidth    = nil
-    PSM._lastLayoutHeight   = nil
+function ns.UI:CreateRenderCache()
+    ns._renderCache        = nil
+    ns._renderDebounceTimer= nil
+    ns._lastLayoutWidth    = nil
+    ns._lastLayoutHeight   = nil
 end
 
-function PSM.UI:GenerateCacheKey()
-    local searchText  = PSM.state.panel and PSM.state.panel.searchBox:GetSearchText() or ""
-    local searchLower = searchText ~= "" and PSM.Utils:NormalizeSearchText(searchText) or ""
+function ns.UI:GenerateCacheKey()
+    local searchText  = ns.state.panel and ns.state.panel.searchBox:GetSearchText() or ""
+    local searchLower = searchText ~= "" and ns.Utils:NormalizeSearchText(searchText) or ""
     return string.format("%d_%s_%s_%s_%s_%s_%s_%s",
-        #PSM.state.stablePets,
+        #ns.state.stablePets,
         searchLower,
-        tostring(PSM.state.exoticFilter),
-        tostring(PSM.state.duplicatesOnlyFilter),
-        PSM.Utils:GetTableHash(PSM.state.selectedSpecs),
-        PSM.Utils:GetTableHash(PSM.state.selectedFamilies),
-        PSM.Utils:GetTableHash(PSM.state.selectedTamers),
-        tostring(PSM.state.sortBy)
+        tostring(ns.state.exoticFilter),
+        tostring(ns.state.duplicatesOnlyFilter),
+        ns.Utils:GetTableHash(ns.state.selectedSpecs),
+        ns.Utils:GetTableHash(ns.state.selectedFamilies),
+        ns.Utils:GetTableHash(ns.state.selectedTamers),
+        tostring(ns.state.sortBy)
     )
 end
 
@@ -259,52 +256,52 @@ end
 -- RENDERING
 --------------------------------------------------------------------------------
 
-function PSM.UI:RenderPanel(preserveScroll)
-    if not PSM.state.panel or not PSM.state.content then
-        print(PSM.Config.MESSAGES.PANEL_SHOW_FAILED)
+function ns.UI:RenderPanel(preserveScroll)
+    if not ns.state.panel or not ns.state.content then
+        print(ns.Config.MESSAGES.PANEL_SHOW_FAILED)
         return
     end
-    if PSM._renderDebounceTimer then PSM._renderDebounceTimer:Cancel() end
-    PSM._renderDebounceTimer = PSM.C_Timer.NewTimer(PSM.Config.RENDER_DELAY or 0.01, function()
+    if ns._renderDebounceTimer then ns._renderDebounceTimer:Cancel() end
+    ns._renderDebounceTimer = ns.C_Timer.NewTimer(ns.Config.RENDER_DELAY or 0.01, function()
         self:_RenderPanelImmediate(preserveScroll)
     end)
 end
 
-function PSM.UI:_RenderPanelImmediate(preserveScroll)
-    if not PSM.state.panel or not PSM.state.content then return end
+function ns.UI:_RenderPanelImmediate(preserveScroll)
+    if not ns.state.panel or not ns.state.content then return end
 
     local cacheKey = self:GenerateCacheKey()
-    if PSM._renderCache and PSM._renderCache.key == cacheKey and PSM._renderCache.timestamp then
-        if GetTime() - PSM._renderCache.timestamp < 0.1 then
-            self:_ApplyCachedRender(PSM._renderCache.data, preserveScroll)
+    if ns._renderCache and ns._renderCache.key == cacheKey and ns._renderCache.timestamp then
+        if GetTime() - ns._renderCache.timestamp < 0.1 then
+            self:_ApplyCachedRender(ns._renderCache.data, preserveScroll)
             return
         end
     end
 
     local renderData = self:_CalculateRenderData()
-    PSM._renderCache = { key = cacheKey, timestamp = GetTime(), data = renderData }
+    ns._renderCache = { key = cacheKey, timestamp = GetTime(), data = renderData }
     self:_ApplyCachedRender(renderData, preserveScroll)
 end
 
-function PSM.UI:_CalculateRenderData()
-    local searchText  = PSM.state.panel.searchBox:GetSearchText() or ""
-    local searchLower = searchText ~= "" and PSM.Utils:NormalizeSearchText(searchText) or ""
+function ns.UI:_CalculateRenderData()
+    local searchText  = ns.state.panel.searchBox:GetSearchText() or ""
+    local searchLower = searchText ~= "" and ns.Utils:NormalizeSearchText(searchText) or ""
 
     -- Duplicate groups across ALL pets, account-wide (every character's tamer)
     local allGroups = {}
-    for _, pet in ipairs(PSM.state.stablePets) do
-        local key = PSM.Utils:GetPetDuplicateKey(pet)
+    for _, pet in ipairs(ns.state.stablePets) do
+        local key = ns.Utils:GetPetDuplicateKey(pet)
         allGroups[key] = allGroups[key] or {}
         table.insert(allGroups[key], pet)
     end
 
     -- Filter flags
-    local hasSpecsFilter  = next(PSM.state.selectedSpecs)    ~= nil
-    local hasFamilyFilter = next(PSM.state.selectedFamilies) ~= nil
-    local hasTamerFilter  = next(PSM.state.selectedTamers)   ~= nil
+    local hasSpecsFilter  = next(ns.state.selectedSpecs)    ~= nil
+    local hasFamilyFilter = next(ns.state.selectedFamilies) ~= nil
+    local hasTamerFilter  = next(ns.state.selectedTamers)   ~= nil
     local hasSearch       = searchLower ~= ""
-    local needsDupes      = PSM.state.duplicatesOnlyFilter == true
-    local needsNoDupes    = PSM.state.duplicatesOnlyFilter == "inverted"
+    local needsDupes      = ns.state.duplicatesOnlyFilter == true
+    local needsNoDupes    = ns.state.duplicatesOnlyFilter == "inverted"
 
     local duplicateKeys = {}
     if needsDupes or needsNoDupes then
@@ -316,16 +313,16 @@ function PSM.UI:_CalculateRenderData()
     -- Filter pass
     local filteredPets  = {}
     local filteredCount = 0
-    for _, pet in ipairs(PSM.state.stablePets) do
+    for _, pet in ipairs(ns.state.stablePets) do
         local skip = false
 
-        if     PSM.state.exoticFilter == true     and not pet.isExotic                       then skip = true
-        elseif PSM.state.exoticFilter == "inverted" and pet.isExotic                          then skip = true
-        elseif hasSpecsFilter  and not PSM.state.selectedSpecs[pet.specName]                 then skip = true
-        elseif hasFamilyFilter and not PSM.state.selectedFamilies[pet.familyName]            then skip = true
-        elseif hasTamerFilter  and not PSM.state.selectedTamers[pet.tamer]                   then skip = true
-        elseif needsDupes      and not duplicateKeys[PSM.Utils:GetPetDuplicateKey(pet)]      then skip = true
-        elseif needsNoDupes    and     duplicateKeys[PSM.Utils:GetPetDuplicateKey(pet)]      then skip = true
+        if     ns.state.exoticFilter == true     and not pet.isExotic                       then skip = true
+        elseif ns.state.exoticFilter == "inverted" and pet.isExotic                          then skip = true
+        elseif hasSpecsFilter  and not ns.state.selectedSpecs[pet.specName]                 then skip = true
+        elseif hasFamilyFilter and not ns.state.selectedFamilies[pet.familyName]            then skip = true
+        elseif hasTamerFilter  and not ns.state.selectedTamers[pet.tamer]                   then skip = true
+        elseif needsDupes      and not duplicateKeys[ns.Utils:GetPetDuplicateKey(pet)]      then skip = true
+        elseif needsNoDupes    and     duplicateKeys[ns.Utils:GetPetDuplicateKey(pet)]      then skip = true
         end
 
         if not skip and hasSearch then
@@ -360,11 +357,11 @@ function PSM.UI:_CalculateRenderData()
     end
 
     -- Sort
-    if PSM.state.sortBy == "model" then
+    if ns.state.sortBy == "model" then
         table.sort(filteredPets, function(a,b) return (a.displayID or 0) < (b.displayID or 0) end)
-    elseif PSM.state.sortBy == "slot" then
+    elseif ns.state.sortBy == "slot" then
         table.sort(filteredPets, function(a,b) return (a.slotID or 0) < (b.slotID or 0) end)
-    elseif PSM.state.sortBy == "family" then
+    elseif ns.state.sortBy == "family" then
         table.sort(filteredPets, function(a,b)
             local af = a.familyName or ""
             local bf = b.familyName or ""
@@ -373,7 +370,7 @@ function PSM.UI:_CalculateRenderData()
             end
             return af < bf
         end)
-    elseif PSM.state.sortBy == "spec" then
+    elseif ns.state.sortBy == "spec" then
         table.sort(filteredPets, function(a,b)
             local as = a.specName or ""
             local bs = b.specName or ""
@@ -382,7 +379,7 @@ function PSM.UI:_CalculateRenderData()
             end
             return as < bs
         end)
-    elseif PSM.state.sortBy == "tamer" then
+    elseif ns.state.sortBy == "tamer" then
         table.sort(filteredPets, function(a,b)
             local at = a.tamer or ""
             local bt = b.tamer or ""
@@ -396,7 +393,7 @@ function PSM.UI:_CalculateRenderData()
     -- Duplicate stats from filtered set
     local filteredGroups = {}
     for _, pet in ipairs(filteredPets) do
-        local key = PSM.Utils:GetPetDuplicateKey(pet)
+        local key = ns.Utils:GetPetDuplicateKey(pet)
         filteredGroups[key] = filteredGroups[key] or {}
         table.insert(filteredGroups[key], pet)
     end
@@ -427,7 +424,7 @@ function PSM.UI:_CalculateRenderData()
     end
 
     -- Layout
-    local contentWidth = PSM.state.content:GetWidth()
+    local contentWidth = ns.state.content:GetWidth()
     if not contentWidth or contentWidth <= 0 then contentWidth = 500 end
     local colSpacing = 2
     local colCount   = math.max(1, math.floor((contentWidth + colSpacing) / (500 + colSpacing)))
@@ -449,9 +446,9 @@ function PSM.UI:_CalculateRenderData()
     }
 end
 
-function PSM.UI:_ApplyCachedRender(renderData, preserveScroll)
-    if PSM._scrollLock then preserveScroll = true end
-    PSM.state.currentRenderData = renderData
+function ns.UI:_ApplyCachedRender(renderData, preserveScroll)
+    if ns._scrollLock then preserveScroll = true end
+    ns.state.currentRenderData = renderData
 
     -- Stats text
     local statsText = string.format("Showing: %d pets", renderData.filteredCount)
@@ -459,24 +456,24 @@ function PSM.UI:_ApplyCachedRender(renderData, preserveScroll)
     if renderData.sameCharDuplicatePets  > 0 then table.insert(parts, string.format("Same-char: %d models (%d pets)",  renderData.sameCharDuplicateGroups,  renderData.sameCharDuplicatePets))  end
     if renderData.crossCharDuplicatePets > 0 then table.insert(parts, string.format("Cross-char: %d models (%d pets)", renderData.crossCharDuplicateGroups, renderData.crossCharDuplicatePets)) end
     if #parts > 0 then statsText = statsText .. " | Duplicates: " .. table.concat(parts, "; ") end
-    PSM.state.panel.statsText:SetText(statsText)
+    ns.state.panel.statsText:SetText(statsText)
 
     -- Content height
-    local rowHeight = (PSM.state.panelViewMode == "grid") and PSM.Config.GRID_ROW_HEIGHT or PSM.Config.ROW_HEIGHT
-    PSM.state.content:SetHeight(math.max(renderData.rowTotal * rowHeight + 10, 100))
+    local rowHeight = (ns.state.panelViewMode == "grid") and ns.Config.GRID_ROW_HEIGHT or ns.Config.ROW_HEIGHT
+    ns.state.content:SetHeight(math.max(renderData.rowTotal * rowHeight + 10, 100))
 
-    if not preserveScroll and PSM.state.panelViewMode == "grid" then
-        PSM.state.panel.gridScrollOffset = 0
+    if not preserveScroll and ns.state.panelViewMode == "grid" then
+        ns.state.panel.gridScrollOffset = 0
     end
 
-    if PSM.state.scrollFrame.UpdateScrollChildRect then
-        PSM.state.scrollFrame:UpdateScrollChildRect()
+    if ns.state.scrollFrame.UpdateScrollChildRect then
+        ns.state.scrollFrame:UpdateScrollChildRect()
     end
-    if not preserveScroll and PSM.state.scrollFrame.ScrollBar then
-        PSM.state.scrollFrame.ScrollBar:SetValue(0)
+    if not preserveScroll and ns.state.scrollFrame.ScrollBar then
+        ns.state.scrollFrame.ScrollBar:SetValue(0)
     end
     -- The content just changed height; a scroll left past the new end shows nothing.
-    self:ClampScrollIntoRange(PSM.state.scrollFrame, PSM.state.content)
+    self:ClampScrollIntoRange(ns.state.scrollFrame, ns.state.content)
 
     self:UpdateVisibleRows()
 end
@@ -501,7 +498,7 @@ end
 -- the one position that is already in range.
 --
 -- Call this after any content:SetHeight. Returns the (possibly corrected) scroll.
-function PSM.UI:ClampScrollIntoRange(scrollFrame, content)
+function ns.UI:ClampScrollIntoRange(scrollFrame, content)
     if not scrollFrame or not content then return 0 end
 
     local maxScroll = math.max(0, (content:GetHeight() or 0) - (scrollFrame:GetHeight() or 0))
@@ -542,35 +539,35 @@ end
 --
 -- Floor, not round, in both views: this answers "which row is at the top of the window",
 -- and grid's own snap-to-row logic settles the scrollbar on an exact multiple anyway.
-function PSM.UI:GetScrollRowOffset(rowHeight, rowTotal)
-    local scrollFrame = PSM.state.scrollFrame
+function ns.UI:GetScrollRowOffset(rowHeight, rowTotal)
+    local scrollFrame = ns.state.scrollFrame
     local scroll      = scrollFrame and scrollFrame:GetVerticalScroll() or 0
     local offset      = math.floor((scroll or 0) / math.max(1, rowHeight or 1))
     return math.max(0, math.min(offset, math.max(0, (rowTotal or 0) - 1)))
 end
 
-function PSM.UI:UpdateVisibleRows()
-    local renderData = PSM.state.currentRenderData
-    if not renderData or not PSM.state.panel then return end
+function ns.UI:UpdateVisibleRows()
+    local renderData = ns.state.currentRenderData
+    if not renderData or not ns.state.panel then return end
 
-    if PSM.state.panelViewMode == "grid" then
-        if PSM.UI.GridView then PSM.UI.GridView:UpdateVisibleRows() end
+    if ns.state.panelViewMode == "grid" then
+        if ns.UI.GridView then ns.UI.GridView:UpdateVisibleRows() end
         return
     end
-    if PSM.state.panelViewMode == "grouped" then
-        if PSM.UI.GroupedView then PSM.UI.GroupedView:UpdateVisibleRows() end
+    if ns.state.panelViewMode == "grouped" then
+        if ns.UI.GroupedView then ns.UI.GroupedView:UpdateVisibleRows() end
         return
     end
 
     -- List view
-    local panel = PSM.state.panel
+    local panel = ns.state.panel
     if not panel.modelRows then
         panel.modelRows = {}
         for i = 1, 50 do
-            local row = PSM.RowManager:EnsureRow(i, PSM.state.content, {
+            local row = ns.RowManager:EnsureRow(i, ns.state.content, {
                 useBackdropTemplate = true,
-                width     = PSM.Config.DEFAULT_ROW_WIDTH,
-                height    = PSM.Config.ROW_HEIGHT,
+                width     = ns.Config.DEFAULT_ROW_WIDTH,
+                height    = ns.Config.ROW_HEIGHT,
                 modelSize = 110,
                 showMagnifyButton = true,
                 showTeamButtons   = true,
@@ -584,7 +581,7 @@ function PSM.UI:UpdateVisibleRows()
         return
     end
 
-    local contentWidth = PSM.state.content:GetWidth()
+    local contentWidth = ns.state.content:GetWidth()
     if not contentWidth or contentWidth <= 0 then contentWidth = 500 end
     -- Reuse layout values already computed in renderData
     local colCount   = renderData.colCount
@@ -592,9 +589,9 @@ function PSM.UI:UpdateVisibleRows()
     local colSpacing = 2
     local rowTotal   = renderData.rowTotal
 
-    local sfHeight       = PSM.state.scrollFrame:GetHeight() or 500
-    local visibleRows    = math.ceil(sfHeight / PSM.Config.ROW_HEIGHT) + 2
-    panel.scrollOffset   = self:GetScrollRowOffset(PSM.Config.ROW_HEIGHT, rowTotal)
+    local sfHeight       = ns.state.scrollFrame:GetHeight() or 500
+    local visibleRows    = math.ceil(sfHeight / ns.Config.ROW_HEIGHT) + 2
+    panel.scrollOffset   = self:GetScrollRowOffset(ns.Config.ROW_HEIGHT, rowTotal)
     local startRow       = math.max(1, panel.scrollOffset + 1)
     local endRow         = math.min(rowTotal, startRow + visibleRows - 1)
     local startIndex     = (startRow - 1) * colCount + 1
@@ -612,15 +609,15 @@ function PSM.UI:UpdateVisibleRows()
             local rowIdx = math.floor((dataIndex - 1) / colCount) + 1
 
             row:ClearAllPoints()
-            row:SetPoint("TOPLEFT", PSM.state.content, "TOPLEFT",
+            row:SetPoint("TOPLEFT", ns.state.content, "TOPLEFT",
                 4 + col * (colWidth + colSpacing),
-                -(rowIdx - 1) * PSM.Config.ROW_HEIGHT)
+                -(rowIdx - 1) * ns.Config.ROW_HEIGHT)
             row:SetWidth(colWidth)
 
             local leftW   = math.floor(colWidth / 2)
             local rightW  = colWidth - leftW
-            local btnSpace= PSM.Theme.CONTROL.BUTTON_W.M + 20
-            local fixedSp = 2 + PSM.Config.MODEL_SIZE + 6
+            local btnSpace= ns.Theme.CONTROL.BUTTON_W.M + 20
+            local fixedSp = 2 + ns.Config.MODEL_SIZE + 6
 
             if row.text then row.text:SetWidth(leftW - fixedSp) end
             if row.abilitiesHeader then
@@ -632,9 +629,9 @@ function PSM.UI:UpdateVisibleRows()
             end
             if row.abilitiesList then row.abilitiesList:SetWidth(rightW - btnSpace) end
 
-PSM.state.allGroups = renderData.allGroups
+ns.state.allGroups = renderData.allGroups
 
-            PSM.UI.Row:UpdateRow(row, pet, renderData.allGroups)
+            ns.UI.Row:UpdateRow(row, pet, renderData.allGroups)
              
             if row.separator then row.separator:Show() end
             row:Show()
@@ -649,25 +646,25 @@ end
 
 -- Shared data-loading logic for UpdatePanel
 local function EnsurePetData(collectSnapshot)
-    if PSM.state.isStableOpen then
+    if ns.state.isStableOpen then
         if collectSnapshot then
-            PSM.Data:ClearMemory()
-            PSM.Data:CollectStablePets()
-            PSM.Data:CreateSnapshot()
-        elseif #PSM.state.stablePets == 0 then
-            PSM.Data:CollectStablePets()
+            ns.Data:ClearMemory()
+            ns.Data:CollectStablePets()
+            ns.Data:CreateSnapshot()
+        elseif #ns.state.stablePets == 0 then
+            ns.Data:CollectStablePets()
         end
         return true
     else
-        if #PSM.state.stablePets == 0 then
-            return PSM.Data:LoadPersistentDataForDisplay()
+        if #ns.state.stablePets == 0 then
+            return ns.Data:LoadPersistentDataForDisplay()
         end
         return true
     end
 end
 
-function PSM.UI:UpdatePanel(showIfHidden)
-    if not PSM.state.panel then self:BuildPanel() end
+function ns.UI:UpdatePanel(showIfHidden)
+    if not ns.state.panel then self:BuildPanel() end
 
     if not EnsurePetData(false) then
         print("|cFFFF0000No owned pets data available! Please visit a Stable Master.|r")
@@ -677,24 +674,24 @@ function PSM.UI:UpdatePanel(showIfHidden)
     self:RenderPanel()
     self:UpdatePanelTitle()
 
-    if PSM.state.panel and (showIfHidden == true or PSM.state.panel:IsVisible()) then
-        PSM.state.panel:Show()
+    if ns.state.panel and (showIfHidden == true or ns.state.panel:IsVisible()) then
+        ns.state.panel:Show()
     end
 end
 
-function PSM.UI:UpdatePanelTitle()
-    if not PSM.state.panel or not PSM.state.panel.title then return end
+function ns.UI:UpdatePanelTitle()
+    if not ns.state.panel or not ns.state.panel.title then return end
 
-    if PSM.state.isStableOpen then
-        PSM.state.panel.title:SetText("Pet Stable Management (Live)")
-        PSM.state.panel.title:SetTextColor(unpack(PSM.Config.COLORS.PRIMARY))
+    if ns.state.isStableOpen then
+        ns.state.panel.title:SetText("Pet Stable Management (Live)")
+        ns.state.panel.title:SetTextColor(unpack(ns.Config.COLORS.PRIMARY))
         return
     end
 
     local text, color = "Pet Stable Management", {0.6, 0.8, 1}
-    if #PSM.state.stablePets > 0 or
+    if #ns.state.stablePets > 0 or
        (PetStableManagementDB and PetStableManagementDB.snapshotData and #PetStableManagementDB.snapshotData > 0) then
-        local formatted = PSM.Data:GetFormattedTimestamp()
+        local formatted = ns.Data:GetFormattedTimestamp()
         local suffix = formatted ~= "Never"
             and (" (using data from " .. formatted .. ")")
             or  " (using preserved data)"
@@ -703,29 +700,29 @@ function PSM.UI:UpdatePanelTitle()
         text  = text .. " (no saved data available)"
         color = {1, 0.7, 0.7}
     end
-    PSM.state.panel.title:SetText(text)
-    PSM.state.panel.title:SetTextColor(unpack(color))
+    ns.state.panel.title:SetText(text)
+    ns.state.panel.title:SetTextColor(unpack(color))
 end
 
-PSM.UI:CreateRenderCache()
+ns.UI:CreateRenderCache()
 
 --------------------------------------------------------------------------------
 -- PET TEAMS INTEGRATION
 --------------------------------------------------------------------------------
 
 local function RefreshTeamsPanel()
-    if PSM.TeamsPanel and PSM.TeamsPanel.RefreshTeamsList then
-        PSM.TeamsPanel:RefreshTeamsList()
+    if ns.TeamsPanel and ns.TeamsPanel.RefreshTeamsList then
+        ns.TeamsPanel:RefreshTeamsList()
     end
 end
 
-function PSM.UI:HandleSaveTeamClick()
-    if not PSM.state.isStableOpen then
+function ns.UI:HandleSaveTeamClick()
+    if not ns.state.isStableOpen then
         print("|cFFFF8800PetStableManagement: You must be at a Stable Master to save a team.|r")
         return
     end
 
-    local currentSlots, err = PSM.Teams:GetCurrentSlots()
+    local currentSlots, err = ns.Teams:GetCurrentSlots()
     if not currentSlots then
         print("|cFFFF0000PetStableManagement: " .. (err or "Failed to capture current slots") .. "|r")
         return
@@ -738,21 +735,21 @@ function PSM.UI:HandleSaveTeamClick()
         return
     end
 
-    local activeTeamId = PSM.Teams:GetActiveTeamId()
-    local activeTeam   = activeTeamId and PSM.Teams:GetTeamById(activeTeamId)
+    local activeTeamId = ns.Teams:GetActiveTeamId()
+    local activeTeam   = activeTeamId and ns.Teams:GetTeamById(activeTeamId)
 
     if activeTeam then
-        if PSM.Teams:HasActiveTeamChanged() then
-            PSM.Dialogs:ShowSaveTeamDialog({
+        if ns.Teams:HasActiveTeamChanged() then
+            ns.Dialogs:ShowSaveTeamDialog({
                 existingTeamId   = activeTeamId,
                 existingTeamName = activeTeam.name,
                 onUpdate = function()
-                    local ok, updateErr = PSM.Teams:UpdateTeam(activeTeamId)
+                    local ok, updateErr = ns.Teams:UpdateTeam(activeTeamId)
                     if ok then RefreshTeamsPanel()
                     else print("|cFFFF0000PetStableManagement: " .. (updateErr or "Failed to update team") .. "|r") end
                 end,
                 onSaveNew = function(name)
-                    local tid, saveErr = PSM.Teams:SaveTeam(name)
+                    local tid, saveErr = ns.Teams:SaveTeam(name)
                     if tid then RefreshTeamsPanel()
                     else print("|cFFFF0000PetStableManagement: " .. (saveErr or "Failed to save team") .. "|r") end
                 end,
@@ -761,11 +758,11 @@ function PSM.UI:HandleSaveTeamClick()
             print("|cFF00FF00PetStableManagement: Team '" .. activeTeam.name .. "' is already up to date.|r")
         end
     else
-        PSM.Dialogs:ShowNameInputDialog({
+        ns.Dialogs:ShowNameInputDialog({
             title       = "Save New Team",
             description = "Enter a name for your pet team:",
             onConfirm   = function(name)
-                local tid, saveErr = PSM.Teams:SaveTeam(name)
+                local tid, saveErr = ns.Teams:SaveTeam(name)
                 if tid then RefreshTeamsPanel()
                 else print("|cFFFF0000PetStableManagement: " .. (saveErr or "Failed to save team") .. "|r") end
             end,
@@ -773,8 +770,8 @@ function PSM.UI:HandleSaveTeamClick()
     end
 end
 
-function PSM.UI:UpdateSortButtonTexts()
-    local panel = PSM.state.panel
+function ns.UI:UpdateSortButtonTexts()
+    local panel = ns.state.panel
     if not panel or not panel.sortDrop then return end
 
     -- Update sort dropdown text based on current sort state
@@ -785,7 +782,7 @@ function PSM.UI:UpdateSortButtonTexts()
         spec   = "Sorted by Spec",
         tamer  = "Sorted by Tamer",
     }
-    local sortText = sortLabels[PSM.state.sortBy] or "Sort by"
+    local sortText = sortLabels[ns.state.sortBy] or "Sort by"
     UIDropDownMenu_SetText(panel.sortDrop, sortText)
 end
 

@@ -1,11 +1,10 @@
 -- OwnedPets/DragDrop.lua
 -- Drag and drop functionality for reordering pets in the Owned Pets panel
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
-PSM.DragDrop = PSM.DragDrop or {}
+local _, ns = ...
+ns.DragDrop = ns.DragDrop or {}
 
-local DD = PSM.DragDrop
+local DD = ns.DragDrop
 
 -- Colors
 local COLOR = {
@@ -91,11 +90,11 @@ end
 
 local function SetDropIndicator(row, show)
     -- Only show drop indicator in grouped view (where allowOutsideStable is true)
-    if PSM.state.panelViewMode ~= "grouped" then return end
+    if ns.state.panelViewMode ~= "grouped" then return end
     if not row then return end
     if show then
         if not row._dropIndicator then
-            row._dropIndicator = PSM.Widgets.Texture(row, {
+            row._dropIndicator = ns.Widgets.Texture(row, {
                 layer = "OVERLAY",
                 width = 3,
                 color = { 0.2, 1.0, 0.2, 1 },
@@ -118,7 +117,7 @@ end
 local function GetDragFrame()
     if DD.state.dragFrame then return DD.state.dragFrame end
 
-    local Widgets = PSM.Widgets
+    local Widgets = ns.Widgets
 
     -- BORDER_ONLY with a 12px edge: a ring around whatever is being dragged, with the
     -- model or icon showing through. The preset's insets are inert here because there
@@ -140,7 +139,7 @@ local function GetDragFrame()
     f.icon = Widgets.Texture(f, { layer = "ARTWORK", allPoints = true, hidden = true })
 
     f.slotText = Widgets.Label(f, {
-        fontSize = PSM.Theme.SIZE.LABEL,
+        fontSize = ns.Theme.SIZE.LABEL,
         outline  = true,
         color    = DRAG_HIGHLIGHT,
         point    = { "BOTTOM", f, "BOTTOM", 0, 2 },
@@ -153,7 +152,7 @@ end
 local function GetTeamDragFrame()
     if DD.teamState.dragFrame then return DD.teamState.dragFrame end
 
-    local Widgets = PSM.Widgets
+    local Widgets = ns.Widgets
 
     local f = Widgets.Frame(UIParent, {
         size   = { ICON_SIZE + 45, ICON_SIZE + 45 },
@@ -195,7 +194,7 @@ end
 
 function DD:StartDrag(row, pet, allowOutsideStable)
     if not row or not pet then return end
-    if not PSM.state.isStableOpen and not allowOutsideStable then
+    if not ns.state.isStableOpen and not allowOutsideStable then
         print("|cFFFF0000Must be at stable master to reorder pets|r")
         return false
     end
@@ -208,8 +207,8 @@ function DD:StartDrag(row, pet, allowOutsideStable)
     s.sourceGroupId            = row.groupId
 
     -- Capture the source group's pet order at drag start for position fallback
-    if row.groupId and PSM.PetGroups then
-        local group = PSM.PetGroups:GetGroupById(row.groupId)
+    if row.groupId and ns.PetGroups then
+        local group = ns.PetGroups:GetGroupById(row.groupId)
         if group and group.pets then
             s.sourceGroupPetOrder = {}
             for _, guid in ipairs(group.pets) do
@@ -260,7 +259,7 @@ function DD:OnEnterTarget(row, pet)
         local sameGroup = tgtGroup and (tgtGroup == s.sourceGroupId)
         isValid = tgtGroup ~= nil or row.isGroupHeader == true or sameGroup
     else
-        isValid = PSM.state.isStableOpen and pet and pet.slotID
+        isValid = ns.state.isStableOpen and pet and pet.slotID
     end
 
     SetRowColor(row, isValid and COLOR.TARGET or COLOR.INVALID)
@@ -304,16 +303,16 @@ end
 -- place. Named groups always track their own members, so the seed pass finds nothing
 -- and costs a loop.
 local function StoredOrderForGroup(groupId)
-    local petGroups  = PSM.PetGroups
+    local petGroups  = ns.PetGroups
     local group      = petGroups:GetGroupById(groupId)
     local storedPets = group and group.pets or {}
 
     local tracked = {}
     for _, guid in ipairs(storedPets) do tracked[guid] = true end
 
-    if PSM.state.groupedViewRows then
+    if ns.state.groupedViewRows then
         local toSeed = {}
-        for _, r in ipairs(PSM.state.groupedViewRows) do
+        for _, r in ipairs(ns.state.groupedViewRows) do
             if r:IsShown() and r.groupId == groupId
                     and r.dragDropPet and r.dragDropPet.guid
                     and not tracked[r.dragDropPet.guid] then
@@ -352,7 +351,7 @@ function DD:CompleteDrop(targetRow, targetPet)
 
         if not srcGUID or not tgtGroup then self:EndDrag(); return false end
 
-        local petGroups = PSM.PetGroups
+        local petGroups = ns.PetGroups
 
         local storedPets = StoredOrderForGroup(tgtGroup)
 
@@ -388,25 +387,25 @@ function DD:CompleteDrop(targetRow, targetPet)
         end
 
         self:EndDrag()
-        PSM._renderCache = nil
+        ns._renderCache = nil
 
-        local scrollFrame = PSM.state.scrollFrame
+        local scrollFrame = ns.state.scrollFrame
         local scrollBar   = scrollFrame and scrollFrame.ScrollBar
-        local content     = PSM.state.content
+        local content     = ns.state.content
         local pct         = 0
         if scrollBar and content then
             local maxScroll = math.max(0, content:GetHeight() - scrollFrame:GetHeight())
             if maxScroll > 0 then pct = scrollBar:GetValue() / maxScroll end
         end
 
-        PSM.C_Timer.After(0.1, function()
-            if PSM.UI.RenderPanel then
-                PSM.UI:RenderPanel(true)
-            elseif PSM.UI._RenderPanelImmediate then
-                PSM.UI:_RenderPanelImmediate(true)
+        ns.C_Timer.After(0.1, function()
+            if ns.UI.RenderPanel then
+                ns.UI:RenderPanel(true)
+            elseif ns.UI._RenderPanelImmediate then
+                ns.UI:_RenderPanelImmediate(true)
             end
             if scrollBar and content and scrollFrame then
-                PSM.C_Timer.After(0.05, function()
+                ns.C_Timer.After(0.05, function()
                     local maxScroll = math.max(0, content:GetHeight() - scrollFrame:GetHeight())
                     if maxScroll > 0 then scrollBar:SetValue(maxScroll * pct) end
                 end)
@@ -420,27 +419,27 @@ function DD:CompleteDrop(targetRow, targetPet)
         self:EndDrag(); return false
     end
 
-    local success = PSM.Reorder:SwapPetSlots(s.sourcePet.slotID, targetPet.slotID, true)
+    local success = ns.Reorder:SwapPetSlots(s.sourcePet.slotID, targetPet.slotID, true)
     self:EndDrag()
 
-    PSM._scrollLockCount = (PSM._scrollLockCount or 0) + 1
-    PSM._scrollLock = true
+    ns._scrollLockCount = (ns._scrollLockCount or 0) + 1
+    ns._scrollLock = true
 
-    PSM.C_Timer.After(0.35, function()
-        if PSM.state.isStableOpen then PSM.Data:CollectStablePets() end
-        PSM._renderCache = nil
-        if PSM._renderDebounceTimer then
-            PSM._renderDebounceTimer:Cancel()
-            PSM._renderDebounceTimer = nil
+    ns.C_Timer.After(0.35, function()
+        if ns.state.isStableOpen then ns.Data:CollectStablePets() end
+        ns._renderCache = nil
+        if ns._renderDebounceTimer then
+            ns._renderDebounceTimer:Cancel()
+            ns._renderDebounceTimer = nil
         end
-        if PSM.UI and PSM.UI._RenderPanelImmediate then
-            PSM.UI:_RenderPanelImmediate(true)
+        if ns.UI and ns.UI._RenderPanelImmediate then
+            ns.UI:_RenderPanelImmediate(true)
         end
-        PSM.C_Timer.After(2.0, function()
-            PSM._scrollLockCount = PSM._scrollLockCount - 1
-            if PSM._scrollLockCount <= 0 then
-                PSM._scrollLockCount = 0
-                PSM._scrollLock = false
+        ns.C_Timer.After(2.0, function()
+            ns._scrollLockCount = ns._scrollLockCount - 1
+            if ns._scrollLockCount <= 0 then
+                ns._scrollLockCount = 0
+                ns._scrollLock = false
             end
         end)
     end)
@@ -461,40 +460,40 @@ function DD:SetupRowDragDrop(row, pet, allowOutsideStable)
     row:SetScript("OnMouseDown", function(self, button)
         if button ~= "LeftButton" then return end
         local allowOutside = self.__allowDragOutsideStable
-        if not PSM.state.isStableOpen and not allowOutside then return end
+        if not ns.state.isStableOpen and not allowOutside then return end
         if not IsShiftKeyDown() and not IsControlKeyDown() then return end
         local focus = GetMouseFocus and GetMouseFocus()
         if focus and focus ~= self and focus:GetParent() == self
                 and focus:GetObjectType() == "Button" then return end
-        PSM.DragDrop:StartDrag(self, self.dragDropPet, allowOutside)
+        ns.DragDrop:StartDrag(self, self.dragDropPet, allowOutside)
     end)
 
     row:SetScript("OnMouseUp", function(self, button)
         if button ~= "LeftButton" then return end
-        if PSM.DragDrop.state.isDragging then
-            if PSM.DragDrop.state.sourceAllowOutsideStable then
-                local tgt    = PSM.DragDrop.state.targetRow
+        if ns.DragDrop.state.isDragging then
+            if ns.DragDrop.state.sourceAllowOutsideStable then
+                local tgt    = ns.DragDrop.state.targetRow
                 local tgtPet = tgt and tgt.dragDropPet or nil
-                PSM.DragDrop:CompleteDrop(tgt, tgtPet)
+                ns.DragDrop:CompleteDrop(tgt, tgtPet)
             else
-                if PSM.DragDrop.state.targetRow and PSM.DragDrop.state.targetRow.dragDropPet then
-                    PSM.DragDrop:CompleteDrop(PSM.DragDrop.state.targetRow, PSM.DragDrop.state.targetRow.dragDropPet)
+                if ns.DragDrop.state.targetRow and ns.DragDrop.state.targetRow.dragDropPet then
+                    ns.DragDrop:CompleteDrop(ns.DragDrop.state.targetRow, ns.DragDrop.state.targetRow.dragDropPet)
                 else
-                    PSM.DragDrop:EndDrag()
+                    ns.DragDrop:EndDrag()
                 end
             end
         end
     end)
 
     row:SetScript("OnEnter", function(self)
-        if PSM.DragDrop.state.isDragging then
-            PSM.DragDrop:OnEnterTarget(self, self.dragDropPet)
+        if ns.DragDrop.state.isDragging then
+            ns.DragDrop:OnEnterTarget(self, self.dragDropPet)
         end
     end)
 
     row:SetScript("OnLeave", function(self)
-        if PSM.DragDrop.state.isDragging then
-            PSM.DragDrop:OnLeaveTarget(self)
+        if ns.DragDrop.state.isDragging then
+            ns.DragDrop:OnLeaveTarget(self)
         end
     end)
 end
@@ -519,9 +518,9 @@ function DD:SetupModelDragDrop(model, pet, parentRow, allowOutsideStable)
 
     model:SetScript("OnMouseDown", function(self, button)
         local allowOutside = self.__allowDragOutsideStable
-        if button == "LeftButton" and (PSM.state.isStableOpen or allowOutside)
+        if button == "LeftButton" and (ns.state.isStableOpen or allowOutside)
                 and (IsShiftKeyDown() or IsControlKeyDown()) and self.dragDropPet then
-            if PSM.DragDrop:StartDrag(self.dragDropParentRow or self:GetParent(),
+            if ns.DragDrop:StartDrag(self.dragDropParentRow or self:GetParent(),
                     self.dragDropPet, allowOutside) then
                 return
             end
@@ -530,16 +529,16 @@ function DD:SetupModelDragDrop(model, pet, parentRow, allowOutsideStable)
     end)
 
     model:SetScript("OnMouseUp", function(self, button)
-        if button == "LeftButton" and PSM.DragDrop.state.isDragging then
-            if PSM.DragDrop.state.sourceAllowOutsideStable then
-                local tgt    = PSM.DragDrop.state.targetRow
+        if button == "LeftButton" and ns.DragDrop.state.isDragging then
+            if ns.DragDrop.state.sourceAllowOutsideStable then
+                local tgt    = ns.DragDrop.state.targetRow
                 local tgtPet = tgt and tgt.dragDropPet or nil
-                PSM.DragDrop:CompleteDrop(tgt, tgtPet)
+                ns.DragDrop:CompleteDrop(tgt, tgtPet)
             else
-                if PSM.DragDrop.state.targetRow and PSM.DragDrop.state.targetRow.dragDropPet then
-                    PSM.DragDrop:CompleteDrop(PSM.DragDrop.state.targetRow, PSM.DragDrop.state.targetRow.dragDropPet)
+                if ns.DragDrop.state.targetRow and ns.DragDrop.state.targetRow.dragDropPet then
+                    ns.DragDrop:CompleteDrop(ns.DragDrop.state.targetRow, ns.DragDrop.state.targetRow.dragDropPet)
                 else
-                    PSM.DragDrop:EndDrag()
+                    ns.DragDrop:EndDrag()
                 end
             end
             return
@@ -548,15 +547,15 @@ function DD:SetupModelDragDrop(model, pet, parentRow, allowOutsideStable)
     end)
 
     model:SetScript("OnEnter", function(self)
-        if PSM.DragDrop.state.isDragging then
-            PSM.DragDrop:OnEnterTarget(self.dragDropParentRow or self:GetParent(), self.dragDropPet)
+        if ns.DragDrop.state.isDragging then
+            ns.DragDrop:OnEnterTarget(self.dragDropParentRow or self:GetParent(), self.dragDropPet)
         end
         if orig.OnEnter then orig.OnEnter(self) end
     end)
 
     model:SetScript("OnLeave", function(self)
-        if PSM.DragDrop.state.isDragging then
-            PSM.DragDrop:OnLeaveTarget(self.dragDropParentRow or self:GetParent())
+        if ns.DragDrop.state.isDragging then
+            ns.DragDrop:OnLeaveTarget(self.dragDropParentRow or self:GetParent())
         end
         if orig.OnLeave then orig.OnLeave(self) end
     end)
@@ -565,7 +564,7 @@ end
 -- Per-frame position update & mouse-release detection. Parentless and invisible: a
 -- handler holder, not a widget, so it stays out of the kit. PSM.CreateFrame is Core's
 -- alias, which the headless tests can stub.
-local updateFrame = PSM.CreateFrame("Frame")
+local updateFrame = ns.CreateFrame("Frame")
 updateFrame:SetScript("OnUpdate", function()
     if not DD.state.isDragging then return end
 
@@ -677,13 +676,13 @@ function DD:HighlightTeamDropTargets(teamId, excludeSlot)
     if not row then return end
     for slot = 1, 6 do
         if slot ~= excludeSlot and row.petBorders[slot] then
-            row.petBorders[slot]:SetVertexColor(unpack(PSM.Config.COLORS.DROP_TARGET_BORDER))
+            row.petBorders[slot]:SetVertexColor(unpack(ns.Config.COLORS.DROP_TARGET_BORDER))
         end
     end
 end
 
 function DD:ClearTeamDropTargetHighlights()
-    local panel = PSM.state.teamsPanel
+    local panel = ns.state.teamsPanel
     if not panel or not panel.teamRows then return end
     for _, row in ipairs(panel.teamRows) do
         if row and row:IsShown() and row.petBorders then
@@ -735,18 +734,18 @@ end
 
 function DD:SwapTeamSlots(teamId, slot1, slot2)
     if not teamId or not slot1 or not slot2 or slot1 == slot2 then return false end
-    local team = PSM.Teams:GetTeamById(teamId)
+    local team = ns.Teams:GetTeamById(teamId)
     if not team then return false end
     team.slots[slot1], team.slots[slot2] = team.slots[slot2], team.slots[slot1]
     team.modifiedAt = time()
-    PSM.TeamsPanel:RefreshTeamsList()
+    ns.TeamsPanel:RefreshTeamsList()
     return true
 end
 
 function DD:_GetTeamRow(teamId)
-    local panel = PSM.state.teamsPanel
+    local panel = ns.state.teamsPanel
     if not panel or not panel.teamRows then return nil end
-    local teams = PSM.Teams:GetTeams()
+    local teams = ns.Teams:GetTeams()
     for i, team in ipairs(teams) do
         if team.id == teamId then return panel.teamRows[i] end
     end

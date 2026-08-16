@@ -1,11 +1,8 @@
 -- TeamsPanel.lua
 -- Teams panel UI for viewing and managing saved pet teams
 
-local addonName = "PetStableManagement"
-
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
-PSM.TeamsPanel = PSM.TeamsPanel or {}
+local _, ns = ...
+ns.TeamsPanel = ns.TeamsPanel or {}
 
 -- Layout constants
 local ROW_HEIGHT      = 140
@@ -34,7 +31,7 @@ local RENDER_DELAY         = 0.01
 -- here means re-laying out the teams row -- a separate change with its own testing, not a
 -- side effect of the sizing pass.
 local function CreateActionButton(parent, text, width, height)
-    return PSM.Widgets.Button(parent, {
+    return ns.Widgets.Button(parent, {
         size       = { width, height },
         text       = text,
         fontObject = "GameFontNormalSmall",
@@ -53,10 +50,10 @@ end
 
 -- Ensure panel exists, create if needed
 local function EnsurePanel()
-    if not PSM.state.teamsPanel then
-        PSM.TeamsPanel:CreateTeamsPanel()
+    if not ns.state.teamsPanel then
+        ns.TeamsPanel:CreateTeamsPanel()
     end
-    return PSM.state.teamsPanel
+    return ns.state.teamsPanel
 end
 
 ----------------------------------------------------------------------------------------------------------------
@@ -64,7 +61,7 @@ end
 ----------------------------------------------------------------------------------------------------------------
 
 local function CreateRemoveFromSlotButton(parent, container, slotNum, teamId)
-    local btn = PSM.Widgets.IconButton(parent, {
+    local btn = ns.Widgets.IconButton(parent, {
         size      = { 16, 16 },
         point     = { "TOPRIGHT", container, "TOPRIGHT", -20, -10 },
         level     = container:GetFrameLevel() + 2,
@@ -79,14 +76,14 @@ local function CreateRemoveFromSlotButton(parent, container, slotNum, teamId)
     btn.slotNum = slotNum
 
     btn:SetScript("OnClick", function(self)
-        local team = PSM.Teams:GetTeamById(self.teamId)
+        local team = ns.Teams:GetTeamById(self.teamId)
         if team and team.slots[self.slotNum] then
             team.slots[self.slotNum] = nil
             team.modifiedAt = time()
-            PSM.TeamsPanel:RefreshTeamsList()
+            ns.TeamsPanel:RefreshTeamsList()
         end
     end)
-    PSM.Tooltip.Attach(btn, { title = "Remove from Team" }, {
+    ns.Tooltip.Attach(btn, { title = "Remove from Team" }, {
         onEnter = function(self) self:SetAlpha(1.0) end,
         onLeave = function(self) self:SetAlpha(0.7) end,
     })
@@ -96,11 +93,11 @@ end
 
 local function SetupPetSlotInteraction(container, petData, slot, team)
     container:SetScript("OnEnter", function(self)
-        PSM.TeamsPanel:ShowPetTooltip(self, petData, slot)
+        ns.TeamsPanel:ShowPetTooltip(self, petData, slot)
         if container.removeButton then container.removeButton:Show() end
     end)
     container:SetScript("OnLeave", function()
-        PSM.Tooltip.Hide()
+        ns.Tooltip.Hide()
         if container.removeButton and not container.removeButton:IsMouseOver() then
             container.removeButton:Hide()
         end
@@ -112,46 +109,46 @@ local function SetupPetSlotInteraction(container, petData, slot, team)
         container.removeButton.slotNum = slot
     end
 
-    PSM.DragDrop:SetupTeamSlotDragDrop(container, slot, team.id, team)
+    ns.DragDrop:SetupTeamSlotDragDrop(container, slot, team.id, team)
 end
 
 ----------------------------------------------------------------------------------------------------------------
 -- PANEL CREATION
 ----------------------------------------------------------------------------------------------------------------
 
-function PSM.TeamsPanel:CreateTeamsPanel()
-    if PSM.state.teamsPanel then return PSM.state.teamsPanel end
+function ns.TeamsPanel:CreateTeamsPanel()
+    if ns.state.teamsPanel then return ns.state.teamsPanel end
 
-    local savedPosition = PSM.Data:GetTeamsPanelPosition() or {
+    local savedPosition = ns.Data:GetTeamsPanelPosition() or {
         point = "TOPLEFT", relativeTo = "StableFrame",
         relativePoint = "TOPRIGHT", x = 0, y = 0
     }
 
     local config = {
-        width    = PSM.Data:GetTeamsPanelWidth()  or PSM.Config.DEFAULT_PANEL_WIDTH,
-        height   = PSM.Data:GetTeamsPanelHeight() or PSM.Config.DEFAULT_PANEL_HEIGHT,
+        width    = ns.Data:GetTeamsPanelWidth()  or ns.Config.DEFAULT_PANEL_WIDTH,
+        height   = ns.Data:GetTeamsPanelHeight() or ns.Config.DEFAULT_PANEL_HEIGHT,
         position = savedPosition,
         title    = "Pet Teams",
-        minWidth  = PSM.Config.MIN_PANEL_WIDTH,
-        minHeight = PSM.Config.MIN_PANEL_HEIGHT,
-        onHide   = function(p) PSM.PanelManager:CleanupPanel(p) end,
+        minWidth  = ns.Config.MIN_PANEL_WIDTH,
+        minHeight = ns.Config.MIN_PANEL_HEIGHT,
+        onHide   = function(p) ns.PanelManager:CleanupPanel(p) end,
         onShow   = function(p)
             if p._initialized then
-                if PSM.state.isStableOpen and #PSM.state.stablePets == 0 then
-                    PSM.Data:CollectStablePets()
+                if ns.state.isStableOpen and #ns.state.stablePets == 0 then
+                    ns.Data:CollectStablePets()
                 end
-                PSM.TeamsPanel:RefreshTeamsList()
+                ns.TeamsPanel:RefreshTeamsList()
             end
         end,
         onResize = function(p)
-            PSM.Data:SetTeamsPanelSize(p:GetWidth(), p:GetHeight())
+            ns.Data:SetTeamsPanelSize(p:GetWidth(), p:GetHeight())
             if p._initialized and p:IsVisible() then
-                PSM.TeamsPanel:RefreshTeamsList()
+                ns.TeamsPanel:RefreshTeamsList()
             end
         end,
     }
 
-    local panel = PSM.PanelManager:CreateBasePanel("teamsPanel", config)
+    local panel = ns.PanelManager:CreateBasePanel("teamsPanel", config)
     panel._initialized = false
     self:AddTeamsPanelElements(panel)
 
@@ -164,15 +161,15 @@ function PSM.TeamsPanel:CreateTeamsPanel()
     panel:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
         local point, relativeTo, relativePoint, x, y = self:GetPoint(1)
-        PSM.Data:SetTeamsPanelPosition(point, relativeTo or "UIParent", relativePoint, x, y)
+        ns.Data:SetTeamsPanelPosition(point, relativeTo or "UIParent", relativePoint, x, y)
     end)
 
     return panel
 end
 
-function PSM.TeamsPanel:AddTeamsPanelElements(panel)
+function ns.TeamsPanel:AddTeamsPanelElements(panel)
     -- Info text
-    local Theme, Widgets = PSM.Theme, PSM.Widgets
+    local Theme, Widgets = ns.Theme, ns.Widgets
 
     panel.infoText = Widgets.Label(panel, {
         fontSize = Theme.SIZE.SMALL,
@@ -181,8 +178,8 @@ function PSM.TeamsPanel:AddTeamsPanelElements(panel)
     })
 
     -- Search box
-    PSM.PanelManager:CreateSearchBox(panel, function(searchText)
-        PSM.TeamsPanel:FilterTeams(searchText)
+    ns.PanelManager:CreateSearchBox(panel, function(searchText)
+        ns.TeamsPanel:FilterTeams(searchText)
     end, {
         placeholder = "Search teams...",
     })
@@ -200,7 +197,7 @@ function PSM.TeamsPanel:AddTeamsPanelElements(panel)
 
     local teamsFrame = Widgets.Frame(panel, {
         backdrop = "TOOLTIP",
-        color    = PSM.Config.COLORS.BACKGROUND,
+        color    = ns.Config.COLORS.BACKGROUND,
         level    = panel:GetFrameLevel() - 1,
         point    = {
             { "TOPLEFT",     scrollFrame, "TOPLEFT",     -5,  5 },
@@ -215,7 +212,7 @@ function PSM.TeamsPanel:AddTeamsPanelElements(panel)
 
     if scrollFrame.ScrollBar then
         scrollFrame.ScrollBar:SetAlpha(1)
-        PSM.Skin.Apply(scrollFrame.ScrollBar, "scrollbar")
+        ns.Skin.Apply(scrollFrame.ScrollBar, "scrollbar")
     end
 
     panel.scrollFrame = scrollFrame
@@ -223,8 +220,8 @@ function PSM.TeamsPanel:AddTeamsPanelElements(panel)
     panel.teamsFrame  = teamsFrame
     panel.teamRows    = {}
 
-    PSM.PanelManager:CreateScrollPreservingResizeHandler(panel, scrollFrame, content, function()
-        PSM.TeamsPanel:RefreshTeamsList()
+    ns.PanelManager:CreateScrollPreservingResizeHandler(panel, scrollFrame, content, function()
+        ns.TeamsPanel:RefreshTeamsList()
     end)
 
     -- Stats text
@@ -250,7 +247,7 @@ end
 -- TEAM ROW CREATION
 ----------------------------------------------------------------------------------------------------------------
 
-function PSM.TeamsPanel:CreateTeamRow(parent)
+function ns.TeamsPanel:CreateTeamRow(parent)
     local slotSize       = ICON_SIZE + 45
     local slotSpacing    = -35
     local slot5to6Gap    = 30
@@ -258,12 +255,12 @@ function PSM.TeamsPanel:CreateTeamRow(parent)
     local buttonHeight   = 18
     local buttonSpacing  = 5
 
-    local Theme, Widgets = PSM.Theme, PSM.Widgets
+    local Theme, Widgets = ns.Theme, ns.Widgets
 
     local row = Widgets.Frame(parent, {
         size     = { parent:GetWidth() - 10, ROW_HEIGHT },
         backdrop = "TOOLTIP_ROW",
-        color    = PSM.Config.COLORS.BACKGROUND,
+        color    = ns.Config.COLORS.BACKGROUND,
     })
 
     row.nameText = Widgets.Label(row, {
@@ -372,10 +369,10 @@ end
 -- UPDATE TEAM ROW
 ----------------------------------------------------------------------------------------------------------------
 
-function PSM.TeamsPanel:UpdateTeamRow(row, team)
+function ns.TeamsPanel:UpdateTeamRow(row, team)
     if not row or not team then return end
 
-    local alpha = PSM.Config:GetOpacity()
+    local alpha = ns.Config:GetOpacity()
 
     -- Name
     row.nameText:SetText(team.name or "Unnamed Team")
@@ -385,7 +382,7 @@ function PSM.TeamsPanel:UpdateTeamRow(row, team)
     for slot = 1, 6 do
         if team.slots[slot] then petCount = petCount + 1 end
     end
-    row.infoText:SetText(petCount .. "/6 pets • Modified: " .. PSM.Teams:FormatTimestamp(team.modifiedAt))
+    row.infoText:SetText(petCount .. "/6 pets • Modified: " .. ns.Teams:FormatTimestamp(team.modifiedAt))
 
     -- Pet icons
     for slot = 1, 6 do
@@ -416,26 +413,26 @@ function PSM.TeamsPanel:UpdateTeamRow(row, team)
     end
 
     -- Highlight based on active/match state
-    local isActive      = (team.id == PSM.Teams:GetActiveTeamId())
+    local isActive      = (team.id == ns.Teams:GetActiveTeamId())
     local matchesCurrent = false
-    if PSM.state.isStableOpen then
-        local cache = PSM.state.teamComparisonCache or {}
+    if ns.state.isStableOpen then
+        local cache = ns.state.teamComparisonCache or {}
         if cache[team.id] == nil then
-            cache[team.id] = select(1, PSM.Teams:CompareWithTeam(team.id))
-            PSM.state.teamComparisonCache = cache
+            cache[team.id] = select(1, ns.Teams:CompareWithTeam(team.id))
+            ns.state.teamComparisonCache = cache
         end
         matchesCurrent = cache[team.id]
     end
 
     if isActive and matchesCurrent then
-        row:SetBackdropColor(unpack(PSM.Config.COLORS.BACKGROUND_OWNED_SINGLE))
-        row.nameText:SetTextColor(unpack(PSM.Config.COLORS.SUCCESS))
+        row:SetBackdropColor(unpack(ns.Config.COLORS.BACKGROUND_OWNED_SINGLE))
+        row.nameText:SetTextColor(unpack(ns.Config.COLORS.SUCCESS))
     elseif isActive then
         row:SetBackdropColor(0.4, 0.25, 0.1, alpha)
         row.nameText:SetTextColor(1, 0.5, 0)
     else
-        row:SetBackdropColor(unpack(PSM.Config.COLORS.BACKGROUND))
-        row.nameText:SetTextColor(unpack(PSM.Config.COLORS.PRIMARY))
+        row:SetBackdropColor(unpack(ns.Config.COLORS.BACKGROUND))
+        row.nameText:SetTextColor(unpack(ns.Config.COLORS.PRIMARY))
     end
 
     -- Button callbacks
@@ -444,14 +441,14 @@ function PSM.TeamsPanel:UpdateTeamRow(row, team)
 
     -- Apply
     row.applyButton:SetScript("OnClick", function()
-        if not PSM.state.isStableOpen then
+        if not ns.state.isStableOpen then
             print("|cFFFF8800PetStableManagement: You must be at a Stable Master to apply a team.|r")
             return
         end
-        PSM.Dialogs:ShowApplyConfirmDialog(teamName, function()
-            local ok, err = PSM.Teams:ApplyTeam(teamId)
+        ns.Dialogs:ShowApplyConfirmDialog(teamName, function()
+            local ok, err = ns.Teams:ApplyTeam(teamId)
             if ok then
-                PSM.TeamsPanel:RefreshTeamsList()
+                ns.TeamsPanel:RefreshTeamsList()
             else
                 print("|cFFFF0000PetStableManagement: " .. (err or "Failed to apply team") .. "|r")
             end
@@ -459,13 +456,13 @@ function PSM.TeamsPanel:UpdateTeamRow(row, team)
     end)
 
     -- Apply button enabled state + tooltip overlay
-    local applyEnabled = PSM.state.isStableOpen
+    local applyEnabled = ns.state.isStableOpen
     row.applyButton:SetEnabled(applyEnabled)
     row.applyButton:SetAlpha(applyEnabled and 1 or 0.5)
 
     if not applyEnabled then
         if not row.applyButtonTooltipOverlay then
-            local overlay = PSM.Widgets.Frame(row.applyButton, { allPoints = true })
+            local overlay = ns.Widgets.Frame(row.applyButton, { allPoints = true })
             overlay:EnableMouse(true)
 
             -- The old call was ShowTooltip(self, "ANCHOR_BOTTOM", text, 1, 0.5, 0)
@@ -473,10 +470,10 @@ function PSM.TeamsPanel:UpdateTeamRow(row, team)
             -- intended warning-orange {1, 0.5, 0} was silently consumed as x=1,
             -- y=0.5 and a dropped third argument. The tooltip has been nudged half a
             -- pixel instead of coloured ever since. Stated as a colour now.
-            PSM.Tooltip.Attach(overlay, {
+            ns.Tooltip.Attach(overlay, {
                 anchor     = "ANCHOR_BOTTOM",
                 title      = "Visit a Stable Master to apply teams",
-                titleColor = PSM.Theme.COLOR.ORANGE,
+                titleColor = ns.Theme.COLOR.ORANGE,
             })
 
             row.applyButtonTooltipOverlay = overlay
@@ -488,14 +485,14 @@ function PSM.TeamsPanel:UpdateTeamRow(row, team)
 
     -- Rename
     row.renameButton:SetScript("OnClick", function()
-        PSM.Dialogs:ShowNameInputDialog({
+        ns.Dialogs:ShowNameInputDialog({
             title = "Rename Team",
             description = "Enter a new name for '" .. teamName .. "':",
             defaultText = teamName,
             confirmText = "Rename",
             onConfirm = function(newName)
-                local ok, err = PSM.Teams:RenameTeam(teamId, newName)
-                if ok then PSM.TeamsPanel:RefreshTeamsList()
+                local ok, err = ns.Teams:RenameTeam(teamId, newName)
+                if ok then ns.TeamsPanel:RefreshTeamsList()
                 else print("|cFFFF0000PetStableManagement: " .. (err or "Failed to rename team") .. "|r") end
             end,
         })
@@ -503,14 +500,14 @@ function PSM.TeamsPanel:UpdateTeamRow(row, team)
 
     -- Duplicate
     row.duplicateButton:SetScript("OnClick", function()
-        PSM.Dialogs:ShowNameInputDialog({
+        ns.Dialogs:ShowNameInputDialog({
             title = "Duplicate Team",
             description = "Enter a name for the copy of '" .. teamName .. "':",
             defaultText = teamName .. " (Copy)",
             confirmText = "Duplicate",
             onConfirm = function(newName)
-                local newId, err = PSM.Teams:DuplicateTeam(teamId, newName)
-                if newId then PSM.TeamsPanel:RefreshTeamsList()
+                local newId, err = ns.Teams:DuplicateTeam(teamId, newName)
+                if newId then ns.TeamsPanel:RefreshTeamsList()
                 else print("|cFFFF0000PetStableManagement: " .. (err or "Failed to duplicate team") .. "|r") end
             end,
         })
@@ -518,9 +515,9 @@ function PSM.TeamsPanel:UpdateTeamRow(row, team)
 
     -- Delete
     row.deleteButton:SetScript("OnClick", function()
-        PSM.Dialogs:ShowDeleteConfirmDialog(teamName, function()
-            local ok, err = PSM.Teams:DeleteTeam(teamId)
-            if ok then PSM.TeamsPanel:RefreshTeamsList()
+        ns.Dialogs:ShowDeleteConfirmDialog(teamName, function()
+            local ok, err = ns.Teams:DeleteTeam(teamId)
+            if ok then ns.TeamsPanel:RefreshTeamsList()
             else print("|cFFFF0000PetStableManagement: " .. (err or "Failed to delete team") .. "|r") end
         end)
     end)
@@ -533,14 +530,14 @@ end
 ----------------------------------------------------------------------------------------------------------------
 
 local function ProcessRenderQueue()
-    if not PSM.state.teamsPanel or #renderQueue == 0 then
+    if not ns.state.teamsPanel or #renderQueue == 0 then
         isRendering = false
         return
     end
     for _ = 1, math.min(TEAMS_PER_FRAME, #renderQueue) do
         local item = table.remove(renderQueue, 1)
         if item and item.row and item.team then
-            PSM.TeamsPanel:UpdateTeamRow(item.row, item.team)
+            ns.TeamsPanel:UpdateTeamRow(item.row, item.team)
         end
     end
     if #renderQueue > 0 then
@@ -550,24 +547,24 @@ local function ProcessRenderQueue()
     end
 end
 
-function PSM.TeamsPanel:RefreshTeamsList()
+function ns.TeamsPanel:RefreshTeamsList()
     if refreshDebounceTimer then refreshDebounceTimer:Cancel() end
     refreshDebounceTimer = C_Timer.NewTimer(0.03, function()
-        PSM.TeamsPanel:DoRefreshTeamsList()
+        ns.TeamsPanel:DoRefreshTeamsList()
         refreshDebounceTimer = nil
     end)
 end
 
-function PSM.TeamsPanel:DoRefreshTeamsList()
-    local panel = PSM.state.teamsPanel
+function ns.TeamsPanel:DoRefreshTeamsList()
+    local panel = ns.state.teamsPanel
     if not panel or not panel.content then return end
 
     self:ClearComparisonCache()
 
-    local allTeams = PSM.Teams:GetTeams()
+    local allTeams = ns.Teams:GetTeams()
     local teams    = {}
     for _, team in ipairs(allTeams) do
-        if not PSM.TeamsPanel._searchMode or self:DoesTeamMatchSearch(team) then
+        if not ns.TeamsPanel._searchMode or self:DoesTeamMatchSearch(team) then
             table.insert(teams, team)
         end
     end
@@ -576,7 +573,7 @@ function PSM.TeamsPanel:DoRefreshTeamsList()
     local allCount  = #allTeams
 
     panel.statsText:SetText(
-        PSM.TeamsPanel._searchMode
+        ns.TeamsPanel._searchMode
         and (teamCount .. " of " .. allCount .. " team(s) match")
         or  (allCount .. " team(s) saved")
     )
@@ -632,26 +629,26 @@ end
 -- TOGGLE / SHOW / HIDE
 ----------------------------------------------------------------------------------------------------------------
 
-function PSM.TeamsPanel:Toggle()
+function ns.TeamsPanel:Toggle()
     local panel = EnsurePanel()
     if panel:IsVisible() then panel:Hide()
     else panel:Show(); panel:Raise() end
 end
 
-function PSM.TeamsPanel:Show()
+function ns.TeamsPanel:Show()
     local panel = EnsurePanel()
     panel:Show(); panel:Raise()
 end
 
-function PSM.TeamsPanel:Hide()
-    if PSM.state.teamsPanel then PSM.state.teamsPanel:Hide() end
+function ns.TeamsPanel:Hide()
+    if ns.state.teamsPanel then ns.state.teamsPanel:Hide() end
 end
 
 ----------------------------------------------------------------------------------------------------------------
 -- OPACITY UPDATE
 ----------------------------------------------------------------------------------------------------------------
 
-function PSM.TeamsPanel:UpdateOpacity()
+function ns.TeamsPanel:UpdateOpacity()
     -- Now handled centrally by PanelManager:UpdatePanelBackgrounds()
     -- This wrapper kept for backwards compatibility with external callers
     self:RefreshTeamsList()
@@ -661,18 +658,18 @@ end
 -- SEARCH / FILTER
 ----------------------------------------------------------------------------------------------------------------
 
-function PSM.TeamsPanel:FilterTeams(searchText)
-    PSM.TeamsPanel._searchText = searchText:lower()
-    PSM.TeamsPanel._searchMode = searchText ~= ""
+function ns.TeamsPanel:FilterTeams(searchText)
+    ns.TeamsPanel._searchText = searchText:lower()
+    ns.TeamsPanel._searchMode = searchText ~= ""
     self:RefreshTeamsList()
 end
 
-function PSM.TeamsPanel:ClearComparisonCache()
-    PSM.state.teamComparisonCache = {}
+function ns.TeamsPanel:ClearComparisonCache()
+    ns.state.teamComparisonCache = {}
 end
 
-function PSM.TeamsPanel:DoesTeamMatchSearch(team)
-    local search = PSM.TeamsPanel._searchText
+function ns.TeamsPanel:DoesTeamMatchSearch(team)
+    local search = ns.TeamsPanel._searchText
     if not search or search == "" then return true end
 
     if team.name and team.name:lower():find(search, 1, true) then return true end
@@ -708,8 +705,8 @@ end
 -- The same tooltip the owned-pets views show, so a pet reads identically wherever it
 -- is looked at. Only the slot label and the trailing hints are the teams panel's own:
 -- here a slot is a team position rather than a stable slot, and 6 is the companion.
-function PSM.TeamsPanel:ShowPetTooltip(container, petData, slot)
-    local spec = PSM.PetTooltip.Spec(petData, {
+function ns.TeamsPanel:ShowPetTooltip(container, petData, slot)
+    local spec = ns.PetTooltip.Spec(petData, {
         slotLabel = "Slot " .. slot .. (slot == 6 and " (Companion)" or " (Active)"),
         hints     = "Drag to rearrange\nHover + X to remove",
     })
@@ -719,7 +716,7 @@ function PSM.TeamsPanel:ShowPetTooltip(container, petData, slot)
     -- close to the right edge, so the tooltip is pulled back over them.
     spec.x, spec.y = -20, -40
 
-    PSM.Tooltip.Show(container, spec)
+    ns.Tooltip.Show(container, spec)
 end
 
 ----------------------------------------------------------------------------------------------------------------

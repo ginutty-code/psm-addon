@@ -165,7 +165,7 @@ ns.state = {
 }
 
 -- Initialize transparency settings when addon loads
-function PSM:InitializeOpacity()
+function ns:InitializeOpacity()
     if not PetStableManagementDB.settings.opacity then
         PetStableManagementDB.settings.opacity = 0.8 -- Default opacity
     end
@@ -234,7 +234,7 @@ local function PositionStableButtons(teamsListButton, saveButton)
 end
 
 -- Create Save Team button on Blizzard's stable frame
-function PSM:CreateSaveTeamButtonOnStable()
+function ns:CreateSaveTeamButtonOnStable()
     if not StableFrame then return end
 
     -- Reuse what is already there. This used to build two new frames on every show,
@@ -242,7 +242,7 @@ function PSM:CreateSaveTeamButtonOnStable()
     -- removed -- so the leak grew for as long as the session did.
     if StableFrame.PSM_TeamsListButton and StableFrame.PSM_SaveTeamButton then
         PositionStableButtons(StableFrame.PSM_TeamsListButton, StableFrame.PSM_SaveTeamButton)
-        PSM:UpdateSaveTeamButtonState()
+        ns:UpdateSaveTeamButtonState()
         StableFrame.PSM_TeamsListButton:Show()
         StableFrame.PSM_SaveTeamButton:Show()
         return
@@ -327,7 +327,7 @@ function PSM:CreateSaveTeamButtonOnStable()
     PositionStableButtons(teamsListButton, saveButton)
     -- The enable/disable rules live in UpdateSaveTeamButtonState. This used to restate
     -- them here, which is how two copies of one rule start drifting.
-    PSM:UpdateSaveTeamButtonState()
+    ns:UpdateSaveTeamButtonState()
 
     saveButton:Show()
     teamsListButton:Show()
@@ -338,7 +338,7 @@ end
 -- This stays as the one place that would own such a rule if one is ever needed again;
 -- what it must not grow back is a "disabled outside the stable" branch, which described
 -- a state that cannot happen and implied teams can only be saved at a stable.
-function PSM:UpdateSaveTeamButtonState()
+function ns:UpdateSaveTeamButtonState()
     for _, name in ipairs({ "PSM_SaveTeamButton", "PSM_TeamsListButton" }) do
         local button = StableFrame and StableFrame[name]
         if button then

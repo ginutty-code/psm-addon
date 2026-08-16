@@ -136,8 +136,8 @@ local function CollectAndRender(retryCount)
             StableFrame.ReleasePetButton.psm_hooked = true
             hooksecurefunc(StableFrame.ReleasePetButton, "Click", ScheduleUpdate)
         end
-        PSM:CreateSaveTeamButtonOnStable()
-        PSM:UpdateSaveTeamButtonState()
+        ns:CreateSaveTeamButtonOnStable()
+        ns:UpdateSaveTeamButtonState()
     end
 
     if ns.state.teamsPanel and ns.state.teamsPanel:IsVisible() then
@@ -184,7 +184,7 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
                 ns.Menu:Toggle()
             end
 
-            PSM:InitializeOpacity()
+            ns:InitializeOpacity()
             print(ns.Config.MESSAGES.ADDON_LOADED)
 
         elseif event == "PET_STABLE_SHOW" then

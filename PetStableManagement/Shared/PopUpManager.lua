@@ -2,9 +2,8 @@
 -- Pop-up management for PetStableManagement
 
 local addonName = "PetStableManagement"
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
-PSM.PopUpManager = PSM.PopUpManager or {}
+local _, ns = ...
+ns.PopUpManager = ns.PopUpManager or {}
 
 -- ============================================================
 -- Helpers
@@ -35,19 +34,19 @@ end
 local function SaveView(popup, updates)
     local key = GetViewKey(popup)
     if not key then return end
-    PSM.state.modelViews[key] = PSM.state.modelViews[key] or {}
+    ns.state.modelViews[key] = ns.state.modelViews[key] or {}
     for k, v in pairs(updates) do
-        PSM.state.modelViews[key][k] = v
+        ns.state.modelViews[key][k] = v
     end
-    if PSM.Data and PSM.Data.SaveSettings then
-        PSM.Data:SaveSettings()
+    if ns.Data and ns.Data.SaveSettings then
+        ns.Data:SaveSettings()
     end
 end
 
 local function ApplyModelView(modelFrame, view)
     local db = GetDB()
-    local globalZoom = db.modelZoom or PSM.Config.DEFAULT_MODEL_ZOOM
-    modelFrame.rotation = view.rotation or math.rad(db.modelViewAngle or PSM.Config.DEFAULT_MODEL_VIEW_ANGLE)
+    local globalZoom = db.modelZoom or ns.Config.DEFAULT_MODEL_ZOOM
+    modelFrame.rotation = view.rotation or math.rad(db.modelViewAngle or ns.Config.DEFAULT_MODEL_VIEW_ANGLE)
     modelFrame.zoom     = view.zoom or 1.0
     modelFrame:SetRotation(modelFrame.rotation)
     SetCamDistanceScaleIfChanged(modelFrame, modelFrame.zoom / globalZoom)
@@ -61,40 +60,40 @@ local function GetPopupSpecialization(displayId, petData)
             return petData.specName
         end
         if petData.familyName then
-            local spec = PSM.Config.FAMILY_TO_SPEC[petData.familyName]
+            local spec = ns.Config.FAMILY_TO_SPEC[petData.familyName]
             if spec then return spec end
         end
     end
 
     if displayId then
-        if PSM.state.stablePets then
-            for _, pet in ipairs(PSM.state.stablePets) do
+        if ns.state.stablePets then
+            for _, pet in ipairs(ns.state.stablePets) do
                 if tonumber(pet.displayID) == tonumber(displayId) then
                     if pet.specName and pet.specName ~= "" then
                         return pet.specName
                     end
                     if pet.familyName then
-                        local spec = PSM.Config.FAMILY_TO_SPEC[pet.familyName]
+                        local spec = ns.Config.FAMILY_TO_SPEC[pet.familyName]
                         if spec then return spec end
                     end
                 end
             end
         end
 
-        if PSM.state.modelsPanel and PSM.state.modelsPanel.allModels then
-            for _, model in ipairs(PSM.state.modelsPanel.allModels) do
+        if ns.state.modelsPanel and ns.state.modelsPanel.allModels then
+            for _, model in ipairs(ns.state.modelsPanel.allModels) do
                 if model.displayId == displayId then
-                    local spec = PSM.Config.FAMILY_TO_SPEC[model.familyName]
+                    local spec = ns.Config.FAMILY_TO_SPEC[model.familyName]
                     if spec then return spec end
                 end
             end
         end
 
-        if PSM.PetModels then
-            for _, familyName in ipairs(PSM.PetModels:GetAvailableFamilies()) do
-                local info = PSM.PetModels:GetModelInfo(familyName, displayId)
+        if ns.PetModels then
+            for _, familyName in ipairs(ns.PetModels:GetAvailableFamilies()) do
+                local info = ns.PetModels:GetModelInfo(familyName, displayId)
                 if info then
-                    local spec = PSM.Config.FAMILY_TO_SPEC[familyName]
+                    local spec = ns.Config.FAMILY_TO_SPEC[familyName]
                     if spec then return spec end
                 end
             end
@@ -128,7 +127,7 @@ end
 local function BuildNoteLink(npcId)
     local id = tonumber(npcId)
     if not id then return "" end
-    local hasSeed = PSM.NotesData and PSM.NotesData[id]
+    local hasSeed = ns.NotesData and ns.NotesData[id]
     local hasUser = PSM_UserNotes and PSM_UserNotes[id] and PSM_UserNotes[id] ~= ""
     local texture
     if hasUser then
@@ -142,7 +141,7 @@ local function BuildNoteLink(npcId)
 end
 
 local function CreateNPCRow(parent, npc, rowWidth)
-    local Theme, Widgets = PSM.Theme, PSM.Widgets
+    local Theme, Widgets = ns.Theme, ns.Widgets
 
     local row = Widgets.Frame(parent, {
         width    = rowWidth,
@@ -196,7 +195,7 @@ local function CreateNPCRow(parent, npc, rowWidth)
 
     -- Condition hint
     local npcID = tonumber(npc.npcId)
-    local condList = npcID and PSM.ConditionsData and PSM.ConditionsData.Get(npcID)
+    local condList = npcID and ns.ConditionsData and ns.ConditionsData.Get(npcID)
     local conditionHint = ""
     if condList and #condList > 0 then
         conditionHint = " |cffff8800|Hpsmcond:" .. npcID .. "|h[*]|h|r"
@@ -222,7 +221,7 @@ local function CreateNPCRow(parent, npc, rowWidth)
     detailText:SetHyperlinksEnabled(true)
 
     local id         = npc.npcId or "?"
-    local locLabel   = PSM.PopUpManager:BuildCoordsLocationLabel(npc.npcId, npc.location) or "Unknown"
+    local locLabel   = ns.PopUpManager:BuildCoordsLocationLabel(npc.npcId, npc.location) or "Unknown"
     local expansion  = npc.expansion or "Unknown"
     local factionStr = formatFactionIndicator(npc.factionReaction)
     local noteLink   = npc.npcId and BuildNoteLink(npc.npcId) or ""
@@ -248,7 +247,7 @@ local function CreateNPCRow(parent, npc, rowWidth)
         end
 
         if linkType == "psmcond" then
-            local conds = id2 and PSM.ConditionsData and PSM.ConditionsData.Get(id2)
+            local conds = id2 and ns.ConditionsData and ns.ConditionsData.Get(id2)
             if not (conds and #conds > 0) then return {} end
             local lines = {}
             for _, c in ipairs(conds) do
@@ -265,7 +264,7 @@ local function CreateNPCRow(parent, npc, rowWidth)
                     lines = { { text = userNote, color = { 1, 1, 0 }, wrap = true } },
                 }
             end
-            local seedNote = id2 and PSM.NotesData and PSM.NotesData[id2]
+            local seedNote = id2 and ns.NotesData and ns.NotesData[id2]
             if seedNote then
                 return {
                     title = "Add your own note",
@@ -282,22 +281,22 @@ local function CreateNPCRow(parent, npc, rowWidth)
         local linkType, data = strsplit(":", link, 2)
         local spec = DetailLinkTooltip(linkType, data)
         spec.anchor = "ANCHOR_CURSOR"
-        PSM.Tooltip.Show(detailText, spec)
+        ns.Tooltip.Show(detailText, spec)
     end)
-    detailText:SetScript("OnHyperlinkLeave", PSM.Tooltip.Hide)
+    detailText:SetScript("OnHyperlinkLeave", ns.Tooltip.Hide)
     detailText:SetScript("OnHyperlinkClick", function(_, link)
         local linkType, data = strsplit(":", link, 2)
         if linkType == "npc" then
-            PSM.PopUpManager:ShowURLPopup("https://www.wowhead.com/npc=" .. data)
+            ns.PopUpManager:ShowURLPopup("https://www.wowhead.com/npc=" .. data)
         elseif linkType == "psmnote" then
             local id2 = tonumber(data)
             if id2 then
-                PSM.PopUpManager:ShowNoteEditor(id2, npc.name or "NPC", row._parentPopup)
+                ns.PopUpManager:ShowNoteEditor(id2, npc.name or "NPC", row._parentPopup)
             end
         elseif linkType == "psmcoords" then
             local npcId2, locationOrMapId = strsplit(";", data, 2)
             if npcId2 and locationOrMapId then
-                local waypoints = PSM.PopUpManager:GetCoordsWaypointText(tonumber(npcId2), locationOrMapId, npc.name)
+                local waypoints = ns.PopUpManager:GetCoordsWaypointText(tonumber(npcId2), locationOrMapId, npc.name)
                 if waypoints then
                     local locName = locationOrMapId
                     local numMapId = tonumber(locationOrMapId)
@@ -305,14 +304,14 @@ local function CreateNPCRow(parent, npc, rowWidth)
                         locName = CoordsData[numMapId].name or locationOrMapId
                     end
                     local displayId = row._parentPopup and row._parentPopup.currentDisplayId
-                    PSM.PopUpManager:ShowCoordsPopup(waypoints, npc.name, locName, displayId)
+                    ns.PopUpManager:ShowCoordsPopup(waypoints, npc.name, locName, displayId)
                 end
             end
         end
     end)
 
     -- Size the row once SimpleHTML content height is known
-    PSM.C_Timer.After(0.01, function()
+    ns.C_Timer.After(0.01, function()
         local dh = detailText:GetContentHeight()
         detailText:SetHeight(math.max(dh, 14))
         local totalH = NPC_ROW_PADDING + nameText:GetStringHeight() + 2 + math.max(dh, 14) + NPC_ROW_PADDING
@@ -334,7 +333,7 @@ local function UpdateTamingLayout(popup)
     html:SetWidth(textW)
     html:SetText(popup.tamingHTMLContent)
 
-    PSM.C_Timer.After(0.01, function()
+    ns.C_Timer.After(0.01, function()
         if not tf or not tf:IsShown() then return end
         local titleH = popup.tamingTitle:GetStringHeight() or 14
         local dh = html:GetContentHeight()
@@ -406,7 +405,7 @@ local function BuildNPCRows(popup, npcs)
     end
 
     -- Update container height after rows have calculated their dynamic sizes
-    PSM.C_Timer.After(0.05, function()
+    ns.C_Timer.After(0.05, function()
         local totalH, autoSizeH = 0, 0
         for i, r in ipairs(popup.npcRows) do
             local h = (r:GetHeight() or NPC_ROW_MIN_H) + NPC_ROW_SPACING
@@ -444,25 +443,25 @@ local function BuildNPCRows(popup, npcs)
     popup.npcsScrollFrame:Show()
 end
 
-function PSM.PopUpManager:UpdatePopupBackground(popup, displayId, petData)
+function ns.PopUpManager:UpdatePopupBackground(popup, displayId, petData)
     if not popup or not popup.border or not popup.border.specBg then return end
 
     local specialization = GetPopupSpecialization(displayId, petData)
-    local backgroundType = GetDB().backgroundType or PSM.Config.DEFAULT_BACKGROUND_TYPE
+    local backgroundType = GetDB().backgroundType or ns.Config.DEFAULT_BACKGROUND_TYPE
 
     if backgroundType == "stablemaster" and specialization then
-        popup.border.specBg:SetAtlas(PSM.Config.SPEC_BACKGROUND_ATLAS[specialization] or PSM.Config.SPEC_BACKGROUND_ATLAS.Ferocity)
+        popup.border.specBg:SetAtlas(ns.Config.SPEC_BACKGROUND_ATLAS[specialization] or ns.Config.SPEC_BACKGROUND_ATLAS.Ferocity)
         popup.border.specBg:SetVertexColor(1, 1, 1, 1)
         popup.border.specBg:Show()
         popup.border:SetBackdropColor(0, 0, 0, 0)
     elseif backgroundType == "custom" and specialization then
-        popup.border.specBg:SetTexture(PSM.Config.SPEC_BACKGROUND_CUSTOM[specialization] or PSM.Config.SPEC_BACKGROUND_CUSTOM.Ferocity)
+        popup.border.specBg:SetTexture(ns.Config.SPEC_BACKGROUND_CUSTOM[specialization] or ns.Config.SPEC_BACKGROUND_CUSTOM.Ferocity)
         popup.border.specBg:SetVertexColor(1, 1, 1, 1)
         popup.border.specBg:Show()
         popup.border:SetBackdropColor(0, 0, 0, 0)
     else
         popup.border.specBg:Hide()
-        popup.border:SetBackdropColor(0, 0, 0, PSM.Config:GetOpacity())
+        popup.border:SetBackdropColor(0, 0, 0, ns.Config:GetOpacity())
     end
 end
 
@@ -480,7 +479,7 @@ local function PopupSizeStore()
     return PetStableManagementDB.settings.popupSizes
 end
 
-function PSM.PopUpManager:CreateModelPopup(config)
+function ns.PopUpManager:CreateModelPopup(config)
     config = config or {}
     local title     = config.title     or "Model Viewer"
     local width     = config.width     or 500
@@ -489,7 +488,7 @@ function PSM.PopUpManager:CreateModelPopup(config)
     local resizable = config.resizable or false
     local popupName = config.popupName or "PetStableManagementModelPopup"
 
-    local Theme, Widgets = PSM.Theme, PSM.Widgets
+    local Theme, Widgets = ns.Theme, ns.Widgets
 
     -- Root frame
     local popup = Widgets.MovableFrame(UIParent, {
@@ -546,7 +545,7 @@ function PSM.PopUpManager:CreateModelPopup(config)
     popup.border = Widgets.Frame(popup, {
         allPoints = true,
         backdrop  = "TOOLTIP_HAIRLINE",
-        color     = { 0, 0, 0, PSM.Config:GetOpacity() },
+        color     = { 0, 0, 0, ns.Config:GetOpacity() },
         level     = popup:GetFrameLevel() - 1,
     })
 
@@ -563,24 +562,24 @@ function PSM.PopUpManager:CreateModelPopup(config)
     if config.showPetModelsButton then
         popup.modelsButton = Widgets.Button(popup, {
             point      = { "TOPLEFT", 20, -10 },
-            width      = PSM.Theme.CONTROL.BUTTON_W.S,
+            width      = ns.Theme.CONTROL.BUTTON_W.S,
             text       = "< Pet Models",
             fontObject = "GameFontNormalSmall",
             onClick = function()
                 popup:Hide()
-                if PSM.state.modelsPanel and PSM.state.modelsPanel:IsVisible() then
-                    PSM.state.modelsPanel:Raise()
-                elseif not PSM.Loader:EnsureBrowser() then
+                if ns.state.modelsPanel and ns.state.modelsPanel:IsVisible() then
+                    ns.state.modelsPanel:Raise()
+                elseif not ns.Loader:EnsureBrowser() then
                     return  -- Loader has already reported why
-                elseif PSM.PanelManager and PSM.PanelManager.TogglePanel then
-                    PSM.PanelManager:TogglePanel("modelsPanel", function()
-                        if PSM.ModelsPanel and PSM.ModelsPanel.CreateModelsPanel then
-                            PSM.ModelsPanel:CreateModelsPanel()
+                elseif ns.PanelManager and ns.PanelManager.TogglePanel then
+                    ns.PanelManager:TogglePanel("modelsPanel", function()
+                        if ns.ModelsPanel and ns.ModelsPanel.CreateModelsPanel then
+                            ns.ModelsPanel:CreateModelsPanel()
                         end
                     end)
-                elseif PSM.state.modelsPanel then
-                    PSM.state.modelsPanel:Show()
-                    PSM.state.modelsPanel:Raise()
+                elseif ns.state.modelsPanel then
+                    ns.state.modelsPanel:Show()
+                    ns.state.modelsPanel:Raise()
                 end
             end,
         })
@@ -622,19 +621,19 @@ function PSM.PopUpManager:CreateModelPopup(config)
     })
     popup.modelReset:SetScript("OnClick", function()
         local db = GetDB()
-        local hPos = (db.modelHorizontalPosition or PSM.Config.DEFAULT_MODEL_HORIZONTAL_POSITION) * 2.0
-        local vPos = (db.modelVerticalPosition    or PSM.Config.DEFAULT_MODEL_VERTICAL_POSITION)    * 2.0
+        local hPos = (db.modelHorizontalPosition or ns.Config.DEFAULT_MODEL_HORIZONTAL_POSITION) * 2.0
+        local vPos = (db.modelVerticalPosition    or ns.Config.DEFAULT_MODEL_VERTICAL_POSITION)    * 2.0
         ApplyModelView(mf, {
-            rotation = math.rad(db.modelViewAngle or PSM.Config.DEFAULT_MODEL_VIEW_ANGLE),
+            rotation = math.rad(db.modelViewAngle or ns.Config.DEFAULT_MODEL_VIEW_ANGLE),
             zoom     = 1.0,
             position = {0, hPos, vPos},
         })
-        SetCamDistanceScaleIfChanged(mf, 1.0 / (db.modelZoom or PSM.Config.DEFAULT_MODEL_ZOOM))
+        SetCamDistanceScaleIfChanged(mf, 1.0 / (db.modelZoom or ns.Config.DEFAULT_MODEL_ZOOM))
         mf.isMoving = false
-        PSM.RowManager:ReleaseModel(mf)
+        ns.RowManager:ReleaseModel(mf)
         SaveView(popup, { rotation = mf.rotation, zoom = mf.zoom, position = {0, hPos, vPos} })
     end)
-    PSM.Tooltip.Attach(popup.modelReset, { title = "Reset View" }, {
+    ns.Tooltip.Attach(popup.modelReset, { title = "Reset View" }, {
         onEnter = function(self) self:SetAlpha(1.0) end,
         onLeave = function(self) self:SetAlpha(0.7) end,
     })
@@ -647,7 +646,7 @@ function PSM.PopUpManager:CreateModelPopup(config)
         if button == "LeftButton" then
             self.isRotating = true
             self.lastX = GetCursorPosition()
-            if PSM.RotationFrame then PSM.RotationFrame.activeModels[self] = true end
+            if ns.RotationFrame then ns.RotationFrame.activeModels[self] = true end
         elseif button == "RightButton" then
             self.isMoving = true
             self.movementMode = "YZ"
@@ -656,19 +655,19 @@ function PSM.PopUpManager:CreateModelPopup(config)
             self.lastX, self.lastY = self.lastX / scale, self.lastY / scale
             self.posX, self.posY, self.posZ = self:GetPosition()
             if not self.posX then self.posX, self.posY, self.posZ = 0, 0, 0 end
-            if PSM.MovementFrame then PSM.MovementFrame.activeModels[self] = true end
+            if ns.MovementFrame then ns.MovementFrame.activeModels[self] = true end
         end
     end)
 
     mf:SetScript("OnMouseUp", function(self, button)
         if button == "LeftButton" then
             self.isRotating = false
-            if PSM.RotationFrame then PSM.RotationFrame.activeModels[self] = nil end
-            PSM.state.globalModelRotation = self.rotation
-            if PSM.Data and PSM.Data.SaveSettings then PSM.Data:SaveSettings() end
+            if ns.RotationFrame then ns.RotationFrame.activeModels[self] = nil end
+            ns.state.globalModelRotation = self.rotation
+            if ns.Data and ns.Data.SaveSettings then ns.Data:SaveSettings() end
         elseif button == "RightButton" then
             self.isMoving = false
-            if PSM.MovementFrame then PSM.MovementFrame.activeModels[self] = nil end
+            if ns.MovementFrame then ns.MovementFrame.activeModels[self] = nil end
             SaveView(popup, { position = {self:GetPosition()} })
         end
     end)
@@ -676,12 +675,12 @@ function PSM.PopUpManager:CreateModelPopup(config)
     mf:SetScript("OnMouseWheel", function(self, delta)
         local db = GetDB()
         self.zoom = math.max(0.1, math.min(2.0, (self.zoom or 1.0) - delta * 0.05))
-        SetCamDistanceScaleIfChanged(self, self.zoom / (db.modelZoom or PSM.Config.DEFAULT_MODEL_ZOOM))
+        SetCamDistanceScaleIfChanged(self, self.zoom / (db.modelZoom or ns.Config.DEFAULT_MODEL_ZOOM))
         SaveView(popup, { zoom = self.zoom })
     end)
 
-    PSM.Tooltip.Attach(mf, {
-        title = PSM.RowManager.MODEL_HINTS,
+    ns.Tooltip.Attach(mf, {
+        title = ns.RowManager.MODEL_HINTS,
     }, {
         onEnter = function() popup.modelReset:Show() end,
         onLeave = function()
@@ -706,12 +705,12 @@ function PSM.PopUpManager:CreateModelPopup(config)
     popup.favoritesButton:SetScript("OnClick", function(self)
         local id = popup.currentDisplayId or (popup.currentPetData and popup.currentPetData.displayId)
         if not id then return end
-        PSM.state.favoriteModels[id] = not PSM.state.favoriteModels[id]
-        SetFavTexCoord(self, PSM.state.favoriteModels[id])
-        if PSM.Data and PSM.Data.SaveSettings then PSM.Data:SaveSettings() end
-        local panel = PSM.state.modelsPanel
-        if panel and panel.showFavorites and PSM.ModelsDataLoader then
-            PSM.ModelsDataLoader:LoadModelsForSelectedFamilies()
+        ns.state.favoriteModels[id] = not ns.state.favoriteModels[id]
+        SetFavTexCoord(self, ns.state.favoriteModels[id])
+        if ns.Data and ns.Data.SaveSettings then ns.Data:SaveSettings() end
+        local panel = ns.state.modelsPanel
+        if panel and panel.showFavorites and ns.ModelsDataLoader then
+            ns.ModelsDataLoader:LoadModelsForSelectedFamilies()
         end
     end)
     popup.SetFavTexCoord = SetFavTexCoord
@@ -765,7 +764,7 @@ function PSM.PopUpManager:CreateModelPopup(config)
     popup.tamingHTML:SetScript("OnHyperlinkEnter", function(_, link)
         local linkType, data = strsplit(":", link, 2)
         if linkType ~= "psmtaming" then return end
-        local rule = PSM.TamingRules and PSM.TamingRules[data]
+        local rule = ns.TamingRules and ns.TamingRules[data]
         if not rule or not rule.hint then return end
 
         local hyperlink
@@ -774,21 +773,21 @@ function PSM.PopUpManager:CreateModelPopup(config)
         elseif rule.hint.questID then
             hyperlink = "quest:" .. rule.hint.questID
         end
-        PSM.Tooltip.Show(popup.tamingHTML, { anchor = "ANCHOR_CURSOR", hyperlink = hyperlink })
+        ns.Tooltip.Show(popup.tamingHTML, { anchor = "ANCHOR_CURSOR", hyperlink = hyperlink })
     end)
 
-    popup.tamingHTML:SetScript("OnHyperlinkLeave", PSM.Tooltip.Hide)
+    popup.tamingHTML:SetScript("OnHyperlinkLeave", ns.Tooltip.Hide)
 
     popup.tamingHTML:SetScript("OnHyperlinkClick", function(_, link, _, button)
         local linkType, data = strsplit(":", link, 2)
         if linkType ~= "psmtaming" then return end
-        local rule = PSM.TamingRules and PSM.TamingRules[data]
+        local rule = ns.TamingRules and ns.TamingRules[data]
         if rule then
             if button == "LeftButton" then
                 if rule.itemID then
-                    PSM.PopUpManager:ShowURLPopup("https://www.wowhead.com/item=" .. rule.itemID)
+                    ns.PopUpManager:ShowURLPopup("https://www.wowhead.com/item=" .. rule.itemID)
                 elseif rule.hint and rule.hint.questID then
-                    PSM.PopUpManager:ShowURLPopup("https://www.wowhead.com/quest=" .. rule.hint.questID)
+                    ns.PopUpManager:ShowURLPopup("https://www.wowhead.com/quest=" .. rule.hint.questID)
                 end
             end
         end
@@ -835,7 +834,7 @@ function PSM.PopUpManager:CreateModelPopup(config)
     -- Optional: Try Again button
     if config.showTryAgainButton then
         popup.tryAgainButton = Widgets.Button(popup, {
-            width      = PSM.Theme.CONTROL.BUTTON_W.S,
+            width      = ns.Theme.CONTROL.BUTTON_W.S,
             text       = "Try Again",
             fontObject = "GameFontNormalSmall",
             strata     = "TOOLTIP",
@@ -938,9 +937,9 @@ end
 -- ShowURLPopup
 -- ============================================================
 
-function PSM.PopUpManager:ShowURLPopup(url)
+function ns.PopUpManager:ShowURLPopup(url)
     if not self.urlPopup then
-        local Theme, Widgets = PSM.Theme, PSM.Widgets
+        local Theme, Widgets = ns.Theme, ns.Widgets
 
         local f = Widgets.MovableFrame(UIParent, {
             name     = "PSMURLPopup",
@@ -980,14 +979,14 @@ end
 -- Coords helpers
 -- ============================================================
 
-function PSM.PopUpManager:GetCoordsDataForLocation(npcId, location)
+function ns.PopUpManager:GetCoordsDataForLocation(npcId, location)
     local id = tonumber(npcId)
     if not id then return nil end
 
     -- CoordsData ships with the LoadOnDemand browser. Silent because this is also
     -- called once per row while rendering the browser's NPC table, where the addon is
     -- already up and this collapses to a memoised boolean.
-    PSM.Loader:EnsureBrowser(true)
+    ns.Loader:EnsureBrowser(true)
     if not CoordsData then return nil end
 
     -- 1. Direct lookup if location is a numeric uiMapId
@@ -1035,7 +1034,7 @@ function PSM.PopUpManager:GetCoordsDataForLocation(npcId, location)
     return nil
 end
 
-function PSM.PopUpManager:BuildCoordsLocationLabel(npcId, fallbackLocation)
+function ns.PopUpManager:BuildCoordsLocationLabel(npcId, fallbackLocation)
     local id = tonumber(npcId)
     if not id or not CoordsData then
         return fallbackLocation and ("|cff888888" .. fallbackLocation .. "|r") or "|cff888888Unknown|r"
@@ -1076,7 +1075,7 @@ function PSM.PopUpManager:BuildCoordsLocationLabel(npcId, fallbackLocation)
     return "|cff888888Unknown|r"
 end
 
-function PSM.PopUpManager:GetCoordsWaypointText(npcId, location, npcName)
+function ns.PopUpManager:GetCoordsWaypointText(npcId, location, npcName)
     local data = self:GetCoordsDataForLocation(npcId, location)
     if not data or not data.coords or data.coords == "" or data.coords == "[]" then return nil end
     local lines = {}
@@ -1094,9 +1093,9 @@ end
 -- ShowCoordsPopup
 -- ============================================================
 
-function PSM.PopUpManager:ShowCoordsPopup(text, npcName, location, displayId)
+function ns.PopUpManager:ShowCoordsPopup(text, npcName, location, displayId)
     if not self.coordsPopup then
-        local Theme, Widgets = PSM.Theme, PSM.Widgets
+        local Theme, Widgets = ns.Theme, ns.Widgets
 
         local f = Widgets.MovableFrame(UIParent, {
             name     = "PSMCoordsPopup",
@@ -1120,7 +1119,7 @@ function PSM.PopUpManager:ShowCoordsPopup(text, npcName, location, displayId)
 
         f.pasteButton = Widgets.Button(f, {
             point = { "BOTTOM", f, "BOTTOM", 0, 10 },
-            width = PSM.Theme.CONTROL.BUTTON_W.L,
+            width = ns.Theme.CONTROL.BUTTON_W.L,
             text  = "Create Waypoints",
             tooltip = {
                 anchor   = "ANCHOR_BOTTOMRIGHT",
@@ -1195,7 +1194,7 @@ function PSM.PopUpManager:ShowCoordsPopup(text, npcName, location, displayId)
                 { "BOTTOMRIGHT", f,       "BOTTOMRIGHT", -40,  40 },
             },
         })
-        PSM.Skin.Apply(f.contentScroll.ScrollBar, "scrollbar")
+        ns.Skin.Apply(f.contentScroll.ScrollBar, "scrollbar")
 
         f.editBox = Widgets.EditBox(f.contentScroll, {
             name      = "PSMCoordsEditBox",
@@ -1228,7 +1227,7 @@ function PSM.PopUpManager:ShowCoordsPopup(text, npcName, location, displayId)
     self.coordsPopup:Show()
     self.coordsPopup:Raise()
 
-    PSM.C_Timer.After(0.01, function()
+    ns.C_Timer.After(0.01, function()
         if self.coordsPopup and self.coordsPopup.contentScroll then
             self.coordsPopup.contentScroll:SetVerticalScroll(0)
         end
@@ -1239,7 +1238,7 @@ end
 -- ShowMagnificationPopup
 -- ============================================================
 
-function PSM.PopUpManager:ShowMagnificationPopup(displayId, petData)
+function ns.PopUpManager:ShowMagnificationPopup(displayId, petData)
     if not displayId then return end
 
     displayId = tonumber(displayId)
@@ -1251,30 +1250,30 @@ function PSM.PopUpManager:ShowMagnificationPopup(displayId, petData)
     -- the 3D model itself needs none of it, so a magnifier without the optional
     -- module still works, just without the extra detail -- exactly as it does today
     -- when the module is disabled.
-    PSM.Loader:EnsureBrowser()
+    ns.Loader:EnsureBrowser()
 
-    if not PSM.state.modelMagnificationPopup then
-        PSM.state.modelMagnificationPopup = self:CreateModelPopup({
+    if not ns.state.modelMagnificationPopup then
+        ns.state.modelMagnificationPopup = self:CreateModelPopup({
             title     = "Model Magnifier",
             width     = 500,
             height    = 500,
             resizable = true,
             popupName = "PetStableManagementMagnificationPopup",
             cleanupFunction = function()
-                local p = PSM.state.modelMagnificationPopup
+                local p = ns.state.modelMagnificationPopup
                 if p then p.currentPetData = nil; p.currentDisplayId = nil end
             end,
         })
-        PSM.state.modelMagnificationPopup:Hide()
+        ns.state.modelMagnificationPopup:Hide()
     end
 
-    local popup = PSM.state.modelMagnificationPopup
+    local popup = ns.state.modelMagnificationPopup
     popup.currentDisplayId   = displayId
     popup.currentPetData     = petData
     popup.modelFrame.petData = petData or {}
     self:UpdatePopupBackground(popup, displayId, petData)
 
-    PSM.C_Timer.After(0.1, function()
+    ns.C_Timer.After(0.1, function()
         local mf = popup.modelFrame
         mf:SetDisplayInfo(displayId)
         SetCamDistanceScaleIfChanged(mf, 1.0)
@@ -1283,11 +1282,11 @@ function PSM.PopUpManager:ShowMagnificationPopup(displayId, petData)
         else
             mf:SetAnimation(0)
         end
-        local view = PSM.state.modelViews and PSM.state.modelViews[GetViewKey(popup)]
+        local view = ns.state.modelViews and ns.state.modelViews[GetViewKey(popup)]
         ApplyModelView(mf, view or {})
     end)
 
-    popup.SetFavTexCoord(popup.favoritesButton, PSM.state.favoriteModels[displayId])
+    popup.SetFavTexCoord(popup.favoritesButton, ns.state.favoriteModels[displayId])
 
     -- Gather model data
     local familyName = "Unknown"
@@ -1299,10 +1298,10 @@ function PSM.PopUpManager:ShowMagnificationPopup(displayId, petData)
 
     if petData and petData.npcs and type(petData.npcs) == "table" and #petData.npcs > 0 then
         npcs = petData.npcs
-    elseif PSM.state.modelsPanel and PSM.state.modelsPanel.allModels then
+    elseif ns.state.modelsPanel and ns.state.modelsPanel.allModels then
         -- Fallback: Search the browser cache if module is loaded and has data
         -- tonumber() handles cases where displayId might be a string from certain data sources
-        for _, m in ipairs(PSM.state.modelsPanel.allModels) do
+        for _, m in ipairs(ns.state.modelsPanel.allModels) do
             if tonumber(m.displayId) == displayId then
                 familyName = m.familyName or familyName
                 npcs = m.npcs or npcs
@@ -1312,9 +1311,9 @@ function PSM.PopUpManager:ShowMagnificationPopup(displayId, petData)
     end
 
     -- Fallback: Search via PetModels API (Part of ModelsBrowser module)
-    if #npcs == 0 and PSM.PetModels then
-        for _, fam in ipairs(PSM.PetModels:GetAvailableFamilies()) do
-            local info = PSM.PetModels:GetModelInfo(fam, displayId)
+    if #npcs == 0 and ns.PetModels then
+        for _, fam in ipairs(ns.PetModels:GetAvailableFamilies()) do
+            local info = ns.PetModels:GetModelInfo(fam, displayId)
             if info then
                 familyName = fam
                 npcs = (info.npcs and #info.npcs > 0) and info.npcs or npcs
@@ -1327,8 +1326,8 @@ function PSM.PopUpManager:ShowMagnificationPopup(displayId, petData)
     -- (or a petData built from the same), whose .npcs arrays are bare
     -- denseIndex numbers -- resolve to full records here so BuildNPCRows/
     -- CreateNPCRow (expect npc.name etc.) still work.
-    if #npcs > 0 and type(npcs[1]) == "number" and PSM.PetModels then
-        npcs = PSM.PetModels:ResolveNpcRecords(npcs)
+    if #npcs > 0 and type(npcs[1]) == "number" and ns.PetModels then
+        npcs = ns.PetModels:ResolveNpcRecords(npcs)
     end
 
     -- 4. Final Fallback: Direct lookup in ModelsData (crucial for magnification from Owned Pets panel)
@@ -1347,7 +1346,7 @@ function PSM.PopUpManager:ShowMagnificationPopup(displayId, petData)
                     -- GetModelsRecord's shape already matches what this fallback used to
                     -- build by hand (npcId/name/location/uiMapId/uiMapName/expansion/
                     -- classification/factionReaction/nameKeeper), plus a few extra fields.
-                    local record = PSM.PetModels:GetModelsRecord(modelsData.NpcId[i])
+                    local record = ns.PetModels:GetModelsRecord(modelsData.NpcId[i])
                     if record then
                         if record.family then familyName = record.family end
                         table.insert(npcs, record)
@@ -1372,7 +1371,7 @@ end
 -- PopulateModelPopup
 -- ============================================================
 
-function PSM.PopUpManager:PopulateModelPopup(popup, displayId, petData, npcs)
+function ns.PopUpManager:PopulateModelPopup(popup, displayId, petData, npcs)
     -- Auto-size only until the user picks a size. This was unconditional, so every
     -- populate recomputed an *absolute* target height and applied it -- resize the popup
     -- larger, click another Display ID, and it kept your width but snapped back to a
@@ -1396,8 +1395,8 @@ function PSM.PopUpManager:PopulateModelPopup(popup, displayId, petData, npcs)
         familyName = petData.familyName
     elseif popup.resolvedFamily then
         familyName = popup.resolvedFamily
-    elseif PSM.state.modelsPanel and PSM.state.modelsPanel.allModels then
-        for _, m in ipairs(PSM.state.modelsPanel.allModels) do
+    elseif ns.state.modelsPanel and ns.state.modelsPanel.allModels then
+        for _, m in ipairs(ns.state.modelsPanel.allModels) do
             if tonumber(m.displayId) == tonumber(displayId) then
                 familyName = m.familyName or familyName
                 break
@@ -1410,8 +1409,8 @@ function PSM.PopUpManager:PopulateModelPopup(popup, displayId, petData, npcs)
     local tamingData = nil
     if petData and petData.taming then
         tamingData = petData.taming
-    elseif PSM.state.modelsPanel and PSM.state.modelsPanel.allModels and type(PSM.state.modelsPanel.allModels) == "table" then
-        for _, m in ipairs(PSM.state.modelsPanel.allModels) do
+    elseif ns.state.modelsPanel and ns.state.modelsPanel.allModels and type(ns.state.modelsPanel.allModels) == "table" then
+        for _, m in ipairs(ns.state.modelsPanel.allModels) do
             if tonumber(m.displayId) == tonumber(displayId) and m.taming then
                 tamingData = m.taming
                 break
@@ -1441,14 +1440,14 @@ function PSM.PopUpManager:PopulateModelPopup(popup, displayId, petData, npcs)
         end
     end
 
-    if tamingData and PSM.TamingChecker then
+    if tamingData and ns.TamingChecker then
         local parts = {}
         for _, ruleKey in ipairs(tamingData) do
-            local rule = PSM.TamingRules and PSM.TamingRules[ruleKey]
+            local rule = ns.TamingRules and ns.TamingRules[ruleKey]
             
             -- Only display formal taming unlocks at the model level; skip situational conditions
             if rule and not rule.isCondition then
-                local status = PSM.TamingChecker.GetRuleStatus(ruleKey)
+                local status = ns.TamingChecker.GetRuleStatus(ruleKey)
                 local label  = rule and rule.label or ruleKey
                 local hint   = rule and rule.hint
                 local color  = status == "met" and "ff00ff00" or "ffff4444"
@@ -1545,7 +1544,7 @@ function PSM.PopUpManager:PopulateModelPopup(popup, displayId, petData, npcs)
         -- over from a previously viewed pet.
         if popup.needsAutoSizing then
             popup.needsAutoSizing = false
-            PSM.C_Timer.After(0.05, function()
+            ns.C_Timer.After(0.05, function()
                 local tamingH = (popup.tamingFrame and popup.tamingFrame:IsShown()) and (popup.tamingFrame:GetHeight() or 0) or 0
                 local targetH = 300 + 150 + tamingH
                 popup:SetHeight(math.min(targetH, UIParent:GetHeight() * 0.85))
@@ -1563,13 +1562,13 @@ end
 -- parentPopup is passed so we can refresh the NPC text after saving; onSaved
 -- is an optional extra callback for callers (e.g. the NPC Browser list) that
 -- aren't backed by a popup's currentNPCs/BuildNPCRows refresh path.
-function PSM.PopUpManager:ShowNoteEditor(npcId, npcName, parentPopup, onSaved)
+function ns.PopUpManager:ShowNoteEditor(npcId, npcName, parentPopup, onSaved)
     -- Seed notes (PSM.NotesData) ship with the browser; the user's own notes live in
     -- PSM_UserNotes, a core SavedVariable, so the editor still works if this fails.
-    PSM.Loader:EnsureBrowser()
+    ns.Loader:EnsureBrowser()
 
     if not self.noteEditor then
-        local Theme, Widgets = PSM.Theme, PSM.Widgets
+        local Theme, Widgets = ns.Theme, ns.Widgets
 
         local f = Widgets.MovableFrame(UIParent, {
             name     = "PSMNoteEditor",
@@ -1629,7 +1628,7 @@ function PSM.PopUpManager:ShowNoteEditor(npcId, npcName, parentPopup, onSaved)
             skin      = "scrollframe",
             point     = { "BOTTOMRIGHT", f, "BOTTOMRIGHT", -50, 45 },
         })
-        PSM.Skin.Apply(f.scrollFrame.ScrollBar, "scrollbar")
+        ns.Skin.Apply(f.scrollFrame.ScrollBar, "scrollbar")
 
         f.editBox = Widgets.EditBox(f.scrollFrame, {
             multiline  = true,
@@ -1643,14 +1642,14 @@ function PSM.PopUpManager:ShowNoteEditor(npcId, npcName, parentPopup, onSaved)
 
         -- Save button (its OnClick is wired per-call, below)
         f.saveButton = Widgets.Button(f, {
-            width = PSM.Theme.CONTROL.BUTTON_W.S,
+            width = ns.Theme.CONTROL.BUTTON_W.S,
             point = { "BOTTOMRIGHT", f, "BOTTOM", -5, 12 },
             text  = "Save",
         })
 
         -- Clear button
         f.clearButton = Widgets.Button(f, {
-            width   = PSM.Theme.CONTROL.BUTTON_W.S,
+            width   = ns.Theme.CONTROL.BUTTON_W.S,
             point   = { "BOTTOMLEFT", f, "BOTTOM", 5, 12 },
             text    = "Clear",
             onClick = function()
@@ -1676,7 +1675,7 @@ function PSM.PopUpManager:ShowNoteEditor(npcId, npcName, parentPopup, onSaved)
     local f = self.noteEditor
 
     -- Populate seed note section
-    local seedNote = PSM.NotesData and PSM.NotesData[npcId]
+    local seedNote = ns.NotesData and ns.NotesData[npcId]
     if seedNote then
         f.seedLabel:Show()
         f.seedText:Show()
@@ -1704,7 +1703,7 @@ function PSM.PopUpManager:ShowNoteEditor(npcId, npcName, parentPopup, onSaved)
     -- Save wires up per-call npcId and refreshes the parent popup's NPC text
     f.saveButton:SetScript("OnClick", function()
         local text = f.editBox:GetText()
-        PSM.NotesData.SetUserNote(npcId, text)
+        ns.NotesData.SetUserNote(npcId, text)
         f:Hide()
         if parentPopup and parentPopup.currentNPCs then
             BuildNPCRows(parentPopup, parentPopup.currentNPCs)

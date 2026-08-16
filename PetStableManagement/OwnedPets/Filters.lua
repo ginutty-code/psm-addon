@@ -1,14 +1,11 @@
 -- OwnedPets/Filters.lua
 -- Filter controls for PetStableManagement
 
-local addonName = "PetStableManagement"
-
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
+local _, ns = ...
 
 -- ─── Helpers ──────────────────────────────────────────────────────────────────
 
-local function IsFamilyExotic(name) return PSM.Data.IsExoticFamily(name) end
+local function IsFamilyExotic(name) return ns.Data.IsExoticFamily(name) end
 
 -- Returns the joined text for a key→bool table, or fallback if empty.
 local function DropdownText(tbl, fallback)
@@ -31,10 +28,10 @@ end
 
 -- A tri-state filter checkbox: off → include → exclude → off.
 local function CreateFilterCheckbox(panel, opts)
-    local cb = PSM.Widgets.CheckBox(panel, {
+    local cb = ns.Widgets.CheckBox(panel, {
         point         = opts.point,
         label         = opts.label,
-        labelFontSize = PSM.Theme.SIZE.SMALL,
+        labelFontSize = ns.Theme.SIZE.SMALL,
     })
 
     -- Extends the clickable area rightward over the label text, so clicking the
@@ -62,9 +59,9 @@ local function InitMultiDropdown(getItems, getStateTable, dropdown, allLabel, fi
         info.value   = "ALL"
         info.checked = false
         info.func = function()
-            PSM.Utils:ClearTable(getStateTable())
+            ns.Utils:ClearTable(getStateTable())
             UIDropDownMenu_SetText(dropdown, allLabel)
-            PSM.C_Timer.After(0.1, function() PSM.UI:UpdatePanel() end)
+            ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
         end
         UIDropDownMenu_AddButton(info)
 
@@ -80,7 +77,7 @@ local function InitMultiDropdown(getItems, getStateTable, dropdown, allLabel, fi
                     local t = getStateTable()
                     t[item] = checked or nil
                     UIDropDownMenu_SetText(dropdown, DropdownText(t, allLabel))
-                    PSM.C_Timer.After(0.1, function() PSM.UI:UpdatePanel() end)
+                    ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
                 end
                 UIDropDownMenu_AddButton(info)
             end
@@ -91,9 +88,9 @@ end
 
 -- Returns the family dropdown's "all" label given the current exotic filter.
 local function FamilyAllLabel()
-    if PSM.state.exoticFilter == true then
+    if ns.state.exoticFilter == true then
         return "All Exotic Families"
-    elseif PSM.state.exoticFilter == "inverted" then
+    elseif ns.state.exoticFilter == "inverted" then
         return "All Non-Exotic Families"
     end
     return "All Families"
@@ -102,13 +99,13 @@ end
 local function InitFamilyDropdown(panel)
     local label = FamilyAllLabel()
     local filterFn
-    if PSM.state.exoticFilter == true then
+    if ns.state.exoticFilter == true then
         filterFn = IsFamilyExotic
-    elseif PSM.state.exoticFilter == "inverted" then
+    elseif ns.state.exoticFilter == "inverted" then
         filterFn = function(f) return not IsFamilyExotic(f) end
     end
-    InitMultiDropdown(function() return PSM.state.familyList end,
-                      function() return PSM.state.selectedFamilies end,
+    InitMultiDropdown(function() return ns.state.familyList end,
+                      function() return ns.state.selectedFamilies end,
                       panel.familyDrop, label, filterFn)
 end
 
@@ -124,7 +121,7 @@ local SORT_LABELS = {
 }
 
 local function SortDropLabel()
-    return SORT_LABELS[PSM.state.sortBy] or "Sort by"
+    return SORT_LABELS[ns.state.sortBy] or "Sort by"
 end
 
 local function InitSortDropdown(panel)
@@ -142,14 +139,14 @@ local function InitSortDropdown(panel)
             local info      = UIDropDownMenu_CreateInfo()
             info.text       = "  " .. opt.text
             info.value      = opt.value
-            info.checked    = (PSM.state.sortBy == opt.value)
+            info.checked    = (ns.state.sortBy == opt.value)
             info.func       = function()
-                PSM.state.sortBy = opt.value
+                ns.state.sortBy = opt.value
                 UIDropDownMenu_SetText(dropdown, SortDropLabel())
                 -- Refresh checked state so the menu reflects the new selection
                 -- if the user reopens it without closing the panel.
                 UIDropDownMenu_Initialize(dropdown, dropdown.initialize, nil, 1)
-                PSM.C_Timer.After(0.1, function() PSM.UI:UpdatePanel() end)
+                ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
             end
             UIDropDownMenu_AddButton(info)
         end
@@ -159,13 +156,13 @@ end
 
 -- ─── Public API ───────────────────────────────────────────────────────────────
 
-function PSM.UI:BuildFilters(panel)
-    local debouncedUpdate = PSM.Utils:Debounce(function()
-        PSM.UI:UpdatePanel()
-    end, PSM.Config.UPDATE_DELAY)
+function ns.UI:BuildFilters(panel)
+    local debouncedUpdate = ns.Utils:Debounce(function()
+        ns.UI:UpdatePanel()
+    end, ns.Config.UPDATE_DELAY)
 
-    local Widgets = PSM.Widgets
-    local cfg  = PSM.Config
+    local Widgets = ns.Widgets
+    local cfg  = ns.Config
     local rowY = cfg.DROPDOWN_ROW_Y
     local step = cfg.DROPDOWN_SPACING
 
@@ -183,8 +180,8 @@ function PSM.UI:BuildFilters(panel)
     end
 
     panel.specDrop = Dropdown("PetDupSpecDrop", { "TOPLEFT", -10, rowY })
-    InitMultiDropdown(function() return PSM.state.specList end,
-                      function() return PSM.state.selectedSpecs end,
+    InitMultiDropdown(function() return ns.state.specList end,
+                      function() return ns.state.selectedSpecs end,
                       panel.specDrop, "All Specs")
 
     panel.familyDrop = Dropdown("PetDupFamilyDrop", { "TOPLEFT", step * 1 - 10, rowY })
@@ -196,13 +193,13 @@ function PSM.UI:BuildFilters(panel)
     panel.sortDrop = Dropdown("PetDupSortDrop", { "TOPRIGHT", -17, rowY })
     InitSortDropdown(panel)
 
-    local DIM, GOLD = PSM.Theme.COLOR.DIM, PSM.Theme.COLOR.GOLD
-    PSM.Tooltip.Attach(panel.sortDrop, {
+    local DIM, GOLD = ns.Theme.COLOR.DIM, ns.Theme.COLOR.GOLD
+    ns.Tooltip.Attach(panel.sortDrop, {
         anchor     = "ANCHOR_BOTTOMLEFT",
         x          = 17,
         y          = 0,
         title      = "Sort by",
-        titleColor = PSM.Theme.COLOR.WHITE,
+        titleColor = ns.Theme.COLOR.WHITE,
         lines = {
             { text = "Slot - sort by stable slot number",     color = DIM },
             { text = "Model - sort by display ID",            color = DIM },
@@ -220,10 +217,10 @@ function PSM.UI:BuildFilters(panel)
         point         = { "BOTTOMLEFT", panel.familyDrop, "TOPLEFT", 16, 3 },
         label         = "Exotic Only",
         labelHitWidth = 100,
-        initialState  = PSM.state.exoticFilter,
+        initialState  = ns.state.exoticFilter,
         onChanged = function(state)
-            PSM.state.exoticFilter = state
-            PSM.Utils:ClearTable(PSM.state.selectedFamilies)
+            ns.state.exoticFilter = state
+            ns.Utils:ClearTable(ns.state.selectedFamilies)
             InitFamilyDropdown(panel)
             debouncedUpdate()
         end,
@@ -233,65 +230,65 @@ function PSM.UI:BuildFilters(panel)
         point         = { "BOTTOMLEFT", panel.tamerDrop, "TOPLEFT", 16, 3 },
         label         = "Duplicates Only",
         labelHitWidth = 120,
-        initialState  = PSM.state.duplicatesOnlyFilter,
+        initialState  = ns.state.duplicatesOnlyFilter,
         onChanged = function(state)
-            PSM.state.duplicatesOnlyFilter = state
+            ns.state.duplicatesOnlyFilter = state
             debouncedUpdate()
         end,
     })
 end
 
-function PSM.UI:SetDefaultTamerSelection()
-    if not PSM.state.tamerList or PSM.state.tamerSelectionInitialized then return end
-    if PSM.IsCurrentCharacterHunter() then
-        local key = PSM.GetCharacterKey()
-        for _, tamer in ipairs(PSM.state.tamerList) do
+function ns.UI:SetDefaultTamerSelection()
+    if not ns.state.tamerList or ns.state.tamerSelectionInitialized then return end
+    if ns.IsCurrentCharacterHunter() then
+        local key = ns.GetCharacterKey()
+        for _, tamer in ipairs(ns.state.tamerList) do
             if tamer == key then
-                PSM.state.selectedTamers[tamer] = true
+                ns.state.selectedTamers[tamer] = true
                 break
             end
         end
     end
-    PSM.state.tamerSelectionInitialized = true
+    ns.state.tamerSelectionInitialized = true
 end
 
-function PSM.UI:SetStableTamerSelection()
-    if not PSM.state.tamerList or not PSM.state.panel or not PSM.state.panel.tamerDrop then return end
-    if not PSM.IsCurrentCharacterHunter() then return end
+function ns.UI:SetStableTamerSelection()
+    if not ns.state.tamerList or not ns.state.panel or not ns.state.panel.tamerDrop then return end
+    if not ns.IsCurrentCharacterHunter() then return end
 
-    local key = PSM.GetCharacterKey()
-    PSM.Utils:ClearTable(PSM.state.selectedTamers)
-    PSM.state.selectedTamers[key] = true
-    UIDropDownMenu_SetText(PSM.state.panel.tamerDrop, key)
+    local key = ns.GetCharacterKey()
+    ns.Utils:ClearTable(ns.state.selectedTamers)
+    ns.state.selectedTamers[key] = true
+    UIDropDownMenu_SetText(ns.state.panel.tamerDrop, key)
     self:ReinitializeTamerDropdown()
 end
 
-function PSM.UI:ReinitializeTamerDropdown()
-    if not PSM.state.panel or not PSM.state.panel.tamerDrop then return end
-    PSM.Data:RebuildTamerList()
+function ns.UI:ReinitializeTamerDropdown()
+    if not ns.state.panel or not ns.state.panel.tamerDrop then return end
+    ns.Data:RebuildTamerList()
 
-    local dropdown = PSM.state.panel.tamerDrop
+    local dropdown = ns.state.panel.tamerDrop
     local allLabel = "All Hunters"
-    local function getState() return PSM.state.selectedTamers end
+    local function getState() return ns.state.selectedTamers end
 
     UIDropDownMenu_Initialize(dropdown, function()
         local t = getState()
-        local showAll = not PSM.state.isStableOpen or #PSM.state.tamerList > 1
+        local showAll = not ns.state.isStableOpen or #ns.state.tamerList > 1
         if showAll then
             local info   = UIDropDownMenu_CreateInfo()
             info.text    = "  " .. allLabel
             info.value   = "ALL"
             info.checked = false
             info.func = function()
-                PSM.Utils:ClearTable(getState())
-                PSM.state.tamerSelectionInitialized = true
+                ns.Utils:ClearTable(getState())
+                ns.state.tamerSelectionInitialized = true
                 UIDropDownMenu_SetText(dropdown, allLabel)
-                PSM.C_Timer.After(0.1, function() PSM.UI:UpdatePanel() end)
+                ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
             end
             UIDropDownMenu_AddButton(info)
         end
 
-        for _, tamer in ipairs(PSM.state.tamerList or {}) do
+        for _, tamer in ipairs(ns.state.tamerList or {}) do
             local info            = UIDropDownMenu_CreateInfo()
             info.text             = "  " .. tamer
             info.value            = tamer
@@ -301,9 +298,9 @@ function PSM.UI:ReinitializeTamerDropdown()
             info.func = function(_, _, _, checked)
                 local st = getState()
                 st[tamer] = checked or nil
-                PSM.state.tamerSelectionInitialized = true
+                ns.state.tamerSelectionInitialized = true
                 UIDropDownMenu_SetText(dropdown, DropdownText(getState(), allLabel))
-                PSM.C_Timer.After(0.1, function() PSM.UI:UpdatePanel() end)
+                ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
             end
             UIDropDownMenu_AddButton(info)
         end
@@ -313,25 +310,25 @@ function PSM.UI:ReinitializeTamerDropdown()
     UIDropDownMenu_SetText(dropdown, DropdownText(getState(), allLabel))
 end
 
-function PSM.UI:UpdateFilterUI()
-    local panel = PSM.state.panel
+function ns.UI:UpdateFilterUI()
+    local panel = ns.state.panel
     if not panel then return end
 
     -- SetTriState paints the box and keeps `.triState` in sync with the saved filter,
     -- which the two hand-written versions of this had to remember separately.
-    if panel.exoticCheck     then panel.exoticCheck:SetTriState(PSM.state.exoticFilter)              end
-    if panel.duplicatesCheck then panel.duplicatesCheck:SetTriState(PSM.state.duplicatesOnlyFilter)  end
+    if panel.exoticCheck     then panel.exoticCheck:SetTriState(ns.state.exoticFilter)              end
+    if panel.duplicatesCheck then panel.duplicatesCheck:SetTriState(ns.state.duplicatesOnlyFilter)  end
 
-    if panel.specDrop   then UIDropDownMenu_SetText(panel.specDrop,   DropdownText(PSM.state.selectedSpecs,   "All Specs"))       end
-    if panel.familyDrop then UIDropDownMenu_SetText(panel.familyDrop, DropdownText(PSM.state.selectedFamilies, FamilyAllLabel())) end
-    if panel.tamerDrop  then UIDropDownMenu_SetText(panel.tamerDrop,  DropdownText(PSM.state.selectedTamers,  "All Hunters"))     end
+    if panel.specDrop   then UIDropDownMenu_SetText(panel.specDrop,   DropdownText(ns.state.selectedSpecs,   "All Specs"))       end
+    if panel.familyDrop then UIDropDownMenu_SetText(panel.familyDrop, DropdownText(ns.state.selectedFamilies, FamilyAllLabel())) end
+    if panel.tamerDrop  then UIDropDownMenu_SetText(panel.tamerDrop,  DropdownText(ns.state.selectedTamers,  "All Hunters"))     end
     if panel.sortDrop   then UIDropDownMenu_SetText(panel.sortDrop,   SortDropLabel())                                            end
 end
 
-function PSM.UI:BuildSortButtons(panel)
+function ns.UI:BuildSortButtons(panel)
     -- Reset Filters button
-    panel.resetFiltersButton = PSM.Widgets.Button(panel, {
-        width      = PSM.Theme.CONTROL.BUTTON_W.M,
+    panel.resetFiltersButton = ns.Widgets.Button(panel, {
+        width      = ns.Theme.CONTROL.BUTTON_W.M,
         point      = { "TOPLEFT", panel.searchBox, "TOPRIGHT", 10, 0 },
         text       = "Reset Filters",
         fontObject = "GameFontNormalSmall",
@@ -342,16 +339,16 @@ function PSM.UI:BuildSortButtons(panel)
             local lines = {}
             for _, text in ipairs({
                 "All Specs selected", "All Families selected",
-                PSM.state.isStableOpen and "Tamer: kept on current hunter" or "All Hunters selected",
+                ns.state.isStableOpen and "Tamer: kept on current hunter" or "All Hunters selected",
                 "Exotic Only: OFF", "Duplicates Only: OFF", "Clear search box",
                 "Sort by: Unsorted",
             }) do
-                lines[#lines + 1] = { text = text, color = PSM.Theme.COLOR.FAINT }
+                lines[#lines + 1] = { text = text, color = ns.Theme.COLOR.FAINT }
             end
             return {
                 anchor     = "ANCHOR_BOTTOMRIGHT",
                 title      = "Reset all filters",
-                titleColor = PSM.Theme.COLOR.WHITE,
+                titleColor = ns.Theme.COLOR.WHITE,
                 lines      = lines,
             }
         end,
@@ -361,26 +358,26 @@ function PSM.UI:BuildSortButtons(panel)
             -- placeholder is only restored on focus loss.
             if panel.searchBox then panel.searchBox:ClearSearch() end
 
-            PSM.Utils:ClearTable(PSM.state.selectedSpecs)
-            PSM.Utils:ClearTable(PSM.state.selectedFamilies)
+            ns.Utils:ClearTable(ns.state.selectedSpecs)
+            ns.Utils:ClearTable(ns.state.selectedFamilies)
             UIDropDownMenu_SetText(panel.specDrop,   "All Specs")
             UIDropDownMenu_SetText(panel.familyDrop, "All Families")
 
             -- When stable is open, keep tamer locked to current hunter
-            if not PSM.state.isStableOpen then
-                PSM.Utils:ClearTable(PSM.state.selectedTamers)
+            if not ns.state.isStableOpen then
+                ns.Utils:ClearTable(ns.state.selectedTamers)
                 UIDropDownMenu_SetText(panel.tamerDrop, "All Hunters")
             end
 
-            PSM.state.exoticFilter         = nil
-            PSM.state.duplicatesOnlyFilter = nil
+            ns.state.exoticFilter         = nil
+            ns.state.duplicatesOnlyFilter = nil
             panel.exoticCheck:SetTriState(nil)
             panel.duplicatesCheck:SetTriState(nil)
 
-            PSM.state.sortBy = nil
+            ns.state.sortBy = nil
             UIDropDownMenu_SetText(panel.sortDrop, "Sort by")
 
-            PSM.UI:UpdatePanel()
+            ns.UI:UpdatePanel()
         end,
     })
 end

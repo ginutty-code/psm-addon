@@ -1,18 +1,15 @@
 -- Data.lua
 -- Data management and collection for PetStableManagement
 
-local addonName = "PetStableManagement"
+local _, ns = ...
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
+ns.Data = {}
 
-PSM.Data = {}
-
-local GetCharacterKey = function() return PSM.GetCharacterKey() end
+local GetCharacterKey = function() return ns.GetCharacterKey() end
 
 -- ─── Utilities ────────────────────────────────────────────────────────────────
 
-PSM.Data.DeepCopyPet = PSM.Utils.DeepCopy  -- backward-compat alias
+ns.Data.DeepCopyPet = ns.Utils.DeepCopy  -- backward-compat alias
 
 local EXOTIC_FAMILIES = {
     ["Aqiri"] = true, ["Carapid"] = true, ["Chimaera"] = true,
@@ -22,7 +19,7 @@ local EXOTIC_FAMILIES = {
 }
 
 -- Expose for other modules
-function PSM.Data.IsExoticFamily(familyName)
+function ns.Data.IsExoticFamily(familyName)
     return EXOTIC_FAMILIES[familyName] or false
 end
 
@@ -79,19 +76,19 @@ local function LoadFilterSettings(src)
             -- Absent from src means "nothing saved yet", not "saved as empty" -- don't
             -- force PSM.state's existing value to {}.
             if src[k] ~= nil then
-                PSM.state[k] = PSM.Utils.DeepCopy(src[k])
+                ns.state[k] = ns.Utils.DeepCopy(src[k])
             end
         elseif NIL_FILTER_KEYS[k] then
-            PSM.state[k] = src[k] or nil
+            ns.state[k] = src[k] or nil
         else
-            PSM.state[k] = src[k] or false
+            ns.state[k] = src[k] or false
         end
     end
 end
 
 -- ─── Persistence ──────────────────────────────────────────────────────────────
 
-function PSM.Data:SavePersistentData()
+function ns.Data:SavePersistentData()
     local db    = EnsureDB()
     local key   = GetCharacterKey()
     local char  = db.characters[key] or {}
@@ -102,9 +99,9 @@ function PSM.Data:SavePersistentData()
 
     char.snapshotData = {}
     local count = 0
-    for _, pet in ipairs(PSM.state.stablePets) do
+    for _, pet in ipairs(ns.state.stablePets) do
         if pet.tamer == key then
-            table.insert(char.snapshotData, PSM.Utils.DeepCopy(pet))
+            table.insert(char.snapshotData, ns.Utils.DeepCopy(pet))
             count = count + 1
         end
     end
@@ -114,16 +111,16 @@ function PSM.Data:SavePersistentData()
     return count
 end
 
-function PSM.Data:SaveSettings()
+function ns.Data:SaveSettings()
     local db  = EnsureDB()
     local key = GetCharacterKey()
 
     -- Determine page to save, preserving existing value if unavailable
-    local currentPage = PSM.state.modelsPanelCurrentPage
-        or (PSM.state.modelsPanel and PSM.state.modelsPanel.currentPage)
+    local currentPage = ns.state.modelsPanelCurrentPage
+        or (ns.state.modelsPanel and ns.state.modelsPanel.currentPage)
 
     -- Skip during panel initialization (panel exists but isn't visible and no page yet)
-    if PSM.state.modelsPanel and not PSM.state.modelsPanel:IsVisible() and currentPage == nil then
+    if ns.state.modelsPanel and not ns.state.modelsPanel:IsVisible() and currentPage == nil then
         return
     end
 
@@ -133,31 +130,31 @@ function PSM.Data:SaveSettings()
 
     local aw = GetAccountWide()
     -- Don't overwrite favorites until they've actually been loaded this session.
-    if PSM.state.favoriteModelsLoaded then
-        aw.favoriteModels = PSM.Utils.DeepCopy(PSM.state.favoriteModels) or {}
+    if ns.state.favoriteModelsLoaded then
+        aw.favoriteModels = ns.Utils.DeepCopy(ns.state.favoriteModels) or {}
     end
-    aw.modelViews          = PSM.Utils.DeepCopy(PSM.state.modelViews) or {}
-    aw.popupZoom           = PSM.state.popupZoom or 0.25
-    aw.globalModelRotation = PSM.state.globalModelRotation or math.pi * 2
+    aw.modelViews          = ns.Utils.DeepCopy(ns.state.modelViews) or {}
+    aw.popupZoom           = ns.state.popupZoom or 0.25
+    aw.globalModelRotation = ns.state.globalModelRotation or math.pi * 2
 
     char.settings = {
-            sortBy                 = PSM.state.sortBy or nil,
-            exoticFilter           = PSM.state.exoticFilter or false,
-            duplicatesOnlyFilter   = PSM.state.duplicatesOnlyFilter or false,
-            selectedSpecs          = PSM.Utils.DeepCopy(PSM.state.selectedSpecs) or {},
-            selectedFamilies       = PSM.Utils.DeepCopy(PSM.state.selectedFamilies) or {},
-            selectedTamers         = PSM.Utils.DeepCopy(PSM.state.selectedTamers) or {},
-            selectedTamingRules    = PSM.Utils.DeepCopy(PSM.state.selectedTamingRules) or {},
-            selectedConditions     = PSM.Utils.DeepCopy(PSM.state.selectedConditions) or {},
+            sortBy                 = ns.state.sortBy or nil,
+            exoticFilter           = ns.state.exoticFilter or false,
+            duplicatesOnlyFilter   = ns.state.duplicatesOnlyFilter or false,
+            selectedSpecs          = ns.Utils.DeepCopy(ns.state.selectedSpecs) or {},
+            selectedFamilies       = ns.Utils.DeepCopy(ns.state.selectedFamilies) or {},
+            selectedTamers         = ns.Utils.DeepCopy(ns.state.selectedTamers) or {},
+            selectedTamingRules    = ns.Utils.DeepCopy(ns.state.selectedTamingRules) or {},
+            selectedConditions     = ns.Utils.DeepCopy(ns.state.selectedConditions) or {},
             modelsPanelCurrentPage = currentPage or savedPage or 1,
-            tamerSelectionInitialized = PSM.state.tamerSelectionInitialized or false,
+            tamerSelectionInitialized = ns.state.tamerSelectionInitialized or false,
             minimapButton = (db.settings and db.settings.minimapButton) or {
                 hide = false, minimapPos = 220, lock = false,
             },
         }
 end
 
-function PSM.Data:LoadPersistentDataForDisplay(preserveCurrentData)
+function ns.Data:LoadPersistentDataForDisplay(preserveCurrentData)
     local db = PetStableManagementDB
     if not db then return false end
 
@@ -171,7 +168,7 @@ function PSM.Data:LoadPersistentDataForDisplay(preserveCurrentData)
     if not db.characters then return false end
 
     if not preserveCurrentData then
-        PSM.state.stablePets = {}
+        ns.state.stablePets = {}
         self:ClearMemory(false)
 
         -- Always load current character first, then load from other characters
@@ -180,11 +177,11 @@ function PSM.Data:LoadPersistentDataForDisplay(preserveCurrentData)
         if type(currentCharData) == "table" and type(currentCharData.snapshotData) == "table" then
             for _, pet in ipairs(currentCharData.snapshotData) do
                 if type(pet) == "table" and pet.name and pet.icon then
-                    local p = PSM.Utils.DeepCopy(pet)
+                    local p = ns.Utils.DeepCopy(pet)
                     p.tamer = currentKey
                     p.guid  = p.guid or p.petNumber
                     self:NormalizePetData(p)
-                    table.insert(PSM.state.stablePets, p)
+                    table.insert(ns.state.stablePets, p)
                 end
             end
         end
@@ -209,18 +206,18 @@ function PSM.Data:LoadPersistentDataForDisplay(preserveCurrentData)
             if type(charData.snapshotData) == "table" then
                 for _, pet in ipairs(charData.snapshotData) do
                     if type(pet) == "table" and pet.name and pet.icon then
-                        local p = PSM.Utils.DeepCopy(pet)
+                        local p = ns.Utils.DeepCopy(pet)
                         p.tamer = charKey
                         p.guid  = p.guid or p.petNumber
                         self:NormalizePetData(p)
-                        table.insert(PSM.state.stablePets, p)
+                        table.insert(ns.state.stablePets, p)
                     end
                 end
                 loaded = loaded + 1
             end
         end
 
-        if #PSM.state.stablePets == 0 then return false end
+        if #ns.state.stablePets == 0 then return false end
     end
 
     self:RebuildSpecAndFamilyLists()
@@ -231,26 +228,26 @@ function PSM.Data:LoadPersistentDataForDisplay(preserveCurrentData)
     LoadFilterSettings(src)
 
     -- Clear tamer selection only if we're coming from a stable session
-    if not PSM.state.isStableOpen and PSM.state.wasStableSession then
-        PSM.Utils:ClearTable(PSM.state.selectedTamers)
-        PSM.state.tamerSelectionInitialized = true
-        PSM.state.wasStableSession = false
-    elseif PSM.state.isStableOpen and not next(PSM.state.selectedTamers) then
-        if PSM.UI and PSM.UI.SetDefaultTamerSelection then
-            PSM.UI:SetDefaultTamerSelection()
+    if not ns.state.isStableOpen and ns.state.wasStableSession then
+        ns.Utils:ClearTable(ns.state.selectedTamers)
+        ns.state.tamerSelectionInitialized = true
+        ns.state.wasStableSession = false
+    elseif ns.state.isStableOpen and not next(ns.state.selectedTamers) then
+        if ns.UI and ns.UI.SetDefaultTamerSelection then
+            ns.UI:SetDefaultTamerSelection()
         end
     end
 
     self:MigrateCharacterFavoritesToAccountWide()
 
     local aw = GetAccountWide()
-    PSM.state.favoriteModels = PSM.Utils.DeepCopy(aw.favoriteModels) or {}
-    PSM.state.favoriteModelsLoaded = true
+    ns.state.favoriteModels = ns.Utils.DeepCopy(aw.favoriteModels) or {}
+    ns.state.favoriteModelsLoaded = true
 
     return true
 end
 
-function PSM.Data:LoadSettingsOnly()
+function ns.Data:LoadSettingsOnly()
     local db  = PetStableManagementDB
     local key = GetCharacterKey()
     local src = db and db.characters and (db.characters[key] or {}).settings
@@ -259,50 +256,50 @@ function PSM.Data:LoadSettingsOnly()
     LoadFilterSettings(src)
 
     if src then
-        PSM.state.tamerSelectionInitialized = src.tamerSelectionInitialized or false
+        ns.state.tamerSelectionInitialized = src.tamerSelectionInitialized or false
         if src.modelsPanelCurrentPage ~= nil then
-            PSM.state.modelsPanelCurrentPage = src.modelsPanelCurrentPage
+            ns.state.modelsPanelCurrentPage = src.modelsPanelCurrentPage
         end
     end
 
-    if PSM.UI and PSM.UI.SetDefaultTamerSelection then
-        PSM.UI:SetDefaultTamerSelection()
+    if ns.UI and ns.UI.SetDefaultTamerSelection then
+        ns.UI:SetDefaultTamerSelection()
     end
 
     -- Global override from saved variable (non-zero takes precedence)
     if _G.PSM_modelsPanelCurrentPage and _G.PSM_modelsPanelCurrentPage ~= 0 then
-        PSM.state.modelsPanelCurrentPage = _G.PSM_modelsPanelCurrentPage
+        ns.state.modelsPanelCurrentPage = _G.PSM_modelsPanelCurrentPage
     else
-        PSM.state.modelsPanelCurrentPage = PSM.state.modelsPanelCurrentPage or 1
+        ns.state.modelsPanelCurrentPage = ns.state.modelsPanelCurrentPage or 1
     end
 
     self:MigrateCharacterFavoritesToAccountWide()
 
     local aw = GetAccountWide()
-    PSM.state.favoriteModels      = PSM.Utils.DeepCopy(aw.favoriteModels) or {}
-    PSM.state.favoriteModelsLoaded = true
-    PSM.state.modelViews          = PSM.Utils.DeepCopy(aw.modelViews) or {}
-    PSM.state.popupZoom           = aw.popupZoom or 0.25
-    PSM.state.globalModelRotation = aw.globalModelRotation or math.pi * 2
+    ns.state.favoriteModels      = ns.Utils.DeepCopy(aw.favoriteModels) or {}
+    ns.state.favoriteModelsLoaded = true
+    ns.state.modelViews          = ns.Utils.DeepCopy(aw.modelViews) or {}
+    ns.state.popupZoom           = aw.popupZoom or 0.25
+    ns.state.globalModelRotation = aw.globalModelRotation or math.pi * 2
 end
 
 -- ─── Snapshots & migration ────────────────────────────────────────────────────
 
-function PSM.Data:CreateSnapshot()
+function ns.Data:CreateSnapshot()
     local count = self:SavePersistentData()
     if count > 0 then
         print("|cFF00FF00PetStableManagement: Saved " .. count .. " pets to database.|r")
     end
 end
 
-function PSM.Data:GetFormattedTimestamp()
+function ns.Data:GetFormattedTimestamp()
     local db = PetStableManagementDB
     if not db or not db.lastUpdated then return "Never" end
     local ts = db.lastUpdated
     return type(ts) == "number" and date("%Y-%m-%d %H:%M:%S", ts) or tostring(ts)
 end
 
-function PSM.Data:MigrateCharacterFavoritesToAccountWide()
+function ns.Data:MigrateCharacterFavoritesToAccountWide()
     local db = PetStableManagementDB
     if not db or not db.characters then return end
     local aw = GetAccountWide()
@@ -321,17 +318,17 @@ end
 
 -- ─── Pet collection ───────────────────────────────────────────────────────────
 
-function PSM.Data:CollectStablePets()
-    if not PSM.state.isStableOpen then
+function ns.Data:CollectStablePets()
+    if not ns.state.isStableOpen then
         print("|cFFFF0000ERROR: CollectStablePets called when stable is NOT open!|r")
         return 0, 0
     end
 
-    PSM.state.stablePets = {}
+    ns.state.stablePets = {}
     self:ClearMemory(true)
 
-    if not PSM.GetStableFrame() then
-        print(PSM.Config.MESSAGES.STABLE_FRAME_NOT_FOUND)
+    if not ns.GetStableFrame() then
+        print(ns.Config.MESSAGES.STABLE_FRAME_NOT_FOUND)
         return 0, 0
     end
 
@@ -340,16 +337,16 @@ function PSM.Data:CollectStablePets()
     self:RebuildSpecAndFamilyLists()
     self:ValidateCollectedData()
 
-    return #PSM.state.stablePets, expected
+    return #ns.state.stablePets, expected
 end
 
-function PSM.Data:CollectActivePets()
-    if not PSM.C_StableInfo or not PSM.C_StableInfo.GetStablePetInfo then return end
-    for slot = 1, PSM.Config.ACTIVE_PET_SLOTS do
-        local petInfo = PSM.Utils.SafeCall(PSM.C_StableInfo.GetStablePetInfo, slot)
+function ns.Data:CollectActivePets()
+    if not ns.C_StableInfo or not ns.C_StableInfo.GetStablePetInfo then return end
+    for slot = 1, ns.Config.ACTIVE_PET_SLOTS do
+        local petInfo = ns.Utils.SafeCall(ns.C_StableInfo.GetStablePetInfo, slot)
         if petInfo and petInfo.name and petInfo.icon then
             local pet = self:ProcessPetInfo(petInfo, slot, true)
-            if pet then table.insert(PSM.state.stablePets, pet) end
+            if pet then table.insert(ns.state.stablePets, pet) end
         end
     end
 end
@@ -360,23 +357,23 @@ end
 -- fingerprint of those inputs. Never caches identity/position fields
 -- (slotID, isActive, name, etc.) -- those always come fresh from the live
 -- API, so stale/duplicate records can't happen.
-PSM._petDerivedCache = PSM._petDerivedCache or {}
+ns._petDerivedCache = ns._petDerivedCache or {}
 
 local function PetFingerprint(info)
     return tostring(info.level or 0) .. "|" .. tostring(info.speciesID or info.displayID or 0)
         .. "|" .. tostring(info.specID or info.specId or 0)
 end
 
-function PSM.Data:GetCachedDerivedFields(petKey, fingerprint)
-    local entry = PSM._petDerivedCache[petKey]
+function ns.Data:GetCachedDerivedFields(petKey, fingerprint)
+    local entry = ns._petDerivedCache[petKey]
     if entry and entry.fingerprint == fingerprint then
         return entry.abilities, entry.isExotic, entry.familyName, entry.specName
     end
     return nil
 end
 
-function PSM.Data:SetCachedDerivedFields(petKey, fingerprint, abilities, isExotic, familyName, specName)
-    PSM._petDerivedCache[petKey] = {
+function ns.Data:SetCachedDerivedFields(petKey, fingerprint, abilities, isExotic, familyName, specName)
+    ns._petDerivedCache[petKey] = {
         fingerprint = fingerprint,
         abilities   = abilities,
         isExotic    = isExotic,
@@ -385,8 +382,8 @@ function PSM.Data:SetCachedDerivedFields(petKey, fingerprint, abilities, isExoti
     }
 end
 
-function PSM.Data:CollectStabledPets()
-    local stableFrame    = PSM.GetStableFrame()
+function ns.Data:CollectStabledPets()
+    local stableFrame    = ns.GetStableFrame()
     local stabledPetList = stableFrame and stableFrame.StabledPetList
     local scrollBox = stabledPetList and stabledPetList.ScrollBox
     local dataProvider = scrollBox and scrollBox:GetDataProvider()
@@ -403,11 +400,11 @@ function PSM.Data:CollectStabledPets()
         if collectedKeys[key] then return end
         collectedKeys[key] = true
 
-        local p = PSM.Utils.DeepCopy(petData)
+        local p = ns.Utils.DeepCopy(petData)
         p.isActive    = false
         p.guid        = p.guid or p.petNumber
         p.modelSceneID = p.modelSceneID or 783
-        p.tamer       = PSM.GetCharacterKey()
+        p.tamer       = ns.GetCharacterKey()
         -- Stabled pets arrive as a copy of Blizzard's record and keep whatever it has;
         -- active pets are built field by field in ProcessPetInfo. Both must end up with
         -- the same shape, or a consumer reads a key that only one path fills.
@@ -438,7 +435,7 @@ function PSM.Data:CollectStabledPets()
     if #collected == 0 or (expectedCount > 0 and #collected < expectedCount) then
         pcall(function()
             if C_StableInfo and C_StableInfo.GetStablePetInfo then
-                for slot = 7, PSM.Config.MAX_STABLE_SLOTS do
+                for slot = 7, ns.Config.MAX_STABLE_SLOTS do
                     pcall(function()
                         local petInfo = C_StableInfo.GetStablePetInfo(slot)
                         if petInfo and petInfo.name and petInfo.icon then
@@ -451,14 +448,14 @@ function PSM.Data:CollectStabledPets()
     end
 
     for _, pet in ipairs(collected) do
-        table.insert(PSM.state.stablePets, pet)
+        table.insert(ns.state.stablePets, pet)
     end
     return #collected, expectedCount
 end
 
 -- ─── Pet data helpers ─────────────────────────────────────────────────────────
 
-function PSM.Data:ProcessPetInfo(petInfo, slotID, isActive)
+function ns.Data:ProcessPetInfo(petInfo, slotID, isActive)
     if not petInfo or not petInfo.name or not petInfo.icon then return nil end
 
     local petKey = tostring(petInfo.petNumber or petInfo.guid
@@ -488,23 +485,23 @@ function PSM.Data:ProcessPetInfo(petInfo, slotID, isActive)
         isActive   = isActive,
         abilities  = abilities,
         modelSceneID = 783,
-        tamer      = PSM.GetCharacterKey(),
+        tamer      = ns.GetCharacterKey(),
     }
 end
 
-function PSM.Data:GetPetSpecName(pet)
+function ns.Data:GetPetSpecName(pet)
     if not pet then return nil end
     return pet.specName or pet.specialization or nil
 end
 
-function PSM.Data:GetPetFamilyName(pet)
+function ns.Data:GetPetFamilyName(pet)
     if not pet then return nil end
     if pet.familyName and pet.familyName ~= "" then return pet.familyName end
     if pet.family and pet.family.name and pet.family.name ~= "" then return pet.family.name end
     return "Unknown"
 end
 
-function PSM.Data:GetPetExoticStatus(petInfo)
+function ns.Data:GetPetExoticStatus(petInfo)
     if not petInfo then return false end
     if petInfo.isExotic ~= nil then return petInfo.isExotic end
     if petInfo.Exotic then return true end
@@ -518,7 +515,7 @@ function PSM.Data:GetPetExoticStatus(petInfo)
     return EXOTIC_FAMILIES[self:GetPetFamilyName(petInfo)] or false
 end
 
-function PSM.Data:NormalizePetData(pet)
+function ns.Data:NormalizePetData(pet)
     if not pet then return end
     if not pet.familyName or pet.familyName == "" then
         pet.familyName = self:GetPetFamilyName(pet)
@@ -531,9 +528,9 @@ function PSM.Data:NormalizePetData(pet)
     end
 end
 
-function PSM.Data:ValidateCollectedData()
+function ns.Data:ValidateCollectedData()
     local valid = {}
-    for _, pet in ipairs(PSM.state.stablePets) do
+    for _, pet in ipairs(ns.state.stablePets) do
         if type(pet) == "table" and pet.name then
             pet.icon       = (pet.icon and pet.icon ~= "") and pet.icon
                              or "Interface\\Icons\\INV_Misc_QuestionMark"
@@ -544,10 +541,10 @@ function PSM.Data:ValidateCollectedData()
             valid[#valid + 1] = pet
         end
     end
-    PSM.state.stablePets = valid
+    ns.state.stablePets = valid
 end
 
-function PSM.Data:ExtractPetAbilities(petInfo)
+function ns.Data:ExtractPetAbilities(petInfo)
     local abilities = { family = {}, spec = {}, pet = {}, unknown = {} }
     local seen = {}
 
@@ -574,8 +571,8 @@ function PSM.Data:ExtractPetAbilities(petInfo)
     return abilities
 end
 
-function PSM.Data:GetAbilityName(ability)
-    if type(ability) == "number"  then return PSM.Utils:GetSpellNameCompat(ability) end
+function ns.Data:GetAbilityName(ability)
+    if type(ability) == "number"  then return ns.Utils:GetSpellNameCompat(ability) end
     if type(ability) == "string"  then return ability end
     if type(ability) == "table"   then return ability.name or ability.Name end
     return nil
@@ -583,74 +580,74 @@ end
 
 -- ─── List rebuilding ──────────────────────────────────────────────────────────
 
-function PSM.Data:RebuildSpecAndFamilyLists()
+function ns.Data:RebuildSpecAndFamilyLists()
     local specSet, familySet = {}, {}
-    PSM.state.specList, PSM.state.familyList = {}, {}
+    ns.state.specList, ns.state.familyList = {}, {}
 
-    for _, pet in ipairs(PSM.state.stablePets) do
+    for _, pet in ipairs(ns.state.stablePets) do
         local spec   = self:GetPetSpecName(pet)
         local family = self:GetPetFamilyName(pet)
-        if spec   and not specSet[spec]     then specSet[spec]     = true; PSM.state.specList[#PSM.state.specList + 1]     = spec   end
-        if family and not familySet[family] then familySet[family] = true; PSM.state.familyList[#PSM.state.familyList + 1] = family end
+        if spec   and not specSet[spec]     then specSet[spec]     = true; ns.state.specList[#ns.state.specList + 1]     = spec   end
+        if family and not familySet[family] then familySet[family] = true; ns.state.familyList[#ns.state.familyList + 1] = family end
     end
 
-    table.sort(PSM.state.specList)
-    table.sort(PSM.state.familyList)
+    table.sort(ns.state.specList)
+    table.sort(ns.state.familyList)
 end
 
-function PSM.Data:RebuildTamerList()
+function ns.Data:RebuildTamerList()
     local seen = {}
-    PSM.state.tamerList = {}
-    for _, pet in ipairs(PSM.state.stablePets) do
+    ns.state.tamerList = {}
+    for _, pet in ipairs(ns.state.stablePets) do
         local t = pet.tamer
         if t and not seen[t] then
             seen[t] = true
-            PSM.state.tamerList[#PSM.state.tamerList + 1] = t
+            ns.state.tamerList[#ns.state.tamerList + 1] = t
         end
     end
-    table.sort(PSM.state.tamerList)
+    table.sort(ns.state.tamerList)
 end
 
 -- ─── Memory management ────────────────────────────────────────────────────────
 
-function PSM.Data:ClearMemory(preserveFilters)
+function ns.Data:ClearMemory(preserveFilters)
     if not preserveFilters then
-        PSM.state.stablePets = {}
+        ns.state.stablePets = {}
     else
-        PSM.state.stablePets = PSM.state.stablePets or {}
+        ns.state.stablePets = ns.state.stablePets or {}
     end
 
-    PSM.state.stablePetsSnapshot = {}
-    PSM.state.specList   = {}
-    PSM.state.familyList = {}
+    ns.state.stablePetsSnapshot = {}
+    ns.state.specList   = {}
+    ns.state.familyList = {}
 
-    if PSM.state.tamerList then
-        PSM.state.tamerList = {}
+    if ns.state.tamerList then
+        ns.state.tamerList = {}
     end
 
     if not preserveFilters then
-        PSM.state.selectedSpecs    = {}
-        PSM.state.selectedFamilies = {}
-        PSM.state.selectedTamers   = {}
-        PSM.state.selectedTamingRules = {}
-        PSM.state.selectedConditions  = {}
+        ns.state.selectedSpecs    = {}
+        ns.state.selectedFamilies = {}
+        ns.state.selectedTamers   = {}
+        ns.state.selectedTamingRules = {}
+        ns.state.selectedConditions  = {}
     end
 
-    if PSM.Config.FORCE_GC_ON_CLEAR then
+    if ns.Config.FORCE_GC_ON_CLEAR then
         collectgarbage("collect")
     end
 end
 
-function PSM.Data:ClearUIRows()
+function ns.Data:ClearUIRows()
     local function clearModel(m)
         if not m then return end
         m:Hide(); m:ClearModel()
         m.isRotating = false
-        PSM.RowManager:ReleaseModel(m)
+        ns.RowManager:ReleaseModel(m)
     end
 
     -- List view
-    for _, row in ipairs(PSM.state.rows or {}) do
+    for _, row in ipairs(ns.state.rows or {}) do
         if row then
             clearModel(row.model)
             if row.text          then row.text:SetText("") end
@@ -660,7 +657,7 @@ function PSM.Data:ClearUIRows()
     end
 
     -- Grid view
-    for _, row in ipairs(PSM.state.modelViewRows or {}) do
+    for _, row in ipairs(ns.state.modelViewRows or {}) do
         if row then
             clearModel(row.model)
             row.petData = nil
@@ -669,7 +666,7 @@ function PSM.Data:ClearUIRows()
     end
 
     -- Grouped view rows
-    for _, row in ipairs(PSM.state.groupedViewRows or {}) do
+    for _, row in ipairs(ns.state.groupedViewRows or {}) do
         if row then
             clearModel(row.model)
             row.petData, row.groupId, row.groupIndex, row.contextMenuPet = nil, nil, nil, nil
@@ -679,7 +676,7 @@ function PSM.Data:ClearUIRows()
     end
 
     -- Grouped view headers
-    for _, header in ipairs(PSM.state.groupedViewHeaders or {}) do
+    for _, header in ipairs(ns.state.groupedViewHeaders or {}) do
         if header then
             header:Hide()
             header.groupId, header.groupName = nil, nil
@@ -689,28 +686,28 @@ function PSM.Data:ClearUIRows()
         end
     end
 
-    if PSM.UI and PSM.UI.GroupedView and PSM.UI.GroupedView.ClearLayout then
-        PSM.UI.GroupedView:ClearLayout()
+    if ns.UI and ns.UI.GroupedView and ns.UI.GroupedView.ClearLayout then
+        ns.UI.GroupedView:ClearLayout()
     end
 
-    if PSM.Config.FORCE_GC_ON_CLEAR then
+    if ns.Config.FORCE_GC_ON_CLEAR then
         collectgarbage("collect")
     end
 end
 
 -- ─── Teams panel settings ─────────────────────────────────────────────────────
 
-function PSM.Data:GetTeamsPanelWidth()    return GetCharacterSettings().teamsPanelWidth  end
-function PSM.Data:GetTeamsPanelHeight()   return GetCharacterSettings().teamsPanelHeight end
-function PSM.Data:GetTeamsPanelPosition() return GetCharacterSettings().teamsPanelPosition end
+function ns.Data:GetTeamsPanelWidth()    return GetCharacterSettings().teamsPanelWidth  end
+function ns.Data:GetTeamsPanelHeight()   return GetCharacterSettings().teamsPanelHeight end
+function ns.Data:GetTeamsPanelPosition() return GetCharacterSettings().teamsPanelPosition end
 
-function PSM.Data:SetTeamsPanelSize(width, height)
+function ns.Data:SetTeamsPanelSize(width, height)
     local s = GetCharacterSettings()
     s.teamsPanelWidth, s.teamsPanelHeight = width, height
     self:SaveSettings()
 end
 
-function PSM.Data:SetTeamsPanelPosition(point, relativeTo, relativePoint, x, y)
+function ns.Data:SetTeamsPanelPosition(point, relativeTo, relativePoint, x, y)
     GetCharacterSettings().teamsPanelPosition = {
         point = point, relativeTo = relativeTo,
         relativePoint = relativePoint, x = x, y = y,
