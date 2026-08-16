@@ -81,10 +81,23 @@ end
 -- timer that fired into the panel just torn down, recomputing the whole model list and
 -- **repopulating the cache the teardown had cleared**. `PSM.state.modelsPanel` is never
 -- set to nil, so the guard at the top of `_LoadModelsImmediate` did not stop it.
+-- Every input to `_CalculateModelsData`, and the reason the 0.2s expiry could go: this
+-- list *is* the old cache key, one slice per component, with `#stablePets` replaced by the
+-- `pets` fingerprint. `panel` is here because a rebuilt filter system is a different panel
+-- with a different search box, so a result computed against the old one must not survive.
+local MODELS_RESULT_SLICES = {
+    "families", "expansions", "locations", "tamingRules", "conditions",
+    "toggles", "favorites", "pets", "zone", "search", "panel",
+}
+
+local modelsResults   -- the selector; built on first use, dropped by ReleaseCache
+
 function PSM.ModelsDataLoader:ReleaseCache()
     if PSM._modelsDebounceTimer then PSM._modelsDebounceTimer:Cancel() end
-    PSM._modelsRenderCache   = nil
     PSM._modelsDebounceTimer = nil
+    -- Dropping the selector, not just a table: it holds the computed item list, which is
+    -- the ~7000-entry allocation this function exists to release. Rebuilt on next use.
+    modelsResults = nil
 end
 
 -- Reset for a freshly built panel: the cache, plus the layout sizes that only mean
@@ -93,81 +106,6 @@ function PSM.ModelsDataLoader:CreateRenderCache()
     self:ReleaseCache()
     PSM._lastModelsLayoutWidth  = nil
     PSM._lastModelsLayoutHeight = nil
-end
-
---------------------------------------------------------------------------------
--- CACHE KEY HELPERS
---------------------------------------------------------------------------------
-
--- Build a canonical string from a selected-values table (key=name, value=bool).
-local function SelectedMapKey(map)
-    if not map or not next(map) then return "none," end
-    local parts = {}
-    for k, v in pairs(map) do if v then table.insert(parts, k) end end
-    table.sort(parts)
-    return table.concat(parts, ",") .. ","
-end
-
--- Build the portion of any cache key that describes active panel filters.
-local function PanelFilterFragment(panel)
-    local zoneKey = ""
-    if panel and PSM.FilterState:Get("showPetsInMyZone") and panel.currentPlayerZone then
-        zoneKey = panel.currentPlayerZone .. (PSM.FilterState:Get("showPetsInMyZone") == "inverted" and "_inv," or ",")
-    end
-
-    local raresKey = ""
-    if panel and PSM.FilterState:Get("showRares") then
-        raresKey = (PSM.FilterState:Get("showRares") == "inverted" and "not_rares," or "rares,")
-    end
-
-    local nameKeepersKey = ""
-    if panel and PSM.FilterState:Get("showNameKeepers") then
-        nameKeepersKey = (PSM.FilterState:Get("showNameKeepers") == "inverted" and "not_namekeepers," or "namekeepers,")
-    end
-
-    return zoneKey, raresKey, nameKeepersKey
-end
-
-function PSM.ModelsDataLoader:GenerateCacheKey()
-    local panel = PSM.state.modelsPanel
-    if not panel then return "" end
-
-    local searchText = panel.searchBox:GetSearchText() or ""
-    local searchLower = searchText ~= "" and searchText:lower() or ""
-    local zoneKey, raresKey, nameKeepersKey = PanelFilterFragment(panel)
-
-    local favoritesKey = SelectedMapKey(PSM.state.favoriteModels)
-
-    local modeKey = PSM.FilterState:Get("showFavorites") == true and "favorites"
-               or (PSM.FilterState:Get("showFavorites") == "inverted" and "not_favorites" or "browse")
-
-    local tamingKey = ""
-    local selRules = PSM.state.selectedTamingRules
-    if selRules and next(selRules) then
-        local rParts = {}
-        for k, v in pairs(selRules) do table.insert(rParts, k .. "=" .. tostring(v)) end
-        table.sort(rParts)
-        tamingKey = table.concat(rParts, ",") .. ","
-    end
-
-    local condKey = SelectedMapKey(PSM.state.selectedConditions)
-    local ownedKey = tostring(PSM.FilterState:Get("showHideOwned") or "none")
-
-    return string.format("%s_%s_%s_%s_%s_%s_%s_%s_%s_%s_%s_%s_%s",
-        modeKey,
-        searchLower,
-        SelectedMapKey(PSM.state.selectedExpansions),
-        SelectedMapKey(PSM.state.selectedLocations),
-        zoneKey,
-        SelectedMapKey(PSM.state.selectedModelsFamilies),
-        favoritesKey,
-        raresKey,
-        nameKeepersKey,
-        tamingKey,
-        condKey,
-        ownedKey,
-        #PSM.state.stablePets
-    )
 end
 
 --------------------------------------------------------------------------------
@@ -420,7 +358,12 @@ end
 function PSM.ModelsDataLoader:LoadModelsForSelectedFamilies()
     if not PSM.state.modelsPanel or not PSM.PetModels then return end
     if PSM._modelsDebounceTimer then PSM._modelsDebounceTimer:Cancel() end
-    PSM._modelsRenderCache = nil
+    -- A `PSM._modelsRenderCache = nil` used to sit here, discarding the cache on the way in
+    -- -- so the models view's 0.2s window only ever helped calls arriving by some other
+    -- route, and the main reload path always recomputed. Deliberately *not* carried over as
+    -- `modelsResults = nil`: deciding what is stale is the selector's job now, and doing it
+    -- here would switch the cache off for the same path all over again.
+    --
     -- Shared with NPCDataLoader, which is the point -- see the comment there for how the
     -- two drifted apart while both were hardcoded.
     PSM._modelsDebounceTimer = C_Timer.NewTimer(PSM.Config.RENDER_DELAY, function()
@@ -432,21 +375,22 @@ function PSM.ModelsDataLoader:_LoadModelsImmediate()
     local panel = PSM.state.modelsPanel
     if not panel then return end
 
-    local cacheKey = self:GenerateCacheKey()
-    if PSM._modelsRenderCache and PSM._modelsRenderCache.key == cacheKey then
-        if GetTime() - PSM._modelsRenderCache.timestamp < 0.2 then
-            self:_ApplyCachedModelsData(PSM._modelsRenderCache.data)
-            return
-        end
-    end
+    -- **The 0.2s expiry is gone with the cache key, and that is one change, not two.**
+    -- A selector has no timestamp: it recomputes exactly when a dependency moves. The
+    -- expiry existed to bound staleness from inputs the string key did not model -- the
+    -- plan's own instruction was to keep it until the dependency set is provably complete,
+    -- and `search` was the last gap. Every component of the old key is now a slice.
+    --
+    -- Built on first use rather than at file scope: `PSM.Store` belongs to core, and this
+    -- is a LoadOnDemand file that must not capture another module's table at parse time.
+    modelsResults = modelsResults or PSM.Store:Selector(MODELS_RESULT_SLICES, function()
+        return PSM.ModelsDataLoader:_CalculateModelsData()
+    end)
 
-    local modelsData = self:_CalculateModelsData()
+    self:_ApplyCachedModelsData(modelsResults())
 
-    -- Store in cache (was missing in original)
-    PSM._modelsRenderCache = { key = cacheKey, timestamp = GetTime(), data = modelsData }
-
-    self:_ApplyCachedModelsData(modelsData)
-
+    -- Now runs on a reuse too. The early return this replaces skipped both updates when
+    -- the cache hit, which is precisely why nine call sites had to re-issue them by hand.
     if PSM.ModelsFilters then
         if PSM.ModelsFilters.UpdateFilterSummary  then PSM.ModelsFilters:UpdateFilterSummary()  end
         if PSM.ModelsFilters.UpdateDynamicFilters then PSM.ModelsFilters:UpdateDynamicFilters() end

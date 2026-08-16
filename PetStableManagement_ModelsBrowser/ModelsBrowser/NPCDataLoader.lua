@@ -15,55 +15,38 @@ PSM.NPCDataLoader = PSM.NPCDataLoader or {}
 -- CACHE
 --------------------------------------------------------------------------------
 
+-- The NPC view's inputs, two shorter than the models view's: `tamingRules` and
+-- `conditions` are absent because `_CalculateNPCData` reads neither. The old cache key
+-- omitted them too, so this list preserves existing behaviour exactly.
+--
+-- **That absence is a known gap, not a design.** The Models view filters taming rules per
+-- *displayID* (`displayData.taming`, in DisplayPassesFilters) and conditions per *NPC ID*
+-- (`ConditionsData.Get(npcID)`). This view does neither, so Special Tames reaches it only
+-- as the family narrowing `RecomputeSmartFamilySelection` applies on Apply -- and that is a
+-- **superset**: `ComputeMatchingFamilies` returns families with *at least one* matching
+-- display. Families are mixed, so this over-shows. Filtering for Ottuk taming keeps the
+-- whole Rodent family, including every Rodent that needs no special taming at all.
+--
+-- Adding the two slices here without also filtering on them would be worse than leaving
+-- them out: the list would invalidate on a change it does not act on. They go in together
+-- with the filtering, or not at all.
+local NPC_RESULT_SLICES = {
+    "families", "expansions", "locations",
+    "toggles", "favorites", "pets", "zone", "search", "panel",
+}
+
+local npcResults   -- the selector; built on first use, dropped by ReleaseCache
+
 -- The NPC half of the pair; see ModelsDataLoader:ReleaseCache for why this cancels
--- rather than only clearing. This side has the wider window of the two -- a 0.15s
--- debounce against the models view's 0.01s -- so it is the one a player can actually
--- hit by changing a filter and closing the panel straight after.
+-- rather than only clearing.
 function PSM.NPCDataLoader:ReleaseCache()
     if PSM._npcDebounceTimer then PSM._npcDebounceTimer:Cancel() end
-    PSM._npcRenderCache   = nil
     PSM._npcDebounceTimer = nil
+    npcResults = nil
 end
 
 function PSM.NPCDataLoader:CreateRenderCache()
     self:ReleaseCache()
-end
-
--- Build a canonical string from a selected-values table (key=name, value=bool),
--- mirroring ModelsDataLoader's SelectedMapKey.
-local function SelectedMapKey(map)
-    if not map or not next(map) then return "none," end
-    local parts = {}
-    for k, v in pairs(map) do if v then table.insert(parts, k) end end
-    table.sort(parts)
-    return table.concat(parts, ",") .. ","
-end
-
-function PSM.NPCDataLoader:GenerateCacheKey()
-    local panel = PSM.state.modelsPanel
-    if not panel then return "" end
-
-    local searchText  = panel.searchBox and panel.searchBox:GetSearchText() or ""
-    local searchLower = searchText ~= "" and searchText:lower() or ""
-
-    local zoneKey = ""
-    if PSM.FilterState:Get("showPetsInMyZone") and panel.currentPlayerZone then
-        zoneKey = panel.currentPlayerZone .. (PSM.FilterState:Get("showPetsInMyZone") == "inverted" and "_inv," or ",")
-    end
-
-    return string.format("%s_%s_%s_%s_%s_%s_%s_%s_%s_%s_%d",
-        searchLower,
-        SelectedMapKey(PSM.state.selectedModelsFamilies),
-        SelectedMapKey(PSM.state.selectedExpansions),
-        SelectedMapKey(PSM.state.selectedLocations),
-        zoneKey,
-        tostring(PSM.FilterState:Get("showRares") or "none"),
-        tostring(PSM.FilterState:Get("showNameKeepers") or "none"),
-        tostring(PSM.FilterState:Get("showFavorites") or "none"),
-        tostring(PSM.FilterState:Get("showHideOwned") or "none"),
-        SelectedMapKey(PSM.state.favoriteModels),
-        #PSM.state.stablePets
-    )
 end
 
 --------------------------------------------------------------------------------
@@ -216,17 +199,13 @@ function PSM.NPCDataLoader:_LoadNPCsImmediate()
     local panel = PSM.state.modelsPanel
     if not panel then return end
 
-    -- Reuse the last computed item list for 0.2s if nothing filter-relevant
-    -- changed, mirroring ModelsDataLoader's render cache (ModelsDataLoader.lua:415-421).
-    local cacheKey = self:GenerateCacheKey()
-    if PSM._npcRenderCache and PSM._npcRenderCache.key == cacheKey
-       and GetTime() - PSM._npcRenderCache.timestamp < 0.2 then
-        self:_ApplyNPCData(PSM._npcRenderCache.data)
-    else
-        local items = self:_CalculateNPCData()
-        PSM._npcRenderCache = { key = cacheKey, timestamp = GetTime(), data = items }
-        self:_ApplyNPCData(items)
-    end
+    -- Reuse is the selector's job now, and it is exact rather than time-bounded -- see
+    -- ModelsDataLoader:_LoadModelsImmediate for why the 0.2s expiry went with the key.
+    npcResults = npcResults or PSM.Store:Selector(NPC_RESULT_SLICES, function()
+        return PSM.NPCDataLoader:_CalculateNPCData()
+    end)
+
+    self:_ApplyNPCData(npcResults())
 
     if PSM.ModelsFilters then
         if PSM.ModelsFilters.UpdateFilterSummary  then PSM.ModelsFilters:UpdateFilterSummary()  end
@@ -338,6 +317,19 @@ function PSM.NPCDataLoader:_ApplyNPCData(items)
     local panel = PSM.state.modelsPanel
     if not panel then return end
 
+    -- **This hands the selector's cached table to the panel, and `UpdateNPCPanelLayout`
+    -- sorts it in place.** A deliberate exception to Store's "treat a selector's value as
+    -- read-only" rule, kept because the mutation is a *reorder of the same elements* -- it
+    -- cannot change which NPCs matched, only the order they are listed in, which is the
+    -- panel's business anyway. Sort field and direction are not slices; sorting is applied
+    -- at render, not at compute.
+    --
+    -- It also makes `_npcSortCache`'s identity check (`sortCache.items ~= items`) sharper
+    -- than before rather than weaker: the selector returns the *same* table until a
+    -- dependency moves, so an unchanged list is recognised as already sorted, and a changed
+    -- one is a new table and re-sorts. Copying here would restore the contract and defeat
+    -- that check, re-sorting ~7000 entries on every reload to avoid a reordering nobody
+    -- can observe.
     panel.allNPCs = items
 
     if #items == 0 then
