@@ -636,7 +636,9 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
     local function OnTabClick(key, hideExotic)
         panel.currentFilterType = key
         UpdateTabVisuals()
-        PSM.ModelsFilters:PopulateUnifiedFilterCheckboxes(panel)
+        -- One rebuild, not two: UpdateDynamicFilters *is* PopulateUnifiedFilterCheckboxes
+        -- with a nil-panel guard, so calling both rebuilt the whole checkbox list twice on
+        -- every tab click.
         PSM.ModelsFilters:UpdateDynamicFilters()
         if hideExotic then selectExoticBtn:Hide() else selectExoticBtn:Show() end
     end

@@ -759,7 +759,11 @@ function PSM.ModelsDataLoader:GetAvailableFamiliesForFilters()
     return availableFamilies()
 end
 
-function PSM.ModelsDataLoader:GetAvailableExpansionsForFilters()
+-- The expansions still reachable given every filter **except** the expansion selection.
+-- Same leave-one-out shape as ComputeAvailableFamilies: it walks `panel.expansionList` and
+-- never reads `selectedExpansions`, so `expansions` is absent from the dependency list below.
+local function ComputeAvailableExpansions()
+    local ML = PSM.ModelsDataLoader
     local panel = PSM.state.modelsPanel
     if not panel then return {} end
 
@@ -797,9 +801,9 @@ function PSM.ModelsDataLoader:GetAvailableExpansionsForFilters()
                        and DisplayPassesFilters(displayData, ownedSet) then
                         if displayData.npcs then
                             for _, npc in ipairs(displayData.npcs) do
-                                local locOk = not hasLocFilter or self:_IsLocationSelected(PSM.PetModels.NpcLocation(npc), selectedLocations)
+                                local locOk = not hasLocFilter or ML:_IsLocationSelected(PSM.PetModels.NpcLocation(npc), selectedLocations)
                                 local zoneOk = not (PSM.FilterState:Get("showPetsInMyZone") and panel.currentPlayerZone)
-                                            or TristateMatch(PSM.FilterState:Get("showPetsInMyZone"), self:_IsZoneMatch(npc, panel.currentPlayerZone))
+                                            or TristateMatch(PSM.FilterState:Get("showPetsInMyZone"), ML:_IsZoneMatch(npc, panel.currentPlayerZone))
                                 local expansion = PSM.PetModels.NpcExpansion(npc)
                                 if locOk and zoneOk and expansion and not seen[expansion] then
                                     seen[expansion] = true
@@ -816,7 +820,19 @@ function PSM.ModelsDataLoader:GetAvailableExpansionsForFilters()
     return result
 end
 
-function PSM.ModelsDataLoader:GetAvailableLocationsForFilters()
+local availableExpansions
+
+function PSM.ModelsDataLoader:GetAvailableExpansionsForFilters()
+    availableExpansions = availableExpansions or PSM.Store:Selector({
+        "families", "locations", "toggles", "tamingRules", "conditions",
+        "favorites", "pets", "zone", "panel",
+    }, ComputeAvailableExpansions)
+    return availableExpansions()
+end
+
+-- The locations still reachable given every filter **except** the location selection.
+local function ComputeAvailableLocations()
+    local ML = PSM.ModelsDataLoader
     local panel = PSM.state.modelsPanel
     if not panel then return {} end
 
@@ -854,9 +870,9 @@ function PSM.ModelsDataLoader:GetAvailableLocationsForFilters()
                        and DisplayPassesFilters(displayData, ownedSet) then
                         if displayData.npcs then
                             for _, npc in ipairs(displayData.npcs) do
-                                local expOk = not hasExpFilter or self:_IsExpansionSelected(PSM.PetModels.NpcExpansion(npc), selectedExpansions)
+                                local expOk = not hasExpFilter or ML:_IsExpansionSelected(PSM.PetModels.NpcExpansion(npc), selectedExpansions)
                                 local inMyZone = PSM.FilterState:Get("showPetsInMyZone") and panel.currentPlayerZone
-                                              and self:_IsZoneMatch(npc, panel.currentPlayerZone)
+                                              and ML:_IsZoneMatch(npc, panel.currentPlayerZone)
                                 local zoneOk = not (PSM.FilterState:Get("showPetsInMyZone") and panel.currentPlayerZone)
                                             or TristateMatch(PSM.FilterState:Get("showPetsInMyZone"), inMyZone)
                                 if expOk and zoneOk then
@@ -891,6 +907,16 @@ function PSM.ModelsDataLoader:GetAvailableLocationsForFilters()
     end
     table.sort(result)
     return result
+end
+
+local availableLocations
+
+function PSM.ModelsDataLoader:GetAvailableLocationsForFilters()
+    availableLocations = availableLocations or PSM.Store:Selector({
+        "families", "expansions", "toggles", "tamingRules", "conditions",
+        "favorites", "pets", "zone", "panel",
+    }, ComputeAvailableLocations)
+    return availableLocations()
 end
 
 ----------------------------------------------------------------------------------------------------------------
