@@ -157,9 +157,13 @@ ns.state = {
     selectedModelsFamilies = {},
     selectedExpansions = {},
     selectedLocations = {},
-    showRares = nil,
-    showFavorites = nil,
-    showPetsInMyZone = nil,
+    -- The five Models Browser tristate toggles (showRares, showFavorites, showHideOwned,
+    -- showNameKeepers, showPetsInMyZone) were declared here and mirrored into this table
+    -- on every change. Nothing ever read them: the toggles are read off the panel frame,
+    -- and persisted to PetStableManagementDB.filters. Removed, along with 15 writes.
+    --
+    -- Two of the five were never even listed, and `= nil` in a table constructor stores no
+    -- key at all -- so the declaration described neither the real shape nor a real field.
     modelsPanelCurrentPage = 1, -- Default to page 1, will be loaded from SavedVariables later
     specList = {},
     familyList = {},

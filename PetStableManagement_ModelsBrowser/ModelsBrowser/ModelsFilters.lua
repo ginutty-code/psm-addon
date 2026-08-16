@@ -1,4 +1,4 @@
--- ModelsBrowser/ModelsFilters.lua
+﻿-- ModelsBrowser/ModelsFilters.lua
 -- Filtering system for the Pet Models Browser
 
 local addonName = "PetStableManagement"
@@ -27,7 +27,7 @@ end
 -- TRISTATE CHECKBOX HELPER
 --------------------------------------------------------------------------------
 
--- Create a tristate CheckButton. Cycles: nil → true → "inverted" → nil.
+-- Create a tristate CheckButton. Cycles: nil â†’ true â†’ "inverted" â†’ nil.
 -- @param parent      parent frame
 -- @param anchorTo    frame to anchor TOPLEFT/BOTTOMLEFT from (or nil for absolute)
 -- @param label       text shown next to the checkbox
@@ -187,10 +187,8 @@ function PSM.ModelsFilters:CreateRaresToggle(panel)
     local db = PetStableManagementDB and PetStableManagementDB.filters
     local savedState = db and db.showRares
     panel.showRares = savedState
-    PSM.state.showRares = savedState
     panel.raresToggle = CreateTristateCheckbox(panel, panel.showOnlyFrame, "Rares", function(state)
         panel.showRares = state
-        PSM.state.showRares = state
         PetStableManagementDB.filters = PetStableManagementDB.filters or {}
         PetStableManagementDB.filters.showRares = state
         ReloadAndSummarise()
@@ -205,10 +203,8 @@ function PSM.ModelsFilters:CreateFavoritesToggle(panel)
     local db = PetStableManagementDB and PetStableManagementDB.filters
     local savedState = db and db.showFavorites
     panel.showFavorites = savedState
-    PSM.state.showFavorites = savedState
     panel.favoritesToggle = CreateTristateCheckbox(panel, panel.raresToggle, "Favorites", function(state)
         panel.showFavorites = state
-        PSM.state.showFavorites = state
         PetStableManagementDB.filters = PetStableManagementDB.filters or {}
         PetStableManagementDB.filters.showFavorites = state
         ReloadAndSummarise()
@@ -223,7 +219,6 @@ function PSM.ModelsFilters:CreateHideOwnedToggle(panel)
     local db = PetStableManagementDB and PetStableManagementDB.filters
     local savedState = db and db.showHideOwned
     panel.showHideOwned = savedState
-    PSM.state.showHideOwned = savedState
     panel.hideOwnedToggle = CreateTristateCheckbox(panel, panel.favoritesToggle, "Owned", function(state)
         -- Logic change: true = show only owned, inverted = hide owned
         if state == true then
@@ -233,7 +228,6 @@ function PSM.ModelsFilters:CreateHideOwnedToggle(panel)
         else
             panel.showHideOwned = nil
         end
-        PSM.state.showHideOwned = panel.showHideOwned
         PetStableManagementDB.filters = PetStableManagementDB.filters or {}
         PetStableManagementDB.filters.showHideOwned = panel.showHideOwned
         ReloadAndSummarise()
@@ -256,10 +250,8 @@ function PSM.ModelsFilters:CreateNameKeepersToggle(panel)
     local db = PetStableManagementDB and PetStableManagementDB.filters
     local savedState = db and db.showNameKeepers
     panel.showNameKeepers = savedState
-    PSM.state.showNameKeepers = savedState
     panel.nameKeepersToggle = CreateTristateCheckbox(panel, panel.hideOwnedToggle, "Name Keepers", function(state)
         panel.showNameKeepers = state
-        PSM.state.showNameKeepers = state
         PetStableManagementDB.filters = PetStableManagementDB.filters or {}
         PetStableManagementDB.filters.showNameKeepers = state
         ReloadAndSummarise()
@@ -274,7 +266,6 @@ function PSM.ModelsFilters:CreatePetsInMyZoneToggle(panel)
     local db = PetStableManagementDB and PetStableManagementDB.filters
     local savedState = db and db.showPetsInMyZone
     panel.showPetsInMyZone = savedState
-    PSM.state.showPetsInMyZone = savedState
     -- A persisted "on" state needs currentPlayerZone resolved now too, or the zone check is
     -- silently a no-op (showPetsInMyZone true, currentPlayerZone nil) until the toggle is
     -- clicked again this session.
@@ -282,7 +273,6 @@ function PSM.ModelsFilters:CreatePetsInMyZoneToggle(panel)
     panel.petsInMyZoneToggle = CreateTristateCheckbox(panel, panel.nameKeepersToggle, "Pets in My Zone", function(state)
         panel.currentPlayerZone = (state ~= nil) and PSM.ModelsFilters:GetPlayerZone() or nil
         panel.showPetsInMyZone  = state
-        PSM.state.showPetsInMyZone = state
         PetStableManagementDB.filters = PetStableManagementDB.filters or {}
         PetStableManagementDB.filters.showPetsInMyZone = state
         ReloadAndSummarise()
@@ -417,11 +407,6 @@ function PSM.ModelsFilters:ResetAllFilters(panel)
     panel.currentPlayerZone= nil
 
     -- Reset state variables
-    PSM.state.showRares = nil
-    PSM.state.showFavorites = nil
-    PSM.state.showNameKeepers = nil
-    PSM.state.showPetsInMyZone = nil
-    PSM.state.showHideOwned = nil
     PSM.state.selectedTamingRules = nil
     PSM.state.selectedConditions = nil
     PSM.state.familiesAppliedFromAbilities = nil
@@ -494,7 +479,7 @@ function PSM.ModelsFilters:CreateFilterSummaryText(panel)
 end
 
 --------------------------------------------------------------------------------
--- LOCATION CONTINENT GROUPS — collapse state
+-- LOCATION CONTINENT GROUPS â€” collapse state
 --------------------------------------------------------------------------------
 -- Mirrors OwnedPets/GroupedView.lua's PetStableManagementDB.collapsedGroups pattern, in its
 -- own sibling table so continent names never collide with pet-group ids.
@@ -609,7 +594,7 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
         end
     end
 
-    -- Build sorted lists — reuse EXPANSION_ORDER from ModelsDataLoader
+    -- Build sorted lists â€” reuse EXPANSION_ORDER from ModelsDataLoader
     local expansionList = {}
     for e in pairs(allExpansions) do table.insert(expansionList, e) end
     table.sort(expansionList, function(a, b)
@@ -633,7 +618,7 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
         end
     end
 
-    -- Initialise state (only if empty — preserves saved selections)
+    -- Initialise state (only if empty â€” preserves saved selections)
     InitStateIfEmpty(PSM.state.selectedModelsFamilies, families,      "selectedModelsFamilies")
     InitStateIfEmpty(PSM.state.selectedExpansions,      expansionList, "selectedExpansions")
     InitStateIfEmpty(PSM.state.selectedLocations,       locationList,  "selectedLocations")
