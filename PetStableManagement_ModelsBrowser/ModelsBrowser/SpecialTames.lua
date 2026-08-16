@@ -955,13 +955,13 @@ local function OnApplyClick(panel)
     for ruleKey, state in pairs(selectedRules) do
         if state ~= nil then selectedRuleMap[ruleKey] = state end
     end
-    PSM.state.selectedTamingRules = selectedRuleMap
+    PSM.Selections:Replace("tamingRules", selectedRuleMap)
 
     local selectedConditionNames = {}
     for cond, state in pairs(selectedConditions) do
         if state ~= nil then selectedConditionNames[cond] = state end
     end
-    PSM.state.selectedConditions = selectedConditionNames
+    PSM.Selections:Replace("conditions", selectedConditionNames)
 
     PetStableManagementDB = PetStableManagementDB or {}
     PetStableManagementDB.filters = PetStableManagementDB.filters or {}
@@ -1096,26 +1096,16 @@ end
 -- RepopulateRows reads for checkbox state) -- without the latter, reopening this panel
 -- after a reload showed everything unticked even though the filter was still active.
 local function LoadSavedFilters()
-    PSM.state.selectedTamingRules = PSM.state.selectedTamingRules or {}
-    local savedRules = PetStableManagementDB
-        and PetStableManagementDB.filters
-        and PetStableManagementDB.filters.selectedTamingRules
-    if savedRules then
-        for ruleKey, val in pairs(savedRules) do
-            PSM.state.selectedTamingRules[ruleKey] = val
-            selectedRules[ruleKey] = val
-        end
+    local saved = PetStableManagementDB and PetStableManagementDB.filters
+
+    for ruleKey, val in pairs(saved and saved.selectedTamingRules or {}) do
+        PSM.Selections:Set("tamingRules", ruleKey, val)
+        selectedRules[ruleKey] = val
     end
 
-    PSM.state.selectedConditions = PSM.state.selectedConditions or {}
-    local savedConditions = PetStableManagementDB
-        and PetStableManagementDB.filters
-        and PetStableManagementDB.filters.selectedConditions
-    if savedConditions then
-        for cond, val in pairs(savedConditions) do
-            PSM.state.selectedConditions[cond] = val
-            selectedConditions[cond] = val
-        end
+    for cond, val in pairs(saved and saved.selectedConditions or {}) do
+        PSM.Selections:Set("conditions", cond, val)
+        selectedConditions[cond] = val
     end
 end
 

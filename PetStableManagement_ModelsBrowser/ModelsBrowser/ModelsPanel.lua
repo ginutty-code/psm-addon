@@ -187,22 +187,16 @@ function PSM.ModelsPanel:LoadSavedFamiliesFromAbilities()
 end
 
 function PSM.ModelsPanel:LoadSavedFilters()
-    -- Load selected taming rules from SavedVariables
-    PSM.state.selectedTamingRules = PSM.state.selectedTamingRules or {}
-    local savedTamingRules = PetStableManagementDB and PetStableManagementDB.filters and PetStableManagementDB.filters.selectedTamingRules
-    if savedTamingRules then
-        for ruleKey, val in pairs(savedTamingRules) do
-            PSM.state.selectedTamingRules[ruleKey] = val
-        end
+    local saved = PetStableManagementDB and PetStableManagementDB.filters
+
+    -- Merged into whatever is already selected, not replacing it: these run after the panel
+    -- may have been seeded from the Ability Browser, so Replace would discard that.
+    for ruleKey, val in pairs(saved and saved.selectedTamingRules or {}) do
+        PSM.Selections:Set("tamingRules", ruleKey, val)
     end
 
-    -- Load selected conditions from SavedVariables
-    PSM.state.selectedConditions = PSM.state.selectedConditions or {}
-    local savedConditions = PetStableManagementDB and PetStableManagementDB.filters and PetStableManagementDB.filters.selectedConditions
-    if savedConditions then
-        for cond, val in pairs(savedConditions) do
-            PSM.state.selectedConditions[cond] = val
-        end
+    for cond, val in pairs(saved and saved.selectedConditions or {}) do
+        PSM.Selections:Set("conditions", cond, val)
     end
 end
 
@@ -707,9 +701,10 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     panel.pageJumpEditBox  = pageJumpEditBox
     panel.pageJumpButton   = pageJumpButton
 
-    -- Initialise state tables
-    PSM.state.selectedModelsFamilies = PSM.state.selectedModelsFamilies or {}
-    PSM.state.favoriteModels         = PSM.state.favoriteModels         or {}
+    -- Initialise state tables. Selections:Get creates the slice if absent, which is all the
+    -- `= X or {}` here ever did.
+    PSM.Selections:Get("families")
+    PSM.state.favoriteModels = PSM.state.favoriteModels or {}
 
     -- CreateRenderCache rather than ReleaseCaches: a freshly built panel also invalidates
     -- the remembered layout sizes, which are measured against the panel being replaced.

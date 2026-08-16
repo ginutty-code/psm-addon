@@ -35,6 +35,7 @@ local PUBLIC_API = {
     "PanelManager",  -- panel chrome: CreateBasePanel, TogglePanel, search boxes
     "PopUpManager",  -- shared popups, incl. ShowURLPopup for Wowhead links
     "RowManager",    -- model rotation/zoom hover controls, ReleaseModel
+    "Selections",    -- the five multi-select filter sets; the only writer of ns.state.selected*
     "Skin",          -- ElvUI skinning (the only file allowed to see the ElvUI global)
     "Theme",         -- fonts, colour ramp, control sizes, backdrop presets
     "Tooltip",       -- declarative tooltip attachment

@@ -19,6 +19,7 @@ local SPECS = {
     "Tests/spec/publicapi_spec.lua",
     "Tests/spec/filterstate_spec.lua",
     "Tests/spec/encoding_spec.lua",
+    "Tests/spec/selections_spec.lua",
 }
 
 return function()

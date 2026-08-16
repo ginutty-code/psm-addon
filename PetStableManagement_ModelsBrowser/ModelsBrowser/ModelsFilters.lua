@@ -147,16 +147,12 @@ function PSM.ModelsFilters:RecomputeSmartFamilySelection()
             PSM.state.selectedTamingRules or {}, PSM.state.selectedConditions or {})
     end
 
-    PSM.state.selectedModelsFamilies = PSM.state.selectedModelsFamilies or {}
-    for familyName in pairs(PSM.state.selectedModelsFamilies) do
-        PSM.state.selectedModelsFamilies[familyName] = nil
-    end
-
+    PSM.Selections:Clear("families")
     for _, familyName in ipairs(PSM.PetModels:GetAvailableFamilies()) do
         local passAbilities    = not abilitiesSet    or abilitiesSet[familyName]
         local passSpecialTames = not specialTamesSet or specialTamesSet[familyName]
         if passAbilities and passSpecialTames then
-            PSM.state.selectedModelsFamilies[familyName] = true
+            PSM.Selections:Set("families", familyName, true)
         end
     end
 end
@@ -342,10 +338,14 @@ end
 -- RESET ALL FILTERS
 --------------------------------------------------------------------------------
 
--- Initialise (or re-initialise) a state map from a list, setting every entry true.
-local function SelectAll(stateMap, list)
-    for k in pairs(stateMap) do stateMap[k] = nil end
-    for _, v in ipairs(list) do stateMap[v] = true end
+-- Select every entry in `list`, discarding whatever was selected before.
+--
+-- Takes a slice *name* rather than the table. Taking the table is what made this function
+-- invisible: it wrote `stateMap[k]`, so no search for `selectedModelsFamilies` ever found
+-- the three call sites below, and the write could not be counted, let alone funnelled.
+local function SelectAll(slice, list)
+    PSM.Selections:Clear(slice)
+    PSM.Selections:SetAll(slice, list, true)
 end
 
 -- Repopulate checkboxes for every tab, then restore the active tab.
@@ -366,9 +366,12 @@ function PSM.ModelsFilters:ResetAllFilters(panel)
     PSM.FilterState:Reset()
     panel.currentPlayerZone = nil
 
-    -- Reset state variables
-    PSM.state.selectedTamingRules = nil
-    PSM.state.selectedConditions = nil
+    -- Reset state variables. Cleared rather than set to nil: every reader tests
+    -- `next(...)`, so an empty table and an absent one are indistinguishable to them, and
+    -- keeping one table identity for the session means an alias taken elsewhere cannot be
+    -- silently detached.
+    PSM.Selections:Clear("tamingRules")
+    PSM.Selections:Clear("conditions")
     PSM.state.familiesAppliedFromAbilities = nil
     PSM.state.abilitiesFamilySet = nil
 
@@ -391,9 +394,9 @@ function PSM.ModelsFilters:ResetAllFilters(panel)
     -- placeholder is only restored on focus loss.
     if panel.searchBox then panel.searchBox:ClearSearch() end
 
-    if panel.familiesList  then SelectAll(PSM.state.selectedModelsFamilies, panel.familiesList)  end
-    if panel.expansionList then SelectAll(PSM.state.selectedExpansions,      panel.expansionList) end
-    if panel.locationList  then SelectAll(PSM.state.selectedLocations,       panel.locationList)  end
+    if panel.familiesList  then SelectAll("families",   panel.familiesList)  end
+    if panel.expansionList then SelectAll("expansions", panel.expansionList) end
+    if panel.locationList  then SelectAll("locations",  panel.locationList)  end
 
     RepopulateAllTabs(panel)
     ReloadAndSummarise()
@@ -512,17 +515,17 @@ end
 -- Keep the state map if something already selected it this session (e.g. Ability Browser
 -- pre-selects families before this runs), else restore the saved selection, else default
 -- to everything -- the same state "Reset Filters" produces.
-local function InitStateIfEmpty(stateMap, list, filtersKey)
-    if next(stateMap) then return end
+local function InitStateIfEmpty(slice, list, filtersKey)
+    if next(PSM.Selections:Get(slice)) then return end
 
     local saved = filtersKey and PetStableManagementDB and PetStableManagementDB.filters
         and PetStableManagementDB.filters[filtersKey]
     if saved and next(saved) then
-        for k, v in pairs(saved) do stateMap[k] = v end
+        PSM.Selections:Replace(slice, saved)
         return
     end
 
-    for _, v in ipairs(list) do stateMap[v] = true end
+    PSM.Selections:SetAll(slice, list, true)
 end
 
 function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
@@ -574,16 +577,16 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
     end
 
     -- Initialise state (only if empty â€” preserves saved selections)
-    InitStateIfEmpty(PSM.state.selectedModelsFamilies, families,      "selectedModelsFamilies")
-    InitStateIfEmpty(PSM.state.selectedExpansions,      expansionList, "selectedExpansions")
-    InitStateIfEmpty(PSM.state.selectedLocations,       locationList,  "selectedLocations")
+    InitStateIfEmpty("families",   families,      "selectedModelsFamilies")
+    InitStateIfEmpty("expansions", expansionList, "selectedExpansions")
+    InitStateIfEmpty("locations",  locationList,  "selectedLocations")
 
     -- Locations are two-state now. A saved "inverted" from the old three-state cycle
     -- already meant the same thing as unselected -- both excluded the location -- so fold
     -- it in rather than leaving a value the UI can render but no longer produce. Setting an
     -- existing key to nil during pairs() is defined behaviour; adding one is not.
-    for loc, state in pairs(PSM.state.selectedLocations) do
-        if state == "inverted" then PSM.state.selectedLocations[loc] = nil end
+    for loc, state in pairs(PSM.Selections:Get("locations")) do
+        if state == "inverted" then PSM.Selections:Set("locations", loc, nil) end
     end
 
     -- Store for use by other functions
@@ -691,9 +694,9 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
         text       = "All",
         fontObject = "GameFontNormalSmall",
         onClick    = function()
-            if     panel.currentFilterType == "families"   then SelectAll(PSM.state.selectedModelsFamilies, families)
-            elseif panel.currentFilterType == "expansions" then SelectAll(PSM.state.selectedExpansions, expansionList)
-            elseif panel.currentFilterType == "locations"  then SelectAll(PSM.state.selectedLocations,  locationList)
+            if     panel.currentFilterType == "families"   then SelectAll("families",   families)
+            elseif panel.currentFilterType == "expansions" then SelectAll("expansions", expansionList)
+            elseif panel.currentFilterType == "locations"  then SelectAll("locations",  locationList)
             end
             PSM.ModelsFilters:PopulateUnifiedFilterCheckboxes(panel)
             ReloadAndSummarise()
@@ -702,9 +705,9 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
     })
 
     local selectNoneBtn = MakeFilterButton("None", selectAllBtn, function()
-        if     panel.currentFilterType == "families"   then PSM.state.selectedModelsFamilies = {}
-        elseif panel.currentFilterType == "expansions" then PSM.state.selectedExpansions      = {}
-        elseif panel.currentFilterType == "locations"  then PSM.state.selectedLocations       = {}
+        if     panel.currentFilterType == "families"   then PSM.Selections:Clear("families")
+        elseif panel.currentFilterType == "expansions" then PSM.Selections:Clear("expansions")
+        elseif panel.currentFilterType == "locations"  then PSM.Selections:Clear("locations")
         end
         PSM.ModelsFilters:PopulateUnifiedFilterCheckboxes(panel)
         ReloadAndSummarise()
@@ -761,13 +764,13 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
         if panel.currentFilterType == "families" then
             if selectExoticBtn.isExoticOnly then
                 for _, n in ipairs(families) do
-                    PSM.state.selectedModelsFamilies[n] = not PSM.ModelsFilters:IsFamilyExotic(n)
+                    PSM.Selections:Set("families", n, not PSM.ModelsFilters:IsFamilyExotic(n))
                 end
                 selectExoticBtn.isExoticOnly = false
                 selectExoticBtn:SetText("!Exotic")
             else
                 for _, n in ipairs(families) do
-                    PSM.state.selectedModelsFamilies[n] = PSM.ModelsFilters:IsFamilyExotic(n)
+                    PSM.Selections:Set("families", n, PSM.ModelsFilters:IsFamilyExotic(n))
                 end
                 selectExoticBtn.isExoticOnly = true
                 selectExoticBtn:SetText("Exotic")
@@ -870,8 +873,8 @@ function PSM.ModelsFilters:PopulateUnifiedFilterCheckboxes(panel)
 
         cb:SetChecked(selections[item] or false)
         cb:SetScript("OnClick", function(self)
-            if     panel.currentFilterType == "families"   then PSM.state.selectedModelsFamilies[item] = self:GetChecked()
-            elseif panel.currentFilterType == "expansions" then PSM.state.selectedExpansions[item]      = self:GetChecked()
+            if     panel.currentFilterType == "families"   then PSM.Selections:Set("families",   item, self:GetChecked())
+            elseif panel.currentFilterType == "expansions" then PSM.Selections:Set("expansions", item, self:GetChecked())
             end
             ReloadAndSummarise()
             PSM.ModelsFilters:UpdateDynamicFilters()
@@ -937,8 +940,8 @@ local function CreateLocationRow(panel, index, item, yOffset)
     UpdateVisual()
 
     cb:SetScript("OnClick", function()
-        local selected = PSM.state.selectedLocations[item] == true
-        PSM.state.selectedLocations[item] = (not selected) or nil
+        local selected = PSM.Selections:Get("locations")[item] == true
+        PSM.Selections:Set("locations", item, (not selected) or nil)
         UpdateVisual()
         ReloadAndSummarise()
         PSM.ModelsFilters:UpdateDynamicFilters()
@@ -1027,9 +1030,7 @@ local function CreateContinentHeader(panel, index, continentName, locs, yOffset)
                 if PSM.state.selectedLocations[loc] ~= true then hasUnselected = true break end
             end
             local nextState = hasUnselected or nil
-            for _, loc in ipairs(locs) do
-                PSM.state.selectedLocations[loc] = nextState
-            end
+            PSM.Selections:SetAll("locations", locs, nextState)
             ReloadAndSummarise()
             PSM.ModelsFilters:UpdateDynamicFilters()
         elseif button == "RightButton" then

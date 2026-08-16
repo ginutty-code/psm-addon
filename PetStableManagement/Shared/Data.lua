@@ -629,8 +629,8 @@ function ns.Data:ClearMemory(preserveFilters)
         ns.state.selectedSpecs    = {}
         ns.state.selectedFamilies = {}
         ns.state.selectedTamers   = {}
-        ns.state.selectedTamingRules = {}
-        ns.state.selectedConditions  = {}
+        ns.Selections:Clear("tamingRules")
+        ns.Selections:Clear("conditions")
     end
 
     if ns.Config.FORCE_GC_ON_CLEAR then

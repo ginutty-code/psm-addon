@@ -454,7 +454,7 @@ panel:SetScript("OnShow", function(self)
                 PetStableManagementDB.filters.selectedExpansions = nil
                 PetStableManagementDB.filters.selectedLocations = nil
             end
-            ns.state.selectedTamingRules = nil
+            ns.Selections:Clear("tamingRules")
             ns.state.familiesAppliedFromAbilities = nil
             ns.state.abilitiesFamilySet = nil
             ns.state.modelViews = {}
@@ -471,9 +471,9 @@ panel:SetScript("OnShow", function(self)
             if ns.Browser.ModelsFilters and ns.state.modelsPanel then
                 ns.Browser.ModelsFilters:ResetAllFilters(ns.state.modelsPanel)
             else
-                ns.state.selectedModelsFamilies = {}
-                ns.state.selectedExpansions     = {}
-                ns.state.selectedLocations      = {}
+                ns.Selections:Clear("families")
+                ns.Selections:Clear("expansions")
+                ns.Selections:Clear("locations")
             end
 
             -- Move the controls to match the values just written. Silently, or each
