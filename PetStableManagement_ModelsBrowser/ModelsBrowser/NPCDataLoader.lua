@@ -15,23 +15,17 @@ PSM.NPCDataLoader = PSM.NPCDataLoader or {}
 -- CACHE
 --------------------------------------------------------------------------------
 
--- The NPC view's inputs, two shorter than the models view's: `tamingRules` and
--- `conditions` are absent because `_CalculateNPCData` reads neither. The old cache key
--- omitted them too, so this list preserves existing behaviour exactly.
+-- The NPC view's inputs. `tamingRules` and `conditions` joined this list at the same time
+-- as the filtering that reads them -- never before, since declaring a dependency the
+-- compute ignores buys cache misses for nothing.
 --
--- **That absence is a known gap, not a design.** The Models view filters taming rules per
--- *displayID* (`displayData.taming`, in DisplayPassesFilters) and conditions per *NPC ID*
--- (`ConditionsData.Get(npcID)`). This view does neither, so Special Tames reaches it only
--- as the family narrowing `RecomputeSmartFamilySelection` applies on Apply -- and that is a
--- **superset**: `ComputeMatchingFamilies` returns families with *at least one* matching
--- display. Families are mixed, so this over-shows. Filtering for Ottuk taming keeps the
--- whole Rodent family, including every Rodent that needs no special taming at all.
---
--- Adding the two slices here without also filtering on them would be worse than leaving
--- them out: the list would invalidate on a change it does not act on. They go in together
--- with the filtering, or not at all.
+-- Until then this view applied neither, and Special Tames reached it only as the family
+-- narrowing `RecomputeSmartFamilySelection` performs on Apply. That is a **superset**:
+-- `ComputeMatchingFamilies` returns families with *at least one* matching display, and
+-- families are mixed, so filtering for Ottuk taming kept the whole Rodent family --
+-- including every Rodent needing no special taming at all.
 local NPC_RESULT_SLICES = {
-    "families", "expansions", "locations",
+    "families", "expansions", "locations", "tamingRules", "conditions",
     "toggles", "favorites", "pets", "zone", "search", "panel",
 }
 
@@ -233,6 +227,14 @@ function PSM.NPCDataLoader:_CalculateNPCData()
     -- Built once per reload, only when the Hide Owned filter is active.
     local ownedSet = PSM.FilterState:Get("showHideOwned") and OwnedDisplayIdSet() or nil
 
+    -- Special Tames, hoisted out of the row loop: `next()` and the active-conditions scan
+    -- are constant per pass, and this loop runs over thousands of rows.
+    local selRules  = PSM.state.selectedTamingRules
+    local selConds  = PSM.state.selectedConditions
+    local hasRules  = selRules and next(selRules) ~= nil
+    local hasConds  = selConds and next(selConds) ~= nil
+    local condsHaveActive = hasConds and PSM.PetModels.ConditionsHaveActive(selConds)
+
     -- Iterate only selected families via the shared family index instead of
     -- scanning all ~7700 ModelsData entries and rejecting non-matches.
     -- byFamily[name] is an array of denseIndex values.
@@ -273,7 +275,23 @@ function PSM.NPCDataLoader:_CalculateNPCData()
 
                 local isRare = classification == "Rare" or classification == "Rare Elite"
 
-                if matchesSearch
+                -- **Special Tames, at the granularity the data actually has.**
+                --
+                -- Taming skills are a display-level fact and `ModelsData.Taming` records
+                -- them per NPC; checked across the whole dataset, no display has two NPCs
+                -- that disagree (7031 shared-display comparisons, zero conflicts), so
+                -- reading this NPC's own column is equivalent to the display aggregate
+                -- `GetFamilyModels` builds for the Models view -- and needs no lookup.
+                --
+                -- Conditions are an NPC-level fact, so this is the *simpler* case here
+                -- than in the Models view: one NPC, one answer, no "does any NPC of this
+                -- display qualify" loop.
+                local tamingOk = not hasRules
+                    or PetModels.TamingSetPasses(PetModels.TamingSet(modelsData.Taming[i]), selRules)
+                local condsOk = not hasConds
+                    or PetModels.NpcPassesConditions(npcId, selConds, condsHaveActive)
+
+                if matchesSearch and tamingOk and condsOk
                    and TristateMatch(PSM.FilterState:Get("showRares"), isRare)
                    and TristateMatch(PSM.FilterState:Get("showNameKeepers"), nameKeeper or false)
                    and TristateMatch(PSM.FilterState:Get("showFavorites"), IsAnyDisplayIdFavorite(displayIds))

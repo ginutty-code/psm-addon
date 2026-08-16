@@ -207,6 +207,9 @@ describe("Selections is the only writer", function()
     local READ_ONLY_CALLEES = {
         pairs = true, ipairs = true, next = true, type = true, tostring = true,
         DeepCopy = true,                    -- Utils, returns a copy
+        TamingSetPasses = true,             -- PetModels, pure predicate
+        ConditionsHaveActive = true,        -- PetModels, pure predicate
+        NpcPassesConditions = true,         -- PetModels, pure predicate
         IsLocationSelected = true,          -- NPCDataLoader, pure predicate
         IsExpansionSelected = true,         -- NPCDataLoader, pure predicate
         _IsLocationSelected = true,         -- ModelsDataLoader, pure predicate

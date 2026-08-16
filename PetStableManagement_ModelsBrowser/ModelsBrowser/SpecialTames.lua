@@ -849,94 +849,26 @@ function ST:ComputeMatchingFamilies(selectedRuleMap, selectedConditionNames)
             for _, displayData in ipairs(familyData.displayIds) do
                 local match = false
 
-                local passRules = not hasRules
-                if hasRules then
-                    local tamingSet = {}
-                    if displayData.taming then
-                        for _, r in ipairs(displayData.taming) do tamingSet[r] = true end
-                    end
-
-                    local hasActiveRules, matchActive = false, false
-                    local forbiddenMatch = false
-                    for rKey, state in pairs(selectedRuleMap) do
-                        if state == true then
-                            hasActiveRules = true
-
-                            local isMatch = tamingSet[rKey]
-
-                            if not isMatch and rKey == "Sliver of N'Zoth" and displayData.npcs then
-                                for _, npc in ipairs(displayData.npcs) do
-                                    local npcID   = modelsData and tonumber(modelsData.NpcId[npc])
-                                    local condList = PSM.ConditionsData and PSM.ConditionsData.Get(npcID)
-                                    if condList then
-                                        for _, cName in ipairs(condList) do
-                                            if cName == "Sliver of N'Zoth" then
-                                                isMatch = true; break
-                                            end
-                                        end
-                                    end
-                                    if isMatch then break end
-                                end
-                            end
-
-                            if isMatch then
-                                local fSel = selectedRuleMap["Florafaun"] == true
-                                local dSel = selectedRuleMap["Direhorn"]  == true
-                                if not (tamingSet["Florafaun"] and tamingSet["Direhorn"]
-                                        and ((fSel and not dSel) or (dSel and not fSel))) then
-                                    matchActive = true
-                                end
-                            end
-                        elseif state == "inverted" then
-                            local isForbidden = tamingSet[rKey]
-
-                            if not isForbidden and rKey == "Sliver of N'Zoth" and displayData.npcs then
-                                for _, npc in ipairs(displayData.npcs) do
-                                    local npcID   = modelsData and tonumber(modelsData.NpcId[npc])
-                                    local condList = PSM.ConditionsData and PSM.ConditionsData.Get(npcID)
-                                    if condList then
-                                        for _, cName in ipairs(condList) do
-                                            if cName == "Sliver of N'Zoth" then
-                                                isForbidden = true; break
-                                            end
-                                        end
-                                    end
-                                    if isForbidden then break end
-                                end
-                            end
-                            if isForbidden then forbiddenMatch = true; break end
-                        end
-                    end
-                    passRules = (not hasActiveRules or matchActive) and not forbiddenMatch
+                -- Rules and conditions are combined with OR here, unlike the AND in
+                -- DisplayPassesFilters. Deliberate and unchanged: this seeds a family
+                -- selection, so it wants breadth -- a family is relevant if it holds a
+                -- display matching *either* criterion. The predicates themselves are now
+                -- the shared ones, so only the combination differs between the two.
+                if hasRules and PSM.PetModels.TamingSetPasses(
+                        PSM.PetModels.TamingSet(displayData.taming), selectedRuleMap) then
+                    match = true
                 end
-                if passRules and hasRules then match = true end
 
-                if not match and hasConds and displayData.npcs then
-                    local userHasActiveConds = false
-                    for _, state in pairs(selectedConditionNames) do
-                        if state == true then userHasActiveConds = true; break end
-                    end
-
-                    local atLeastOneNpcPasses = false
-                    for _, npc in ipairs(displayData.npcs) do
-                        local npcID   = modelsData and tonumber(modelsData.NpcId[npc])
-                        local condList = PSM.ConditionsData and PSM.ConditionsData.Get(npcID)
-                        local npcDisqualified  = false
-                        local npcMatchedActive = false
-
-                        if condList then
-                            for _, cName in ipairs(condList) do
-                                local state = selectedConditionNames[cName]
-                                if state == "inverted" then npcDisqualified  = true; break end
-                                if state == true       then npcMatchedActive = true  end
-                            end
-                        end
-                        if not npcDisqualified and (not userHasActiveConds or npcMatchedActive) then
-                            atLeastOneNpcPasses = true
+                if not match and hasConds then
+                    local userHasActiveConds = PSM.PetModels.ConditionsHaveActive(selectedConditionNames)
+                    for _, npc in ipairs(displayData.npcs or {}) do
+                        if PSM.PetModels.NpcPassesConditions(
+                                modelsData and modelsData.NpcId[npc],
+                                selectedConditionNames, userHasActiveConds) then
+                            match = true
                             break
                         end
                     end
-                    if atLeastOneNpcPasses then match = true end
                 end
 
                 if match then

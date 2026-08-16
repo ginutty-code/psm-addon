@@ -15,6 +15,81 @@ _G.PSM.PetModels = M
 -- GetModelsRecord below. GetModelsRecord is for cold, one-off lookups only;
 -- it allocates a new table and does several lookup-table joins per call.
 
+-- ─── Special Tames predicates ─────────────────────────────────────────────
+-- The taming-rule and condition tests, in one place because they had drifted into two
+-- and were about to become three. Both views and SpecialTames' own family computation
+-- now answer these questions the same way by construction.
+--
+-- **The granularities are not interchangeable, and mixing them up is the bug this
+-- prevents.** Taming skills attach to a *display*; conditions attach to an *NPC*. A
+-- family is neither -- `ComputeMatchingFamilies` returns families with at least one
+-- matching display, which is a seeding aid, never a filter.
+
+-- Does a display's set of required taming skills satisfy the current selection?
+-- `tamingSet` is a set of rule names; `selRules` is the tristate selection map.
+--
+-- The Florafaun/Direhorn clause is the one piece of real logic here: a display needing
+-- *both* must not count as a match when the player selected only one of them, because
+-- one skill alone will not tame it.
+function M.TamingSetPasses(tamingSet, selRules)
+    if not selRules or not next(selRules) then return true end
+
+    local hasActive, matchActive = false, false
+    for rKey, state in pairs(selRules) do
+        if state == true then
+            hasActive = true
+            if tamingSet[rKey] then
+                local fSel, dSel = selRules["Florafaun"] == true, selRules["Direhorn"] == true
+                if not (tamingSet["Florafaun"] and tamingSet["Direhorn"]
+                        and ((fSel and not dSel) or (dSel and not fSel))) then
+                    matchActive = true
+                end
+            end
+        elseif state == "inverted" then
+            if tamingSet[rKey] then return false end
+        end
+    end
+    return not hasActive or matchActive
+end
+
+-- Build the set form `TamingSetPasses` expects from a raw ModelsData.Taming array.
+function M.TamingSet(list)
+    local set = {}
+    if list then
+        for _, rule in ipairs(list) do set[rule] = true end
+    end
+    return set
+end
+
+-- Whether any condition is *actively* selected, as opposed to only excluded. Hoisted out
+-- of the per-NPC test because callers run it inside loops over thousands of rows.
+function M.ConditionsHaveActive(selConds)
+    for _, state in pairs(selConds or {}) do
+        if state == true then return true end
+    end
+    return false
+end
+
+-- Does one NPC satisfy the condition selection? An "inverted" condition disqualifies it
+-- outright; with anything actively selected it must carry at least one of those.
+-- `npcId` is coerced here rather than by the caller: the two previous copies of this test
+-- disagreed about it (one passed the raw column, the other tonumber'd it), which is the
+-- kind of difference that decides whether a lookup hits.
+function M.NpcPassesConditions(npcId, selConds, userHasActive)
+    local id = tonumber(npcId)
+    if not id then return false end
+    local condList = _G.PSM.ConditionsData and _G.PSM.ConditionsData.Get(id)
+    if not condList then return not userHasActive end
+
+    local matchedActive = false
+    for _, cName in ipairs(condList) do
+        local state = selConds[cName]
+        if state == "inverted" then return false end
+        if state == true then matchedActive = true end
+    end
+    return not userHasActive or matchedActive
+end
+
 -- npcId -> denseIndex, or nil if npcId isn't in ModelsData.
 function M:GetModelsIndex(npcId)
     local modelsData = _G.ModelsData

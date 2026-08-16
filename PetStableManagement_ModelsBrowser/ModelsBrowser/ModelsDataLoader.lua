@@ -164,78 +164,32 @@ local function DisplayPassesFilters(displayData, ownedSet)
     local ownedMatch = not isOwned
     if not TristateMatch(PSM.FilterState:Get("showHideOwned"), ownedMatch) then return false end
 
-    -- Taming rules filter (OR logic: show models requiring ANY of the selected rules)
-    local selRules = PSM.state.selectedTamingRules
-    if selRules and next(selRules) then
-        local tamingSet = {}
-        if displayData.taming then
-            for _, rule in ipairs(displayData.taming) do tamingSet[rule] = true end
-        end
-
-        local hasActive, matchActive = false, false
-        for rKey, state in pairs(selRules) do
-            if state == true then
-                hasActive = true
-                
-                -- Check model-level taming rules
-                local isMatch = tamingSet[rKey]
-                
-                -- Special Case: Nlyeth (Look at NPC-level ConditionsData instead of model-level)
-                if not isMatch and rKey == "Sliver of N'Zoth" and displayData.npcs then
-                    for _, npc in ipairs(displayData.npcs) do
-                        local condList = PSM.ConditionsData and PSM.ConditionsData.Get(_G.ModelsData.NpcId[npc])
-                        if condList then
-                            for _, cName in ipairs(condList) do
-                                if cName == "Sliver of N'Zoth" then isMatch = true; break end
-                            end
-                        end
-                        if isMatch then break end
-                    end
-                end
-
-                if isMatch then
-                    local fSel, dSel = selRules["Florafaun"] == true, selRules["Direhorn"] == true
-                    if not (tamingSet["Florafaun"] and tamingSet["Direhorn"] and ((fSel and not dSel) or (dSel and not fSel))) then
-                        matchActive = true
-                    end
-                end
-            elseif state == "inverted" then
-                if tamingSet[rKey] then return false end -- Disqualified
-            end
-        end
-        if hasActive and not matchActive then return false end
+    -- Taming rules: a display-level fact, so the aggregated set GetFamilyModels built.
+    --
+    -- **A "Sliver of N'Zoth" special case used to live here and has been removed as dead
+    -- code.** It looked up NPC-level conditions when a taming rule of that name was
+    -- selected, from before that tame moved to Special Conditions. It could not fire for
+    -- three independent reasons: SpecialTames excludes the key from the taming-rule list so
+    -- it is never selectable, `ModelsData.Taming` contains no such value, and the fallback
+    -- compared against "Sliver of N'Zoth" while the condition is actually named
+    -- "N'lyeth, Sliver of N'Zoth". Conditions handle it, per NPC, below.
+    local tamingSet = PSM.PetModels.TamingSet(displayData.taming)
+    if not PSM.PetModels.TamingSetPasses(tamingSet, PSM.state.selectedTamingRules) then
+        return false
     end
 
-    -- Conditions filter (NPC level data from ConditionsData.lua)
+    -- Conditions are an NPC-level fact, so a display qualifies when **any** of its NPCs
+    -- does -- the display is what is on screen, and one taming target is enough to want it.
+    -- The NPC view asks the same question of a single NPC, which is why the per-NPC half
+    -- is shared and this loop is not.
     local selectedConds = PSM.state.selectedConditions
     if selectedConds and next(selectedConds) then
-        local userHasActive = false
-        for _, state in pairs(selectedConds) do
-            if state == true then userHasActive = true; break end
-        end
-
+        local userHasActive = PSM.PetModels.ConditionsHaveActive(selectedConds)
         local atLeastOneNpcPasses = false
-        if displayData.npcs then
-            for _, npc in ipairs(displayData.npcs) do
-                local npcID = _G.ModelsData.NpcId[npc]
-                if npcID then
-                    local condList = PSM.ConditionsData and PSM.ConditionsData.Get(npcID)
-                    local npcDisqualified = false
-                    local npcMatchedActive = false
-
-                    if condList then
-                        for _, cName in ipairs(condList) do
-                            local state = selectedConds[cName]
-                            if state == "inverted" then npcDisqualified = true; break end
-                            if state == true then npcMatchedActive = true end
-                        end
-                    end
-
-                    if not npcDisqualified and (not userHasActive or npcMatchedActive) then
-                        atLeastOneNpcPasses = true
-                        break
-                    end
-                end
+        for _, npc in ipairs(displayData.npcs or {}) do
+            if PSM.PetModels.NpcPassesConditions(_G.ModelsData.NpcId[npc], selectedConds, userHasActive) then
+                atLeastOneNpcPasses = true
+                break
             end
         end
         if not atLeastOneNpcPasses then return false end
