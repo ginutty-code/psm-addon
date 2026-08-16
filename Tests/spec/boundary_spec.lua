@@ -268,6 +268,34 @@ describe("core -> browser boundary", function()
         eq(#violations, 0, "core reads of browser members off ns")
     end)
 
+    -- Crossing into the other addon is legitimate; rummaging in its drawers is not.
+    -- PanelManager used to clear four of the browser's cache and timer fields by hand,
+    -- which put four private names on the surface and -- because a C_Timer handle is
+    -- owned by the timer system, not by the field holding it -- dropped two live timers
+    -- without cancelling them. `ModelsPanel:ReleaseCaches()` replaced the lot.
+    --
+    -- The `_` prefix is this codebase's private marker on both sides of the boundary.
+    it("reaches browser modules, never browser private fields", function()
+        local violations = {}
+        for _, path in ipairs(coreFiles) do
+            local source = ReadFile(path)
+            for n, line in ipairs(source and CodeLines(source) or {}) do
+                for name in line:gmatch("ns%.Browser%.(_[%a_][%w_]*)") do
+                    violations[#violations + 1] = ("%s:%d  ns.Browser.%s"):format(path, n, name)
+                end
+            end
+        end
+        if #violations > 0 then
+            table.sort(violations)
+            error(("core touches %d private browser field(s):\n  %s\n\n"
+                .. "Ask the browser to do it instead -- a service keeps the name off the "
+                .. "surface, and keeps the knowledge of what clearing it entails (a timer "
+                .. "needs :Cancel(), not = nil) in the addon that owns the field.")
+                :format(#violations, table.concat(violations, "\n  ")), 0)
+        end
+        eq(#violations, 0, "private browser fields touched by core")
+    end)
+
     -- Guards the guard. If `OwnedByBrowser` ever returned an empty set -- a renamed .toc, a
     -- changed definition pattern -- the check above would pass by examining nothing, and
     -- would keep passing forever.

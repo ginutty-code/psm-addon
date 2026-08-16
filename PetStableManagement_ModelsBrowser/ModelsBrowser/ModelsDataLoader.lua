@@ -30,9 +30,27 @@ end
 -- CACHE
 --------------------------------------------------------------------------------
 
+-- Drop the models render cache and stop any pending render.
+--
+-- **`:Cancel()` is the point of this, not `= nil`.** A C_Timer handle is owned by the
+-- timer system, not by the field holding it: clearing the field drops the reference and
+-- the timer still fires. `LoadModelsForSelectedFamilies` below has always cancelled
+-- before re-arming, but the four hand-written "clear the caches" blocks that used to
+-- exist -- here, in NPCDataLoader, in PetRoulette, and in core's PanelManager -- all
+-- nilled without cancelling. So closing the browser inside the debounce window left a
+-- timer that fired into the panel just torn down, recomputing the whole model list and
+-- **repopulating the cache the teardown had cleared**. `PSM.state.modelsPanel` is never
+-- set to nil, so the guard at the top of `_LoadModelsImmediate` did not stop it.
+function PSM.ModelsDataLoader:ReleaseCache()
+    if PSM._modelsDebounceTimer then PSM._modelsDebounceTimer:Cancel() end
+    PSM._modelsRenderCache   = nil
+    PSM._modelsDebounceTimer = nil
+end
+
+-- Reset for a freshly built panel: the cache, plus the layout sizes that only mean
+-- anything relative to the panel that has just been replaced.
 function PSM.ModelsDataLoader:CreateRenderCache()
-    PSM._modelsRenderCache    = nil
-    PSM._modelsDebounceTimer  = nil
+    self:ReleaseCache()
     PSM._lastModelsLayoutWidth  = nil
     PSM._lastModelsLayoutHeight = nil
 end

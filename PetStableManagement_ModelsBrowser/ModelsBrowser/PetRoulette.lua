@@ -100,13 +100,6 @@ end
 -- Cleanup
 -- ============================================================
 
-local function ClearGlobalCaches()
-    PSM._modelsRenderCache  = nil
-    PSM._modelsDebounceTimer = nil
-    PSM._npcRenderCache     = nil
-    PSM._npcDebounceTimer   = nil
-end
-
 function PetRoulette:CleanupPetRoulette()
     PSM.PetModels:ClearCache()
 
@@ -124,7 +117,7 @@ function PetRoulette:CleanupPetRoulette()
         popup.currentPetData = nil
     end
 
-    ClearGlobalCaches()
+    PSM.ModelsPanel:ReleaseCaches()
     collectgarbage("collect")
 end
 
@@ -138,7 +131,7 @@ function PetRoulette:CleanupPetRouletteWithoutModel()
         popup.currentDisplayId = nil
     end
 
-    ClearGlobalCaches()
+    PSM.ModelsPanel:ReleaseCaches()
     collectgarbage("collect")
 end
 

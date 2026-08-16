@@ -15,9 +15,18 @@ PSM.NPCDataLoader = PSM.NPCDataLoader or {}
 -- CACHE
 --------------------------------------------------------------------------------
 
-function PSM.NPCDataLoader:CreateRenderCache()
+-- The NPC half of the pair; see ModelsDataLoader:ReleaseCache for why this cancels
+-- rather than only clearing. This side has the wider window of the two -- a 0.15s
+-- debounce against the models view's 0.01s -- so it is the one a player can actually
+-- hit by changing a filter and closing the panel straight after.
+function PSM.NPCDataLoader:ReleaseCache()
+    if PSM._npcDebounceTimer then PSM._npcDebounceTimer:Cancel() end
     PSM._npcRenderCache   = nil
     PSM._npcDebounceTimer = nil
+end
+
+function PSM.NPCDataLoader:CreateRenderCache()
+    self:ReleaseCache()
 end
 
 -- Build a canonical string from a selected-values table (key=name, value=bool),

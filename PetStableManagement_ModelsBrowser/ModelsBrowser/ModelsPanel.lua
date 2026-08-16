@@ -22,6 +22,26 @@ local MODELS_CONFIG = {
 
 PSM.ModelsPanel.MODELS_CONFIG = MODELS_CONFIG
 
+-- Release both render caches and cancel both pending renders.
+--
+-- **The browser's answer to core reaching into its internals.** Core's PanelManager tears
+-- down on last-panel-close and used to do that by assigning nil to four of this addon's
+-- fields by hand, which meant four names on the cross-addon surface and one more copy of
+-- a clear that four places were writing out longhand -- three of them wrongly, because
+-- none cancelled the timers. One service replaces all of it, and the four underscore
+-- names stop being anyone's business but this addon's.
+--
+-- Safe to call when the loaders have not loaded: this file is what core reaches through,
+-- and it must not assume its siblings parsed first.
+function PSM.ModelsPanel:ReleaseCaches()
+    if PSM.ModelsDataLoader and PSM.ModelsDataLoader.ReleaseCache then
+        PSM.ModelsDataLoader:ReleaseCache()
+    end
+    if PSM.NPCDataLoader and PSM.NPCDataLoader.ReleaseCache then
+        PSM.NPCDataLoader:ReleaseCache()
+    end
+end
+
 -- ─────────────────────────────────────────────
 -- Internal helpers
 -- ─────────────────────────────────────────────
@@ -691,6 +711,8 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     PSM.state.selectedModelsFamilies = PSM.state.selectedModelsFamilies or {}
     PSM.state.favoriteModels         = PSM.state.favoriteModels         or {}
 
+    -- CreateRenderCache rather than ReleaseCaches: a freshly built panel also invalidates
+    -- the remembered layout sizes, which are measured against the panel being replaced.
     if PSM.ModelsDataLoader and PSM.ModelsDataLoader.CreateRenderCache then
         PSM.ModelsDataLoader:CreateRenderCache()
     end

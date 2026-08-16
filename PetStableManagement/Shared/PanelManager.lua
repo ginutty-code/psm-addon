@@ -322,15 +322,15 @@ function ns.PanelManager:CleanupPanel(panel)
         ns._renderCache   = nil
         ns._debounceTimer = nil
 
-        -- The four below belong to the *other addon*, and core clearing them by hand is a
-        -- layering violation the bridge only makes visible -- it does not excuse it. The
-        -- fix is a service the browser owns (`ns.Browser.ModelsPanel:ReleaseCaches()`),
-        -- which also means it stops needing four names on the surface. Deliberately left
-        -- for its own change: this one is meant to be behaviour-preserving.
-        ns.Browser._modelsRenderCache   = nil
-        ns.Browser._modelsDebounceTimer = nil
-        ns.Browser._npcRenderCache      = nil
-        ns.Browser._npcDebounceTimer    = nil
+        -- The browser's own caches, released by the browser. This used to be four
+        -- assignments into another addon's internals -- which put four names on the
+        -- cross-addon surface, and dropped two live C_Timer handles without cancelling
+        -- them, so a pending render could fire straight afterwards and refill what had
+        -- just been cleared.
+        local browserPanel = ns.Browser.ModelsPanel
+        if browserPanel and browserPanel.ReleaseCaches then
+            browserPanel:ReleaseCaches()
+        end
 
         if ns.Browser.PetModels and ns.Browser.PetModels.ClearCache then
             ns.Browser.PetModels:ClearCache()
