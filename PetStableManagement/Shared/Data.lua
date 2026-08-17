@@ -321,7 +321,7 @@ end
 function ns.Data:CollectStablePets()
     if not ns.state.isStableOpen then
         print("|cFFFF0000ERROR: CollectStablePets called when stable is NOT open!|r")
-        return 0, 0
+        return 0
     end
 
     ns.state.stablePets = {}
@@ -329,15 +329,15 @@ function ns.Data:CollectStablePets()
 
     if not ns.GetStableFrame() then
         print(ns.Config.MESSAGES.STABLE_FRAME_NOT_FOUND)
-        return 0, 0
+        return 0
     end
 
     self:CollectActivePets()
-    local collected, expected = self:CollectStabledPets()
+    self:CollectStabledPets()
     self:RebuildSpecAndFamilyLists()
     self:ValidateCollectedData()
 
-    return #ns.state.stablePets, expected
+    return #ns.state.stablePets
 end
 
 function ns.Data:CollectActivePets()
@@ -382,13 +382,17 @@ function ns.Data:SetCachedDerivedFields(petKey, fingerprint, abilities, isExotic
     }
 end
 
+-- Appends to ns.state.stablePets; returns nothing. It used to return
+-- (collected, expected) and nothing ever read either value.
 function ns.Data:CollectStabledPets()
     local stableFrame    = ns.GetStableFrame()
     local stabledPetList = stableFrame and stableFrame.StabledPetList
     local scrollBox = stabledPetList and stabledPetList.ScrollBox
     local dataProvider = scrollBox and scrollBox:GetDataProvider()
-    if not dataProvider then return 0, 0 end
+    if not dataProvider then return end
 
+    -- `expectedCount` is internal and load-bearing despite not being returned: it decides
+    -- whether the C_StableInfo fallback runs below when ForEach under-collects.
     local collected, collectedKeys = {}, {}
     local expectedCount = 0
     pcall(function() expectedCount = dataProvider:GetSize(false) or 0 end)
@@ -450,7 +454,6 @@ function ns.Data:CollectStabledPets()
     for _, pet in ipairs(collected) do
         table.insert(ns.state.stablePets, pet)
     end
-    return #collected, expectedCount
 end
 
 -- ─── Pet data helpers ─────────────────────────────────────────────────────────

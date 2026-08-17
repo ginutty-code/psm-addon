@@ -37,13 +37,11 @@ end
 local function ScheduleUpdateWithRetry(retryCount)
     retryCount = retryCount or 0
 
-    local collectedCount, expectedCount = ns.Data:CollectStablePets()
-    collectedCount = collectedCount or 0
-    expectedCount  = expectedCount  or 0
+    local collectedCount = ns.Data:CollectStablePets() or 0
     local listCounterCount = ParseListCounterCount(GetListCounterText())
 
-    -- expectedCount isn't trustworthy (see CollectAndRender below); a match
-    -- against the on-screen counter is treated as immediate proof of
+    -- The stable's own expected count isn't trustworthy (see CollectAndRender below); a
+    -- match against the on-screen counter is treated as immediate proof of
     -- completeness, with two consecutive identical readings as the fallback.
     local isAtCap = collectedCount >= ns.Config.MAX_STABLE_SLOTS
     local matchesListCounter = listCounterCount ~= nil and collectedCount == listCounterCount
@@ -97,9 +95,7 @@ local function CollectAndRender(retryCount)
         dataProviderReady = dp and true or false
     end
 
-    local collectedCount, expectedCount = ns.Data:CollectStablePets()
-    collectedCount = collectedCount or 0
-    expectedCount  = expectedCount  or 0
+    local collectedCount = ns.Data:CollectStablePets() or 0
     local listCounterCount = ParseListCounterCount(GetListCounterText())
 
     -- dataProvider:GetSize() is not trustworthy -- measured it stuck at a
