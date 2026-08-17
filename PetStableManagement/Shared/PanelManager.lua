@@ -338,7 +338,9 @@ function ns.PanelManager:CleanupPanel(panel)
     end
 
     if IsLastPanel() then
-        ns._renderCache   = nil
+        -- CreateRenderCache rather than clearing a field: the computed render data lives in
+        -- the selector's closure now, so dropping it is the only way to release it.
+        ns.UI:CreateRenderCache()
         ns._debounceTimer = nil
 
         -- The browser's own caches, released by the browser. This used to be four
@@ -417,7 +419,15 @@ function ns.PanelManager:UpdatePanelBackgrounds()
     end
 end
 
-function ns.PanelManager:CreateScrollPreservingResizeHandler(panel, scrollFrame, content, renderCallback, invalidateCacheCallback)
+-- **No cache invalidation here any more, and no parameter for one.** It used to end with
+-- `if invalidateCacheCallback then ... else ns._renderCache = nil end` -- but neither of the
+-- two callers ever passed the callback, so the fallback always ran, and for the Teams panel
+-- that meant clearing the *Owned Pets* render cache, which is not its cache.
+--
+-- Unnecessary now regardless: the width this handler changes is `panelWidth`, a store slice,
+-- so the render selector sees the resize on its own. The `renderCallback` below is what
+-- makes that happen.
+function ns.PanelManager:CreateScrollPreservingResizeHandler(panel, scrollFrame, content, renderCallback)
     if not panel or not scrollFrame or not content then return end
 
     panel._resizeLastWidth  = nil
@@ -440,8 +450,6 @@ function ns.PanelManager:CreateScrollPreservingResizeHandler(panel, scrollFrame,
         content:ClearAllPoints()
         content:SetPoint("TOPLEFT")
         content:SetPoint("TOPRIGHT")
-
-        if invalidateCacheCallback then invalidateCacheCallback() else ns._renderCache = nil end
 
         ns.C_Timer.After(0.05, function()
             if renderCallback then renderCallback(true) end

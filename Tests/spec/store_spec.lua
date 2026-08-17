@@ -133,6 +133,16 @@ describe("Store ownership fingerprint", function()
         eq(Store:Version("pets"), petsBefore, "but leaves pets alone")
     end)
 
+    -- Moving a pet into an empty slot: same pets, same sequence, one different slotID.
+    -- Positional hashing alone cannot see this, and the panel shows slot numbers.
+    it("moves ownedPets when only a slot number changes", function()
+        local Store, _, _, ns = freshStore()
+        ns.state.stablePets = { { petNumber = 1, slotID = 3 }, { petNumber = 2, slotID = 7 } }
+        local before = Store:Version("ownedPets")
+        ns.state.stablePets = { { petNumber = 1, slotID = 4 }, { petNumber = 2, slotID = 7 } }
+        truthy(Store:Version("ownedPets") ~= before, "the slot move was noticed")
+    end)
+
     it("moves ownedPets when a pet is swapped for another sharing its model", function()
         local Store, _, _, ns = freshStore()
         ns.state.stablePets = { { petNumber = 1, displayID = 111 } }

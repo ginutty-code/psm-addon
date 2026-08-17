@@ -387,7 +387,6 @@ function DD:CompleteDrop(targetRow, targetPet)
         end
 
         self:EndDrag()
-        ns._renderCache = nil
 
         local scrollFrame = ns.state.scrollFrame
         local scrollBar   = scrollFrame and scrollFrame.ScrollBar
@@ -425,9 +424,16 @@ function DD:CompleteDrop(targetRow, targetPet)
     ns._scrollLockCount = (ns._scrollLockCount or 0) + 1
     ns._scrollLock = true
 
+    -- Collect *then* render, and both here rather than in SwapPetSlots, because this path
+    -- passed `skipUpdate` to own the timing. SetPetSlot is asynchronous, which is what the
+    -- delay is for -- collecting immediately would read the pre-swap order.
+    --
+    -- The same pair lives in Reorder:SwapPetSlots for the arrow buttons. Two copies, kept
+    -- deliberately: merging them means splitting collection and render across two timers
+    -- whose ordering would then have to be maintained by hand -- trading a duplicate for a
+    -- pair of constants that must agree, which is the worse of the two problems.
     ns.C_Timer.After(0.35, function()
         if ns.state.isStableOpen then ns.Data:CollectStablePets() end
-        ns._renderCache = nil
         if ns._renderDebounceTimer then
             ns._renderDebounceTimer:Cancel()
             ns._renderDebounceTimer = nil

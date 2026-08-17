@@ -230,29 +230,28 @@ end
 -- RENDER CACHE
 --------------------------------------------------------------------------------
 
+-- Every input to `_CalculateRenderData`, derived by reading that function rather than by
+-- trusting the cache key it replaces -- which is how `panelWidth` was found missing.
+local RENDER_SLICES = {
+    "ownedPets", "ownedSearch", "ownedSpecs", "ownedFamilies", "ownedTamers",
+    "ownedExotic", "ownedDuplicates", "ownedSort", "panelWidth",
+}
+
+local renderResults   -- the selector; built on first use, dropped by CreateRenderCache
+
+-- Drops the computed render data and stops any pending render.
+--
+-- **`:Cancel()` is the point, not `= nil`** -- the same defect `ModelsDataLoader:ReleaseCache`
+-- was fixed for, in core rather than the browser. A C_Timer handle belongs to the timer
+-- system, so clearing the field drops the reference and the timer still fires: closing the
+-- panel inside the debounce window left a render scheduled into the panel just torn down,
+-- recomputing and repopulating the cache the teardown had just cleared.
 function ns.UI:CreateRenderCache()
-    ns._renderCache        = nil
-    ns._renderDebounceTimer= nil
+    if ns._renderDebounceTimer then ns._renderDebounceTimer:Cancel() end
+    ns._renderDebounceTimer = nil
+    renderResults          = nil
     ns._lastLayoutWidth    = nil
     ns._lastLayoutHeight   = nil
-end
-
-function ns.UI:GenerateCacheKey()
-    local searchText  = ns.state.panel and ns.state.panel.searchBox:GetSearchText() or ""
-    local searchLower = searchText ~= "" and ns.Utils:NormalizeSearchText(searchText) or ""
-    -- `ownedPets` rather than `#ns.state.stablePets`: the count is the same after releasing
-    -- one pet and taming another, and after any reorder, while the rendered list is not.
-    -- See Store.lua for why this panel needs a stricter fingerprint than the browser's.
-    return string.format("%s_%s_%s_%s_%s_%s_%s_%s",
-        ns.Store:Version("ownedPets"),
-        searchLower,
-        tostring(ns.state.exoticFilter),
-        tostring(ns.state.duplicatesOnlyFilter),
-        ns.Utils:GetTableHash(ns.state.selectedSpecs),
-        ns.Utils:GetTableHash(ns.state.selectedFamilies),
-        ns.Utils:GetTableHash(ns.state.selectedTamers),
-        tostring(ns.state.sortBy)
-    )
 end
 
 --------------------------------------------------------------------------------
@@ -273,17 +272,20 @@ end
 function ns.UI:_RenderPanelImmediate(preserveScroll)
     if not ns.state.panel or not ns.state.content then return end
 
-    local cacheKey = self:GenerateCacheKey()
-    if ns._renderCache and ns._renderCache.key == cacheKey and ns._renderCache.timestamp then
-        if GetTime() - ns._renderCache.timestamp < 0.1 then
-            self:_ApplyCachedRender(ns._renderCache.data, preserveScroll)
-            return
-        end
-    end
+    -- **The 0.1s expiry goes with the key, and the plan's corollary is why it could.** It
+    -- bounded staleness from inputs the key did not model; `panelWidth` was the last of
+    -- those, so there is nothing left for a timeout to catch.
+    --
+    -- `_ApplyCachedRender` runs on every call, hit or miss. That matters: view mode, pet
+    -- groups and collapse state are read *there* and in UpdateVisibleRows, never in
+    -- `_CalculateRenderData` -- which is why the eight hand-written `_renderCache = nil`
+    -- calls in GroupedView and GridView were never necessary. They forced a recompute of
+    -- data that could not have changed.
+    renderResults = renderResults or ns.Store:Selector(RENDER_SLICES, function()
+        return ns.UI:_CalculateRenderData()
+    end)
 
-    local renderData = self:_CalculateRenderData()
-    ns._renderCache = { key = cacheKey, timestamp = GetTime(), data = renderData }
-    self:_ApplyCachedRender(renderData, preserveScroll)
+    self:_ApplyCachedRender(renderResults(), preserveScroll)
 end
 
 function ns.UI:_CalculateRenderData()

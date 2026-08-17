@@ -22,6 +22,7 @@ local SPECS = {
     "Tests/spec/selections_spec.lua",
     "Tests/spec/store_spec.lua",
     "Tests/spec/specialtames_spec.lua",
+    "Tests/spec/renderinputs_spec.lua",
 }
 
 return function()

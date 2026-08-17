@@ -256,7 +256,6 @@ local function HideGroupedView(panel)
 end
 
 local function ScheduleRerender()
-    ns._renderCache = nil
     ns.C_Timer.After(0.01, function()
         if ns.UI and ns.UI.RenderPanel then ns.UI:RenderPanel() end
     end)

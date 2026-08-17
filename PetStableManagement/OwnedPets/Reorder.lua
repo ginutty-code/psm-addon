@@ -61,8 +61,27 @@ function ns.Reorder:SwapPetSlots(slot1, slot2, skipUpdate)
     print("|cFFFFAA00Moving pet from slot " .. slot1 .. " to slot " .. slot2 .. "...|r")
     ns.Utils.SafeCall(C_StableInfo.SetPetSlot, slot1, slot2)
 
+    -- **`skipUpdate` means the caller owns the whole post-swap refresh, data included.**
+    -- There are two ways to change a stable slot and both come through here: the arrow
+    -- buttons (this branch) and list/grid drag-and-drop, which passes `skipUpdate` because
+    -- it has its own scroll-lock and render timing. Grouped-view drag-and-drop is a
+    -- different feature entirely -- custom ordering inside PSM's pet groups, which never
+    -- touches a stable slot.
+    --
+    -- **Re-read from the game before rendering.** `SetPetSlot` changes the client's stable
+    -- order; PSM's copy in `ns.state.stablePets` is only refreshed by a collection, and
+    -- `UpdatePanel` does not force one -- `EnsurePetData` collects only when the list is
+    -- *empty*. So this branch used to re-render the pre-swap list, and the panel silently
+    -- disagreed with the move it had just printed to chat. The drag path did collect
+    -- (DragDrop.lua, in its own post-swap block), which is the whole reason one worked and
+    -- the other did not.
+    --
+    -- Collecting here is the sanctioned path, not an exception to the stable-master-only
+    -- rule: `CanReorderPets` already requires `isStableOpen`, so reordering is only
+    -- reachable at the one place a complete record can be built.
     if not skipUpdate then
         ns.C_Timer.After(0.3, function()
+            ns.Data:CollectStablePets()
             ns.UI:UpdatePanel()
         end)
     end

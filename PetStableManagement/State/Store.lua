@@ -235,10 +235,15 @@ end)
 -- proxy, so the same swap-at-equal-count staleness survived in core -- masked by that
 -- panel's own 0.1s expiry, and latent rather than harmless, since removing the expiry is
 -- what the store work is for.
+-- **`slotID` is part of the fingerprint, and array order alone is not enough.** Swapping two
+-- occupied slots reorders the collected list, which a positional hash would catch. Moving a
+-- pet into an *empty* slot does not: the same pets come back in the same sequence and only
+-- that one pet's `slotID` differs. The panel displays slot numbers and can sort by them, so
+-- that is a visible change the cache has to see.
 Store:Declare("ownedPets", function()
     local parts = {}
     for i, pet in ipairs(ns.state.stablePets or {}) do
-        parts[i] = tostring(pet.petNumber or pet.displayID or 0)
+        parts[i] = tostring(pet.petNumber or pet.displayID or 0) .. ":" .. tostring(pet.slotID or 0)
     end
     return table.concat(parts, ",")
 end)
@@ -250,6 +255,50 @@ Store:Declare("favorites", function()
     end
     table.sort(ids)
     return table.concat(ids, ",")
+end)
+
+--------------------------------------------------------------------------------
+-- The Owned Pets panel's slices
+--------------------------------------------------------------------------------
+
+-- **Fingerprinted throughout, and this panel needed no write funnel at all.** The browser
+-- funnelled its selections because it wanted *counters* for hot, large sets -- 61 families,
+-- 400+ locations, rescanned on every pill click. These sets are small (a handful of specs,
+-- tamers, families) and `UI:GenerateCacheKey` already hashed all three on every render, so
+-- fingerprinting costs exactly what the old key cost and cannot go stale.
+--
+-- Together with `ownedPets` above, these are the complete input set of
+-- `UI:_CalculateRenderData` -- checked by reading it rather than by trusting the old cache
+-- key, which turned out to be missing one (see `panelWidth`).
+
+Store:Declare("ownedSpecs",    function() return ns.Utils:GetTableHash(ns.state.selectedSpecs) end)
+Store:Declare("ownedFamilies", function() return ns.Utils:GetTableHash(ns.state.selectedFamilies) end)
+Store:Declare("ownedTamers",   function() return ns.Utils:GetTableHash(ns.state.selectedTamers) end)
+
+Store:Declare("ownedExotic",     function() return tostring(ns.state.exoticFilter) end)
+Store:Declare("ownedDuplicates", function() return tostring(ns.state.duplicatesOnlyFilter) end)
+Store:Declare("ownedSort",       function() return tostring(ns.state.sortBy) end)
+
+-- The panel's own search box, on the same argument as the browser's `search`: the home is a
+-- widget, and a widget's writes cannot be funnelled or spec-enforced.
+Store:Declare("ownedSearch", function()
+    local panel = ns.state.panel
+    local box   = panel and panel.searchBox
+    return box and box:GetSearchText() or ""
+end)
+
+-- **The input the old cache key never had.** `_CalculateRenderData` derives `colCount`,
+-- `colWidth` and `rowTotal` from `ns.state.content:GetWidth()`, so resizing the panel
+-- changes the correct answer while leaving the key identical. That is why the resize
+-- handler in PanelManager had to invalidate the cache by hand -- state living in a frame is
+-- invisible to invalidation, which is the case A5.0 was written about, in the file A5.0 was
+-- written about.
+--
+-- Fingerprinted rather than bumped on resize: the width is readable at any moment, so
+-- deriving it is strictly more truthful than trusting one handler to announce every change.
+Store:Declare("panelWidth", function()
+    local content = ns.state.content
+    return tostring(content and content.GetWidth and content:GetWidth() or 0)
 end)
 
 -- The client's "next frame", which is what coalescing a burst of writes means here. Only

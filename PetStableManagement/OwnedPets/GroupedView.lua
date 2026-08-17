@@ -43,7 +43,6 @@ local function SetAllGroupsCollapsed(collapsed)
     for _, group in ipairs(ns.PetGroups:GetGroups()) do
         SetGroupCollapsed(group.id, collapsed)
     end
-    ns._renderCache = nil
     if ns.UI and ns.UI.RenderPanel then ns.UI:RenderPanel(true) end
 end
 
@@ -52,7 +51,6 @@ end
 --------------------------------------------------------------------------------
 
 local function RefreshUI()
-    ns._renderCache = nil
     if ns.UI and ns.UI.RenderPanel then ns.UI:RenderPanel(true) end
 end
 
@@ -295,7 +293,6 @@ function ns.UI.GroupedView:ShowCreateGroupForPetDialog(pet)
             local groupId, err = ns.PetGroups:CreateGroup(groupName)
             if groupId then
                 ns.PetGroups:MovePetToGroup(pet.guid, groupId)
-                ns._renderCache = nil
                 ns.C_Timer.After(0.05, function()
                     if ns.UI and ns.UI.RenderPanel then ns.UI:RenderPanel(true) end
                 end)
@@ -613,7 +610,6 @@ function ns.UI.GroupedView:UpdateVisibleRows()
                 header.expandButton:SetScript("OnClick", function(self, button)
                     if button == "LeftButton" and header.groupId then
                         ToggleGroupCollapsed(header.groupId)
-                        ns._renderCache = nil
                         if ns.UI and ns.UI.RenderPanel then ns.UI:RenderPanel(true) end
                     end
                 end)
@@ -636,7 +632,6 @@ function ns.UI.GroupedView:UpdateVisibleRows()
             header:SetScript("OnMouseDown", function(self, button)
                 if button == "LeftButton" and header.groupId then
                     ToggleGroupCollapsed(header.groupId)
-                    ns._renderCache = nil
                     if ns.UI and ns.UI.RenderPanel then ns.UI:RenderPanel(true) end
                 elseif button == "RightButton" then
                     if header.groupId == "ungrouped" then
@@ -684,7 +679,6 @@ function ns.UI.GroupedView:Enable()
     if ns.state.panel.scrollFrame then ns.state.panel.scrollFrame:SetVerticalScroll(0) end
     if ns.state.rows           then for _, r in ipairs(ns.state.rows)           do if r then r:Hide() end end end
     if ns.state.modelViewRows  then for _, r in ipairs(ns.state.modelViewRows)  do if r then r:Hide() end end end
-    ns._renderCache = nil
     ns.C_Timer.After(0.01, function() if ns.UI and ns.UI.RenderPanel then ns.UI:RenderPanel() end end)
 end
 
@@ -718,7 +712,6 @@ function ns.UI.GroupedView:Disable()
     end
 
     self:ClearLayout()
-    ns._renderCache = nil
     ns.C_Timer.After(0.01, function() if ns.UI and ns.UI.RenderPanel then ns.UI:RenderPanel() end end)
 end
 
