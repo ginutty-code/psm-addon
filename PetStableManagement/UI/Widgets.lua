@@ -197,7 +197,7 @@ end
 -- BUTTONS
 --------------------------------------------------------------------------------
 
--- Labels clipped for being wider than their button, as { text = width overshoot }.
+-- Labels clipped for being wider than their frame, as { text = width overshoot }.
 -- Inspect with `/dump PSM.Widgets.truncatedLabels`, alongside `unknownOptions` and
 -- `PSM.Skin.unhandled`. Clipping is invisible by design -- a chopped word looks like a
 -- short word -- so the tier that was chosen too small has to be findable on demand.
@@ -205,22 +205,25 @@ Widgets.truncatedLabels = {}
 
 local BUTTON_LABEL_PADDING = 12  -- 6px of breathing room each side
 
+-- A tab clips at its own edge instead. The padding above is aesthetic -- a Blizzard button
+-- has a bevelled border to stay clear of -- and applying it here would truncate labels that
+-- currently fit: ModelsFilters' three tabs are a fixed 60px and "Expansions" very nearly
+-- fills that. Zero keeps the only text this touches the text that is *already* drawn past
+-- the tab's own background and onto its neighbour, which is the defect. Padding a pill for
+-- looks is the call site's job, and both pill bars already do it (`#tag * 7 + 16`).
+local TAB_LABEL_PADDING = 0
+
 -- Give the label an explicit width and no wrapping, so an over-long string is ellipsised
--- inside the button instead of drawn past it. WoW does not clip child regions, so an
--- unconstrained FontString simply spills over whatever sits next to the button.
+-- inside its frame instead of drawn past it. WoW does not clip child regions, so an
+-- unconstrained FontString simply spills over whatever sits next to it.
 --
--- **This is what makes a fixed width tier safe.** Two things about a button's text
--- cannot be known when it is built: a later `SetText` may be longer (Maximize/Restore,
--- Select All/Unselect All), and ElvUI restyles the font after we are finished. Neither
--- can overflow a clipped label, so neither has to be predicted.
---
--- Re-run on resize, because a button sized after construction -- Core.lua's stable pair
--- copy Blizzard's own button width -- would otherwise keep a label clamped to the width
--- it had at build time.
-local function ClampLabel(button)
-    local fs = button:GetFontString()
+-- **This is what makes a fixed width tier safe.** Two things about the text cannot be known
+-- when the widget is built: a later `SetText` may be longer (Maximize/Restore, Select
+-- All/Unselect All), and ElvUI restyles the font after we are finished. Neither can overflow
+-- a clipped label, so neither has to be predicted.
+local function ClampFontString(frame, fs, text, padding)
     if not fs then return end
-    local avail = (button:GetWidth() or 0) - BUTTON_LABEL_PADDING
+    local avail = (frame:GetWidth() or 0) - padding
     if avail <= 0 then return end
     -- Measured before constraining: once a width is set, GetStringWidth reports the
     -- clamped width and the overshoot is no longer visible.
@@ -228,9 +231,23 @@ local function ClampLabel(button)
     fs:SetWordWrap(false)
     fs:SetWidth(avail)
     if natural > avail then
-        local text = button:GetText()
         if text then Widgets.truncatedLabels[text] = math.floor(natural - avail + 0.5) end
     end
+end
+
+-- Re-run on resize, because a button sized after construction -- Core.lua's stable pair
+-- copy Blizzard's own button width -- would otherwise keep a label clamped to the width
+-- it had at build time.
+local function ClampLabel(button)
+    ClampFontString(button, button:GetFontString(), button:GetText(), BUTTON_LABEL_PADDING)
+end
+
+-- The Tab equivalent. A tab is a plain Frame with a separate `.label` font string rather
+-- than a Button with an owned one, so it cannot share ClampLabel's accessors -- which is
+-- the whole reason tabs went without this for as long as they did.
+local function ClampTabLabel(tab)
+    local fs = tab.label
+    ClampFontString(tab, fs, fs and fs:GetText(), TAB_LABEL_PADDING)
 end
 
 -- The standard Blizzard push button, skinned.
@@ -491,13 +508,25 @@ function Widgets.Tab(parent, opts)
         tab[edge == "TOP" and "topLine" or "bottomLine"] = line
     end
 
+    -- `justify` is explicit because the clamp below gives this font string a width. While it
+    -- had none it was exactly as wide as its text, so justification could not be observed
+    -- and whatever the font object happened to default to looked centred. With a width, a
+    -- font object defaulting to LEFT would shift every short label off centre.
     tab.label = Widgets.Label(tab, {
         fontObject = opts.fontObject,
         fontSize   = opts.fontObject and nil or opts.fontSize,
         color      = palette.INACTIVE_TEXT,
+        justify    = "CENTER",
         point      = { "CENTER" },
         text       = opts.text,
     })
+
+    -- Without this a long label is simply drawn past the tab's background and over its
+    -- neighbour -- the pill bars sit 10px apart, so it lands on the next pill's text.
+    -- Hooked as well as called, because the pill bars size themselves from a character-count
+    -- estimate (`#tag * 7 + 16`) that no font metric backs up.
+    ClampTabLabel(tab)
+    tab:HookScript("OnSizeChanged", ClampTabLabel)
 
     function tab:SetActive(active)
         self.bg:SetColorTexture(unpack(active and palette.ACTIVE_BG   or palette.INACTIVE_BG))
