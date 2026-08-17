@@ -100,14 +100,6 @@ function PSM.ModelsDataLoader:ReleaseCache()
     modelsResults = nil
 end
 
--- Reset for a freshly built panel: the cache, plus the layout sizes that only mean
--- anything relative to the panel that has just been replaced.
-function PSM.ModelsDataLoader:CreateRenderCache()
-    self:ReleaseCache()
-    PSM._lastModelsLayoutWidth  = nil
-    PSM._lastModelsLayoutHeight = nil
-end
-
 --------------------------------------------------------------------------------
 -- FILTER HELPERS
 --------------------------------------------------------------------------------

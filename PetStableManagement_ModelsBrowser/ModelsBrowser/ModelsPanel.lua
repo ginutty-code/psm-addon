@@ -706,13 +706,18 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     PSM.Selections:Get("families")
     PSM.state.favoriteModels = PSM.state.favoriteModels or {}
 
-    -- CreateRenderCache rather than ReleaseCaches: a freshly built panel also invalidates
-    -- the remembered layout sizes, which are measured against the panel being replaced.
-    if PSM.ModelsDataLoader and PSM.ModelsDataLoader.CreateRenderCache then
-        PSM.ModelsDataLoader:CreateRenderCache()
+    -- A freshly built panel invalidates both loaders' cached results, which were computed
+    -- against the panel being replaced.
+    --
+    -- This used to call a `CreateRenderCache` on each, wrapping `ReleaseCache` plus a reset
+    -- of `PSM._lastModelsLayoutWidth/Height` -- and those two fields were the entire stated
+    -- reason to prefer it. They were never read anywhere, in any commit, so the wrapper had
+    -- no behaviour of its own and the NPC copy existed only to mirror it.
+    if PSM.ModelsDataLoader and PSM.ModelsDataLoader.ReleaseCache then
+        PSM.ModelsDataLoader:ReleaseCache()
     end
-    if PSM.NPCDataLoader and PSM.NPCDataLoader.CreateRenderCache then
-        PSM.NPCDataLoader:CreateRenderCache()
+    if PSM.NPCDataLoader and PSM.NPCDataLoader.ReleaseCache then
+        PSM.NPCDataLoader:ReleaseCache()
     end
 
     -- Now that pagination controls exist, position the NPC row pool if that's

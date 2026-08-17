@@ -250,8 +250,6 @@ function ns.UI:CreateRenderCache()
     if ns._renderDebounceTimer then ns._renderDebounceTimer:Cancel() end
     ns._renderDebounceTimer = nil
     renderResults          = nil
-    ns._lastLayoutWidth    = nil
-    ns._lastLayoutHeight   = nil
 end
 
 --------------------------------------------------------------------------------

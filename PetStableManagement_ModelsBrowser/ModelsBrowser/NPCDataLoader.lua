@@ -39,10 +39,6 @@ function PSM.NPCDataLoader:ReleaseCache()
     npcResults = nil
 end
 
-function PSM.NPCDataLoader:CreateRenderCache()
-    self:ReleaseCache()
-end
-
 --------------------------------------------------------------------------------
 -- FILTER HELPERS
 --------------------------------------------------------------------------------
