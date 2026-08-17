@@ -115,6 +115,33 @@ describe("Store ownership fingerprint", function()
         eq(Store:Version("pets"), a, "order does not matter")
     end)
 
+    -- A5.2's second instance, in core's Owned Pets panel. Its render cache keyed on
+    -- `#stablePets`, so the same swap-at-equal-count staleness survived there after the
+    -- browser's was fixed -- a defect named by file and line rather than by shape, so the
+    -- other copy was never looked for.
+    it("gives ownedPets a stricter answer than pets", function()
+        local Store, _, _, ns = freshStore()
+        ns.state.stablePets = { { petNumber = 1, displayID = 111 }, { petNumber = 2, displayID = 222 } }
+        local before = Store:Version("ownedPets")
+
+        -- Order matters here and must not for `pets`: this panel lists individual pets, and
+        -- with no sort column they appear in stablePets order, so a drag reorder is a real
+        -- change. Model filtering in the browser cannot care.
+        local petsBefore = Store:Version("pets")
+        ns.state.stablePets = { { petNumber = 2, displayID = 222 }, { petNumber = 1, displayID = 111 } }
+        truthy(Store:Version("ownedPets") ~= before, "a reorder moves ownedPets")
+        eq(Store:Version("pets"), petsBefore, "but leaves pets alone")
+    end)
+
+    it("moves ownedPets when a pet is swapped for another sharing its model", function()
+        local Store, _, _, ns = freshStore()
+        ns.state.stablePets = { { petNumber = 1, displayID = 111 } }
+        local before = Store:Version("ownedPets")
+        -- Same model, different pet: `pets` cannot see this and should not, `ownedPets` must.
+        ns.state.stablePets = { { petNumber = 2, displayID = 111 } }
+        truthy(Store:Version("ownedPets") ~= before, "identity changed")
+    end)
+
     it("counts duplicates, since two pets sharing a model are two pets", function()
         local Store, _, _, ns = freshStore()
         ns.state.stablePets = { { displayID = 111 } }

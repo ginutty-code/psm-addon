@@ -219,6 +219,30 @@ Store:Declare("pets", function()
     return table.concat(ids, ",")
 end)
 
+-- **The Owned Pets panel's ownership, and it needs a stricter answer than `pets`.** Two
+-- differences, both of which `pets` gets deliberately right for the browser and wrong here:
+--
+--   * **Order matters.** `pets` sorts before hashing, because model filtering cannot care
+--     what order the stable is in. This panel lists individual pets, and with no sort
+--     column chosen they appear in `stablePets` order -- so DragDrop reordering them
+--     changes the answer. That is invisible to a sorted hash.
+--   * **Identity, not model.** `petNumber` is unique per pet, so releasing one pet and
+--     taming another that happens to share a model is a real change here even though the
+--     set of owned *models* is identical.
+--
+-- This is A5.2's second instance. The first was fixed in the browser by making `pets`
+-- content-based; `UI:GenerateCacheKey` kept using `#ns.state.stablePets` as its ownership
+-- proxy, so the same swap-at-equal-count staleness survived in core -- masked by that
+-- panel's own 0.1s expiry, and latent rather than harmless, since removing the expiry is
+-- what the store work is for.
+Store:Declare("ownedPets", function()
+    local parts = {}
+    for i, pet in ipairs(ns.state.stablePets or {}) do
+        parts[i] = tostring(pet.petNumber or pet.displayID or 0)
+    end
+    return table.concat(parts, ",")
+end)
+
 Store:Declare("favorites", function()
     local ids = {}
     for id, on in pairs(ns.state.favoriteModels or {}) do

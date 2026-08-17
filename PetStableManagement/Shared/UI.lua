@@ -240,8 +240,11 @@ end
 function ns.UI:GenerateCacheKey()
     local searchText  = ns.state.panel and ns.state.panel.searchBox:GetSearchText() or ""
     local searchLower = searchText ~= "" and ns.Utils:NormalizeSearchText(searchText) or ""
-    return string.format("%d_%s_%s_%s_%s_%s_%s_%s",
-        #ns.state.stablePets,
+    -- `ownedPets` rather than `#ns.state.stablePets`: the count is the same after releasing
+    -- one pet and taming another, and after any reorder, while the rendered list is not.
+    -- See Store.lua for why this panel needs a stricter fingerprint than the browser's.
+    return string.format("%s_%s_%s_%s_%s_%s_%s_%s",
+        ns.Store:Version("ownedPets"),
         searchLower,
         tostring(ns.state.exoticFilter),
         tostring(ns.state.duplicatesOnlyFilter),
