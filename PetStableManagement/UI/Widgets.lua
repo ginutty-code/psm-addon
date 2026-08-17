@@ -206,11 +206,10 @@ Widgets.truncatedLabels = {}
 local BUTTON_LABEL_PADDING = 12  -- 6px of breathing room each side
 
 -- A tab clips at its own edge instead. The padding above is aesthetic -- a Blizzard button
--- has a bevelled border to stay clear of -- and applying it here would truncate labels that
--- currently fit: ModelsFilters' three tabs are a fixed 60px and "Expansions" very nearly
--- fills that. Zero keeps the only text this touches the text that is *already* drawn past
--- the tab's own background and onto its neighbour, which is the defect. Padding a pill for
--- looks is the call site's job, and both pill bars already do it (`#tag * 7 + 16`).
+-- has a bevel to clear -- and applying it here would truncate labels that currently fit:
+-- ModelsFilters' tabs are a fixed 60px and "Expansions" very nearly fills that. Zero
+-- touches only text already drawn onto the neighbouring pill, which is the defect. Padding
+-- a pill for looks is the call site's job, and both pill bars already do it.
 local TAB_LABEL_PADDING = 0
 
 -- Give the label an explicit width and no wrapping, so an over-long string is ellipsised
@@ -243,8 +242,7 @@ local function ClampLabel(button)
 end
 
 -- The Tab equivalent. A tab is a plain Frame with a separate `.label` font string rather
--- than a Button with an owned one, so it cannot share ClampLabel's accessors -- which is
--- the whole reason tabs went without this for as long as they did.
+-- than a Button with an owned one, so it cannot share ClampLabel's accessors.
 local function ClampTabLabel(tab)
     local fs = tab.label
     ClampFontString(tab, fs, fs and fs:GetText(), TAB_LABEL_PADDING)
@@ -508,10 +506,9 @@ function Widgets.Tab(parent, opts)
         tab[edge == "TOP" and "topLine" or "bottomLine"] = line
     end
 
-    -- `justify` is explicit because the clamp below gives this font string a width. While it
-    -- had none it was exactly as wide as its text, so justification could not be observed
-    -- and whatever the font object happened to default to looked centred. With a width, a
-    -- font object defaulting to LEFT would shift every short label off centre.
+    -- `justify` is explicit because the clamp below gives this font string a width. With no
+    -- width it was exactly as wide as its text, so a font object defaulting to LEFT looked
+    -- centred; with one, it would shift every short label off centre.
     tab.label = Widgets.Label(tab, {
         fontObject = opts.fontObject,
         fontSize   = opts.fontObject and nil or opts.fontSize,
@@ -521,10 +518,9 @@ function Widgets.Tab(parent, opts)
         text       = opts.text,
     })
 
-    -- Without this a long label is simply drawn past the tab's background and over its
-    -- neighbour -- the pill bars sit 10px apart, so it lands on the next pill's text.
-    -- Hooked as well as called, because the pill bars size themselves from a character-count
-    -- estimate (`#tag * 7 + 16`) that no font metric backs up.
+    -- Without this a long label is drawn past the tab's background and onto its neighbour;
+    -- the pill bars sit 10px apart. Hooked as well as called, because the pill bars size
+    -- themselves from a character-count estimate that no font metric backs up.
     ClampTabLabel(tab)
     tab:HookScript("OnSizeChanged", ClampTabLabel)
 

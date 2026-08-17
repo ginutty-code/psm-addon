@@ -428,15 +428,11 @@ function PSM.ModelsFilters:ResetAllFilters(panel)
     if panel.expansionList then SelectAll("expansions", panel.expansionList) end
     if panel.locationList  then SelectAll("locations",  panel.locationList)  end
 
-    -- **One rebuild, not four.** A `RepopulateAllTabs` used to sit here, looping
-    -- `currentFilterType` through families/expansions/locations before restoring the active
-    -- tab and rebuilding a fourth time. Its name described an architecture this file does not
-    -- have: there is one `filterContent`, one `filterCheckboxes` list and one `filterHeaders`
-    -- list, shared by all three tabs, and `PopulateUnifiedFilterCheckboxes` opens by hiding
-    -- whatever they currently hold. So each pass discarded the one before it and only the
-    -- last survived -- and nothing could consume the other three anyway, since `OnTabClick`
-    -- rebuilds on every switch. Same defect `OnTabClick` was already fixed for; it survived
-    -- here because it was named for a place rather than for its shape.
+    -- **One rebuild, not four.** All three tabs share one `filterContent`, one
+    -- `filterCheckboxes` list and one `filterHeaders` list, and
+    -- `PopulateUnifiedFilterCheckboxes` opens by hiding whatever they hold -- so rebuilding
+    -- each tab in turn only ever leaves the last. `OnTabClick` rebuilds on every switch, so
+    -- there is nothing to pre-build.
     self:PopulateUnifiedFilterCheckboxes(panel)
     -- **A re-check, not a reload.** Everything above either bumps a slice or moves a
     -- fingerprint, so asking the store to look again is strictly better than calling the
@@ -851,9 +847,7 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel)
     panel.currentFilterType  = "families"
 
     ---------- Initial population ----------
-    -- Builds the active tab only. The other two are built when they are first shown, which
-    -- is what `OnTabClick` does regardless -- pre-building them here produced frames that
-    -- were hidden again before this function returned.
+    -- The active tab only; `OnTabClick` builds the others when they are first shown.
     PSM.ModelsFilters:PopulateUnifiedFilterCheckboxes(panel)
     UpdateTabVisuals()
 

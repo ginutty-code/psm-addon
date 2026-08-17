@@ -14,15 +14,8 @@ PSM.NPCDataLoader = PSM.NPCDataLoader or {}
 -- CACHE
 --------------------------------------------------------------------------------
 
--- The NPC view's inputs. `tamingRules` and `conditions` joined this list at the same time
--- as the filtering that reads them -- never before, since declaring a dependency the
--- compute ignores buys cache misses for nothing.
---
--- Until then this view applied neither, and Special Tames reached it only as the family
--- narrowing `RecomputeSmartFamilySelection` performs on Apply. That is a **superset**:
--- `ComputeMatchingFamilies` returns families with *at least one* matching display, and
--- families are mixed, so filtering for Ottuk taming kept the whole Rodent family --
--- including every Rodent needing no special taming at all.
+-- The NPC view's inputs. A slice belongs here only once the compute reads it -- declaring a
+-- dependency it ignores buys cache misses for nothing. Enforced by `loaderinputs_spec`.
 local NPC_RESULT_SLICES = {
     "families", "expansions", "locations", "tamingRules", "conditions",
     "toggles", "favorites", "pets", "zone", "search", "panel",
@@ -251,17 +244,12 @@ function PSM.NPCDataLoader:_CalculateNPCData()
 
                 local isRare = classification == "Rare" or classification == "Rare Elite"
 
-                -- **Special Tames, at the granularity the data actually has.**
-                --
-                -- Taming skills are a display-level fact and `ModelsData.Taming` records
-                -- them per NPC; checked across the whole dataset, no display has two NPCs
-                -- that disagree (7031 shared-display comparisons, zero conflicts), so
-                -- reading this NPC's own column is equivalent to the display aggregate
-                -- `GetFamilyModels` builds for the Models view -- and needs no lookup.
-                --
-                -- Conditions are an NPC-level fact, so this is the *simpler* case here
-                -- than in the Models view: one NPC, one answer, no "does any NPC of this
-                -- display qualify" loop.
+                -- **Special Tames, at the granularity the data has.** Taming skills are a
+                -- display-level fact recorded per NPC; no display has two NPCs that
+                -- disagree (7031 shared-display comparisons, zero conflicts), so this
+                -- NPC's own column equals the display aggregate the Models view builds.
+                -- Conditions are per NPC, so no "does any NPC of this display qualify"
+                -- loop is needed here.
                 local tamingOk = not hasRules
                     or PetModels.TamingSetPasses(PetModels.TamingSet(modelsData.Taming[i]), selRules)
                 local condsOk = not hasConds

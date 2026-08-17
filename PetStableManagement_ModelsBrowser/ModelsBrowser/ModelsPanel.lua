@@ -703,11 +703,6 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
 
     -- A freshly built panel invalidates both loaders' cached results, which were computed
     -- against the panel being replaced.
-    --
-    -- This used to call a `CreateRenderCache` on each, wrapping `ReleaseCache` plus a reset
-    -- of `PSM._lastModelsLayoutWidth/Height` -- and those two fields were the entire stated
-    -- reason to prefer it. They were never read anywhere, in any commit, so the wrapper had
-    -- no behaviour of its own and the NPC copy existed only to mirror it.
     if PSM.ModelsDataLoader and PSM.ModelsDataLoader.ReleaseCache then
         PSM.ModelsDataLoader:ReleaseCache()
     end

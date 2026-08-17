@@ -1,30 +1,25 @@
 -- State/Store.lua
 -- Slice versions, and pull-based selectors that recompute only when a dependency moved.
 --
--- **A5.1 step 2.** The win this exists for is *leave-one-out*: the dynamic filter lists
--- deliberately exclude their own dimension -- `availableFamilies` answers "what families are
--- still reachable given the **other** filters" -- so ticking one family cannot change it.
--- Under one monolithic cache key it recomputed anyway, rescanning 61 families and their
--- display IDs and NPCs to produce a list that could not have moved. Splitting the
--- dependency set is the whole point; how each slice reports change is a separate question,
--- answered per slice below.
+-- The win this exists for is *leave-one-out*: the dynamic filter lists deliberately exclude
+-- their own dimension -- `availableFamilies` answers "what families are still reachable given
+-- the **other** filters" -- so ticking one family cannot change it. A single cache key
+-- recomputed it anyway. Splitting the dependency set is the point.
 --
 -- **Two kinds of slice, and the difference is evidence, not taste.**
 --
 --   * *Counted* -- every write goes through a funnel, so a counter is trustworthy. Only
---     claimed for slices where a spec enforces the funnel: `Tests/spec/selections_spec.lua`
---     for the five selection sets, `filterstate_spec` for the toggles.
+--     claimed where a spec enforces the funnel: `selections_spec` for the five selection
+--     sets, `filterstate_spec` for the toggles.
 --   * *Fingerprinted* -- writes are not funnelled, so change is derived from the value.
 --     Costs a pass over the data per read, and cannot go stale.
 --
--- That split is what step 1 was for. The plan's own warning is the reason it matters: a
--- string cache key degrades to over-caching when an input is unmodelled, a version counter
--- goes permanently stale. So a counter is only claimed where "did we catch every write?" has
--- a machine-checked answer, and everything else fingerprints until it earns one.
+-- A counter is claimed only where "did we catch every write?" has a machine-checked answer;
+-- everything else fingerprints until it earns one. A stale counter is a wrong answer, an
+-- extra fingerprint pass is only slow.
 --
--- **An unknown slice is always dirty.** A selector depending on one recomputes every time,
--- exactly as today. That makes the migration safe in the direction that matters: an
--- unregistered dependency costs speed, never correctness.
+-- **An unknown slice is always dirty**, so an unregistered dependency costs speed, never
+-- correctness.
 
 local _, ns = ...
 
@@ -219,27 +214,19 @@ Store:Declare("pets", function()
     return table.concat(ids, ",")
 end)
 
--- **The Owned Pets panel's ownership, and it needs a stricter answer than `pets`.** Two
--- differences, both of which `pets` gets deliberately right for the browser and wrong here:
+-- **The Owned Pets panel needs a stricter answer than `pets`.** Two differences, both of
+-- which `pets` gets deliberately right for the browser and wrong here:
 --
 --   * **Order matters.** `pets` sorts before hashing, because model filtering cannot care
---     what order the stable is in. This panel lists individual pets, and with no sort
---     column chosen they appear in `stablePets` order -- so DragDrop reordering them
---     changes the answer. That is invisible to a sorted hash.
+--     what order the stable is in. This panel lists individual pets in `stablePets` order
+--     when no sort column is chosen, so DragDrop reordering changes the answer.
 --   * **Identity, not model.** `petNumber` is unique per pet, so releasing one pet and
---     taming another that happens to share a model is a real change here even though the
---     set of owned *models* is identical.
+--     taming another that shares a model is a real change here.
 --
--- This is A5.2's second instance. The first was fixed in the browser by making `pets`
--- content-based; `UI:GenerateCacheKey` kept using `#ns.state.stablePets` as its ownership
--- proxy, so the same swap-at-equal-count staleness survived in core -- masked by that
--- panel's own 0.1s expiry, and latent rather than harmless, since removing the expiry is
--- what the store work is for.
--- **`slotID` is part of the fingerprint, and array order alone is not enough.** Swapping two
--- occupied slots reorders the collected list, which a positional hash would catch. Moving a
--- pet into an *empty* slot does not: the same pets come back in the same sequence and only
--- that one pet's `slotID` differs. The panel displays slot numbers and can sort by them, so
--- that is a visible change the cache has to see.
+-- **`slotID` is in the fingerprint because array order alone is not enough.** Swapping two
+-- occupied slots reorders the list, which a positional hash catches. Moving a pet into an
+-- *empty* slot does not -- same pets, same sequence, one different `slotID` -- and the panel
+-- displays slot numbers and can sort by them.
 Store:Declare("ownedPets", function()
     local parts = {}
     for i, pet in ipairs(ns.state.stablePets or {}) do
