@@ -112,12 +112,6 @@ function GV:UpdateRow(row, pet)
     end
 
     local isSame, isCross = ns.RowManager:CheckDuplicates(pet, ns.state.allGroups)
-    local specName = pet.specName
-    if not specName and pet.specID then
-        local specInfo = C_SpecializationInfo.GetPetSpecialization(pet.specID)
-        specName = specInfo and specInfo.name
-    end
-    
     ns.RowManager:UpdateBackgroundColor(row, isSame, isCross, false, pet.specName)
         
     -- Hide unused OwnedPets elements

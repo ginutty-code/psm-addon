@@ -3,7 +3,6 @@
 -- Browser: a sortable, column-toggleable text table. No PlayerModel widgets
 -- are created here on purpose -- that's the cost this view exists to avoid.
 
-local addonName = "PetStableManagement"
 _G.PSM = _G.PSM or {}
 local PSM = _G.PSM
 PSM.NPCRow = PSM.NPCRow or {}

@@ -584,8 +584,6 @@ function ns.UI:UpdateVisibleRows()
         return
     end
 
-    local contentWidth = ns.state.content:GetWidth()
-    if not contentWidth or contentWidth <= 0 then contentWidth = 500 end
     -- Reuse layout values already computed in renderData
     local colCount   = renderData.colCount
     local colWidth   = renderData.colWidth

@@ -1,7 +1,6 @@
 -- ModelsBrowser/AbilityBrowser.lua
 -- Ability Browser panel — card grid layout (3 columns, expand-in-place)
 
-local addonName = "PetStableManagement"
 _G.PSM = _G.PSM or {}
 local PSM = _G.PSM
 PSM.AbilityBrowser = PSM.AbilityBrowser or {}

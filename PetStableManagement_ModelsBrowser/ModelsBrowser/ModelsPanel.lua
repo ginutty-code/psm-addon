@@ -1,7 +1,6 @@
 -- ModelsBrowser/ModelsPanel.lua
 -- Performance-optimized Pet Models Browser Panel
 
-local addonName = "PetStableManagement"
 
 _G.PSM = _G.PSM or {}
 local PSM = _G.PSM
@@ -291,7 +290,6 @@ function PSM.ModelsPanel:UpdateVisibleRows()
 
     if not panel.allModels then return end
 
-
     local totalPets = #panel.allModels
 
     for _, row in ipairs(panel.modelRows) do
@@ -473,7 +471,7 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
         if MF.CreateResetFiltersButton  then MF:CreateResetFiltersButton(panel)  end
         if MF.CreateInfoText            then MF:CreateInfoText(panel)            end
         if MF.CreateFilterSummaryText   then MF:CreateFilterSummaryText(panel)   end
-        if MF.BuildUnifiedFilterSystem  then MF:BuildUnifiedFilterSystem(panel, MODELS_CONFIG) end
+        if MF.BuildUnifiedFilterSystem  then MF:BuildUnifiedFilterSystem(panel) end
     end
 
     -- Pets frame (2-column layout)

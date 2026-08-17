@@ -1,7 +1,6 @@
 -- Reorder.lua
 -- Pet reordering logic for PetStableManagement
 
-local addonName = "PetStableManagement"
 
 -- Initialize global namespace
 local _, ns = ...

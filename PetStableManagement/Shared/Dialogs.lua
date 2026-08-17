@@ -638,7 +638,8 @@ function ns.Dialogs:ConfirmRemoveFromTeam(team, slot, petName)
     local ok, err = ns.Teams:UpdateTeam(team.id, slots)
     if ok then
         if ns.TeamsPanel then ns.TeamsPanel:RefreshTeamsList() end
-        print("|cFF00FF00PetStableManagement: Removed pet from team '" .. team.name .. "'.|r")
+        print("|cFF00FF00PetStableManagement: Removed " .. (petName or "pet")
+            .. " from team '" .. team.name .. "'.|r")
     else
         print("|cFFFF0000PetStableManagement: " .. (err or "Failed to remove pet from team") .. "|r")
     end

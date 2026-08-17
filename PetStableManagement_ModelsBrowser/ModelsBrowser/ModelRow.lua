@@ -1,7 +1,6 @@
 -- ModelsBrowser/ModelRow.lua
 -- Model row creation and management for Pet Models Browser
 
-local addonName = "PetStableManagement"
 _G.PSM = _G.PSM or {}
 local PSM = _G.PSM
 PSM.ModelRow = PSM.ModelRow or {}

@@ -1,7 +1,6 @@
 -- Shared/PopUpManager.lua
 -- Pop-up management for PetStableManagement
 
-local addonName = "PetStableManagement"
 local _, ns = ...
 ns.PopUpManager = ns.PopUpManager or {}
 
@@ -1510,7 +1509,7 @@ function ns.PopUpManager:PopulateModelPopup(popup, displayId, petData, npcs)
         if #parts >= 1 then
             local lines = {}
             
-            for i, part in ipairs(parts) do
+            for _, part in ipairs(parts) do
                 if #parts > 1 then
                     -- Use bullet point for multiple requirements
                     lines[#lines + 1] = string.format("<p align='center'>• %s</p>", part)

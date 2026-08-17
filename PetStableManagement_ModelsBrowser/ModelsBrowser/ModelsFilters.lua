@@ -1,7 +1,6 @@
 -- ModelsBrowser/ModelsFilters.lua
 -- Filtering system for the Pet Models Browser
 
-local addonName = "PetStableManagement"
 
 _G.PSM = _G.PSM or {}
 local PSM = _G.PSM
@@ -573,7 +572,7 @@ local function InitStateIfEmpty(slice, list, filtersKey)
     PSM.Selections:SetAll(slice, list, true)
 end
 
-function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel, modelsConfig)
+function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel)
     local families     = PSM.PetModels:GetAvailableFamilies()
     local allExpansions, allLocations = {}, {}
 
@@ -866,7 +865,7 @@ end
 -- CHECKBOX POPULATION
 --------------------------------------------------------------------------------
 
--- Pooled across refreshes -- 
+-- Pooled across refreshes --
 local function GetPooledFilterCheckbox(panel, index)
     panel._filterCheckboxPool = panel._filterCheckboxPool or {}
     local cb = panel._filterCheckboxPool[index]

@@ -4,7 +4,6 @@
 -- index), so this is a plain text pipeline (no model/display data joins) --
 -- deliberately lighter than ModelsDataLoader's display-ID pipeline.
 
-local addonName = "PetStableManagement"
 
 _G.PSM = _G.PSM or {}
 local PSM = _G.PSM

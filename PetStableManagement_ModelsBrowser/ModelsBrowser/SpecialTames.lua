@@ -1,7 +1,6 @@
 -- ModelsBrowser/SpecialTames.lua
 -- Special Tames panel — shows taming requirements with status indicators and filtering
 
-local addonName = "PetStableManagement"
 _G.PSM = _G.PSM or {}
 local PSM = _G.PSM
 PSM.SpecialTames = PSM.SpecialTames or {}
@@ -148,7 +147,7 @@ local function CreateCategoryCard(parent, groupName, cardW)
     return card
 end
 
-local function CreateRuleRow(parent, ruleKey, ruleData, yOffset)
+local function CreateRuleRow(parent, ruleKey, ruleData)
     local Widgets = PSM.Widgets
 
     local row = Widgets.Frame(parent, {
@@ -493,7 +492,7 @@ function ST:ReflowCards(panel, cardList, scrollW, cardW, gap, cols)
         colY[c] = -gap
     end
 
-    for idx, card in ipairs(cardList) do
+    for _, card in ipairs(cardList) do
         -- Find the column whose cursor is closest to the top (least negative)
         local col = 1
         for c = 2, cols do
@@ -679,14 +678,13 @@ RepopulateRows = function(panel, query, activeTag)
 
         ST:ReflowCards(panel, cardList, scrollW, colWidth, colSpacing, numCols)
 
-        ruleCount = #panel.ruleRows
     else
         for ruleKey, ruleData in pairs(PSM.TamingRules) do
             if ruleKey ~= "Sliver of N'Zoth" then
                 if RowMatchesQuery(ruleKey, ruleData, query) and RowMatchesTag(ruleKey, activeTag) then
                     ruleCount = ruleCount + 1
                     local rowH = CFG.ROW_HEIGHT + CFG.CARD_PADDING * 2
-                    local row  = CreateRuleRow(scrollChild, ruleKey, ruleData, yOffset)
+                    local row  = CreateRuleRow(scrollChild, ruleKey, ruleData)
                     row.ruleKey = ruleKey
                     row:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -yOffset)
                     panel.ruleRows[ruleCount] = row

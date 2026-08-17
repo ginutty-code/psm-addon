@@ -533,7 +533,7 @@ function ns.UI.GroupedView:UpdateVisibleRows()
     if not ns.state.groupedViewRows then
         ns.state.groupedViewRows = {}
         ns.state.groupedViewHeaders = {}
-        for i = 1, 50 do
+        for _ = 1, 50 do
             local r = ns.UI.GroupedView:CreateModelRow(content); r:Hide()
             table.insert(ns.state.groupedViewRows, r)
         end
@@ -572,7 +572,7 @@ function ns.UI.GroupedView:UpdateVisibleRows()
         end
     end
     if rowsNeeded > #ns.state.groupedViewRows then
-        for i = 1, rowsNeeded - #ns.state.groupedViewRows do
+        for _ = 1, rowsNeeded - #ns.state.groupedViewRows do
             local r = ns.UI.GroupedView:CreateModelRow(content); r:Hide()
             table.insert(ns.state.groupedViewRows, r)
         end
@@ -585,7 +585,7 @@ function ns.UI.GroupedView:UpdateVisibleRows()
         end
     end
     if visibleSectionCount > #ns.state.groupedViewHeaders then
-        for i = #ns.state.groupedViewHeaders + 1, visibleSectionCount do
+        for _ = #ns.state.groupedViewHeaders + 1, visibleSectionCount do
             local h = ns.UI.GroupedView:CreateGroupHeader(content, "", 0); h:Hide()
             table.insert(ns.state.groupedViewHeaders, h)
         end

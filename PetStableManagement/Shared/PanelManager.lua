@@ -132,7 +132,6 @@ function ns.PanelManager:CreateBasePanel(name, config)
             else
                 -- Save position relative to UIParent before maximizing
                 local x, y = panel:GetLeft(), panel:GetTop()
-                local uiScale = UIParent:GetEffectiveScale()
                 panel._prevGeometry = {
                     width  = panel:GetWidth(),
                     height = panel:GetHeight(),

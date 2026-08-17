@@ -1,7 +1,6 @@
 -- ModelsBrowser/ModelsDataLoader.lua
 -- Data loading, caching, and processing for Pet Models Browser
 
-local addonName = "PetStableManagement"
 
 _G.PSM = _G.PSM or {}
 local PSM = _G.PSM
@@ -197,7 +196,7 @@ function PSM.ModelsDataLoader:GetNpcZoneNames(npcId)
     if not PSM._npcZoneIndex then
         local index = {}
         if _G.CoordsData then
-            for uiMapId, mapData in pairs(_G.CoordsData) do
+            for _, mapData in pairs(_G.CoordsData) do
                 if type(mapData) == "table" and mapData.name and mapData.npcs then
                     local zoneName = mapData.name
                     for nId in pairs(mapData.npcs) do
