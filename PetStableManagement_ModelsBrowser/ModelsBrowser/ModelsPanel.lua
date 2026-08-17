@@ -213,7 +213,6 @@ function PSM.ModelsPanel:CreateModelsPanel()
 
         onShow = function(p)
             p._layoutDone = false
-            p._renderGeneration = 0   -- reset generation on each open
             C_Timer.After(0.01, function()
                 if p.showPetsInMyZone then
                     p.currentPlayerZone = PSM.ModelsFilters:GetPlayerZone()
@@ -292,8 +291,6 @@ function PSM.ModelsPanel:UpdateVisibleRows()
 
     if not panel.allModels then return end
 
-    panel._renderGeneration = (panel._renderGeneration or 0) + 1
-    local myGen = panel._renderGeneration
 
     local totalPets = #panel.allModels
 
