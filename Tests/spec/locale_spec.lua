@@ -85,6 +85,16 @@ local function TocFiles(tocPath, dir)
     return files
 end
 
+-- Source text is not a Lua string: a key written "a\nb" is two characters plus an
+-- escape here, but one newline once Lua has parsed it. Both sides of the comparison have
+-- to be unescaped or a key containing any escape can never match the registered one.
+-- (A key containing an escaped quote would still be truncated by the capture below; none
+-- exists, and the "registers nothing unused" direction would report it if one appeared.)
+local ESCAPES = { n = "\n", t = "\t", r = "\r", ['"'] = '"', ["'"] = "'", ["\\"] = "\\" }
+local function Unescape(text)
+    return (text:gsub("\\(.)", function(c) return ESCAPES[c] or ("\\" .. c) end))
+end
+
 -- Every L("...") in either addon's .toc, as { key, where }.
 local function CallSites()
     local files = TocFiles("PetStableManagement/PetStableManagement.toc",
@@ -100,7 +110,7 @@ local function CallSites()
         local source = ReadFile(path)
         for i, line in ipairs(source and CodeLines(source) or {}) do
             for key in line:gmatch('[nsPSM]+%.L%("([^"]*)"') do
-                sites[#sites + 1] = { key = key, where = path .. ":" .. i }
+                sites[#sites + 1] = { key = Unescape(key), where = path .. ":" .. i }
             end
         end
     end
@@ -113,7 +123,7 @@ local function DeclaredKeys()
     local keys = {}
     for _, line in ipairs(CodeLines(ReadFile("PetStableManagement/Shared/Locale.lua") or "")) do
         local key = line:match('^%s*%["(.-)"%]%s*=')
-        if key then keys[#keys + 1] = key end
+        if key then keys[#keys + 1] = Unescape(key) end
     end
     return keys
 end
