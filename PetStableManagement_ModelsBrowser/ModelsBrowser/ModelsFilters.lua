@@ -230,11 +230,11 @@ local function CreatePlainToggle(panel, key, label, anchorTo)
 end
 
 function PSM.ModelsFilters:CreateRaresToggle(panel)
-    panel.raresToggle = CreatePlainToggle(panel, "showRares", "Rares", panel.showOnlyFrame)
+    panel.raresToggle = CreatePlainToggle(panel, "showRares", PSM.L("Rares"), panel.showOnlyFrame)
 end
 
 function PSM.ModelsFilters:CreateFavoritesToggle(panel)
-    panel.favoritesToggle = CreatePlainToggle(panel, "showFavorites", "Favorites", panel.raresToggle)
+    panel.favoritesToggle = CreatePlainToggle(panel, "showFavorites", PSM.L("Favorites"), panel.raresToggle)
 end
 
 function PSM.ModelsFilters:CreateHideOwnedToggle(panel)
@@ -247,7 +247,7 @@ function PSM.ModelsFilters:CreateHideOwnedToggle(panel)
         return nil
     end
 
-    panel.hideOwnedToggle = CreateTristateCheckbox(panel, panel.favoritesToggle, "Owned", function(state)
+    panel.hideOwnedToggle = CreateTristateCheckbox(panel, panel.favoritesToggle, PSM.L("Owned"), function(state)
         PSM.FilterState:Set("showHideOwned", ToStored(state))
     end)
     -- ToStored is its own inverse (true <-> "inverted", nil -> nil), so it serves both ways.
@@ -255,7 +255,7 @@ function PSM.ModelsFilters:CreateHideOwnedToggle(panel)
 end
 
 function PSM.ModelsFilters:CreateNameKeepersToggle(panel)
-    panel.nameKeepersToggle = CreatePlainToggle(panel, "showNameKeepers", "Name Keepers", panel.hideOwnedToggle)
+    panel.nameKeepersToggle = CreatePlainToggle(panel, "showNameKeepers", PSM.L("Name Keepers"), panel.hideOwnedToggle)
 end
 
 function PSM.ModelsFilters:CreatePetsInMyZoneToggle(panel)
@@ -265,7 +265,7 @@ function PSM.ModelsFilters:CreatePetsInMyZoneToggle(panel)
     local saved = PSM.FilterState:Get("showPetsInMyZone")
     panel.currentPlayerZone = (saved ~= nil) and PSM.ModelsFilters:GetPlayerZone() or nil
 
-    panel.petsInMyZoneToggle = CreateTristateCheckbox(panel, panel.nameKeepersToggle, "Pets in My Zone", function(state)
+    panel.petsInMyZoneToggle = CreateTristateCheckbox(panel, panel.nameKeepersToggle, PSM.L("Pets in My Zone"), function(state)
         -- The zone is resolved *before* the toggle is stored, so the flush the store
         -- schedules off that write already sees the new `zone` fingerprint.
         panel.currentPlayerZone = (state ~= nil) and PSM.ModelsFilters:GetPlayerZone() or nil
@@ -288,7 +288,7 @@ function PSM.ModelsFilters:GetPlayerZoneName(uiMapId)
         if info and info.name then return info.name end
     end
     local zone = GetRealZoneText()
-    return (zone and zone ~= "") and zone or "Current Zone"
+    return (zone and zone ~= "") and zone or PSM.L("Current Zone")
 end
 
 --------------------------------------------------------------------------------
@@ -306,7 +306,7 @@ function PSM.ModelsFilters:CreateSearchBox(panel)
     PSM.PanelManager:CreateSearchBox(panel, function()
         PSM.Store:Touch()
     end, {
-        placeholder = "Search models...",
+        placeholder = PSM.L("Search models..."),
     })
 end
 
@@ -318,7 +318,7 @@ function PSM.ModelsFilters:CreatePetRouletteButton(panel)
     panel.petRouletteButton = PSM.Widgets.Button(panel, {
         point      = { "TOPRIGHT", panel.searchBox, "TOPLEFT", -10, 0 },
         width      = PSM.Theme.CONTROL.BUTTON_W.M,
-        text       = "Pet Roulette",
+        text       = PSM.L("Pet Roulette"),
         fontObject = "GameFontNormalSmall",
         onClick    = function() PSM.PetRoulette:SelectPetRoulette() end,
     })
@@ -328,7 +328,7 @@ function PSM.ModelsFilters:CreateSpecialTamesButton(panel)
     panel.specialTamesButton = PSM.Widgets.Button(panel, {
         point      = { "BOTTOMLEFT", panel.showOnlyFrame, "TOPLEFT", 0, 5 },
         width      = PSM.Theme.CONTROL.BUTTON_W.M,
-        text       = "Special Tames",
+        text       = PSM.L("Special Tames"),
         fontObject = "GameFontNormalSmall",
         onClick    = function()
             if PSM.SpecialTames then PSM.SpecialTames:Toggle() end
@@ -340,7 +340,7 @@ function PSM.ModelsFilters:CreateAbilityBrowserButton(panel)
     panel.abilityBrowserButton = PSM.Widgets.Button(panel, {
         point      = { "BOTTOMRIGHT", panel.showOnlyFrame, "TOPRIGHT", 0, 5 },
         width      = PSM.Theme.CONTROL.BUTTON_W.M,
-        text       = "Ability Browser",
+        text       = PSM.L("Ability Browser"),
         fontObject = "GameFontNormalSmall",
         onClick    = function()
             if PSM.AbilityBrowser then PSM.AbilityBrowser:Toggle() end
@@ -349,9 +349,11 @@ function PSM.ModelsFilters:CreateAbilityBrowserButton(panel)
 end
 
 local RESET_FILTERS_EFFECTS = {
-    "All Families selected", "All Expansions selected", "All Locations selected",
-    "Rares: OFF", "Favorites: OFF", "Pets in My Zone: OFF", "Owned: OFF",
-    "Clear search box", "Return to first page",
+    PSM.L("All Families selected"), PSM.L("All Expansions selected"),
+    PSM.L("All Locations selected"),
+    PSM.L("Rares: OFF"), PSM.L("Favorites: OFF"), PSM.L("Pets in My Zone: OFF"),
+    PSM.L("Owned: OFF"),
+    PSM.L("Clear search box"), PSM.L("Return to first page"),
 }
 
 function PSM.ModelsFilters:CreateResetFiltersButton(panel)
@@ -463,7 +465,7 @@ function PSM.ModelsFilters:CreateInfoText(panel)
     panel.infoText = PSM.Widgets.Label(panel, {
         fontSize = PSM.Theme.SIZE.SMALL,
         point    = { "TOP", panel.searchBox, "BOTTOM", 0, -5 },
-        text     = "Loading...",
+        text     = PSM.L("Loading..."),
     })
 end
 
@@ -529,16 +531,16 @@ end
 
 local function ShowContinentContextMenu(panel)
     local menuList = {
-        { text = "Locations", isTitle = true, notCheckable = true },
+        { text = PSM.L("Locations"), isTitle = true, notCheckable = true },
         {
-            text = "Expand All Continents", notCheckable = true,
+            text = PSM.L("Expand All Continents"), notCheckable = true,
             func = function()
                 SetAllContinentsCollapsed(panel, false)
                 PSM.ModelsFilters:PopulateUnifiedFilterCheckboxes(panel)
             end,
         },
         {
-            text = "Collapse All Continents", notCheckable = true,
+            text = PSM.L("Collapse All Continents"), notCheckable = true,
             func = function()
                 SetAllContinentsCollapsed(panel, true)
                 PSM.ModelsFilters:PopulateUnifiedFilterCheckboxes(panel)
@@ -660,9 +662,9 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel)
     })
 
     local tabDefs = {
-        { key="families",   label="Families"   },
-        { key="expansions", label="Expansions" },
-        { key="locations",  label="Locations"  },
+        { key="families",   label=PSM.L("Families")   },
+        { key="expansions", label=PSM.L("Expansions") },
+        { key="locations",  label=PSM.L("Locations")  },
     }
     local tabs = {}
     local prevTab = nil
@@ -1153,9 +1155,9 @@ function PSM.ModelsFilters:GenerateFilterSummary()
         end
         local total = #PSM.PetModels:GetAvailableFamilies()
         if selected ~= total then
-            if   exoticOnly    and selected > 0 then table.insert(filters, "Families (Exotic only)")
-            elseif nonExoticOnly and selected > 0 then table.insert(filters, "Families (not Exotic)")
-            else                                       table.insert(filters, "Families") end
+            if   exoticOnly    and selected > 0 then table.insert(filters, PSM.L("Families (Exotic only)"))
+            elseif nonExoticOnly and selected > 0 then table.insert(filters, PSM.L("Families (not Exotic)"))
+            else                                       table.insert(filters, PSM.L("Families")) end
         end
     end
 
@@ -1163,7 +1165,7 @@ function PSM.ModelsFilters:GenerateFilterSummary()
     if panel.expansionList then
         local expCount = 0
         for _, on in pairs(PSM.state.selectedExpansions) do if on then expCount = expCount + 1 end end
-        if expCount ~= #panel.expansionList then table.insert(filters, "Expansions") end
+        if expCount ~= #panel.expansionList then table.insert(filters, PSM.L("Expansions")) end
     end
 
     -- Locations (tristate: active whenever anything deviates from the default "all true")
@@ -1172,30 +1174,30 @@ function PSM.ModelsFilters:GenerateFilterSummary()
         for _, l in ipairs(panel.locationList) do
             if PSM.state.selectedLocations[l] ~= true then allDefaultTrue = false; break end
         end
-        if not allDefaultTrue then table.insert(filters, "Locations") end
+        if not allDefaultTrue then table.insert(filters, PSM.L("Locations")) end
     end
 
         -- Tristate toggles
-    if PSM.FilterState:Get("showRares") == true then table.insert(filters, "Rares")
-    elseif PSM.FilterState:Get("showRares") == "inverted" then table.insert(filters, "Not Rares") end
+    if PSM.FilterState:Get("showRares") == true then table.insert(filters, PSM.L("Rares"))
+    elseif PSM.FilterState:Get("showRares") == "inverted" then table.insert(filters, PSM.L("Not Rares")) end
 
-    if PSM.FilterState:Get("showFavorites") == true then table.insert(filters, "Favorites")
-    elseif PSM.FilterState:Get("showFavorites") == "inverted" then table.insert(filters, "Not Favorites") end
+    if PSM.FilterState:Get("showFavorites") == true then table.insert(filters, PSM.L("Favorites"))
+    elseif PSM.FilterState:Get("showFavorites") == "inverted" then table.insert(filters, PSM.L("Not Favorites")) end
 
-    if PSM.FilterState:Get("showNameKeepers") == true then table.insert(filters, "Name Keepers")
-    elseif PSM.FilterState:Get("showNameKeepers") == "inverted" then table.insert(filters, "Not Name Keepers") end
+    if PSM.FilterState:Get("showNameKeepers") == true then table.insert(filters, PSM.L("Name Keepers"))
+    elseif PSM.FilterState:Get("showNameKeepers") == "inverted" then table.insert(filters, PSM.L("Not Name Keepers")) end
 
     if PSM.FilterState:Get("showPetsInMyZone") and panel.currentPlayerZone then
-        local prefix = PSM.FilterState:Get("showPetsInMyZone") == "inverted" and "Not My Zone" or "My Zone"
         local zoneName = self:GetPlayerZoneName(panel.currentPlayerZone)
-        table.insert(filters, prefix .. " (" .. zoneName .. ")")
+        table.insert(filters, PSM.FilterState:Get("showPetsInMyZone") == "inverted"
+            and PSM.L("Not My Zone (%s)", zoneName) or PSM.L("My Zone (%s)", zoneName))
     end
 
-    if PSM.FilterState:Get("showHideOwned") == "inverted" then table.insert(filters, "Owned")
-    elseif PSM.FilterState:Get("showHideOwned") == true then table.insert(filters, "Not Owned") end
+    if PSM.FilterState:Get("showHideOwned") == "inverted" then table.insert(filters, PSM.L("Owned"))
+    elseif PSM.FilterState:Get("showHideOwned") == true then table.insert(filters, PSM.L("Not Owned")) end
 
     -- Search
-    if (panel.searchBox:GetSearchText() or "") ~= "" then table.insert(filters, "Search") end
+    if (panel.searchBox:GetSearchText() or "") ~= "" then table.insert(filters, PSM.L("Search")) end
 
     -- Abilities (from Ability Browser)
     if hasAbilities then
@@ -1204,7 +1206,7 @@ function PSM.ModelsFilters:GenerateFilterSummary()
             if on then selectedCount = selectedCount + 1 end
         end
         if selectedCount > 0 then
-            table.insert(filters, "Abilities (" .. selectedCount .. " families)")
+            table.insert(filters, PSM.L("Abilities (%d families)", selectedCount))
         end
     end
 
@@ -1225,10 +1227,10 @@ function PSM.ModelsFilters:GenerateFilterSummary()
             if rCount == 1 then
                 local rule = PSM.TamingRules and PSM.TamingRules[lastRuleKey]
                 local label = rule and rule.label or lastRuleKey
-                if lastRuleState == "inverted" then label = "Not " .. label end
+                if lastRuleState == "inverted" then label = PSM.L("Not %s", label) end
                 table.insert(stParts, label)
             else
-                table.insert(stParts, "Multiple Skills")
+                table.insert(stParts, PSM.L("Multiple Skills"))
             end
         end
 
@@ -1241,17 +1243,17 @@ function PSM.ModelsFilters:GenerateFilterSummary()
             end
             if cCount == 1 then
                 local label = lastCondKey
-                if lastCondState == "inverted" then label = "Not " .. label end
+                if lastCondState == "inverted" then label = PSM.L("Not %s", label) end
                 table.insert(stParts, label)
             else
-                table.insert(stParts, "Multiple Conditions")
+                table.insert(stParts, PSM.L("Multiple Conditions"))
             end
         end
 
-        table.insert(filters, "Special Tames - " .. table.concat(stParts, "; "))
+        table.insert(filters, PSM.L("Special Tames - %s", table.concat(stParts, "; ")))
     end
 
-    return #filters > 0 and ("Filters: " .. table.concat(filters, ", ")) or ""
+    return #filters > 0 and PSM.L("Filters: %s", table.concat(filters, ", ")) or ""
 end
 
 function PSM.ModelsFilters:UpdateFilterSummary()

@@ -360,4 +360,49 @@ L.Register({
     ["%d abilities selected"] = "%d abilities selected",
     ["Filter applied - %d families from selected abilities."] =
         "PetStableManagement: Filter applied - %d families from selected abilities.",
+
+    -- Models Browser filter bar and its summary line
+    ["Pet Roulette"]    = "Pet Roulette",
+    ["Special Tames"]   = "Special Tames",
+    ["Ability Browser"] = "Ability Browser",
+    ["Loading..."]      = "Loading...",
+    ["Current Zone"]    = "Current Zone",
+    ["Expand All Continents"]   = "Expand All Continents",
+    ["Collapse All Continents"] = "Collapse All Continents",
+
+    ["Rares"]           = "Rares",
+    ["Favorites"]       = "Favorites",
+    ["Name Keepers"]    = "Name Keepers",
+    ["Owned"]           = "Owned",
+    ["Pets in My Zone"] = "Pets in My Zone",
+    ["Families"]        = "Families",
+    ["Expansions"]      = "Expansions",
+    ["Locations"]       = "Locations",
+    ["Search"]          = "Search",
+
+    -- Each summary entry is a whole string. The only composition left is "Not %s" over a
+    -- rule or condition label that comes from the data, so its wording cannot be a key.
+    ["Not %s"]              = "Not %s",
+    ["Not Rares"]           = "Not Rares",
+    ["Not Favorites"]       = "Not Favorites",
+    ["Not Name Keepers"]    = "Not Name Keepers",
+    ["Not Owned"]           = "Not Owned",
+    ["My Zone (%s)"]        = "My Zone (%s)",
+    ["Not My Zone (%s)"]    = "Not My Zone (%s)",
+    ["Families (Exotic only)"] = "Families (Exotic only)",
+    ["Families (not Exotic)"]  = "Families (not Exotic)",
+    ["Abilities (%d families)"] = "Abilities (%d families)",
+    ["Multiple Skills"]     = "Multiple Skills",
+    ["Multiple Conditions"] = "Multiple Conditions",
+    ["Special Tames - %s"]  = "Special Tames - %s",
+    ["Filters: %s"]         = "Filters: %s",
+
+    -- Reset Filters tooltip
+    ["All Expansions selected"] = "All Expansions selected",
+    ["All Locations selected"]  = "All Locations selected",
+    ["Rares: OFF"]           = "Rares: OFF",
+    ["Favorites: OFF"]       = "Favorites: OFF",
+    ["Pets in My Zone: OFF"] = "Pets in My Zone: OFF",
+    ["Owned: OFF"]           = "Owned: OFF",
+    ["Return to first page"] = "Return to first page",
 })
