@@ -64,14 +64,14 @@ end
 local function GroupedHints(pet)
     local hints = ns.RowManager.MODEL_HINTS
     if ns.state.sortBy then
-        hints = hints .. "\n|cFFFF8800Reordering disabled while sorting is active.|r"
-            .. "\n|cFFFF8800Set Sort by to Unsorted to re-enable.|r"
+        hints = hints .. "\n" .. ns.L("Reordering disabled while sorting is active.")
+            .. "\n" .. ns.L("Set Sort by to Unsorted to re-enable.")
     else
-        hints = hints .. "\nShift/Ctrl + drag to reorder within group (works outside stable)"
+        hints = hints .. "\n" .. ns.L("Shift/Ctrl + drag to reorder within group (works outside stable)")
     end
-    hints = hints .. "\nShift/Ctrl + Right-click to move to a specific group"
+    hints = hints .. "\n" .. ns.L("Shift/Ctrl + Right-click to move to a specific group")
     if ns.state and ns.state.isStableOpen and pet.slotID then
-        hints = hints .. "\nShift/Ctrl + drag to swap stable slots"
+        hints = hints .. "\n" .. ns.L("Shift/Ctrl + drag to swap stable slots")
     end
     return hints
 end
@@ -164,16 +164,16 @@ end
 local function AppendBulkGroupMenuItems(menuList)
     table.insert(menuList, { text = " ", isTitle = true, notCheckable = true })
     table.insert(menuList, {
-        text = "Expand All Groups", notCheckable = true,
+        text = ns.L("Expand All Groups"), notCheckable = true,
         func = function() SetAllGroupsCollapsed(false) end,
     })
     table.insert(menuList, {
-        text = "Collapse All Groups", notCheckable = true,
+        text = ns.L("Collapse All Groups"), notCheckable = true,
         func = function() SetAllGroupsCollapsed(true) end,
     })
     table.insert(menuList, { text = " ", isTitle = true, notCheckable = true })
     table.insert(menuList, {
-        text = "Delete All Groups", notCheckable = true,
+        text = ns.L("Delete All Groups"), notCheckable = true,
         func = function() ns.UI.GroupedView:ConfirmDeleteAllGroups() end,
     })
 end
@@ -198,13 +198,13 @@ function ns.UI.GroupedView:ShowPetGroupContextMenu(pet)
     -- currentGroupId == nil means the pet is currently ungrouped
 
     local menuList = {
-        { text = "Move pet to group:", isTitle = true, notCheckable = true },
+        { text = ns.L("Move pet to group:"), isTitle = true, notCheckable = true },
     }
 
     -- "Ungrouped" option — only shown when the pet is NOT already ungrouped
     if currentGroupId ~= nil then
         table.insert(menuList, {
-            text = "Ungrouped", notCheckable = true,
+            text = ns.L("Ungrouped"), notCheckable = true,
             func = function()
                 ns.PetGroups:MovePetToGroup(pet.guid, "ungrouped")
                 RefreshUI()
@@ -235,7 +235,7 @@ function ns.UI.GroupedView:ShowPetGroupContextMenu(pet)
 
     table.insert(menuList, { text = " ", isTitle = true, notCheckable = true })
     table.insert(menuList, {
-        text = "Create New Group...", notCheckable = true,
+        text = ns.L("Create New Group..."), notCheckable = true,
         func = function() ns.UI.GroupedView:ShowCreateGroupForPetDialog(pet) end,
     })
 
@@ -247,13 +247,13 @@ function ns.UI.GroupedView:ShowGroupContextMenu(groupId, groupName)
     if not groupId or groupId == "ungrouped" then return end
 
     local menuList = {
-        { text = groupName or "Group", isTitle = true, notCheckable = true },
+        { text = groupName or ns.L("Group"), isTitle = true, notCheckable = true },
         {
-            text = "Rename Group", notCheckable = true,
+            text = ns.L("Rename Group"), notCheckable = true,
             func = function() ns.UI.GroupedView:ShowRenameDialog(groupId, groupName) end,
         },
         {
-            text = "Delete Group", notCheckable = true,
+            text = ns.L("Delete Group"), notCheckable = true,
             func = function() ns.UI.GroupedView:ConfirmDeleteGroup(groupId, groupName) end,
         },
     }
@@ -271,11 +271,11 @@ function ns.UI.GroupedView:ShowAutoGroupContextMenu(pets)
     end
 
     local menuList = {
-        { text = "Auto-create groups by:", isTitle = true, notCheckable = true },
-        { text = "Family",       notCheckable = true, func = function() autoGroup("familyName") end },
-        { text = "Spec",         notCheckable = true, func = function() autoGroup("specName")   end },
-        { text = "Exotic",       notCheckable = true, func = function() autoGroup("isExotic")   end },
-        { text = "Owner (Tamer)",notCheckable = true, func = function() autoGroup("tamer")      end },
+        { text = ns.L("Auto-create groups by:"), isTitle = true, notCheckable = true },
+        { text = ns.L("Family"),       notCheckable = true, func = function() autoGroup("familyName") end },
+        { text = ns.L("Spec"),         notCheckable = true, func = function() autoGroup("specName")   end },
+        { text = ns.L("Exotic"),       notCheckable = true, func = function() autoGroup("isExotic")   end },
+        { text = ns.L("Owner (Tamer)"),notCheckable = true, func = function() autoGroup("tamer")      end },
     }
     AppendBulkGroupMenuItems(menuList)
     ns.Utils:ShowContextMenu(menuList)
@@ -288,7 +288,7 @@ end
 function ns.UI.GroupedView:ShowCreateGroupForPetDialog(pet)
     if not pet then return end
     ns.Dialogs:ShowCreateGroupDialog({
-        suggestedName = pet.familyName or pet.name or "New Group",
+        suggestedName = pet.familyName or pet.name or ns.L("New Group"),
         onConfirm = function(groupName)
             local groupId, err = ns.PetGroups:CreateGroup(groupName)
             if groupId then
@@ -297,7 +297,7 @@ function ns.UI.GroupedView:ShowCreateGroupForPetDialog(pet)
                     if ns.UI and ns.UI.RenderPanel then ns.UI:RenderPanel(true) end
                 end)
             else
-                print("|cFFFF0000PetStableManagement: " .. (err or "Failed to create group") .. "|r")
+                print("|cFFFF0000PetStableManagement: " .. (err or ns.L("Failed to create group")) .. "|r")
             end
         end,
     })
@@ -310,7 +310,7 @@ function ns.UI.GroupedView:ShowRenameDialog(groupId, currentName)
         onConfirm = function(newName)
             local ok, err = ns.PetGroups:RenameGroup(groupId, newName)
             if ok then RefreshUI()
-            else print("|cFFFF0000PetStableManagement: " .. (err or "Failed to rename group") .. "|r") end
+            else print("|cFFFF0000PetStableManagement: " .. (err or ns.L("Failed to rename group")) .. "|r") end
         end,
     })
 end
@@ -320,7 +320,7 @@ function ns.UI.GroupedView:ConfirmDeleteGroup(groupId, groupName)
     ns.Dialogs:ShowDeleteGroupConfirmDialog(groupName, function()
         local ok, err = ns.PetGroups:DeleteGroup(groupId)
         if ok then RefreshUI()
-        else print("|cFFFF0000PetStableManagement: " .. (err or "Failed to delete group") .. "|r") end
+        else print("|cFFFF0000PetStableManagement: " .. (err or ns.L("Failed to delete group")) .. "|r") end
     end)
 end
 
@@ -348,7 +348,10 @@ end
 -- "(3 pets)" / "(1 pet)"
 local function PetCountLabel(petCount)
     petCount = petCount or 0
-    return "(" .. petCount .. " pet" .. (petCount ~= 1 and "s" or "") .. ")"
+    -- Two whole sentences rather than stitching an "s" on: plural is not a suffix
+    -- in every language.
+    if petCount == 1 then return ns.L("(%d pet)", petCount) end
+    return ns.L("(%d pets)", petCount)
 end
 
 local EXPAND_BUTTON_ANCHOR = { "LEFT", 4, 0 }
@@ -390,7 +393,7 @@ function ns.UI.GroupedView:CreateGroupHeader(parent, groupName, petCount)
         outline  = true,
         color    = ns.Theme.COLOR.GOLD,
         point    = { "LEFT", expandButton, "RIGHT", 4, 0 },
-        text     = groupName or "Group",
+        text     = groupName or ns.L("Group"),
     })
 
     header.countText = Widgets.Label(header, {
@@ -505,7 +508,7 @@ function ns.UI.GroupedView:BuildGroupedLayout(renderData, contentWidth)
             if not isCollapsed then
                 sectionH = sectionH + rows * self.GRID_VIEW_ROW_HEIGHT
             end
-            local groupName = gid == "ungrouped" and "Ungrouped" or (groupNameMap[gid] or gid)
+            local groupName = gid == "ungrouped" and ns.L("Ungrouped") or (groupNameMap[gid] or gid)
             table.insert(groupedLayout.sections, {
                 gid       = gid,
                 name      = groupName,
@@ -601,7 +604,7 @@ function ns.UI.GroupedView:UpdateVisibleRows()
             header:SetPoint("TOPLEFT", content, "TOPLEFT", 5, -section.y)
             header.groupId = section.gid
             header.isGroupHeader = true
-            if header.nameText then header.nameText:SetText(section.name or "Group") end
+            if header.nameText then header.nameText:SetText(section.name or ns.L("Group")) end
             if header.countText then header.countText:SetText(PetCountLabel(#section.pets)) end
             if header.expandButton then
                 local tex = ns.Skin.Texture(section.collapsed and "PlusButton" or "MinusButton")

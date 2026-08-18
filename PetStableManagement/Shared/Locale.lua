@@ -218,4 +218,35 @@ L.Register({
     ["3. Paste into Excel, Google Sheets, or a text editor"] =
         "|cFF00FF003.|r Paste into Excel, Google Sheets, or a text editor",
     ["4. Save as .csv file if needed"] = "|cFF00FF004.|r Save as .csv file if needed",
+
+    -- Grouped view: group menus, headers, drag hints
+    ["Group"]      = "Group",
+    ["New Group"]  = "New Group",
+    ["Ungrouped"]  = "Ungrouped",
+    ["Expand All Groups"]   = "Expand All Groups",
+    ["Collapse All Groups"] = "Collapse All Groups",
+    ["Create New Group..."] = "Create New Group...",
+    ["Rename Group"]        = "Rename Group",
+    ["Move pet to group:"]  = "Move pet to group:",
+    ["Auto-create groups by:"] = "Auto-create groups by:",
+    ["Exotic"]        = "Exotic",
+    ["Owner (Tamer)"] = "Owner (Tamer)",
+
+    ["(%d pet)"]  = "(%d pet)",
+    ["(%d pets)"] = "(%d pets)",
+
+    ["Failed to create group"] = "Failed to create group",
+    ["Failed to rename group"] = "Failed to rename group",
+    ["Failed to delete group"] = "Failed to delete group",
+
+    ["Reordering disabled while sorting is active."] =
+        "|cFFFF8800Reordering disabled while sorting is active.|r",
+    ["Set Sort by to Unsorted to re-enable."] =
+        "|cFFFF8800Set Sort by to Unsorted to re-enable.|r",
+    ["Shift/Ctrl + drag to reorder within group (works outside stable)"] =
+        "Shift/Ctrl + drag to reorder within group (works outside stable)",
+    ["Shift/Ctrl + Right-click to move to a specific group"] =
+        "Shift/Ctrl + Right-click to move to a specific group",
+    ["Shift/Ctrl + drag to swap stable slots"] =
+        "Shift/Ctrl + drag to swap stable slots",
 })
