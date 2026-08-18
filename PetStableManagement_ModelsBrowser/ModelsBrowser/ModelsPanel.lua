@@ -297,7 +297,7 @@ function PSM.ModelsPanel:UpdateVisibleRows()
     end
 
     if totalPets == 0 then
-        if panel.pageText then panel.pageText:SetText("Page 0 of 0") end
+        if panel.pageText then panel.pageText:SetText(PSM.L("Page %d of %d", 0, 0)) end
         return
     end
 
@@ -316,7 +316,7 @@ function PSM.ModelsPanel:UpdateVisibleRows()
     _G.PSM_modelsPanelCurrentPage = panel.currentPage
 
     if panel.pageText then
-        panel.pageText:SetText(string.format("Page %d of %d", panel.currentPage, maxPages))
+        panel.pageText:SetText(PSM.L("Page %d of %d", panel.currentPage, maxPages))
     end
     if panel.pageJumpEditBox then
         panel.pageJumpEditBox:SetText(tostring(panel.currentPage))
@@ -352,7 +352,7 @@ function PSM.ModelsPanel:UpdateVisibleNPCRows()
 
     if totalItems == 0 then
         for _, row in ipairs(panel.npcRows) do row:Hide() end
-        if panel.pageText then panel.pageText:SetText("Page 0 of 0") end
+        if panel.pageText then panel.pageText:SetText(PSM.L("Page %d of %d", 0, 0)) end
         if panel.pageJumpEditBox then panel.pageJumpEditBox:SetText("0") end
         if panel.prevButton  then panel.prevButton:SetEnabled(false)  end
         if panel.nextButton  then panel.nextButton:SetEnabled(false)  end
@@ -390,7 +390,7 @@ function PSM.ModelsPanel:UpdateVisibleNPCRows()
     _G.PSM_modelsPanelCurrentPage = panel.currentPage
 
     if panel.pageText then
-        panel.pageText:SetText(string.format("Page %d of %d", panel.currentPage, maxPages))
+        panel.pageText:SetText(PSM.L("Page %d of %d", panel.currentPage, maxPages))
     end
     if panel.pageJumpEditBox then
         panel.pageJumpEditBox:SetText(tostring(panel.currentPage))
@@ -453,7 +453,7 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     Widgets.SectionHeader(panel.showOnlyFrame, {
         size       = { 200, 20 },
         point      = { "TOPLEFT", 5, -5 },
-        text       = "Show Only",
+        text       = PSM.L("Show Only"),
         fontObject = "GameFontHighlightSmall",
     })
 
@@ -547,7 +547,7 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     local npcColumnsButton = PSM.NPCRow:CreateColumnsPicker(panel, viewToggleButton)
 
     local function RefreshViewToggleButtonText()
-        viewToggleButton:SetText(panel.modelsViewMode == "npc" and "Models view" or "NPC view")
+        viewToggleButton:SetText(panel.modelsViewMode == "npc" and PSM.L("Models view") or PSM.L("NPC view"))
     end
 
     -- Swaps the search box placeholder. PanelManager owns the rules for when the
@@ -573,13 +573,13 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
             for _, row in ipairs(panel.modelRows) do row:Hide() end
             panel.npcHeaderRow:Show()
             npcColumnsButton:Show()
-            SetSearchPlaceholder("Search NPCs...")
+            SetSearchPlaceholder(PSM.L("Search NPCs..."))
         else
             for _, row in ipairs(panel.npcRows) do row:Hide() end
             panel.npcHeaderRow:Hide()
             npcColumnsButton:Hide()
             panel.npcColumnsPopout:Hide()
-            SetSearchPlaceholder("Search models...")
+            SetSearchPlaceholder(PSM.L("Search models..."))
         end
     end
 
@@ -623,7 +623,7 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     local prevButton = Widgets.Button(panel, {
         width   = PSM.Theme.CONTROL.BUTTON_W.S,
         point   = { "LEFT", firstButton, "RIGHT", 5, 0 },
-        text    = "Previous",
+        text    = PSM.L("Previous"),
         onClick = function() GoToPage(panel, panel.currentPage - 1) end,
     })
 
@@ -641,14 +641,14 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     local nextButton = Widgets.Button(panel, {
         width   = PSM.Theme.CONTROL.BUTTON_W.S,
         point   = { "RIGHT", lastButton, "LEFT", -5, 0 },
-        text    = "Next",
+        text    = PSM.L("Next"),
         onClick = function() GoToPage(panel, panel.currentPage + 1) end,
     })
 
     local pageText = Widgets.Label(panel, {
         fontSize = PSM.Theme.SIZE.LABEL,
         point    = { "BOTTOM", petsFrame, "BOTTOM", 0, -25 },
-        text     = "Page 1 of 1",
+        text     = PSM.L("Page %d of %d", 1, 1),
     })
 
     -- Page-jump controls

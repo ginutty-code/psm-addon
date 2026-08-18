@@ -315,4 +315,49 @@ L.Register({
     ["Delete All"]      = "Delete All",
     ["Are you sure you want to delete ALL groups?\n\nAll pets will be moved to Ungrouped.\nThis action cannot be undone."] =
         "Are you sure you want to delete ALL groups?\n\nAll pets will be moved to Ungrouped.\nThis action cannot be undone.",
+
+    -- Models Browser: panel chrome, NPC table columns, ability browser
+    ["Pet Ability Browser"] = "Pet Ability Browser",
+    ["Show Only"]  = "Show Only",
+    ["Previous"]   = "Previous",
+    ["Next"]       = "Next",
+    ["Page %d of %d"] = "Page %d of %d",
+    ["Models view"] = "Models view",
+    ["NPC view"]    = "NPC view",
+    ["Search NPCs..."]      = "Search NPCs...",
+    ["Search models..."]    = "Search models...",
+    ["Search abilities..."] = "Search abilities...",
+
+    -- NPC table column headers. Each has a fixed pixel width, so a longer translation
+    -- clips; Widgets.truncatedLabels reports it rather than hiding it.
+    ["ID"]          = "ID",
+    ["Name"]        = "Name",
+    ["Class"]       = "Class",
+    ["NK"]          = "NK",
+    ["Zone"]        = "Zone",
+    ["Continent"]   = "Continent",
+    ["Expansion"]   = "Expansion",
+    ["A/H"]         = "A/H",
+    ["Note"]        = "Note",
+    ["Display IDs"] = "Display IDs",
+    ["Columns"]     = "Columns",
+
+    ["NPC ID: %s"]     = "NPC ID: %s",
+    ["Display IDs: "]  = "Display IDs: ",
+    [" (owned)"]       = " (owned)",
+    ["%s - %s, %s"]    = "%s - %s, %s",
+    ["Your note:"]     = "Your note:",
+    ["Info note:"]     = "Info note:",
+    ["Click to add a note"] = "Click to add a note",
+
+    ["Unselect All"]     = "Unselect All",
+    ["Apply Filters"]    = "Apply Filters",
+    ["Available from:"]  = "Available from:",
+    ["Any pet with %s spec"] = "Any pet with %s spec",
+    ["Show less"]        = "Show less",
+    ["and %d more..."]   = "and %d more...",
+    ["%d ability selected"]   = "%d ability selected",
+    ["%d abilities selected"] = "%d abilities selected",
+    ["Filter applied - %d families from selected abilities."] =
+        "PetStableManagement: Filter applied - %d families from selected abilities.",
 })

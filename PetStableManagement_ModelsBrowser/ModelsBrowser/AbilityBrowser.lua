@@ -193,7 +193,8 @@ local function UpdateSelectionNote(panel)
     for spellId, isOn in pairs(AB.selectedAbilities or {}) do
         if isOn and panel.visibleSpells and panel.visibleSpells[spellId] then n = n + 1 end
     end
-    panel.selectionNote:SetText(n .. " " .. (n == 1 and "ability" or "abilities") .. " selected")
+    panel.selectionNote:SetText(n == 1 and PSM.L("%d ability selected", n)
+                                    or PSM.L("%d abilities selected", n))
 end
 
 local function UpdateSelectAllButton(panel)
@@ -204,7 +205,7 @@ local function UpdateSelectAllButton(panel)
             anySelected = true; break
         end
     end
-    panel.selectAllBtn:SetText(anySelected and "Unselect All" or "Select All")
+    panel.selectAllBtn:SetText(anySelected and PSM.L("Unselect All") or PSM.L("Select All"))
 end
 
 local function SetIconAppearance(btn, selected)
@@ -266,11 +267,11 @@ local function AbilityTooltipLines(entry)
     end
     if entry.specTier then
         Add(" ")
-        Add("Available from:", Theme.COLOR.GREY)
-        Add("Any pet with " .. GetSpecName(entry.rank) .. " spec", Theme.COLOR.WHITE)
+        Add(PSM.L("Available from:"), Theme.COLOR.GREY)
+        Add(PSM.L("Any pet with %s spec", GetSpecName(entry.rank)), Theme.COLOR.WHITE)
     elseif #entry.families > 0 then
         Add(" ")
-        Add("Available from:", Theme.COLOR.GREY)
+        Add(PSM.L("Available from:"), Theme.COLOR.GREY)
         for _, family in ipairs(entry.families) do
             Add(family.name, Theme.COLOR.WHITE)
         end
@@ -332,7 +333,7 @@ local function CreateAbilityIcon(parent, panel)
             if not entry then return nil end
             if entry.spellId then return { spellId = entry.spellId } end
             return {
-                title      = entry.name or "Unknown",
+                title      = entry.name or PSM.L("Unknown"),
                 titleColor = PSM.Theme.COLOR.WHITE,
                 lines      = AbilityTooltipLines(entry),
             }
@@ -528,12 +529,12 @@ local function CreateCard(parent, panel, onToggle)
             card:SetHeight(EXPANDED_CARD_H)
             card.partialArea:Hide()
             card.expandArea:Show()
-            moreLabel:SetText("Show less")
+            moreLabel:SetText(PSM.L("Show less"))
         else
             card:SetHeight(PARTIAL_CARD_H)
             card.expandArea:Hide()
             card.partialArea:Show()
-            moreLabel:SetText("and " .. card.hiddenCount .. " more...")
+            moreLabel:SetText(PSM.L("and %d more...", card.hiddenCount))
         end
         if onToggle then onToggle(card) end
     end)
@@ -884,7 +885,7 @@ local function ApplyAbilityFilters(panel)
         PSM.ModelsFilters:ReloadAndSummarise()
     end
     print(PSM.Utils:FormatColorText(
-        "PetStableManagement: Filter applied - " .. appliedCount .. " families from selected abilities.",
+        PSM.L("Filter applied - %d families from selected abilities.", appliedCount),
         PSM.Config.COLORS.SUCCESS
     ))
 end
@@ -940,20 +941,20 @@ local function CreateFooter(panel)
         fontSize = PSM.Config.FONT_SIZES.STATS,
         color    = PSM.Config.COLORS.ABILITY_SELECTION_NOTE,
         point    = { "LEFT", footer, "LEFT", 0, -8 },
-        text     = "0 abilities selected",
+        text     = PSM.L("%d abilities selected", 0),
     })
 
     local applyBtn = Widgets.Button(footer, {
         width   = PSM.Theme.CONTROL.BUTTON_W.M,
         point   = { "RIGHT", footer, "RIGHT", 0, -8 },
-        text    = "Apply Filters",
+        text    = PSM.L("Apply Filters"),
         onClick = function() ApplyAbilityFilters(panel) end,
     })
 
     panel.selectAllBtn = Widgets.Button(footer, {
         width   = PSM.Theme.CONTROL.BUTTON_W.M,
         point   = { "RIGHT", applyBtn, "LEFT", -8, 0 },
-        text    = "Select All",
+        text    = PSM.L("Select All"),
         onClick = function() ToggleSelectAll(panel) end,
     })
 end
@@ -983,7 +984,7 @@ function AB:CreateAbilityBrowser()
         height             = CFG.PANEL_HEIGHT,
         maxWidth           = CFG.PANEL_WIDTH,
         minWidth           = CFG.PANEL_WIDTH,
-        title              = "Pet Ability Browser",
+        title              = PSM.L("Pet Ability Browser"),
         resizable          = true,
         showResizeHandle   = true,
         showMaximizeButton = false,
@@ -999,7 +1000,7 @@ function AB:CreateAbilityBrowser()
         AB:PopulateAbilities(panel, text, panel.activeTag or "")
         panel.scrollFrame:SetVerticalScroll(0)
     end, {
-        placeholder = "Search abilities...",
+        placeholder = PSM.L("Search abilities..."),
     })
 
     panel.pillBar = CreatePillBar(panel)

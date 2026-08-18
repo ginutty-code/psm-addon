@@ -24,17 +24,17 @@ PSM.NPCRow.HEADER_HEIGHT = HEADER_HEIGHT
 --------------------------------------------------------------------------------
 
 PSM.NPCRow.COLUMNS = {
-    { key = "npcId",          label = "ID",           width = 42,  optional = true,  default = true  },
-    { key = "name",           label = "Name",         width = 150, optional = false, default = true  },
-    { key = "family",         label = "Family",       width = 90,  optional = true,  default = true  },
-    { key = "classification", label = "Class",        width = 70,  optional = true,  default = true  },
-    { key = "nameKeeper",     label = "NK",            width = 30,  optional = true,  default = true  },
-    { key = "zone",           label = "Zone",         width = 130, optional = true,  default = true  },
-    { key = "continent",      label = "Continent",    width = 110, optional = true,  default = false },
-    { key = "expansion",      label = "Expansion",    width = 90,  optional = true,  default = true  },
-    { key = "faction",        label = "A/H",           width = 40,  optional = true,  default = true  },
-    { key = "note",           label = "Note",         width = 28,  optional = true,  default = true  },
-    { key = "displayIds",     label = "Display IDs",  width = 120, optional = false, default = true  },
+    { key = "npcId",          label = PSM.L("ID"),           width = 42,  optional = true,  default = true  },
+    { key = "name",           label = PSM.L("Name"),         width = 150, optional = false, default = true  },
+    { key = "family",         label = PSM.L("Family"),       width = 90,  optional = true,  default = true  },
+    { key = "classification", label = PSM.L("Class"),        width = 70,  optional = true,  default = true  },
+    { key = "nameKeeper",     label = PSM.L("NK"),            width = 30,  optional = true,  default = true  },
+    { key = "zone",           label = PSM.L("Zone"),         width = 130, optional = true,  default = true  },
+    { key = "continent",      label = PSM.L("Continent"),    width = 110, optional = true,  default = false },
+    { key = "expansion",      label = PSM.L("Expansion"),    width = 90,  optional = true,  default = true  },
+    { key = "faction",        label = PSM.L("A/H"),           width = 40,  optional = true,  default = true  },
+    { key = "note",           label = PSM.L("Note"),         width = 28,  optional = true,  default = true  },
+    { key = "displayIds",     label = PSM.L("Display IDs"),  width = 120, optional = false, default = true  },
 }
 
 PSM.NPCRow.COLUMNS_BY_KEY = {}
@@ -363,7 +363,7 @@ function PSM.NPCRow:CreateColumnsPicker(panel, anchorTo)
     local btn = Widgets.Button(panel, {
         width      = PSM.Theme.CONTROL.BUTTON_W.S,
         point      = { "TOPRIGHT", anchorTo, "TOPLEFT", -5, 0 },
-        text       = "Columns",
+        text       = PSM.L("Columns"),
         fontObject = "GameFontNormalSmall",
     })
 
@@ -612,8 +612,8 @@ function PSM.NPCRow:UpdateItemRow(row, item, index)
             end)
             local noteText = hasUser and userNote or seedNote
             PSM.Tooltip.Attach(btn, {
-                title = noteText and (hasUser and "Your note:" or "Info note:")
-                                  or "Click to add a note",
+                title = noteText and (hasUser and PSM.L("Your note:") or PSM.L("Info note:"))
+                                  or PSM.L("Click to add a note"),
                 lines = noteText
                     and { { text = noteText, color = PSM.Theme.COLOR.WHITE, wrap = true } }
                     or nil,
@@ -755,19 +755,19 @@ function PSM.NPCRow:UpdateItemRow(row, item, index)
     -- per render pass, and a row outlives several of those.
     PSM.Tooltip.Attach(row, function()
         local lines = {
-            { text = "NPC ID: " .. tostring(item.npcId), color = PSM.Theme.COLOR.DIM },
-            { text = string.format("%s - %s, %s",
-                item.family or "Unknown", item.uiMapName or "Unknown",
-                item.expansion or "Unknown"), color = PSM.Theme.COLOR.DIM },
+            { text = PSM.L("NPC ID: %s", tostring(item.npcId)), color = PSM.Theme.COLOR.DIM },
+            { text = PSM.L("%s - %s, %s",
+                item.family or PSM.L("Unknown"), item.uiMapName or PSM.L("Unknown"),
+                item.expansion or PSM.L("Unknown")), color = PSM.Theme.COLOR.DIM },
         }
 
         if item.displayIds and #item.displayIds > 0 then
             local ownedSet = PSM.state.modelsPanel and PSM.state.modelsPanel.ownedDisplayIdSet
             local parts = {}
             for _, id in ipairs(item.displayIds) do
-                table.insert(parts, tostring(id) .. ((ownedSet and ownedSet[id]) and " (owned)" or ""))
+                table.insert(parts, tostring(id) .. ((ownedSet and ownedSet[id]) and PSM.L(" (owned)") or ""))
             end
-            for _, text in ipairs(WrapJoin("Display IDs: ", parts, ", ", ID_LIST_MAX_CHARS)) do
+            for _, text in ipairs(WrapJoin(PSM.L("Display IDs: "), parts, ", ", ID_LIST_MAX_CHARS)) do
                 lines[#lines + 1] = { text = text, color = ID_LINK_HOVER }
             end
         end
