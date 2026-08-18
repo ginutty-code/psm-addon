@@ -288,7 +288,7 @@ end
 function ns.Data:CreateSnapshot()
     local count = self:SavePersistentData()
     if count > 0 then
-        print("|cFF00FF00PetStableManagement: Saved " .. count .. " pets to database.|r")
+        print(ns.L("Pet data snapshot created: %d pets saved.", count))
     end
 end
 

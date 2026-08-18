@@ -619,7 +619,7 @@ function ns.RowManager:EnsureRow(i, parent, config)
     ns.state.rows = ns.state.rows or {}
     if ns.state.rows[i] then return ns.state.rows[i] end
     if not parent then
-        print(ns.L("Panel failed to show!"))
+        print(ns.L("Panel creation failed!"))
         return nil
     end
     local row = self:CreateBaseRow(parent, config)
