@@ -68,4 +68,54 @@ L.Register({
     ["Pet Model Browser"] = "Pet Model Browser",
     ["Pet Model Browser: Cannot open panel during combat."] =
         "|cFFFF0000Pet Model Browser: Cannot open panel during combat.|r",
+
+    -- Dialogs: teams, groups, slot pickers
+    ["OK"]     = "OK",
+    ["Cancel"] = "Cancel",
+    ["Close"]  = "Close",
+
+    ["Delete Team"]       = "Delete Team",
+    ["Apply Team"]        = "Apply Team",
+    ["Delete Group"]      = "Delete Group",
+    ["Delete All Groups"] = "Delete All Groups",
+    ["Save New Team"]     = "Save New Team",
+    ["Update Team"]       = "Update Team",
+    ["Save as New Team"]  = "Save as New Team",
+    ["Create New Team"]   = "Create New Team",
+    ["New Team Name"]     = "New Team Name",
+
+    ["Enter a name for your pet team:"] = "Enter a name for your pet team:",
+    ["Enter a name for the new team:"]  = "Enter a name for the new team:",
+    ["Enter a name for your new team:"] = "Enter a name for your new team:",
+    ["Select a team to add this pet to:"] = "Select a team to add this pet to:",
+    ["Select a slot to add this pet to:"] = "Select a slot to add this pet to:",
+    ["This pet is not in any of your saved teams."] = "This pet is not in any of your saved teams.",
+    ["You don't have any saved teams yet.\nCreate a new team with this pet:"] =
+        "You don't have any saved teams yet.\nCreate a new team with this pet:",
+    ["This pet is in %s team(s).\nSelect a team to remove from:"] =
+        "This pet is in %s team(s).\nSelect a team to remove from:",
+    ["Current slots differ from team '%s'.\nWhat would you like to do?"] =
+        "Current slots differ from team '%s'.\nWhat would you like to do?",
+    ["'%s' is already in team '%s'\nat slot %s.\n\nEach pet can only appear once per team."] =
+        "'%s' is already in team '%s'\nat slot %s.\n\nEach pet can only appear once per team.",
+
+    -- Filled with a name that may be absent, hence the fallbacks below.
+    ["Pet: %s"]  = "Pet: %s",
+    ["Team: %s"] = "Team: %s",
+    ["Slot %s"]  = "Slot %s",
+    ["Slot %s (Occupied)"]  = "Slot %s (Occupied)",
+    ["Slot %s (Available)"] = "Slot %s (Available)",
+    ["Unknown"] = "Unknown",
+    ["pet"]     = "pet",
+
+    ["Failed to save team"]            = "Failed to save team",
+    ["Failed to add pet to team"]      = "Failed to add pet to team",
+    ["Failed to remove pet from team"] = "Failed to remove pet from team",
+
+    ["Cannot add duplicate pet '%s' to team '%s'. Pet already exists at slot %s."] =
+        "|cFFFF0000PetStableManagement: Cannot add duplicate pet '%s' to team '%s'. Pet already exists at slot %s.|r",
+    ["Added '%s' to team '%s' at slot %s."] =
+        "|cFF00FF00PetStableManagement: Added '%s' to team '%s' at slot %s.|r",
+    ["Removed %s from team '%s'."] =
+        "|cFF00FF00PetStableManagement: Removed %s from team '%s'.|r",
 })

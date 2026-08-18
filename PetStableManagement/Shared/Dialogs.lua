@@ -153,7 +153,7 @@ function ns.Dialogs:ShowNameInputDialog(options)
         end
     end)
 
-    d.cancelButton = CreateDialogButton(bc, "Cancel")
+    d.cancelButton = CreateDialogButton(bc, ns.L("Cancel"))
     d.cancelButton:SetPoint("LEFT", d.confirmButton, "RIGHT", 10, 0)
     d.cancelButton:SetScript("OnClick", function()
         d:Hide()
@@ -245,7 +245,7 @@ end
 -- Confirm-dialog convenience wrappers
 function ns.Dialogs:ShowDeleteConfirmDialog(teamName, onConfirm, onCancel)
     return self:ShowConfirmDialog({
-        title       = "Delete Team",
+        title       = ns.L("Delete Team"),
         message     = "Are you sure you want to delete the team\n'" .. (teamName or "Unknown") .. "'?\n\nThis action cannot be undone.",
         confirmText = "Delete", cancelText = "Cancel",
         onConfirm = onConfirm, onCancel = onCancel,
@@ -254,7 +254,7 @@ end
 
 function ns.Dialogs:ShowApplyConfirmDialog(teamName, onConfirm, onCancel)
     return self:ShowConfirmDialog({
-        title       = "Apply Team",
+        title       = ns.L("Apply Team"),
         message     = "Apply team '" .. (teamName or "Unknown") .. "' to your active pet slots?\n\nThis will rearrange your pets in slots 1-6.",
         confirmText = "Apply", cancelText = "Cancel",
         onConfirm = onConfirm, onCancel = onCancel,
@@ -263,7 +263,7 @@ end
 
 function ns.Dialogs:ShowDeleteGroupConfirmDialog(groupName, onConfirm, onCancel)
     return self:ShowConfirmDialog({
-        title       = "Delete Group",
+        title       = ns.L("Delete Group"),
         message     = "Are you sure you want to delete the group\n'" .. (groupName or "Unknown") .. "'?\n\nAll pets in this group will be moved to Ungrouped.",
         confirmText = "Delete", cancelText = "Cancel",
         onConfirm = onConfirm, onCancel = onCancel,
@@ -272,7 +272,7 @@ end
 
 function ns.Dialogs:ShowDeleteAllGroupsConfirmDialog(onConfirm, onCancel)
     return self:ShowConfirmDialog({
-        title       = "Delete All Groups",
+        title       = ns.L("Delete All Groups"),
         message     = "Are you sure you want to delete ALL groups?\n\nAll pets will be moved to Ungrouped.\nThis action cannot be undone.",
         confirmText = "Delete All", cancelText = "Cancel",
         onConfirm = onConfirm, onCancel = onCancel,
@@ -289,8 +289,8 @@ function ns.Dialogs:ShowSaveTeamDialog(options)
     local hasExisting = options.existingTeamId and options.existingTeamName
     if not hasExisting then
         return self:ShowNameInputDialog({
-            title       = "Save New Team",
-            description = "Enter a name for your pet team:",
+            title       = ns.L("Save New Team"),
+            description = ns.L("Enter a name for your pet team:"),
             onConfirm   = options.onSaveNew,
             onCancel    = options.onCancel,
         })
@@ -302,7 +302,7 @@ function ns.Dialogs:ShowSaveTeamDialog(options)
         point   = { "TOP", d.title, "BOTTOM", 0, -10 },
         width   = 340,
         justify = "CENTER",
-        text    = "Current slots differ from team '" .. options.existingTeamName .. "'.\nWhat would you like to do?",
+        text    = ns.L("Current slots differ from team '%s'.\nWhat would you like to do?", options.existingTeamName),
     })
 
     local bc = ns.Widgets.Frame(d, { size = { 350, 70 }, point = { "BOTTOM", 0, 25 } })
@@ -310,26 +310,26 @@ function ns.Dialogs:ShowSaveTeamDialog(options)
     -- "Update Team", not "Update '<name>'": the team name is user-typed and unbounded, so
     -- it was the one push-button label no fixed width could hold. The message above
     -- already names the team, so the button was repeating it.
-    d.updateButton = CreateDialogButton(bc, "Update Team", ns.Theme.CONTROL.BUTTON_W.L)
+    d.updateButton = CreateDialogButton(bc, ns.L("Update Team"), ns.Theme.CONTROL.BUTTON_W.L)
     d.updateButton:SetPoint("TOP", 0, 0)
     d.updateButton:SetScript("OnClick", function()
         d:Hide()
         if options.onUpdate then options.onUpdate() end
     end)
 
-    d.saveNewButton = CreateDialogButton(bc, "Save as New Team", ns.Theme.CONTROL.BUTTON_W.L)
+    d.saveNewButton = CreateDialogButton(bc, ns.L("Save as New Team"), ns.Theme.CONTROL.BUTTON_W.L)
     d.saveNewButton:SetPoint("TOP", d.updateButton, "BOTTOM", 0, -5)
     d.saveNewButton:SetScript("OnClick", function()
         d:Hide()
         self:ShowNameInputDialog({
-            title       = "New Team Name",
-            description = "Enter a name for the new team:",
+            title       = ns.L("New Team Name"),
+            description = ns.L("Enter a name for the new team:"),
             onConfirm   = options.onSaveNew,
             onCancel    = options.onCancel,
         })
     end)
 
-    d.cancelButton = CreateDialogButton(bc, "Cancel")
+    d.cancelButton = CreateDialogButton(bc, ns.L("Cancel"))
     d.cancelButton:SetPoint("TOP", d.saveNewButton, "BOTTOM", 0, -5)
     d.cancelButton:SetScript("OnClick", function()
         d:Hide()
@@ -355,14 +355,14 @@ local function CreateNewTeamFromPet(petData)
     local slots = {}
     slots[1] = ns.Teams:SlotRecord(petData)
     ns.Dialogs:ShowNameInputDialog({
-        title       = "New Team Name",
-        description = "Enter a name for your new team:",
+        title       = ns.L("New Team Name"),
+        description = ns.L("Enter a name for your new team:"),
         onConfirm   = function(teamName)
             local teamId, err = ns.Teams:SaveTeam(teamName, slots)
             if teamId and ns.TeamsPanel then
                 ns.TeamsPanel:RefreshTeamsList()
             else
-                print("|cFFFF0000PetStableManagement: " .. (err or "Failed to save team") .. "|r")
+                print("|cFFFF0000PetStableManagement: " .. (err or ns.L("Failed to save team")) .. "|r")
             end
         end,
     })
@@ -395,7 +395,7 @@ function ns.Dialogs:ShowAddToTeamDialog(petData)
         fontSize = ns.Theme.SIZE.LABEL,
         color    = ns.Theme.COLOR.GOLD,
         point    = { "TOP", d.title, "BOTTOM", 0, -10 },
-        text     = "Pet: " .. (petData.name or "Unknown"),
+        text     = ns.L("Pet: %s", petData.name or ns.L("Unknown")),
     })
 
     d.description = CreateDialogText(d, {
@@ -408,21 +408,21 @@ function ns.Dialogs:ShowAddToTeamDialog(petData)
         point = { "BOTTOM", d, "BOTTOM", 0, 10 },
     })
 
-    d.createNewButton = CreateDialogButton(bottom, "Create New Team", ns.Theme.CONTROL.BUTTON_W.L)
+    d.createNewButton = CreateDialogButton(bottom, ns.L("Create New Team"), ns.Theme.CONTROL.BUTTON_W.L)
     d.createNewButton:SetScript("OnClick", function()
         d:Hide()
         CreateNewTeamFromPet(petData)
     end)
 
-    d.cancelButton = CreateDialogButton(bottom, "Cancel")
+    d.cancelButton = CreateDialogButton(bottom, ns.L("Cancel"))
     d.cancelButton:SetScript("OnClick", function() d:Hide() end)
 
     if teamCount == 0 then
-        d.description:SetText("You don't have any saved teams yet.\nCreate a new team with this pet:")
+        d.description:SetText(ns.L("You don't have any saved teams yet.\nCreate a new team with this pet:"))
         d.createNewButton:SetPoint("CENTER", bottom, "CENTER", 0, 10)
         d.cancelButton:SetPoint("TOP",    d.createNewButton, "BOTTOM", 0, -5)
     else
-        d.description:SetText("Select a team to add this pet to:")
+        d.description:SetText(ns.L("Select a team to add this pet to:"))
         d.createNewButton:SetPoint("TOP", bottom, "TOP", 0, -5)
         d.cancelButton:SetPoint("TOP",    d.createNewButton, "BOTTOM", 0, -5)
 
@@ -493,11 +493,11 @@ function ns.Dialogs:ShowSelectSlotDialog(team, petData)
                     point   = { "TOP", d.title, "BOTTOM", 0, -15 },
                     width   = 340,
                     justify = "CENTER",
-                    text    = "'" .. (petData.name or "Unknown") .. "' is already in team '" .. team.name ..
-                        "'\nat slot " .. slot .. ".\n\nEach pet can only appear once per team.",
+                    text    = ns.L("'%s' is already in team '%s'\nat slot %s.\n\nEach pet can only appear once per team.",
+                        petData.name or ns.L("Unknown"), team.name, slot),
                 })
 
-                local ok = CreateDialogButton(d, "OK")
+                local ok = CreateDialogButton(d, ns.L("OK"))
                 ok:SetPoint("BOTTOM", d, "BOTTOM", 0, 15)
                 ok:SetScript("OnClick", function() d:Hide() end)
                 d:Show()
@@ -512,18 +512,18 @@ function ns.Dialogs:ShowSelectSlotDialog(team, petData)
         fontSize = ns.Theme.SIZE.LABEL,
         color    = ns.Theme.COLOR.GOLD,
         point    = { "TOP", d.title, "BOTTOM", 0, -10 },
-        text     = "Team: " .. team.name,
+        text     = ns.L("Team: %s", team.name),
     })
 
     d.petInfoText = CreateDialogText(d, {
         point = { "TOP", d.teamInfoText, "BOTTOM", 0, -5 },
-        text  = "Pet: " .. (petData.name or "Unknown"),
+        text  = ns.L("Pet: %s", petData.name or ns.L("Unknown")),
     })
 
     d.description = CreateDialogText(d, {
         color = ns.Theme.COLOR.MUTED,
         point = { "TOP", d.petInfoText, "BOTTOM", 0, -5 },
-        text  = "Select a slot to add this pet to:",
+        text  = ns.L("Select a slot to add this pet to:"),
     })
 
     local btnSize = 55
@@ -557,7 +557,7 @@ function ns.Dialogs:ShowSelectSlotDialog(team, petData)
             fontSize = ns.Theme.SIZE.BODY,
             color    = isOccupied and { 0.8, 0.8, 0.8 } or { 0.5, 1.0, 0.5 },
             point    = { "CENTER" },
-            text     = "Slot " .. slot,
+            text     = ns.L("Slot %s", slot),
         })
 
         btn:SetScript("OnClick", function()
@@ -567,20 +567,20 @@ function ns.Dialogs:ShowSelectSlotDialog(team, petData)
 
         ns.Tooltip.Attach(btn, isOccupied
             and {
-                title      = "Slot " .. slot .. " (Occupied)",
+                title      = ns.L("Slot %s (Occupied)", slot),
                 titleColor = ns.Theme.COLOR.GOLD,
                 lines      = { { text = team.slots[slot].name or "Unknown Pet",
                                  color = ns.Theme.COLOR.WHITE } },
             }
             or {
-                title      = "Slot " .. slot .. " (Available)",
+                title      = ns.L("Slot %s (Available)", slot),
                 titleColor = { 0.5, 1, 0.5 },
             })
 
         table.insert(d.slotButtons, btn)
     end
 
-    d.cancelButton = CreateDialogButton(d, "Cancel")
+    d.cancelButton = CreateDialogButton(d, ns.L("Cancel"))
     d.cancelButton:SetPoint("BOTTOM", d, "BOTTOM", 0, 15)
     d.cancelButton:SetScript("OnClick", function()
         d:Hide()
@@ -602,8 +602,8 @@ function ns.Dialogs:ConfirmAddToTeam(team, petData, slot)
     if team.slots then
         for i = 1, 6 do
             if team.slots[i] and team.slots[i].petNumber == petData.petNumber then
-                print("|cFFFF0000PetStableManagement: Cannot add duplicate pet '" .. (petData.name or "Unknown") ..
-                    "' to team '" .. team.name .. "'. Pet already exists at slot " .. i .. ".|r")
+                print(ns.L("Cannot add duplicate pet '%s' to team '%s'. Pet already exists at slot %s.",
+                    petData.name or ns.L("Unknown"), team.name, i))
                 return
             end
         end
@@ -618,10 +618,10 @@ function ns.Dialogs:ConfirmAddToTeam(team, petData, slot)
     local ok, err = ns.Teams:UpdateTeam(team.id, slots)
     if ok then
         if ns.TeamsPanel then ns.TeamsPanel:RefreshTeamsList() end
-        print("|cFF00FF00PetStableManagement: Added '" .. (petData.name or "Unknown") ..
-            "' to team '" .. team.name .. "' at slot " .. slot .. ".|r")
+        print(ns.L("Added '%s' to team '%s' at slot %s.",
+            petData.name or ns.L("Unknown"), team.name, slot))
     else
-        print("|cFFFF0000PetStableManagement: " .. (err or "Failed to add pet to team") .. "|r")
+        print("|cFFFF0000PetStableManagement: " .. (err or ns.L("Failed to add pet to team")) .. "|r")
     end
 end
 
@@ -638,10 +638,9 @@ function ns.Dialogs:ConfirmRemoveFromTeam(team, slot, petName)
     local ok, err = ns.Teams:UpdateTeam(team.id, slots)
     if ok then
         if ns.TeamsPanel then ns.TeamsPanel:RefreshTeamsList() end
-        print("|cFF00FF00PetStableManagement: Removed " .. (petName or "pet")
-            .. " from team '" .. team.name .. "'.|r")
+        print(ns.L("Removed %s from team '%s'.", petName or ns.L("pet"), team.name))
     else
-        print("|cFFFF0000PetStableManagement: " .. (err or "Failed to remove pet from team") .. "|r")
+        print("|cFFFF0000PetStableManagement: " .. (err or ns.L("Failed to remove pet from team")) .. "|r")
     end
 end
 
@@ -671,7 +670,7 @@ function ns.Dialogs:ShowRemoveFromTeamDialog(petData)
         fontSize = ns.Theme.SIZE.LABEL,
         color    = ns.Theme.COLOR.GOLD,
         point    = { "TOP", d.title, "BOTTOM", 0, -10 },
-        text     = "Pet: " .. (petData.name or "Unknown"),
+        text     = ns.L("Pet: %s", petData.name or ns.L("Unknown")),
     })
 
     d.description = CreateDialogText(d, {
@@ -679,12 +678,12 @@ function ns.Dialogs:ShowRemoveFromTeamDialog(petData)
     })
 
     if count == 0 then
-        d.description:SetText("This pet is not in any of your saved teams.")
-        local ok = CreateDialogButton(d, "Close")
+        d.description:SetText(ns.L("This pet is not in any of your saved teams."))
+        local ok = CreateDialogButton(d, ns.L("Close"))
         ok:SetPoint("BOTTOM", d, "BOTTOM", 0, 15)
         ok:SetScript("OnClick", function() d:Hide() end)
     else
-        d.description:SetText("This pet is in " .. count .. " team(s).\nSelect a team to remove from:")
+        d.description:SetText(ns.L("This pet is in %s team(s).\nSelect a team to remove from:", count))
 
         d.teamButtons = {}
         local btnW, btnH = 200, 28
@@ -702,7 +701,7 @@ function ns.Dialogs:ShowRemoveFromTeamDialog(petData)
             table.insert(d.teamButtons, btn)
         end
 
-        d.cancelButton = CreateDialogButton(d, "Cancel")
+        d.cancelButton = CreateDialogButton(d, ns.L("Cancel"))
         d.cancelButton:SetPoint("BOTTOM", d, "BOTTOM", 0, 15)
         d.cancelButton:SetScript("OnClick", function() d:Hide() end)
     end
