@@ -561,7 +561,7 @@ function ns.PopUpManager:CreateModelPopup(config)
     if config.showPetModelsButton then
         popup.modelsButton = Widgets.Button(popup, {
             point      = { "TOPLEFT", 20, -10 },
-            width      = ns.Theme.CONTROL.BUTTON_W.S,
+            width      = ns.Theme.CONTROL.BUTTON_W.M,
             text       = ns.L("< Pet Models"),
             fontObject = "GameFontNormalSmall",
             onClick = function()
@@ -1168,7 +1168,11 @@ function ns.PopUpManager:ShowCoordsPopup(text, npcName, location, displayId)
                 end
 
                 if waypointCount > 0 and f.npcName and f.location then
-                    print(ns.L("%s waypoint(s) added on %s map for %s", waypointCount, f.location, f.npcName))
+                    -- waypointCount is how many coordinates were *found*. Without TomTom
+                    -- only firstCoord is actually placed, so reporting the count would
+                    -- claim pins that do not exist.
+                    local placed = hasTomTom and waypointCount or 1
+                    print(ns.L("%s waypoint(s) added on %s map for %s", placed, f.location, f.npcName))
                     if not hasTomTom then
                         print(ns.L("Only the first location was marked. Install TomTom for all waypoints, portrait icons, and navigation."))
                     end
