@@ -118,4 +118,49 @@ L.Register({
         "|cFF00FF00PetStableManagement: Added '%s' to team '%s' at slot %s.|r",
     ["Removed %s from team '%s'."] =
         "|cFF00FF00PetStableManagement: Removed %s from team '%s'.|r",
+
+    -- Popups: model viewer, notes, waypoints, taming requirements
+    ["Save"]  = "Save",
+    ["Clear"] = "Clear",
+    ["Try Again"]   = "Try Again",
+    ["Model Viewer"]    = "Model Viewer",
+    ["Model Magnifier"] = "Model Magnifier",
+    ["Reset View"]      = "Reset View",
+    ["< Pet Models"]    = "< Pet Models",
+    ["Add to Favorites"] = "Add to Favorites",
+    ["Wowhead URL"]      = "Wowhead URL",
+    ["Special Conditions"]     = "Special Conditions",
+    ["Taming Skills Required"] = "Taming Skills Required",
+    ["(keeps name)"]           = "(keeps name)",
+
+    ["Edit note"]               = "Edit note",
+    ["Add your own note"]       = "Add your own note",
+    ["Add a note for this NPC"] = "Add a note for this NPC",
+    ["Info note (read-only):"]  = "Info note (read-only):",
+    ["My note:"]                = "My note:",
+    ["Notes: %s"]               = "Notes: %s",
+
+    ["Click to view waypoints"]    = "Click to view waypoints",
+    ["Click to copy Wowhead URL"]  = "Click to copy Wowhead URL",
+    ["Create Waypoints"]           = "Create Waypoints",
+    ["Adds a waypoint pin on the map"] = "Adds a waypoint pin on the map",
+    ["Install TomTom for portrait icons, multiple waypoints, and navigation."] =
+        "Install TomTom for portrait icons, multiple waypoints, and navigation.",
+    ["Waypoints for \n %s \n(%s)"] = "Waypoints for \n %s \n(%s)",
+    ["%s waypoint(s) added on %s map for %s"] =
+        "|cff00ff00%s waypoint(s) added on %s map for %s|r",
+    ["Only the first location was marked. Install TomTom for all waypoints, portrait icons, and navigation."] =
+        "|cffffff00PSM:|r Only the first location was marked. Install |cff3fc7ebTomTom|r for all waypoints, portrait icons, and navigation.",
+
+    -- Fallbacks for data the client may not have yet.
+    ["NPC"]     = "NPC",
+    ["NPC %s"]  = "NPC %s",
+    ["Map %s"]  = "Map %s",
+    ["Item #%s"]  = "Item #%s",
+    ["Quest #%s"] = "Quest #%s",
+    ["%s (auto)"] = "%s (auto)",
+    ["%s - Display ID: %d"] = "%s - Display ID: %d",
+
+    -- Joins the alternative locations in a taming hint; a separator is copy too.
+    [" or "] = " or ",
 })

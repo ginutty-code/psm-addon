@@ -180,7 +180,7 @@ local function CreateNPCRow(parent, npc, rowWidth)
             color    = Theme.COLOR.GREY,
             justify  = "LEFT",
             point    = { "LEFT", nameText, "RIGHT", 4, 0 },
-            text     = "(keeps name)",
+            text     = ns.L("(keeps name)"),
         })
 
         local maxNameW = rowWidth - (NPC_ROW_PADDING * 2) - keepNameText:GetStringWidth() - 8
@@ -242,7 +242,7 @@ local function CreateNPCRow(parent, npc, rowWidth)
         local id2 = tonumber(data)
 
         if linkType == "psmcoords" then
-            return { title = "Click to view waypoints" }
+            return { title = ns.L("Click to view waypoints") }
         end
 
         if linkType == "psmcond" then
@@ -252,28 +252,28 @@ local function CreateNPCRow(parent, npc, rowWidth)
             for _, c in ipairs(conds) do
                 lines[#lines + 1] = { text = c, color = Theme.COLOR.WHITE }
             end
-            return { title = "Special Conditions", lines = lines }
+            return { title = ns.L("Special Conditions"), lines = lines }
         end
 
         if linkType == "psmnote" then
             local userNote = id2 and PSM_UserNotes and PSM_UserNotes[id2]
             if userNote and userNote ~= "" then
                 return {
-                    title = "Edit note",
+                    title = ns.L("Edit note"),
                     lines = { { text = userNote, color = { 1, 1, 0 }, wrap = true } },
                 }
             end
             local seedNote = id2 and ns.Browser.NotesData and ns.Browser.NotesData[id2]
             if seedNote then
                 return {
-                    title = "Add your own note",
+                    title = ns.L("Add your own note"),
                     lines = { { text = seedNote, color = Theme.COLOR.MUTED, wrap = true } },
                 }
             end
-            return { title = "Add a note for this NPC" }
+            return { title = ns.L("Add a note for this NPC") }
         end
 
-        return { title = "Click to copy Wowhead URL" }
+        return { title = ns.L("Click to copy Wowhead URL") }
     end
 
     detailText:SetScript("OnHyperlinkEnter", function(_, link)
@@ -480,7 +480,7 @@ end
 
 function ns.PopUpManager:CreateModelPopup(config)
     config = config or {}
-    local title     = config.title     or "Model Viewer"
+    local title     = config.title     or ns.L("Model Viewer")
     local width     = config.width     or 500
     local height    = config.height    or 560
     local modelSize = config.modelSize or math.min(width - 40, height - 220)
@@ -562,7 +562,7 @@ function ns.PopUpManager:CreateModelPopup(config)
         popup.modelsButton = Widgets.Button(popup, {
             point      = { "TOPLEFT", 20, -10 },
             width      = ns.Theme.CONTROL.BUTTON_W.S,
-            text       = "< Pet Models",
+            text       = ns.L("< Pet Models"),
             fontObject = "GameFontNormalSmall",
             onClick = function()
                 popup:Hide()
@@ -632,7 +632,7 @@ function ns.PopUpManager:CreateModelPopup(config)
         ns.RowManager:ReleaseModel(mf)
         SaveView(popup, { rotation = mf.rotation, zoom = mf.zoom, position = {0, hPos, vPos} })
     end)
-    ns.Tooltip.Attach(popup.modelReset, { title = "Reset View" }, {
+    ns.Tooltip.Attach(popup.modelReset, { title = ns.L("Reset View") }, {
         onEnter = function(self) self:SetAlpha(1.0) end,
         onLeave = function(self) self:SetAlpha(0.7) end,
     })
@@ -694,7 +694,7 @@ function ns.PopUpManager:CreateModelPopup(config)
         level     = mf:GetFrameLevel() + 2,
         texture   = "Interface\\Common\\ReputationStar",
         highlight = "Interface\\Common\\ReputationStar",
-        tooltip   = { title = "Add to Favorites", anchor = "ANCHOR_LEFT" },
+        tooltip   = { title = ns.L("Add to Favorites"), anchor = "ANCHOR_LEFT" },
     })
     local function SetFavTexCoord(btn, isFav)
         local coord = isFav and {0, 0.5, 0, 0.5} or {0.5, 1, 0, 0.5}
@@ -740,7 +740,7 @@ function ns.PopUpManager:CreateModelPopup(config)
         color    = Theme.COLOR.GOLD,
         justify  = "CENTER",
         point    = { "TOPLEFT", tf, "TOPLEFT", TAMING_ROW_PADDING, -6 },
-        text     = "Taming Skills Required",
+        text     = ns.L("Taming Skills Required"),
     })
 
     Widgets.Line(tf, {
@@ -834,7 +834,7 @@ function ns.PopUpManager:CreateModelPopup(config)
     if config.showTryAgainButton then
         popup.tryAgainButton = Widgets.Button(popup, {
             width      = ns.Theme.CONTROL.BUTTON_W.S,
-            text       = "Try Again",
+            text       = ns.L("Try Again"),
             fontObject = "GameFontNormalSmall",
             strata     = "TOOLTIP",
             point      = { "TOPRIGHT", popup.npcsScrollFrame, "BOTTOMRIGHT", -20, -10 },
@@ -955,7 +955,7 @@ function ns.PopUpManager:ShowURLPopup(url)
             outline  = true,
             color    = Theme.COLOR.GOLD,
             point    = { "TOP", 0, -10 },
-            text     = "Wowhead URL",
+            text     = ns.L("Wowhead URL"),
         })
 
         f.editBox = Widgets.EditBox(f, {
@@ -995,7 +995,7 @@ function ns.PopUpManager:GetCoordsDataForLocation(npcId, location)
         if type(mapData) == "table" and mapData.npcs and mapData.npcs[id] then
             return {
                 uiMapId  = numMapId,
-                zoneName = mapData.name or ("Map " .. numMapId),
+                zoneName = mapData.name or ns.L("Map %s", numMapId),
                 coords   = mapData.npcs[id] or "",
             }
         end
@@ -1024,7 +1024,7 @@ function ns.PopUpManager:GetCoordsDataForLocation(npcId, location)
         if type(mapData) == "table" and mapData.npcs and mapData.npcs[id] then
             return {
                 uiMapId  = uiMapId,
-                zoneName = mapData.name or ("Map " .. uiMapId),
+                zoneName = mapData.name or ns.L("Map %s", uiMapId),
                 coords   = mapData.npcs[id] or "",
             }
         end
@@ -1036,7 +1036,7 @@ end
 function ns.PopUpManager:BuildCoordsLocationLabel(npcId, fallbackLocation)
     local id = tonumber(npcId)
     if not id or not CoordsData then
-        return fallbackLocation and ("|cff888888" .. fallbackLocation .. "|r") or "|cff888888Unknown|r"
+        return fallbackLocation and ("|cff888888" .. fallbackLocation .. "|r") or ("|cff888888" .. ns.L("Unknown") .. "|r")
     end
 
     local parts = {}
@@ -1044,7 +1044,7 @@ function ns.PopUpManager:BuildCoordsLocationLabel(npcId, fallbackLocation)
 
     for uiMapId, mapData in pairs(CoordsData) do
         if type(mapData) == "table" and mapData.npcs and mapData.npcs[id] then
-            local zName = mapData.name or ("Map " .. uiMapId)
+            local zName = mapData.name or ns.L("Map %s", uiMapId)
             local coords = mapData.npcs[id]
             local hasCoords = coords and strtrim(coords) ~= "" and coords ~= "[]"
 
@@ -1064,14 +1064,14 @@ function ns.PopUpManager:BuildCoordsLocationLabel(npcId, fallbackLocation)
 
     if #parts > 0 then
         table.sort(parts)
-        return table.concat(parts, " or ")
+        return table.concat(parts, ns.L(" or "))
     end
 
     if fallbackLocation and fallbackLocation ~= "" then
         return "|cff888888" .. fallbackLocation .. "|r"
     end
 
-    return "|cff888888Unknown|r"
+    return "|cff888888" .. ns.L("Unknown") .. "|r"
 end
 
 function ns.PopUpManager:GetCoordsWaypointText(npcId, location, npcName)
@@ -1119,13 +1119,13 @@ function ns.PopUpManager:ShowCoordsPopup(text, npcName, location, displayId)
         f.pasteButton = Widgets.Button(f, {
             point = { "BOTTOM", f, "BOTTOM", 0, 10 },
             width = ns.Theme.CONTROL.BUTTON_W.L,
-            text  = "Create Waypoints",
+            text  = ns.L("Create Waypoints"),
             tooltip = {
                 anchor   = "ANCHOR_BOTTOMRIGHT",
-                title    = "Adds a waypoint pin on the map",
+                title    = ns.L("Adds a waypoint pin on the map"),
                 toplevel = true,
                 lines    = {{
-                    text  = "Install TomTom for portrait icons, multiple waypoints, and navigation.",
+                    text  = ns.L("Install TomTom for portrait icons, multiple waypoints, and navigation."),
                     color = Theme.COLOR.WHITE,
                     wrap  = true,
                 }},
@@ -1168,9 +1168,9 @@ function ns.PopUpManager:ShowCoordsPopup(text, npcName, location, displayId)
                 end
 
                 if waypointCount > 0 and f.npcName and f.location then
-                    print("|cff00ff00" .. waypointCount .. " waypoint(s) added on " .. f.location .. " map for " .. f.npcName .. "|r")
+                    print(ns.L("%s waypoint(s) added on %s map for %s", waypointCount, f.location, f.npcName))
                     if not hasTomTom then
-                        print("|cffffff00PSM:|r Only the first location was marked. Install |cff3fc7ebTomTom|r for all waypoints, portrait icons, and navigation.")
+                        print(ns.L("Only the first location was marked. Install TomTom for all waypoints, portrait icons, and navigation."))
                     end
                 end
                 if firstMapId then
@@ -1218,7 +1218,7 @@ function ns.PopUpManager:ShowCoordsPopup(text, npcName, location, displayId)
         self.coordsPopup = f
     end
 
-    self.coordsPopup.title:SetText(string.format("Waypoints for \n %s \n(%s)", npcName or "NPC", location or "Unknown"))
+    self.coordsPopup.title:SetText(ns.L("Waypoints for \n %s \n(%s)", npcName or ns.L("NPC"), location or ns.L("Unknown")))
     self.coordsPopup.npcName   = npcName
     self.coordsPopup.location  = location
     self.coordsPopup.displayId = tonumber(displayId)
@@ -1253,7 +1253,7 @@ function ns.PopUpManager:ShowMagnificationPopup(displayId, petData)
 
     if not ns.state.modelMagnificationPopup then
         ns.state.modelMagnificationPopup = self:CreateModelPopup({
-            title     = "Model Magnifier",
+            title     = ns.L("Model Magnifier"),
             width     = 500,
             height    = 500,
             resizable = true,
@@ -1402,7 +1402,7 @@ function ns.PopUpManager:PopulateModelPopup(popup, displayId, petData, npcs)
             end
         end
     end
-    popup.infoText:SetText(string.format("%s - Display ID: %d", familyName, displayId))
+    popup.infoText:SetText(ns.L("%s - Display ID: %d", familyName, displayId))
 
     -- Taming requirements
     local tamingData = nil
@@ -1462,19 +1462,19 @@ function ns.PopUpManager:PopulateModelPopup(popup, displayId, petData, npcs)
 
                         -- Collect main alternatives (race or item or quest)
                         if hint.autoRace then
-                            mainParts[#mainParts + 1] = hint.autoRace .. " (auto)"
+                            mainParts[#mainParts + 1] = ns.L("%s (auto)", hint.autoRace)
                         end
                         if hint.itemID then
                             mainParts[#mainParts + 1] = string.format(
                                 "|cff0070dd|Hpsmtaming:%s|h%s|h|r",
                                 ruleKey,
-                                hint.itemName or ("Item #" .. hint.itemID))
+                                hint.itemName or ns.L("Item #%s", hint.itemID))
                         end
                         if hint.questID then
                             mainParts[#mainParts + 1] = string.format(
                                 "|cff0070dd|Hpsmtaming:%s|h%s|h|r",
                                 ruleKey,
-                                hint.questName or ("Quest #" .. hint.questID))
+                                hint.questName or ns.L("Quest #%s", hint.questID))
                         end
 
                         -- Suffix is separate (not an alternative)
@@ -1596,7 +1596,7 @@ function ns.PopUpManager:ShowNoteEditor(npcId, npcName, parentPopup, onSaved)
             outline  = true,
             color    = Theme.COLOR.GREY,
             point    = { "TOPLEFT", f, "TOPLEFT", 20, -35 },
-            text     = "Info note (read-only):",
+            text     = ns.L("Info note (read-only):"),
         })
 
         -- Seed note text (read-only FontString)
@@ -1617,7 +1617,7 @@ function ns.PopUpManager:ShowNoteEditor(npcId, npcName, parentPopup, onSaved)
             fontSize = Theme.SIZE.SMALL,
             outline  = true,
             color    = Theme.COLOR.GREY,
-            text     = "My note:",
+            text     = ns.L("My note:"),
         })
 
         -- Scroll frame + edit box for user note
@@ -1643,14 +1643,14 @@ function ns.PopUpManager:ShowNoteEditor(npcId, npcName, parentPopup, onSaved)
         f.saveButton = Widgets.Button(f, {
             width = ns.Theme.CONTROL.BUTTON_W.S,
             point = { "BOTTOMRIGHT", f, "BOTTOM", -5, 12 },
-            text  = "Save",
+            text  = ns.L("Save"),
         })
 
         -- Clear button
         f.clearButton = Widgets.Button(f, {
             width   = ns.Theme.CONTROL.BUTTON_W.S,
             point   = { "BOTTOMLEFT", f, "BOTTOM", 5, 12 },
-            text    = "Clear",
+            text    = ns.L("Clear"),
             onClick = function()
                 f.editBox:SetText("")
                 f.editBox:SetFocus()
@@ -1697,7 +1697,7 @@ function ns.PopUpManager:ShowNoteEditor(npcId, npcName, parentPopup, onSaved)
     f.editBox:SetWidth(f.scrollFrame:GetWidth())
 
     -- Title
-    f.title:SetText(string.format("Notes: %s", npcName or ("NPC " .. npcId)))
+    f.title:SetText(ns.L("Notes: %s", npcName or ns.L("NPC %s", npcId)))
 
     -- Save wires up per-call npcId and refreshes the parent popup's NPC text
     f.saveButton:SetScript("OnClick", function()
