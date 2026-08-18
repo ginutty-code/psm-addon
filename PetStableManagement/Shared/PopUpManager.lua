@@ -165,7 +165,7 @@ local function CreateNPCRow(parent, npc, rowWidth)
         point    = { "TOPLEFT", row, "TOPLEFT", NPC_ROW_PADDING, -NPC_ROW_PADDING },
     })
 
-    local nameStr = npc.name or "Unknown"
+    local nameStr = npc.name or ns.L("Unknown")
     if npc.classification and npc.classification ~= "Normal" then
         nameStr = nameStr .. " |cffaaaaaa(" .. npc.classification .. ")|r"
     end
@@ -221,7 +221,7 @@ local function CreateNPCRow(parent, npc, rowWidth)
 
     local id         = npc.npcId or "?"
     local locLabel   = ns.PopUpManager:BuildCoordsLocationLabel(npc.npcId, npc.location) or "Unknown"
-    local expansion  = npc.expansion or "Unknown"
+    local expansion  = npc.expansion or ns.L("Unknown")
     local factionStr = formatFactionIndicator(npc.factionReaction)
     local noteLink   = npc.npcId and BuildNoteLink(npc.npcId) or ""
 
@@ -290,7 +290,7 @@ local function CreateNPCRow(parent, npc, rowWidth)
         elseif linkType == "psmnote" then
             local id2 = tonumber(data)
             if id2 then
-                ns.PopUpManager:ShowNoteEditor(id2, npc.name or "NPC", row._parentPopup)
+                ns.PopUpManager:ShowNoteEditor(id2, npc.name or ns.L("NPC"), row._parentPopup)
             end
         elseif linkType == "psmcoords" then
             local npcId2, locationOrMapId = strsplit(";", data, 2)

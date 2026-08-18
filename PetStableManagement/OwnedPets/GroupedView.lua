@@ -292,12 +292,26 @@ function ns.UI.GroupedView:ShowCreateGroupForPetDialog(pet)
         onConfirm = function(groupName)
             local groupId, err = ns.PetGroups:CreateGroup(groupName)
             if groupId then
-                ns.PetGroups:MovePetToGroup(pet.guid, groupId)
+                -- The move was already intended here and its result was discarded, so a
+                -- failure left the new group empty with nothing said. CreateGroup's error
+                -- is reported two lines down; this one was not.
+                local moved, moveErr = ns.PetGroups:MovePetToGroup(pet.guid, groupId)
+                if not moved then
+                    print("|cFFFF0000PetStableManagement: " ..
+                        (moveErr or ns.L("Failed to move pet to group")) .. "|r")
+                end
                 ns.C_Timer.After(0.05, function()
                     if ns.UI and ns.UI.RenderPanel then ns.UI:RenderPanel(true) end
                 end)
             else
-                print("|cFFFF0000PetStableManagement: " .. (err or ns.L("Failed to create group")) .. "|r")
+                -- A rejection reported only in chat is missed with a maximized panel
+                -- open, which is exactly how "A group with this name already exists"
+                -- looked like the pet silently failing to move. UIErrorsFrame is where
+                -- the client puts "you cannot do that", so it lands in front of the eyes
+                -- already on the screen. Chat keeps the record.
+                local message = err or ns.L("Failed to create group")
+                if UIErrorsFrame then UIErrorsFrame:AddMessage(message, 1, 0.2, 0.2) end
+                print("|cFFFF0000PetStableManagement: " .. message .. "|r")
             end
         end,
     })

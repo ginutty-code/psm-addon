@@ -60,7 +60,7 @@ local function CreateBaseDialog(name, width, height, title, resizable)
         outline  = true,
         color    = Theme.COLOR.GOLD,
         point    = { "TOP", 0, -15 },
-        text     = title or "Dialog",
+        text     = title or ns.L("Dialog"),
     })
 
     -- Closing a dialog by any route is a cancellation, and callers are waiting on
@@ -126,11 +126,11 @@ end
 function ns.Dialogs:ShowNameInputDialog(options)
     options = options or {}
 
-    local d = CreateBaseDialog("PSMTeamNameDialog", 350, 140, options.title or "Enter Team Name")
+    local d = CreateBaseDialog("PSMTeamNameDialog", 350, 140, options.title or ns.L("Enter Team Name"))
 
     d.description = CreateDialogText(d, {
         point = { "TOP", d.title, "BOTTOM", 0, -10 },
-        text  = options.description or "Enter a name for your pet team:",
+        text  = options.description or ns.L("Enter a name for your pet team:"),
     })
 
     d.editBox = CreateDialogEditBox(d, 140, 25)
@@ -141,7 +141,7 @@ function ns.Dialogs:ShowNameInputDialog(options)
 
     local bc = ns.Widgets.Frame(d, { size = { 220, 30 }, point = { "BOTTOM", 0, 15 } })
 
-    d.confirmButton = CreateDialogButton(bc, options.confirmText or "Save")
+    d.confirmButton = CreateDialogButton(bc, options.confirmText or ns.L("Save"))
     d.confirmButton:SetPoint("LEFT", 0, 0)
     d.confirmButton:SetScript("OnClick", function()
         local name = d.editBox:GetText()
@@ -182,10 +182,11 @@ function ns.Dialogs:ShowGroupNameDialog(options)
     local isRename = options.mode == "rename"
 
     return self:ShowNameInputDialog({
-        title       = isRename and "Rename Group"   or "Create New Group",
-        description = isRename and "Enter a new name for the group:" or "Enter a name for the new group:",
-        defaultText = isRename and (options.currentName or "") or (options.suggestedName or "New Group"),
-        confirmText = isRename and "Rename" or "Create",
+        title       = isRename and ns.L("Rename Group")   or ns.L("Create New Group"),
+        description = isRename and ns.L("Enter a new name for the group:")
+                               or ns.L("Enter a name for the new group:"),
+        defaultText = isRename and (options.currentName or "") or (options.suggestedName or ns.L("New Group")),
+        confirmText = isRename and ns.L("Rename") or ns.L("Create"),
         highlightText = true,
         onConfirm   = options.onConfirm,
         onCancel    = options.onCancel,
@@ -212,18 +213,18 @@ end
 function ns.Dialogs:ShowConfirmDialog(options)
     options = options or {}
 
-    local d = CreateBaseDialog("PSMTeamConfirmDialog", 350, 130, options.title or "Confirm")
+    local d = CreateBaseDialog("PSMTeamConfirmDialog", 350, 130, options.title or ns.L("Confirm"))
 
     d.message = CreateDialogText(d, {
         point   = { "TOP", d.title, "BOTTOM", 0, -15 },
         width   = 300,
         justify = "CENTER",
-        text    = options.message or "Are you sure?",
+        text    = options.message or ns.L("Are you sure?"),
     })
 
     local bc = ns.Widgets.Frame(d, { size = { 220, 30 }, point = { "BOTTOM", 0, 5 } })
 
-    d.confirmButton = CreateDialogButton(bc, options.confirmText or "Yes")
+    d.confirmButton = CreateDialogButton(bc, options.confirmText or ns.L("Yes"))
     d.confirmButton:SetPoint("LEFT", 0, 0)
     d.confirmButton:SetScript("OnClick", function()
         d:Hide()
@@ -246,8 +247,9 @@ end
 function ns.Dialogs:ShowDeleteConfirmDialog(teamName, onConfirm, onCancel)
     return self:ShowConfirmDialog({
         title       = ns.L("Delete Team"),
-        message     = "Are you sure you want to delete the team\n'" .. (teamName or "Unknown") .. "'?\n\nThis action cannot be undone.",
-        confirmText = "Delete", cancelText = "Cancel",
+        message     = ns.L("Are you sure you want to delete the team\n'%s'?\n\nThis action cannot be undone.",
+                           teamName or ns.L("Unknown")),
+        confirmText = ns.L("Delete"), cancelText = ns.L("Cancel"),
         onConfirm = onConfirm, onCancel = onCancel,
     })
 end
@@ -255,8 +257,9 @@ end
 function ns.Dialogs:ShowApplyConfirmDialog(teamName, onConfirm, onCancel)
     return self:ShowConfirmDialog({
         title       = ns.L("Apply Team"),
-        message     = "Apply team '" .. (teamName or "Unknown") .. "' to your active pet slots?\n\nThis will rearrange your pets in slots 1-6.",
-        confirmText = "Apply", cancelText = "Cancel",
+        message     = ns.L("Apply team '%s' to your active pet slots?\n\nThis will rearrange your pets in slots 1-6.",
+                           teamName or ns.L("Unknown")),
+        confirmText = ns.L("Apply"), cancelText = ns.L("Cancel"),
         onConfirm = onConfirm, onCancel = onCancel,
     })
 end
@@ -264,8 +267,9 @@ end
 function ns.Dialogs:ShowDeleteGroupConfirmDialog(groupName, onConfirm, onCancel)
     return self:ShowConfirmDialog({
         title       = ns.L("Delete Group"),
-        message     = "Are you sure you want to delete the group\n'" .. (groupName or "Unknown") .. "'?\n\nAll pets in this group will be moved to Ungrouped.",
-        confirmText = "Delete", cancelText = "Cancel",
+        message     = ns.L("Are you sure you want to delete the group\n'%s'?\n\nAll pets in this group will be moved to Ungrouped.",
+                           groupName or ns.L("Unknown")),
+        confirmText = ns.L("Delete"), cancelText = ns.L("Cancel"),
         onConfirm = onConfirm, onCancel = onCancel,
     })
 end
@@ -569,7 +573,7 @@ function ns.Dialogs:ShowSelectSlotDialog(team, petData)
             and {
                 title      = ns.L("Slot %s (Occupied)", slot),
                 titleColor = ns.Theme.COLOR.GOLD,
-                lines      = { { text = team.slots[slot].name or "Unknown Pet",
+                lines      = { { text = team.slots[slot].name or ns.L("Unknown Pet"),
                                  color = ns.Theme.COLOR.WHITE } },
             }
             or {

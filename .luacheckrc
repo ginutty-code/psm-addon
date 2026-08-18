@@ -92,6 +92,7 @@ read_globals = {
     "UIDropDownMenu_Initialize",
     "UIDropDownMenu_SetText",
     "UIDropDownMenu_SetWidth",
+    "UIErrorsFrame",
     "UIParent",
     "UISpecialFrames",
     "UiMapPoint",

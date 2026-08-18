@@ -238,6 +238,7 @@ L.Register({
     ["Failed to create group"] = "Failed to create group",
     ["Failed to rename group"] = "Failed to rename group",
     ["Failed to delete group"] = "Failed to delete group",
+    ["Failed to move pet to group"] = "Failed to move pet to group",
 
     ["Reordering disabled while sorting is active."] =
         "|cFFFF8800Reordering disabled while sorting is active.|r",
@@ -249,4 +250,27 @@ L.Register({
         "Shift/Ctrl + Right-click to move to a specific group",
     ["Shift/Ctrl + drag to swap stable slots"] =
         "Shift/Ctrl + drag to swap stable slots",
+
+    -- Dialog defaults and confirmations. These were missed by the first pass: a scan for
+    -- `title = "..."` cannot see `options.title or "..."` or an isRename ternary.
+    ["Dialog"]  = "Dialog",
+    ["Confirm"] = "Confirm",
+    ["Yes"]     = "Yes",
+    ["Apply"]   = "Apply",
+    ["Delete"]  = "Delete",
+    ["Create"]  = "Create",
+    ["Rename"]  = "Rename",
+    ["Are you sure?"]    = "Are you sure?",
+    ["Unknown Pet"]      = "Unknown Pet",
+    ["Enter Team Name"]  = "Enter Team Name",
+    ["Create New Group"] = "Create New Group",
+    ["Enter a name for the new group:"]  = "Enter a name for the new group:",
+    ["Enter a new name for the group:"]  = "Enter a new name for the group:",
+
+    ["Are you sure you want to delete the team\n'%s'?\n\nThis action cannot be undone."] =
+        "Are you sure you want to delete the team\n'%s'?\n\nThis action cannot be undone.",
+    ["Are you sure you want to delete the group\n'%s'?\n\nAll pets in this group will be moved to Ungrouped."] =
+        "Are you sure you want to delete the group\n'%s'?\n\nAll pets in this group will be moved to Ungrouped.",
+    ["Apply team '%s' to your active pet slots?\n\nThis will rearrange your pets in slots 1-6."] =
+        "Apply team '%s' to your active pet slots?\n\nThis will rearrange your pets in slots 1-6.",
 })
