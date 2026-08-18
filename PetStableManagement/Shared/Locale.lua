@@ -56,12 +56,6 @@ L.Register({
     ["No available slots to displace pet from slot 1!"] = "|cFFFF0000No available slots to displace pet from slot 1!|r",
     ["No available stable slots found! (Max 205 slots)"] = "|cFFFF0000No available stable slots found! (Max 205 slots)|r",
 
-    -- One sentence each rather than "Stable must be open to %s!" with the verb passed in.
-    -- A clause slotted into a sentence cannot be reordered by a translator.
-    ["Stable must be open to make a pet active!"]     = "|cFFFF0000Stable must be open to make a pet active!|r",
-    ["Stable must be open to set a pet as companion!"] = "|cFFFF0000Stable must be open to set a pet as companion!|r",
-    ["Stable must be open to stable a pet!"]          = "|cFFFF0000Stable must be open to stable a pet!|r",
-
     ["Pet data snapshot created: %d pets saved."]     = "|cFF00FF00Pet data snapshot created: %d pets saved.|r",
     ["No snapshot available. Please visit a Stable Master to collect your owned pets data."] =
         "|cFFFF8800No snapshot available. Please visit a Stable Master to collect your owned pets data.|r",

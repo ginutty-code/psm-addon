@@ -1,14 +1,15 @@
 -- Tests/spec/locale_spec.lua
 -- The locale lookup, and the net under the retrofit.
 --
--- A10 converts ~250 hardcoded strings into L() calls. English-as-key makes a typo'd key
--- render as the typo'd English rather than a blank label, so the failure is visible --
--- but only to whoever happens to open that panel. The last test here makes it visible
--- at build time instead, by proving every L() key in either addon was declared.
+-- A10 converts the addon's hardcoded strings into L() calls. English-as-key makes a
+-- typo'd key render as the typo'd English rather than a blank label, so the failure is
+-- visible -- but only to whoever happens to open that panel. The last two tests move it
+-- to build time, in both directions: no call site may ask for a key nobody declared, and
+-- no declaration may sit there unasked-for.
 --
--- That check is the reason the enUS entries are written out despite being identity
--- mappings: without a declared list, "undeclared key" and "any key at all" are the same
--- thing, and L.missing carries no signal.
+-- That is also why the enUS entries are written out despite being identity mappings.
+-- Without a declared list, "undeclared key" and "any key at all" are the same thing, and
+-- L.missing carries no signal.
 
 local T = ...
 local describe, it, eq, truthy = T.describe, T.it, T.eq, T.truthy
@@ -50,7 +51,7 @@ describe("locale lookup", function()
 end)
 
 --------------------------------------------------------------------------------
--- Every L() key in the source is declared
+-- Keys and declarations must match, in both directions
 --------------------------------------------------------------------------------
 
 local function ReadFile(path)
@@ -75,7 +76,7 @@ end
 local function TocFiles(tocPath, dir)
     local source = ReadFile(tocPath)
     local files = {}
-    for line in (source or ""):gmatch("(.-)\n") do
+    for line in ((source or "") .. "\n"):gmatch("(.-)\n") do
         line = line:gsub("\r", ""):gsub("^%s+", ""):gsub("%s+$", "")
         if line:match("%.lua$") and not line:match("^#") then
             files[#files + 1] = dir .. line:gsub("\\", "/")
@@ -84,33 +85,69 @@ local function TocFiles(tocPath, dir)
     return files
 end
 
+-- Every L("...") in either addon's .toc, as { key, where }.
+local function CallSites()
+    local files = TocFiles("PetStableManagement/PetStableManagement.toc",
+                           "PetStableManagement/")
+    for _, path in ipairs(TocFiles(
+            "PetStableManagement_ModelsBrowser/PetStableManagement_ModelsBrowser.toc",
+            "PetStableManagement_ModelsBrowser/")) do
+        files[#files + 1] = path
+    end
+
+    local sites = {}
+    for _, path in ipairs(files) do
+        local source = ReadFile(path)
+        for i, line in ipairs(source and CodeLines(source) or {}) do
+            for key in line:gmatch('[nsPSM]+%.L%("([^"]*)"') do
+                sites[#sites + 1] = { key = key, where = path .. ":" .. i }
+            end
+        end
+    end
+    return sites
+end
+
+-- The keys Locale.lua registers. Read from the source rather than the module, because
+-- `strings` is private -- which is the point; a consumer cannot enumerate or edit it.
+local function DeclaredKeys()
+    local keys = {}
+    for _, line in ipairs(CodeLines(ReadFile("PetStableManagement/Shared/Locale.lua") or "")) do
+        local key = line:match('^%s*%["(.-)"%]%s*=')
+        if key then keys[#keys + 1] = key end
+    end
+    return keys
+end
+
 describe("locale keys", function()
     it("declares every key either addon asks for", function()
         local L = freshL()
-
-        local files = TocFiles("PetStableManagement/PetStableManagement.toc",
-                               "PetStableManagement/")
-        for _, path in ipairs(TocFiles(
-                "PetStableManagement_ModelsBrowser/PetStableManagement_ModelsBrowser.toc",
-                "PetStableManagement_ModelsBrowser/")) do
-            files[#files + 1] = path
-        end
-
-        local undeclared, sites = {}, 0
-        for _, path in ipairs(files) do
-            local source = ReadFile(path)
-            for i, line in ipairs(source and CodeLines(source) or {}) do
-                for key in line:gmatch('[nsPSM]+%.L%("([^"]*)"') do
-                    sites = sites + 1
-                    L(key)
-                    if L.missing[key] then
-                        undeclared[#undeclared + 1] = path .. ":" .. i .. ' -- "' .. key .. '"'
-                    end
-                end
+        local sites = CallSites()
+        local undeclared = {}
+        for _, site in ipairs(sites) do
+            L(site.key)
+            if L.missing[site.key] then
+                undeclared[#undeclared + 1] = site.where .. ' -- "' .. site.key .. '"'
             end
         end
-
-        truthy(sites > 0, "found no L() call sites at all -- the pattern has gone stale")
+        truthy(#sites > 0, "found no L() call sites at all -- the pattern has gone stale")
         eq(#undeclared, 0, "undeclared L() keys:\n      " .. table.concat(undeclared, "\n      "))
+    end)
+
+    -- The other direction, matching boundary_spec's rule for exports: a string nobody
+    -- asks for is dead weight in the manifest, and a translator would translate it.
+    -- Three "Stable must be open to ..." entries went this way once their guards turned
+    -- out to be unreachable.
+    it("registers nothing neither addon asks for", function()
+        local asked = {}
+        for _, site in ipairs(CallSites()) do asked[site.key] = true end
+
+        local declared = DeclaredKeys()
+        local orphans = {}
+        for _, key in ipairs(declared) do
+            if not asked[key] then orphans[#orphans + 1] = key end
+        end
+        table.sort(orphans)
+        truthy(#declared > 0, "parsed no declared keys -- the pattern has gone stale")
+        eq(#orphans, 0, "registered but never used:\n      " .. table.concat(orphans, "\n      "))
     end)
 end)

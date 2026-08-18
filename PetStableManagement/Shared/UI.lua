@@ -68,10 +68,6 @@ function ns.UI:SetupRowButtons(row, pet)
 
     -- Make Active
     row.makeActive:SetScript("OnClick", function()
-        if not isStableOpen then
-            print(ns.L("Stable must be open to make a pet active!"))
-            return
-        end
         if not C_StableInfo or not C_StableInfo.SetPetSlot then
             print("|cFFFF0000C_StableInfo.SetPetSlot not available.|r")
             return
@@ -106,10 +102,6 @@ function ns.UI:SetupRowButtons(row, pet)
 
     -- Companion
     row.companion:SetScript("OnClick", function()
-        if not isStableOpen then
-            print(ns.L("Stable must be open to set a pet as companion!"))
-            return
-        end
         if C_StableInfo and C_StableInfo.SetPetSlot then
             C_StableInfo.SetPetSlot(pet.slotID, 6)
             ns.C_Timer.After(0.2, function() ns.UI:UpdatePanel() end)
@@ -123,10 +115,6 @@ function ns.UI:SetupRowButtons(row, pet)
 
     -- Stable
     row.stable:SetScript("OnClick", function()
-        if not isStableOpen then
-            print(ns.L("Stable must be open to stable a pet!"))
-            return
-        end
         if C_StableInfo and C_StableInfo.SetPetSlot then
             local targetSlot = self:FindAvailableStableSlot()
             if targetSlot then
