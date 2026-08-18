@@ -25,6 +25,7 @@ local SPECS = {
     "Tests/spec/renderinputs_spec.lua",
     "Tests/spec/loaderinputs_spec.lua",
     "Tests/spec/widgetlabels_spec.lua",
+    "Tests/spec/locale_spec.lua",
 }
 
 return function()

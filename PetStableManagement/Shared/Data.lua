@@ -328,7 +328,7 @@ function ns.Data:CollectStablePets()
     self:ClearMemory(true)
 
     if not ns.GetStableFrame() then
-        print(ns.Config.MESSAGES.STABLE_FRAME_NOT_FOUND)
+        print(ns.L("StableFrame not found!"))
         return 0
     end
 

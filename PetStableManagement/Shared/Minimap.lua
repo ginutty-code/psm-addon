@@ -233,7 +233,7 @@ function ns.Minimap:TogglePanel()
     if ns.state.isStableOpen then
         ns.Data:CollectStablePets()
     elseif not ns.Data:LoadPersistentDataForDisplay() then
-        print(ns.Config.MESSAGES.NO_SNAPSHOT)
+        print(ns.L("No snapshot available. Please visit a Stable Master to collect your owned pets data."))
         return
     end
 

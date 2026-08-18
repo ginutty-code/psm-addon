@@ -363,11 +363,11 @@ function PSM.ModelsFilters:CreateResetFiltersButton(panel)
     panel.resetFiltersButton = PSM.Widgets.Button(panel, {
         point      = { "TOPLEFT", panel.searchBox, "TOPRIGHT", 10, 0 },
         width      = PSM.Theme.CONTROL.BUTTON_W.M,
-        text       = "Reset Filters",
+        text       = PSM.L("Reset Filters"),
         fontObject = "GameFontNormalSmall",
         tooltip    = {
             anchor     = "ANCHOR_BOTTOMRIGHT",
-            title      = "Reset all filters",
+            title      = PSM.L("Reset all filters"),
             titleColor = PSM.Theme.COLOR.WHITE,
             lines      = lines,
         },

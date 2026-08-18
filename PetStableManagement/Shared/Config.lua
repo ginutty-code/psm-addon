@@ -198,20 +198,6 @@ ns.Config = {
         -- [12345] = true,
     },
 
--- ============================================================
--- Messages
--- ============================================================
-    MESSAGES = {
-        STABLE_FRAME_NOT_FOUND  = "|cFFFF0000StableFrame not found!|r",
-        PANEL_CREATION_FAILED   = "|cFFFF0000Panel creation failed!|r",
-        PANEL_SHOW_FAILED       = "|cFFFF0000Panel failed to show!|r",
-        STABLE_MUST_BE_OPEN     = "|cFFFF0000Stable must be open to %s!|r",
-        NO_AVAILABLE_SLOTS      = "|cFFFF0000No available slots to displace pet from slot 1!|r",
-        NO_STABLE_SLOTS         = "|cFFFF0000No available stable slots found! (Max 205 slots)|r",
-        SNAPSHOT_CREATED        = "|cFF00FF00Pet data snapshot created: %d pets saved.|r",
-        NO_SNAPSHOT             = "|cFFFF8800No snapshot available. Please visit a Stable Master to collect your owned pets data.|r",
-        ADDON_LOADED            = "|cFF00FF00Pet Stable Management loaded. Use /psm or /petstable or click the minimap button to toggle the panel.|r",
-    },
 }
 
 -- ============================================================

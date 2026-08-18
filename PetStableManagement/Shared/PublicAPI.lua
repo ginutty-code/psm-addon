@@ -10,7 +10,7 @@
 -- addons. So `_G.PSM` survives A3 as the bridge between them, and this file decides how
 -- narrow that bridge is.
 --
--- Core defines ~38 members. These eleven are the only ones the browser may read;
+-- Core defines ~38 members. These fifteen are the only ones the browser may read;
 -- everything else stays private to core. `Tests/spec/boundary_spec.lua` parses this list
 -- out of this file and fails the build if a browser file reaches for anything outside it.
 --
@@ -29,9 +29,10 @@
 local _, ns = ...
 
 local PUBLIC_API = {
-    "Config",        -- constants: colours, sizes, strings
+    "Config",        -- constants: colours and sizes (its MESSAGES moved to Locale.lua)
     "Data",          -- SavedVariables access
     "FilterState",   -- the Models Browser's five tristate toggles, and their only accessor
+    "L",             -- string lookup: L("Reset Filters"), plus L.missing for /dump
     "PanelManager",  -- panel chrome: CreateBasePanel, TogglePanel, search boxes
     "PopUpManager",  -- shared popups, incl. ShowURLPopup for Wowhead links
     "RowManager",    -- model rotation/zoom hover controls, ReleaseModel

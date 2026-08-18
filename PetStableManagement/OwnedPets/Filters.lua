@@ -330,7 +330,7 @@ function ns.UI:BuildSortButtons(panel)
     panel.resetFiltersButton = ns.Widgets.Button(panel, {
         width      = ns.Theme.CONTROL.BUTTON_W.M,
         point      = { "TOPLEFT", panel.searchBox, "TOPRIGHT", 10, 0 },
-        text       = "Reset Filters",
+        text       = ns.L("Reset Filters"),
         fontObject = "GameFontNormalSmall",
 
         -- A function spec: the tamer line depends on whether the stable is open,
@@ -347,7 +347,7 @@ function ns.UI:BuildSortButtons(panel)
             end
             return {
                 anchor     = "ANCHOR_BOTTOMRIGHT",
-                title      = "Reset all filters",
+                title      = ns.L("Reset all filters"),
                 titleColor = ns.Theme.COLOR.WHITE,
                 lines      = lines,
             }

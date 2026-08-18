@@ -203,7 +203,7 @@ function PSM.ModelsPanel:CreateModelsPanel()
     local panel = PSM.PanelManager:CreateBasePanel("modelsPanel", {
         width              = MODELS_CONFIG.PANEL_WIDTH,
         height             = MODELS_CONFIG.PANEL_HEIGHT,
-        title              = "Pet Model Browser",
+        title              = PSM.L("Pet Model Browser"),
         -- Higher than the default so it clears this panel's search box.
         titleOffset        = -20,
         resizable          = false,
@@ -723,7 +723,7 @@ end
 
 function PSM.ModelsPanel:Toggle()
     if UnitAffectingCombat("player") then
-        print("|cFFFF0000Pet Model Browser: Cannot open panel during combat.|r")
+        print(PSM.L("Pet Model Browser: Cannot open panel during combat."))
         return
     end
     PSM.PanelManager:TogglePanel("modelsPanel", function() self:CreateModelsPanel() end)

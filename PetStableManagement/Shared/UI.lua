@@ -69,7 +69,7 @@ function ns.UI:SetupRowButtons(row, pet)
     -- Make Active
     row.makeActive:SetScript("OnClick", function()
         if not isStableOpen then
-            print(string.format(ns.Config.MESSAGES.STABLE_MUST_BE_OPEN, "make a pet active"))
+            print(ns.L("Stable must be open to make a pet active!"))
             return
         end
         if not C_StableInfo or not C_StableInfo.SetPetSlot then
@@ -90,7 +90,7 @@ function ns.UI:SetupRowButtons(row, pet)
                         ns.C_Timer.After(0.2, function() ns.UI:UpdatePanel() end)
                     end)
                 else
-                    print(ns.Config.MESSAGES.NO_AVAILABLE_SLOTS)
+                    print(ns.L("No available slots to displace pet from slot 1!"))
                 end
             else
                 C_StableInfo.SetPetSlot(pet.slotID, 1)
@@ -107,7 +107,7 @@ function ns.UI:SetupRowButtons(row, pet)
     -- Companion
     row.companion:SetScript("OnClick", function()
         if not isStableOpen then
-            print(string.format(ns.Config.MESSAGES.STABLE_MUST_BE_OPEN, "set a pet as companion"))
+            print(ns.L("Stable must be open to set a pet as companion!"))
             return
         end
         if C_StableInfo and C_StableInfo.SetPetSlot then
@@ -124,7 +124,7 @@ function ns.UI:SetupRowButtons(row, pet)
     -- Stable
     row.stable:SetScript("OnClick", function()
         if not isStableOpen then
-            print(string.format(ns.Config.MESSAGES.STABLE_MUST_BE_OPEN, "stable a pet"))
+            print(ns.L("Stable must be open to stable a pet!"))
             return
         end
         if C_StableInfo and C_StableInfo.SetPetSlot then
@@ -133,7 +133,7 @@ function ns.UI:SetupRowButtons(row, pet)
                 C_StableInfo.SetPetSlot(pet.slotID, targetSlot)
                 ns.C_Timer.After(0.2, function() ns.UI:UpdatePanel() end)
             else
-                print(ns.Config.MESSAGES.NO_STABLE_SLOTS)
+                print(ns.L("No available stable slots found! (Max 205 slots)"))
             end
         end
     end)
@@ -258,7 +258,7 @@ end
 
 function ns.UI:RenderPanel(preserveScroll)
     if not ns.state.panel or not ns.state.content then
-        print(ns.Config.MESSAGES.PANEL_SHOW_FAILED)
+        print(ns.L("Panel failed to show!"))
         return
     end
     if ns._renderDebounceTimer then ns._renderDebounceTimer:Cancel() end
