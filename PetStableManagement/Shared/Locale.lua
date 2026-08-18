@@ -306,4 +306,13 @@ L.Register({
     ["Failed to rename team"]    = "Failed to rename team",
     ["Failed to duplicate team"] = "Failed to duplicate team",
     ["Failed to delete team"]    = "Failed to delete team",
+
+    -- Dialog titles passed positionally to CreateBaseDialog, and the delete-all prompt.
+    ["Save Pet Team"]   = "Save Pet Team",
+    ["Add Pet to Team"] = "Add Pet to Team",
+    ["Duplicate Pet"]   = "Duplicate Pet",
+    ["Select Slot"]     = "Select Slot",
+    ["Delete All"]      = "Delete All",
+    ["Are you sure you want to delete ALL groups?\n\nAll pets will be moved to Ungrouped.\nThis action cannot be undone."] =
+        "Are you sure you want to delete ALL groups?\n\nAll pets will be moved to Ungrouped.\nThis action cannot be undone.",
 })

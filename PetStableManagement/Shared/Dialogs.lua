@@ -277,8 +277,8 @@ end
 function ns.Dialogs:ShowDeleteAllGroupsConfirmDialog(onConfirm, onCancel)
     return self:ShowConfirmDialog({
         title       = ns.L("Delete All Groups"),
-        message     = "Are you sure you want to delete ALL groups?\n\nAll pets will be moved to Ungrouped.\nThis action cannot be undone.",
-        confirmText = "Delete All", cancelText = "Cancel",
+        message     = ns.L("Are you sure you want to delete ALL groups?\n\nAll pets will be moved to Ungrouped.\nThis action cannot be undone."),
+        confirmText = ns.L("Delete All"), cancelText = ns.L("Cancel"),
         onConfirm = onConfirm, onCancel = onCancel,
     })
 end
@@ -300,7 +300,7 @@ function ns.Dialogs:ShowSaveTeamDialog(options)
         })
     end
 
-    local d = CreateBaseDialog("PSMTeamSaveDialog", 380, 180, "Save Pet Team")
+    local d = CreateBaseDialog("PSMTeamSaveDialog", 380, 180, ns.L("Save Pet Team"))
 
     d.message = CreateDialogText(d, {
         point   = { "TOP", d.title, "BOTTOM", 0, -10 },
@@ -393,7 +393,7 @@ function ns.Dialogs:ShowAddToTeamDialog(petData)
     local footerH     = 70
 
     local d = CreateBaseDialog("PSMAddToTeamDialog", dialogW,
-        headerH + (needsScroll and maxBtnAreaH or btnAreaH) + footerH, "Add Pet to Team", true)
+        headerH + (needsScroll and maxBtnAreaH or btnAreaH) + footerH, ns.L("Add Pet to Team"), true)
 
     d.petInfoText = CreateDialogText(d, {
         fontSize = ns.Theme.SIZE.LABEL,
@@ -492,7 +492,7 @@ function ns.Dialogs:ShowSelectSlotDialog(team, petData)
     if team.slots then
         for slot = 1, 6 do
             if team.slots[slot] and team.slots[slot].petNumber == petData.petNumber then
-                local d = CreateBaseDialog("PSMDuplicatePetWarning", 380, 150, "Duplicate Pet")
+                local d = CreateBaseDialog("PSMDuplicatePetWarning", 380, 150, ns.L("Duplicate Pet"))
                 d.message = CreateDialogText(d, {
                     point   = { "TOP", d.title, "BOTTOM", 0, -15 },
                     width   = 340,
@@ -510,7 +510,7 @@ function ns.Dialogs:ShowSelectSlotDialog(team, petData)
         end
     end
 
-    local d = CreateBaseDialog("PSMSelectSlotDialog", 420, 280, "Select Slot", true)
+    local d = CreateBaseDialog("PSMSelectSlotDialog", 420, 280, ns.L("Select Slot"), true)
 
     d.teamInfoText = CreateDialogText(d, {
         fontSize = ns.Theme.SIZE.LABEL,
@@ -668,7 +668,7 @@ function ns.Dialogs:ShowRemoveFromTeamDialog(petData)
 
     local count   = #matches
     local dialogH = 180 + (count > 0 and count * 35 or 0)
-    local d = CreateBaseDialog("PSMRemoveFromTeamDialog", 420, dialogH, "Remove from Team", true)
+    local d = CreateBaseDialog("PSMRemoveFromTeamDialog", 420, dialogH, ns.L("Remove from Team"), true)
 
     d.petInfoText = CreateDialogText(d, {
         fontSize = ns.Theme.SIZE.LABEL,

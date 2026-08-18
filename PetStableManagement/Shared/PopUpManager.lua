@@ -220,7 +220,7 @@ local function CreateNPCRow(parent, npc, rowWidth)
     detailText:SetHyperlinksEnabled(true)
 
     local id         = npc.npcId or "?"
-    local locLabel   = ns.PopUpManager:BuildCoordsLocationLabel(npc.npcId, npc.location) or "Unknown"
+    local locLabel   = ns.PopUpManager:BuildCoordsLocationLabel(npc.npcId, npc.location) or ns.L("Unknown")
     local expansion  = npc.expansion or ns.L("Unknown")
     local factionStr = formatFactionIndicator(npc.factionReaction)
     local noteLink   = npc.npcId and BuildNoteLink(npc.npcId) or ""
@@ -1292,7 +1292,7 @@ function ns.PopUpManager:ShowMagnificationPopup(displayId, petData)
     popup.SetFavTexCoord(popup.favoritesButton, ns.state.favoriteModels[displayId])
 
     -- Gather model data
-    local familyName = "Unknown"
+    local familyName = ns.L("Unknown")
     local npcs = {}
 
     if petData and petData.familyName then
@@ -1393,7 +1393,7 @@ function ns.PopUpManager:PopulateModelPopup(popup, displayId, petData, npcs)
     popup.currentNPCs = npcs or {}
 
     -- Info text
-    local familyName = "Unknown"
+    local familyName = ns.L("Unknown")
     if petData and petData.familyName and petData.familyName ~= "" then
         familyName = petData.familyName
     elseif popup.resolvedFamily then
