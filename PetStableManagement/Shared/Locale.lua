@@ -273,4 +273,37 @@ L.Register({
         "Are you sure you want to delete the group\n'%s'?\n\nAll pets in this group will be moved to Ungrouped.",
     ["Apply team '%s' to your active pet slots?\n\nThis will rearrange your pets in slots 1-6."] =
         "Apply team '%s' to your active pet slots?\n\nThis will rearrange your pets in slots 1-6.",
+
+    -- Teams panel
+    ["Pet Teams"]        = "Pet Teams",
+    ["Team Name"]        = "Team Name",
+    ["Unnamed Team"]     = "Unnamed Team",
+    ["Search teams..."]  = "Search teams...",
+    ["Remove from Team"] = "Remove from Team",
+    ["Copy"]      = "Copy",
+    ["Duplicate"] = "Duplicate",
+    ["Rename Team"]    = "Rename Team",
+    ["Duplicate Team"] = "Duplicate Team",
+    ["%s (Copy)"]      = "%s (Copy)",
+    ["Enter a new name for '%s':"]         = "Enter a new name for '%s':",
+    ["Enter a name for the copy of '%s':"] = "Enter a name for the copy of '%s':",
+
+    ["%d/6 pets • Modified: %s"] = "%d/6 pets • Modified: %s",
+    ["%d team(s) saved"]       = "%d team(s) saved",
+    ["%d of %d team(s) match"] = "%d of %d team(s) match",
+    ["No teams match your search."] = "No teams match your search.",
+    ["No teams saved yet.\nCreate your teams at the Stable Master \nor by adding pets from the Owned Pets panel."] =
+        "No teams saved yet.\nCreate your teams at the Stable Master \nor by adding pets from the Owned Pets panel.",
+
+    ["Slot %s (Companion)"] = "Slot %s (Companion)",
+    ["Slot %s (Active)"]    = "Slot %s (Active)",
+    ["Drag to rearrange\nHover + X to remove"] = "Drag to rearrange\nHover + X to remove",
+
+    ["Visit a Stable Master to apply teams"] = "Visit a Stable Master to apply teams",
+    ["You must be at a Stable Master to apply a team."] =
+        "|cFFFF8800PetStableManagement: You must be at a Stable Master to apply a team.|r",
+    ["Failed to apply team"]     = "Failed to apply team",
+    ["Failed to rename team"]    = "Failed to rename team",
+    ["Failed to duplicate team"] = "Failed to duplicate team",
+    ["Failed to delete team"]    = "Failed to delete team",
 })

@@ -82,7 +82,7 @@ local function CreateRemoveFromSlotButton(parent, container, slotNum, teamId)
             ns.TeamsPanel:RefreshTeamsList()
         end
     end)
-    ns.Tooltip.Attach(btn, { title = "Remove from Team" }, {
+    ns.Tooltip.Attach(btn, { title = ns.L("Remove from Team") }, {
         onEnter = function(self) self:SetAlpha(1.0) end,
         onLeave = function(self) self:SetAlpha(0.7) end,
     })
@@ -127,7 +127,7 @@ function ns.TeamsPanel:CreateTeamsPanel()
         width    = ns.Data:GetTeamsPanelWidth()  or ns.Config.DEFAULT_PANEL_WIDTH,
         height   = ns.Data:GetTeamsPanelHeight() or ns.Config.DEFAULT_PANEL_HEIGHT,
         position = savedPosition,
-        title    = "Pet Teams",
+        title    = ns.L("Pet Teams"),
         minWidth  = ns.Config.MIN_PANEL_WIDTH,
         minHeight = ns.Config.MIN_PANEL_HEIGHT,
         onHide   = function(p) ns.PanelManager:CleanupPanel(p) end,
@@ -180,7 +180,7 @@ function ns.TeamsPanel:AddTeamsPanelElements(panel)
     ns.PanelManager:CreateSearchBox(panel, function(searchText)
         ns.TeamsPanel:FilterTeams(searchText)
     end, {
-        placeholder = "Search teams...",
+        placeholder = ns.L("Search teams..."),
     })
 
     -- Scroll frame + content
@@ -229,7 +229,7 @@ function ns.TeamsPanel:AddTeamsPanelElements(panel)
         outline  = true,
         color    = Theme.COLOR.GOLD,
         point    = { "BOTTOM", 0, 15 },
-        text     = "0 teams saved",
+        text     = ns.L("%d team(s) saved", 0),
     })
 
     -- Empty state message
@@ -237,7 +237,7 @@ function ns.TeamsPanel:AddTeamsPanelElements(panel)
         fontSize = Theme.SIZE.LABEL,
         color    = Theme.COLOR.GREY,
         point    = { "CENTER", content, "CENTER", 0, 0 },
-        text     = "No teams saved yet.\nCreate your teams at the Stable Master \nor by adding pets from the Owned Pets panel.",
+        text     = ns.L("No teams saved yet.\nCreate your teams at the Stable Master \nor by adding pets from the Owned Pets panel."),
         hidden   = true,
     })
 end
@@ -267,7 +267,7 @@ function ns.TeamsPanel:CreateTeamRow(parent)
         outline  = true,
         color    = Theme.COLOR.GOLD,
         point    = { "TOPLEFT", 10, -8 },
-        text     = "Team Name",
+        text     = ns.L("Team Name"),
     })
 
     row.infoText = Widgets.Label(row, {
@@ -346,10 +346,10 @@ function ns.TeamsPanel:CreateTeamRow(parent)
 
     local prevBtn
     for _, spec in ipairs({
-        { key = "applyButton",     label = "Apply"  },
-        { key = "duplicateButton", label = "Copy"   },
-        { key = "renameButton",    label = "Rename" },
-        { key = "deleteButton",    label = "Delete" },
+        { key = "applyButton",     label = ns.L("Apply")  },
+        { key = "duplicateButton", label = ns.L("Copy")   },
+        { key = "renameButton",    label = ns.L("Rename") },
+        { key = "deleteButton",    label = ns.L("Delete") },
     }) do
         local btn = CreateActionButton(row.buttonsFrame, spec.label, buttonWidth, buttonHeight)
         if prevBtn then
@@ -374,14 +374,14 @@ function ns.TeamsPanel:UpdateTeamRow(row, team)
     local alpha = ns.Config:GetOpacity()
 
     -- Name
-    row.nameText:SetText(team.name or "Unnamed Team")
+    row.nameText:SetText(team.name or ns.L("Unnamed Team"))
 
     -- Info text
     local petCount = 0
     for slot = 1, 6 do
         if team.slots[slot] then petCount = petCount + 1 end
     end
-    row.infoText:SetText(petCount .. "/6 pets • Modified: " .. ns.Teams:FormatTimestamp(team.modifiedAt))
+    row.infoText:SetText(ns.L("%d/6 pets • Modified: %s", petCount, ns.Teams:FormatTimestamp(team.modifiedAt)))
 
     -- Pet icons
     for slot = 1, 6 do
@@ -441,7 +441,7 @@ function ns.TeamsPanel:UpdateTeamRow(row, team)
     -- Apply
     row.applyButton:SetScript("OnClick", function()
         if not ns.state.isStableOpen then
-            print("|cFFFF8800PetStableManagement: You must be at a Stable Master to apply a team.|r")
+            print(ns.L("You must be at a Stable Master to apply a team."))
             return
         end
         ns.Dialogs:ShowApplyConfirmDialog(teamName, function()
@@ -449,7 +449,7 @@ function ns.TeamsPanel:UpdateTeamRow(row, team)
             if ok then
                 ns.TeamsPanel:RefreshTeamsList()
             else
-                print("|cFFFF0000PetStableManagement: " .. (err or "Failed to apply team") .. "|r")
+                print("|cFFFF0000PetStableManagement: " .. (err or ns.L("Failed to apply team")) .. "|r")
             end
         end)
     end)
@@ -471,7 +471,7 @@ function ns.TeamsPanel:UpdateTeamRow(row, team)
             -- pixel instead of coloured ever since. Stated as a colour now.
             ns.Tooltip.Attach(overlay, {
                 anchor     = "ANCHOR_BOTTOM",
-                title      = "Visit a Stable Master to apply teams",
+                title      = ns.L("Visit a Stable Master to apply teams"),
                 titleColor = ns.Theme.COLOR.ORANGE,
             })
 
@@ -485,14 +485,14 @@ function ns.TeamsPanel:UpdateTeamRow(row, team)
     -- Rename
     row.renameButton:SetScript("OnClick", function()
         ns.Dialogs:ShowNameInputDialog({
-            title = "Rename Team",
-            description = "Enter a new name for '" .. teamName .. "':",
+            title = ns.L("Rename Team"),
+            description = ns.L("Enter a new name for '%s':", teamName),
             defaultText = teamName,
-            confirmText = "Rename",
+            confirmText = ns.L("Rename"),
             onConfirm = function(newName)
                 local ok, err = ns.Teams:RenameTeam(teamId, newName)
                 if ok then ns.TeamsPanel:RefreshTeamsList()
-                else print("|cFFFF0000PetStableManagement: " .. (err or "Failed to rename team") .. "|r") end
+                else print("|cFFFF0000PetStableManagement: " .. (err or ns.L("Failed to rename team")) .. "|r") end
             end,
         })
     end)
@@ -500,14 +500,14 @@ function ns.TeamsPanel:UpdateTeamRow(row, team)
     -- Duplicate
     row.duplicateButton:SetScript("OnClick", function()
         ns.Dialogs:ShowNameInputDialog({
-            title = "Duplicate Team",
-            description = "Enter a name for the copy of '" .. teamName .. "':",
-            defaultText = teamName .. " (Copy)",
-            confirmText = "Duplicate",
+            title = ns.L("Duplicate Team"),
+            description = ns.L("Enter a name for the copy of '%s':", teamName),
+            defaultText = ns.L("%s (Copy)", teamName),
+            confirmText = ns.L("Duplicate"),
             onConfirm = function(newName)
                 local newId, err = ns.Teams:DuplicateTeam(teamId, newName)
                 if newId then ns.TeamsPanel:RefreshTeamsList()
-                else print("|cFFFF0000PetStableManagement: " .. (err or "Failed to duplicate team") .. "|r") end
+                else print("|cFFFF0000PetStableManagement: " .. (err or ns.L("Failed to duplicate team")) .. "|r") end
             end,
         })
     end)
@@ -517,7 +517,7 @@ function ns.TeamsPanel:UpdateTeamRow(row, team)
         ns.Dialogs:ShowDeleteConfirmDialog(teamName, function()
             local ok, err = ns.Teams:DeleteTeam(teamId)
             if ok then ns.TeamsPanel:RefreshTeamsList()
-            else print("|cFFFF0000PetStableManagement: " .. (err or "Failed to delete team") .. "|r") end
+            else print("|cFFFF0000PetStableManagement: " .. (err or ns.L("Failed to delete team")) .. "|r") end
         end)
     end)
 
@@ -592,15 +592,15 @@ function ns.TeamsPanel:DoRefreshTeamsList()
 
     panel.statsText:SetText(
         ns.TeamsPanel._searchMode
-        and (teamCount .. " of " .. allCount .. " team(s) match")
-        or  (allCount .. " team(s) saved")
+        and ns.L("%d of %d team(s) match", teamCount, allCount)
+        or  ns.L("%d team(s) saved", allCount)
     )
 
     if teamCount == 0 then
         panel.emptyText:SetText(
             allCount == 0
-            and "No teams saved yet.\nCreate your teams at the Stable Master \nor by adding pets from the Owned Pets panel."
-            or  "No teams match your search."
+            and ns.L("No teams saved yet.\nCreate your teams at the Stable Master \nor by adding pets from the Owned Pets panel.")
+            or  ns.L("No teams match your search.")
         )
         panel.emptyText:Show()
         for _, row in ipairs(panel.teamRows) do row:Hide() end
@@ -631,7 +631,7 @@ function ns.TeamsPanel:DoRefreshTeamsList()
         row:SetPoint("TOPLEFT", panel.content, "TOPLEFT",
             colIdx * (colWidth + COLUMN_SPACING),
             -(rowIdx * (ROW_HEIGHT + ROW_SPACING) + ROW_SPACING))
-        row.nameText:SetText(team.name or "Unnamed Team")
+        row.nameText:SetText(team.name or ns.L("Unnamed Team"))
         table.insert(renderQueue, { row = row, team = team })
     end
 
@@ -725,8 +725,9 @@ end
 -- here a slot is a team position rather than a stable slot, and 6 is the companion.
 function ns.TeamsPanel:ShowPetTooltip(container, petData, slot)
     local spec = ns.PetTooltip.Spec(petData, {
-        slotLabel = "Slot " .. slot .. (slot == 6 and " (Companion)" or " (Active)"),
-        hints     = "Drag to rearrange\nHover + X to remove",
+        slotLabel = slot == 6 and ns.L("Slot %s (Companion)", slot)
+                                or ns.L("Slot %s (Active)", slot),
+        hints     = ns.L("Drag to rearrange\nHover + X to remove"),
     })
     if not spec then return end
 
