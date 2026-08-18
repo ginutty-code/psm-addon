@@ -163,4 +163,59 @@ L.Register({
 
     -- Joins the alternative locations in a taming hint; a separator is copy too.
     [" or "] = " or ",
+
+    -- Owned pets: filter bar, sort menu, CSV export
+    ["Sort by"]  = "Sort by",
+    ["Unsorted"] = "Unsorted",
+    ["Family"]   = "Family",
+    ["Model"]    = "Model",
+    ["Slot"]     = "Slot",
+    ["Spec"]     = "Spec",
+    ["Tamer"]    = "Tamer",
+    ["Sorted by Slot"]   = "Sorted by Slot",
+    ["Sorted by Model"]  = "Sorted by Model",
+    ["Sorted by Family"] = "Sorted by Family",
+    ["Sorted by Spec"]   = "Sorted by Spec",
+    ["Sorted by Tamer"]  = "Sorted by Tamer",
+    ["Exotic Only"]     = "Exotic Only",
+    ["Duplicates Only"] = "Duplicates Only",
+
+    ["All Specs"]    = "All Specs",
+    ["All Hunters"]  = "All Hunters",
+    ["All Families"] = "All Families",
+    ["All Exotic Families"]     = "All Exotic Families",
+    ["All Non-Exotic Families"] = "All Non-Exotic Families",
+
+    ["Slot - sort by stable slot number"]      = "Slot - sort by stable slot number",
+    ["Model - sort by display ID"]             = "Model - sort by display ID",
+    ["Family - sort alphabetically by family"] = "Family - sort alphabetically by family",
+    ["Spec - sort alphabetically by spec"]     = "Spec - sort alphabetically by spec",
+    ["Tamer - sort alphabetically by owner"]   = "Tamer - sort alphabetically by owner",
+    ["Unsorted - default order"]               = "Unsorted - default order",
+    ["Custom drag-and-drop reordering in"]     = "Custom drag-and-drop reordering in",
+    ["Grouped view requires Unsorted."]        = "Grouped view requires Unsorted.",
+
+    -- What the Reset Filters tooltip promises it will do.
+    ["All Specs selected"]    = "All Specs selected",
+    ["All Families selected"] = "All Families selected",
+    ["All Hunters selected"]  = "All Hunters selected",
+    ["Tamer: kept on current hunter"] = "Tamer: kept on current hunter",
+    ["Exotic Only: OFF"]     = "Exotic Only: OFF",
+    ["Duplicates Only: OFF"] = "Duplicates Only: OFF",
+    ["Clear search box"]     = "Clear search box",
+    ["Sort by: Unsorted"]    = "Sort by: Unsorted",
+
+    ["Export Pet Data (CSV)"] = "Export Pet Data (CSV)",
+    ["Select All"]  = "Select All",
+    ["How to Copy"] = "How to Copy",
+    ["Select the columns to export, then copy the text below and paste it into a .csv file or spreadsheet"] =
+        "Select the columns to export, then copy the text below and paste it into a .csv file or spreadsheet",
+    ["Exporting %d pets (%d total lines including header)"] =
+        "Exporting %d pets (%d total lines including header)",
+    ["To copy the CSV data:"] = "|cFFFFD700Pet Stable Management:|r To copy the CSV data:",
+    ["1. Click 'Select All' button"] = "|cFF00FF001.|r Click 'Select All' button",
+    ["2. Press Ctrl+C (Cmd+C on Mac) to copy"] = "|cFF00FF002.|r Press Ctrl+C (Cmd+C on Mac) to copy",
+    ["3. Paste into Excel, Google Sheets, or a text editor"] =
+        "|cFF00FF003.|r Paste into Excel, Google Sheets, or a text editor",
+    ["4. Save as .csv file if needed"] = "|cFF00FF004.|r Save as .csv file if needed",
 })

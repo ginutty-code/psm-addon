@@ -130,9 +130,8 @@ local function RefreshExportContent(frame)
     frame.editBox:SetCursorPosition(0)
 
     local lines = CountLines(csv)
-    frame.petCount:SetText(string.format(
-        "Exporting %d pets (%d total lines including header)", lines - 1, lines
-    ))
+    frame.petCount:SetText(ns.L("Exporting %d pets (%d total lines including header)",
+        lines - 1, lines))
 end
 
 local COLUMN_PITCH  = 110
@@ -218,7 +217,7 @@ local function CreateBottomBar(frame)
     Widgets.Button(frame, {
         width   = ns.Theme.CONTROL.BUTTON_W.M,
         point   = { "BOTTOM", -55, 15 },
-        text    = "Select All",
+        text    = ns.L("Select All"),
         onClick = function()
             frame.editBox:SetFocus()
             frame.editBox:HighlightText()
@@ -228,13 +227,13 @@ local function CreateBottomBar(frame)
     Widgets.Button(frame, {
         width   = ns.Theme.CONTROL.BUTTON_W.M,
         point   = { "BOTTOM", 55, 15 },
-        text    = "How to Copy",
+        text    = ns.L("How to Copy"),
         onClick = function()
-            print("|cFFFFD700Pet Stable Management:|r To copy the CSV data:")
-            print("|cFF00FF001.|r Click 'Select All' button")
-            print("|cFF00FF002.|r Press Ctrl+C (Cmd+C on Mac) to copy")
-            print("|cFF00FF003.|r Paste into Excel, Google Sheets, or a text editor")
-            print("|cFF00FF004.|r Save as .csv file if needed")
+            print(ns.L("To copy the CSV data:"))
+            print(ns.L("1. Click 'Select All' button"))
+            print(ns.L("2. Press Ctrl+C (Cmd+C on Mac) to copy"))
+            print(ns.L("3. Paste into Excel, Google Sheets, or a text editor"))
+            print(ns.L("4. Save as .csv file if needed"))
         end,
     })
 end
@@ -280,14 +279,14 @@ function ns.Export:ShowExportDialog()
         outline  = true,
         color    = ns.Theme.COLOR.GOLD,
         point    = { "TOP", 0, -15 },
-        text     = "Export Pet Data (CSV)",
+        text     = ns.L("Export Pet Data (CSV)"),
     })
 
     Widgets.Label(frame, {
         fontSize = ns.Theme.SIZE.SMALL,
         color    = ns.Theme.COLOR.MUTED,
         point    = { "TOP", title, "BOTTOM", 0, -10 },
-        text     = "Select the columns to export, then copy the text below and paste it into a .csv file or spreadsheet",
+        text     = ns.L("Select the columns to export, then copy the text below and paste it into a .csv file or spreadsheet"),
     })
 
     local checkboxBottomY = CreateCheckboxSection(frame)

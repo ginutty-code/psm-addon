@@ -89,11 +89,11 @@ end
 -- Returns the family dropdown's "all" label given the current exotic filter.
 local function FamilyAllLabel()
     if ns.state.exoticFilter == true then
-        return "All Exotic Families"
+        return ns.L("All Exotic Families")
     elseif ns.state.exoticFilter == "inverted" then
-        return "All Non-Exotic Families"
+        return ns.L("All Non-Exotic Families")
     end
-    return "All Families"
+    return ns.L("All Families")
 end
 
 local function InitFamilyDropdown(panel)
@@ -112,28 +112,32 @@ end
 -- ─── Sort dropdown ────────────────────────────────────────────────────────────
 
 -- Maps PSM.state.sortBy → the label shown in the dropdown button.
+-- Localized here rather than at the lookup below, so every key is a literal the
+-- locale spec can see. ns.L(SORT_LABELS[...]) reads better and is worse: a computed
+-- key is invisible to both directions of the check, and these five went undeclared
+-- until a /dump found them.
 local SORT_LABELS = {
-    slot   = "Sorted by Slot",
-    model  = "Sorted by Model",
-    family = "Sorted by Family",
-    spec   = "Sorted by Spec",
-    tamer  = "Sorted by Tamer",
+    slot   = ns.L("Sorted by Slot"),
+    model  = ns.L("Sorted by Model"),
+    family = ns.L("Sorted by Family"),
+    spec   = ns.L("Sorted by Spec"),
+    tamer  = ns.L("Sorted by Tamer"),
 }
 
 local function SortDropLabel()
-    return SORT_LABELS[ns.state.sortBy] or "Sort by"
+    return SORT_LABELS[ns.state.sortBy] or ns.L("Sort by")
 end
 
 local function InitSortDropdown(panel)
     local dropdown = panel.sortDrop
     UIDropDownMenu_Initialize(dropdown, function()
         local options = {
-            { value = nil,     text = "Unsorted" },
-            { value = "family",text = "Family"   },
-            { value = "model", text = "Model"    },
-            { value = "slot",  text = "Slot"     },
-            { value = "spec",  text = "Spec"     },
-            { value = "tamer", text = "Tamer"    },
+            { value = nil,     text = ns.L("Unsorted") },
+            { value = "family",text = ns.L("Family")   },
+            { value = "model", text = ns.L("Model")    },
+            { value = "slot",  text = ns.L("Slot")     },
+            { value = "spec",  text = ns.L("Spec")     },
+            { value = "tamer", text = ns.L("Tamer")    },
         }
         for _, opt in ipairs(options) do
             local info      = UIDropDownMenu_CreateInfo()
@@ -182,7 +186,7 @@ function ns.UI:BuildFilters(panel)
     panel.specDrop = Dropdown("PetDupSpecDrop", { "TOPLEFT", -10, rowY })
     InitMultiDropdown(function() return ns.state.specList end,
                       function() return ns.state.selectedSpecs end,
-                      panel.specDrop, "All Specs")
+                      panel.specDrop, ns.L("All Specs"))
 
     panel.familyDrop = Dropdown("PetDupFamilyDrop", { "TOPLEFT", step * 1 - 10, rowY })
     InitFamilyDropdown(panel)
@@ -198,24 +202,24 @@ function ns.UI:BuildFilters(panel)
         anchor     = "ANCHOR_BOTTOMLEFT",
         x          = 17,
         y          = 0,
-        title      = "Sort by",
+        title      = ns.L("Sort by"),
         titleColor = ns.Theme.COLOR.WHITE,
         lines = {
-            { text = "Slot - sort by stable slot number",     color = DIM },
-            { text = "Model - sort by display ID",            color = DIM },
-            { text = "Family - sort alphabetically by family", color = DIM },
-            { text = "Spec - sort alphabetically by spec",    color = DIM },
-            { text = "Tamer - sort alphabetically by owner",  color = DIM },
-            { text = "Unsorted - default order",              color = DIM },
+            { text = ns.L("Slot - sort by stable slot number"),     color = DIM },
+            { text = ns.L("Model - sort by display ID"),            color = DIM },
+            { text = ns.L("Family - sort alphabetically by family"), color = DIM },
+            { text = ns.L("Spec - sort alphabetically by spec"),    color = DIM },
+            { text = ns.L("Tamer - sort alphabetically by owner"),  color = DIM },
+            { text = ns.L("Unsorted - default order"),              color = DIM },
             " ",
-            { text = "Custom drag-and-drop reordering in",    color = GOLD },
-            { text = "Grouped view requires Unsorted.",       color = GOLD },
+            { text = ns.L("Custom drag-and-drop reordering in"),    color = GOLD },
+            { text = ns.L("Grouped view requires Unsorted."),       color = GOLD },
         },
     })
 
     panel.exoticCheck = CreateFilterCheckbox(panel, {
         point         = { "BOTTOMLEFT", panel.familyDrop, "TOPLEFT", 16, 3 },
-        label         = "Exotic Only",
+        label         = ns.L("Exotic Only"),
         labelHitWidth = 100,
         initialState  = ns.state.exoticFilter,
         onChanged = function(state)
@@ -228,7 +232,7 @@ function ns.UI:BuildFilters(panel)
 
     panel.duplicatesCheck = CreateFilterCheckbox(panel, {
         point         = { "BOTTOMLEFT", panel.tamerDrop, "TOPLEFT", 16, 3 },
-        label         = "Duplicates Only",
+        label         = ns.L("Duplicates Only"),
         labelHitWidth = 120,
         initialState  = ns.state.duplicatesOnlyFilter,
         onChanged = function(state)
@@ -268,7 +272,7 @@ function ns.UI:ReinitializeTamerDropdown()
     ns.Data:RebuildTamerList()
 
     local dropdown = ns.state.panel.tamerDrop
-    local allLabel = "All Hunters"
+    local allLabel = ns.L("All Hunters")
     local function getState() return ns.state.selectedTamers end
 
     UIDropDownMenu_Initialize(dropdown, function()
@@ -319,9 +323,9 @@ function ns.UI:UpdateFilterUI()
     if panel.exoticCheck     then panel.exoticCheck:SetTriState(ns.state.exoticFilter)              end
     if panel.duplicatesCheck then panel.duplicatesCheck:SetTriState(ns.state.duplicatesOnlyFilter)  end
 
-    if panel.specDrop   then UIDropDownMenu_SetText(panel.specDrop,   DropdownText(ns.state.selectedSpecs,   "All Specs"))       end
+    if panel.specDrop   then UIDropDownMenu_SetText(panel.specDrop,   DropdownText(ns.state.selectedSpecs,   ns.L("All Specs")))       end
     if panel.familyDrop then UIDropDownMenu_SetText(panel.familyDrop, DropdownText(ns.state.selectedFamilies, FamilyAllLabel())) end
-    if panel.tamerDrop  then UIDropDownMenu_SetText(panel.tamerDrop,  DropdownText(ns.state.selectedTamers,  "All Hunters"))     end
+    if panel.tamerDrop  then UIDropDownMenu_SetText(panel.tamerDrop,  DropdownText(ns.state.selectedTamers,  ns.L("All Hunters")))     end
     if panel.sortDrop   then UIDropDownMenu_SetText(panel.sortDrop,   SortDropLabel())                                            end
 end
 
@@ -338,10 +342,11 @@ function ns.UI:BuildSortButtons(panel)
         tooltip = function()
             local lines = {}
             for _, text in ipairs({
-                "All Specs selected", "All Families selected",
-                ns.state.isStableOpen and "Tamer: kept on current hunter" or "All Hunters selected",
-                "Exotic Only: OFF", "Duplicates Only: OFF", "Clear search box",
-                "Sort by: Unsorted",
+                ns.L("All Specs selected"), ns.L("All Families selected"),
+                ns.state.isStableOpen and ns.L("Tamer: kept on current hunter")
+                                       or ns.L("All Hunters selected"),
+                ns.L("Exotic Only: OFF"), ns.L("Duplicates Only: OFF"), ns.L("Clear search box"),
+                ns.L("Sort by: Unsorted"),
             }) do
                 lines[#lines + 1] = { text = text, color = ns.Theme.COLOR.FAINT }
             end
@@ -360,13 +365,13 @@ function ns.UI:BuildSortButtons(panel)
 
             ns.Utils:ClearTable(ns.state.selectedSpecs)
             ns.Utils:ClearTable(ns.state.selectedFamilies)
-            UIDropDownMenu_SetText(panel.specDrop,   "All Specs")
-            UIDropDownMenu_SetText(panel.familyDrop, "All Families")
+            UIDropDownMenu_SetText(panel.specDrop,   ns.L("All Specs"))
+            UIDropDownMenu_SetText(panel.familyDrop, ns.L("All Families"))
 
             -- When stable is open, keep tamer locked to current hunter
             if not ns.state.isStableOpen then
                 ns.Utils:ClearTable(ns.state.selectedTamers)
-                UIDropDownMenu_SetText(panel.tamerDrop, "All Hunters")
+                UIDropDownMenu_SetText(panel.tamerDrop, ns.L("All Hunters"))
             end
 
             ns.state.exoticFilter         = nil
@@ -375,7 +380,7 @@ function ns.UI:BuildSortButtons(panel)
             panel.duplicatesCheck:SetTriState(nil)
 
             ns.state.sortBy = nil
-            UIDropDownMenu_SetText(panel.sortDrop, "Sort by")
+            UIDropDownMenu_SetText(panel.sortDrop, ns.L("Sort by"))
 
             ns.UI:UpdatePanel()
         end,
