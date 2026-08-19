@@ -20,6 +20,10 @@ Data/CoordsData.lua
 Data/NotesData.lua
 Data/ConditionsData.lua
 
+# Asserts the tables above match what this addon expects (PSM_DataSchemaVersion),
+# failing loud here instead of every consumer hitting nil-index errors independently.
+ModelsBrowser/Schema.lua
+
 # Models Browser feature
 ModelsBrowser/PetModels.lua
 ModelsBrowser/ModelsDataLoader.lua

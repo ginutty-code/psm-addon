@@ -13,6 +13,7 @@ local T = dofile("Tests/framework.lua")
 -- and an explicit list is a feature here -- adding a spec is a visible diff.
 local SPECS = {
     "Tests/spec/models_data_spec.lua",
+    "Tests/spec/schema_spec.lua",
     "Tests/spec/utils_spec.lua",
     "Tests/spec/loader_spec.lua",
     "Tests/spec/boundary_spec.lua",

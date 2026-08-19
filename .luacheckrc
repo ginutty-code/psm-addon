@@ -12,6 +12,7 @@ files["Tests/"] = {
     globals = {
         "PSM",           -- specs reset the namespace to prove modules self-create it
         "ModelsData",    -- loaded by dofile from the data addon
+        "PSM_DataSchemaVersion", -- set directly by schema_spec to test Schema.lua
         -- installed by Tests/wow/stubs.lua
         "strtrim", "strsplit", "GetTime", "date", "time",
     },
@@ -31,6 +32,7 @@ globals = {
     "CoordsData",
     "AbilitiesData",
     "ModelsData",
+    "PSM_DataSchemaVersion",
     "SLASH_PETSTABLE1",
     "SLASH_PETSTABLE2",
     "SLASH_PETSWAP1",
