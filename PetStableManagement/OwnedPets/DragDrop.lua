@@ -195,7 +195,7 @@ end
 function DD:StartDrag(row, pet, allowOutsideStable)
     if not row or not pet then return end
     if not ns.state.isStableOpen and not allowOutsideStable then
-        print("|cFFFF0000Must be at stable master to reorder pets|r")
+        print(ns.L("Must be at stable master to reorder pets"))
         return false
     end
 
@@ -230,7 +230,7 @@ function DD:StartDrag(row, pet, allowOutsideStable)
         df.icon:SetTexture(pet.icon)
         df.icon:Show(); df.model:Hide()
     end
-    df.slotText:SetText("Slot " .. (pet.slotID or "?"))
+    df.slotText:SetText(ns.L("Slot %s", pet.slotID or "?"))
     df:Show()
     self:UpdateDragFramePosition()
 

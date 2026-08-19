@@ -694,7 +694,7 @@ function ns.Dialogs:ShowRemoveFromTeamDialog(petData)
         for i, match in ipairs(matches) do
             local btn = ns.Widgets.Button(d, {
                 size       = { btnW, btnH },
-                text       = match.team.name .. " (Slot " .. match.slot .. ")",
+                text       = ns.L("%s (Slot %s)", match.team.name, match.slot),
                 fontObject = "GameFontNormalSmall",
                 point      = { "TOP", d, "TOP", 0, -100 - (i-1)*(btnH+5) },
                 onClick    = function()

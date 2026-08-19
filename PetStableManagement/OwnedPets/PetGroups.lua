@@ -81,12 +81,12 @@ function ns.PetGroups:GetGroupById(groupId)
 end
 
 function ns.PetGroups:CreateGroup(name, silent)
-    if not name or name == "" then return nil, "Group name is required" end
-    if name == UNGROUPED_NAME   then return nil, "Cannot create a group named 'Ungrouped'" end
+    if not name or name == "" then return nil, ns.L("Group name is required") end
+    if name == UNGROUPED_NAME   then return nil, ns.L("'Ungrouped' is a reserved group name") end
 
     local storage = EnsureStorage()
     for _, group in pairs(storage) do
-        if group.name == name then return nil, "A group with this name already exists" end
+        if group.name == name then return nil, ns.L("A group with this name already exists") end
     end
 
     local groupId = GenerateGroupId()
@@ -94,7 +94,7 @@ function ns.PetGroups:CreateGroup(name, silent)
     Save()
 
     if not silent then
-        print("|cFF00FF00PetStableManagement: Group '" .. name .. "' created successfully.|r")
+        print(ns.L("Group '%s' created successfully.", name))
     end
     return groupId, nil
 end
@@ -168,7 +168,7 @@ end
 
 function ns.PetGroups:DeleteGroup(groupId)
     if not groupId            then return false, "Group ID is required" end
-    if groupId == UNGROUPED_ID then return false, "Cannot delete the Ungrouped group" end
+    if groupId == UNGROUPED_ID then return false, ns.L("Cannot delete the Ungrouped group") end
 
     local storage, ungroupedStorage = EnsureStorage()
     if not storage[groupId] then return false, "Group not found" end
@@ -180,17 +180,27 @@ function ns.PetGroups:DeleteGroup(groupId)
     storage[groupId] = nil
     Save()
 
-    print("|cFF00FF00PetStableManagement: Group '" .. groupName .. "' deleted. Pets moved to Ungrouped.|r")
+    print(ns.L("Group '%s' deleted. Pets moved to Ungrouped.", groupName))
     return true, nil
 end
 
 function ns.PetGroups:RenameGroup(groupId, newName)
     if not groupId             then return false, "Group ID is required" end
-    if not newName or newName == "" then return false, "New name is required" end
-    if groupId == UNGROUPED_ID  then return false, "Cannot rename the Ungrouped group" end
+    if not newName or newName == "" then return false, ns.L("New name is required") end
+    if groupId == UNGROUPED_ID  then return false, ns.L("Cannot rename the Ungrouped group") end
+    if newName == UNGROUPED_NAME then return false, ns.L("'Ungrouped' is a reserved group name") end
 
     local storage = EnsureStorage()
     if not storage[groupId] then return false, "Group not found" end
+
+    -- The same two name checks CreateGroup makes. Without them a rename could produce a
+    -- second group called Ungrouped, or two groups sharing a name -- validated on one
+    -- path and not the other.
+    for id, group in pairs(storage) do
+        if id ~= groupId and group.name == newName then
+            return false, ns.L("A group with this name already exists")
+        end
+    end
 
     storage[groupId].name = newName
     Save()
@@ -244,7 +254,7 @@ function ns.PetGroups:AutoGroupPets(pets, criteria)
     end
 
     Save()
-    print(string.format("|cFF00FF00PetStableManagement: Created %d group(s), moved %d pet(s)|r",
+    print(ns.L("Created %d group(s), moved %d pet(s)",
         createdCount, movedCount))
     return { createdCount = createdCount, movedCount = movedCount }
 end
@@ -254,6 +264,6 @@ function ns.PetGroups:DeleteAllGroups()
     local count = 0
     for id in pairs(storage) do storage[id] = nil; count = count + 1 end
     Save()
-    print(string.format("|cFF00FF00PetStableManagement: Deleted %d group(s)|r", count))
+    print(ns.L("Deleted %d group(s)", count))
     return count
 end

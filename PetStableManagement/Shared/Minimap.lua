@@ -176,7 +176,7 @@ end
 -- the fix described below, and Broker never received it.
 function ns.Minimap.TooltipSpec()
     local lines = {
-        { text = "Left-click: Toggle Owned Pets Panel", color = ns.Theme.COLOR.HINT },
+        { text = ns.L("Left-click: Toggle Owned Pets Panel"), color = ns.Theme.COLOR.HINT },
     }
 
     -- "Available", not "loaded": under LoadOnDemand the browser is normally unloaded
@@ -184,15 +184,15 @@ function ns.Minimap.TooltipSpec()
     -- action. This still omits it when the module is genuinely absent or disabled.
     if ns.Loader:IsBrowserAvailable() then
         lines[#lines + 1] =
-            { text = "Right-click: Toggle Pet Models Browser", color = ns.Theme.COLOR.HINT }
+            { text = ns.L("Right-click: Toggle Pet Models Browser"), color = ns.Theme.COLOR.HINT }
     end
 
-    lines[#lines + 1] = { text = "Shift+Left-click: Toggle Menu",           color = ns.Theme.COLOR.HINT }
-    lines[#lines + 1] = { text = "Shift+Right-click: Toggle Options Panel", color = ns.Theme.COLOR.HINT }
+    lines[#lines + 1] = { text = ns.L("Shift+Left-click: Toggle Menu"),           color = ns.Theme.COLOR.HINT }
+    lines[#lines + 1] = { text = ns.L("Shift+Right-click: Toggle Options Panel"), color = ns.Theme.COLOR.HINT }
 
     return {
         point = { "TOPLEFT", "BOTTOMLEFT" },
-        title = "Pet Stable Management",
+        title = ns.L("Pet Stable Management"),
         lines = lines,
     }
 end
@@ -204,7 +204,7 @@ end
 
 function ns.Minimap:TogglePanel()
     if UnitAffectingCombat("player") then
-        print("|cFFFF0000Pet Stable Management: Cannot open panel during combat.|r")
+        print(ns.L("Cannot open panel during combat."))
         return
     end
 
@@ -214,7 +214,7 @@ function ns.Minimap:TogglePanel()
     if not ns.state.panel then
         ns.UI:BuildPanel()
         if not ns.state.panel then
-            print("|cFFFF0000Failed to create panel.|r")
+            print(ns.L("Failed to create panel."))
             return
         end
     end

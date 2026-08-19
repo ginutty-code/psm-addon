@@ -754,7 +754,7 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel)
         end,
     })
 
-    local selectNoneBtn = MakeFilterButton("None", selectAllBtn, function()
+    local selectNoneBtn = MakeFilterButton(PSM.L("None"), selectAllBtn, function()
         if     panel.currentFilterType == "families"   then PSM.Selections:Clear("families")
         elseif panel.currentFilterType == "expansions" then PSM.Selections:Clear("expansions")
         elseif panel.currentFilterType == "locations"  then PSM.Selections:Clear("locations")
@@ -911,7 +911,7 @@ function PSM.ModelsFilters:PopulateUnifiedFilterCheckboxes(panel)
 
         local label = item
         if panel.currentFilterType == "families" and self:IsFamilyExotic(item) then
-            label = item .. " |cffff8800[Exotic]|r"
+            label = item .. PSM.L(" [Exotic]")
         end
         cb.text:SetText(label)
 

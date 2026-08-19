@@ -31,7 +31,7 @@ end
 
 function ns.Reorder:SwapPetSlots(slot1, slot2, skipUpdate)
     if not ns.Reorder:CanReorderPets() then
-        print("|cFFFF0000Must be at stable master to reorder pets|r")
+        print(ns.L("Must be at stable master to reorder pets"))
         return false
     end
 
@@ -41,23 +41,23 @@ function ns.Reorder:SwapPetSlots(slot1, slot2, skipUpdate)
     end
 
     if not slot1 or not slot2 or slot1 == slot2 then
-        print("|cFFFF0000Invalid slot numbers|r")
+        print(ns.L("Invalid slot numbers"))
         return false
     end
 
     if slot1 < 1 or slot1 > MAX_STABLE_SLOT or slot2 < 1 or slot2 > MAX_STABLE_SLOT then
-        print("|cFFFF0000Slots must be between 1 and " .. MAX_STABLE_SLOT .. "|r")
+        print(ns.L("Slots must be between 1 and %s", MAX_STABLE_SLOT))
         return false
     end
 
     local pet1 = C_StableInfo.GetStablePetInfo(slot1)
     if not pet1 then
-        print("|cFFFF0000No pet in slot " .. slot1 .. "|r")
+        print(ns.L("No pet in slot %s", slot1))
         return false
     end
 
     -- SetPetSlot handles both move (empty target) and swap (occupied target)
-    print("|cFFFFAA00Moving pet from slot " .. slot1 .. " to slot " .. slot2 .. "...|r")
+    print(ns.L("Moving pet from slot %s to slot %s...", slot1, slot2))
     ns.Utils.SafeCall(C_StableInfo.SetPetSlot, slot1, slot2)
 
     -- **`skipUpdate` means the caller owns the whole post-swap refresh, data included.**
@@ -89,12 +89,12 @@ function ns.Reorder:MovePet(pet, offset)
     local targetSlot = currentSlot + offset
 
     if targetSlot < 1 then
-        print("|cFFFFAA00Pet is already in slot 1 (top position)|r")
+        print(ns.L("Pet is already in slot 1 (top position)"))
         return false
     end
 
     if targetSlot > MAX_STABLE_SLOT then
-        print("|cFFFFAA00Pet is already in slot " .. MAX_STABLE_SLOT .. " (bottom position)|r")
+        print(ns.L("Pet is already in slot %s (bottom position)", MAX_STABLE_SLOT))
         return false
     end
 

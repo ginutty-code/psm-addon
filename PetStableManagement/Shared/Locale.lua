@@ -507,4 +507,148 @@ L.Register({
     ["%s: %s%s"]      = "%s: %s%s",
     ["Slot %d: %s%s\nDisplayID: %d\n%s\n%s%s"] =
         "Slot %d: %s%s\nDisplayID: %d\n%s\n%s%s",
+
+    -- Group and team errors a player can act on. Precondition failures like
+    -- "Group ID is required" stay English: a player cannot cause or fix them, and a
+    -- translator should not be handed an assertion.
+    ["Group name is required"] = "Group name is required",
+    ["New name is required"]   = "New name is required",
+    ["A group with this name already exists"] = "A group with this name already exists",
+    ["'Ungrouped' is a reserved group name"] = "'Ungrouped' is a reserved group name",
+    ["Cannot delete the Ungrouped group"] = "Cannot delete the Ungrouped group",
+    ["Cannot rename the Ungrouped group"] = "Cannot rename the Ungrouped group",
+
+    ["Team name is required"] = "Team name is required",
+    ["Cannot save empty team - at least one pet required"] =
+        "Cannot save empty team - at least one pet required",
+    ["Stable must be open to capture pet slots"] = "Stable must be open to capture pet slots",
+    ["Stable must be open to apply a team"]      = "Stable must be open to apply a team",
+
+    -- Values here are plain: TeamsData's Msg helper adds the colour and the addon prefix.
+    ["Team '%s' saved successfully."]   = "Team '%s' saved successfully.",
+    ["Team '%s' updated."]              = "Team '%s' updated.",
+    ["Team '%s' deleted."]              = "Team '%s' deleted.",
+    ["Team '%s' applied successfully."] = "Team '%s' applied successfully.",
+    ["Team renamed from '%s' to '%s'."] = "Team renamed from '%s' to '%s'.",
+    ["Team '%s' duplicated as '%s'."]   = "Team '%s' duplicated as '%s'.",
+    ["Pet '%s' not found in stable"]    = "Pet '%s' not found in stable",
+    ["Changed '%s' spec from %s to %s."] = "Changed '%s' spec from %s to %s.",
+    ["No available stable slot to move pet '%s'!"] = "No available stable slot to move pet '%s'!",
+    ["No available slot for pet swap!"] = "No available slot for pet swap!",
+    ["The following pets need spec changes to match the saved team:"] =
+        "The following pets need spec changes to match the saved team:",
+    ["Summon the pet(s) that need spec change and click Apply again."] =
+        "Summon the pet(s) that need spec change and click Apply again.",
+
+    -- Stable-frame buttons, minimap tooltip, loader failure hints, browser empty states
+    ["Teams List"] = "Teams List",
+    ["Save Team"]  = "Save Team",
+    ["View and manage saved pet teams"] = "View and manage saved pet teams",
+    ["You have %d saved team(s)"]       = "You have %d saved team(s)",
+    ["Save current pets in slots 1-6 as a team"] = "Save current pets in slots 1-6 as a team",
+
+    ["Left-click: Toggle Owned Pets Panel"]     = "Left-click: Toggle Owned Pets Panel",
+    ["Right-click: Toggle Pet Models Browser"]  = "Right-click: Toggle Pet Models Browser",
+    ["Shift+Left-click: Toggle Menu"]           = "Shift+Left-click: Toggle Menu",
+    ["Shift+Right-click: Toggle Options Panel"] = "Shift+Right-click: Toggle Options Panel",
+
+    -- "Esc > AddOns" and "Interface/AddOns" are literal paths the player must follow.
+    ["It is disabled in the AddOns list (Esc > AddOns)."] =
+        "It is disabled in the AddOns list (Esc > AddOns).",
+    ["A module it needs is disabled in the AddOns list (Esc > AddOns)."] =
+        "A module it needs is disabled in the AddOns list (Esc > AddOns).",
+    ["Its folder is missing from Interface/AddOns."] =
+        "Its folder is missing from Interface/AddOns.",
+    ["A module it needs is missing from Interface/AddOns."] =
+        "A module it needs is missing from Interface/AddOns.",
+    ["Reason: %s."] = "Reason: %s.",
+
+    ["Display ID: %d"] = "Display ID: %d",
+    ["No matching display IDs | 0 pages"] = "No matching display IDs | 0 pages",
+    ["No matching NPCs | 0 pages"]        = "No matching NPCs | 0 pages",
+
+    -- Messages the earlier scans could not see: their literal begins with a colour escape.
+    ["Could not load the Models Browser. %s"] =
+        "|cFFFF8800Pet Stable Management: could not load the Models Browser. %s|r",
+    ["Can't load additional modules during combat."] =
+        "|cFFFF8800Pet Stable Management: can't load additional modules during combat.|r",
+    ["Failed to create panel."] = "|cFFFF0000Failed to create panel.|r",
+    ["(No abilities available)"] = "|cFFAAAAAA(No abilities available)|r",
+
+    -- One key for what used to be two identical copies, in Reorder.lua and DragDrop.lua.
+    ["Must be at stable master to reorder pets"] =
+        "|cFFFF0000Must be at stable master to reorder pets|r",
+    ["Invalid slot numbers"] = "|cFFFF0000Invalid slot numbers|r",
+    ["Slots must be between 1 and %s"] = "|cFFFF0000Slots must be between 1 and %s|r",
+    ["Moving pet from slot %s to slot %s..."] =
+        "|cFFFFAA00Moving pet from slot %s to slot %s...|r",
+    ["Pet is already in slot 1 (top position)"] =
+        "|cFFFFAA00Pet is already in slot 1 (top position)|r",
+    ["Group '%s' created successfully."] =
+        "|cFF00FF00PetStableManagement: Group '%s' created successfully.|r",
+
+    ["Click magnifier button for further details."] =
+        "|cff00ff00Click magnifier button for further details.|r",
+    ["Pet Roulette: %s (Display ID: %d)"] = "|cFF00FF00Pet Roulette: %s (Display ID: %d)|r",
+    ["No pets available for Pet Roulette."] = "|cFFFFAA00No pets available for Pet Roulette.|r",
+    ["No pet models available for Pet Roulette."] =
+        "|cFFFFAA00No pet models available for Pet Roulette.|r",
+    ["Ability Browser: Cannot open during combat."] =
+        "|cFFFF0000Ability Browser: Cannot open during combat.|r",
+    ["Special Tames: Cannot open during combat."] =
+        "|cFFFF0000Special Tames: Cannot open during combat.|r",
+
+    -- Special Tames. Its PILL_TAGS stay English: the tab label is also the activeTag
+    -- compared in RowMatchesTag, exactly like AbilityBrowser's.
+    ["Invert All"] = "Invert All",
+    ["Search tames..."] = "Search tames...",
+    ["None"] = "None",
+    ["Special Tames filter applied (%s)."] =
+        "PetStableManagement: Special Tames filter applied (%s).",
+
+    -- The remainder, found by an exhaustive scan rather than a shape-guessing one.
+    ["Export"]   = "Export",
+    ["Grouped"]  = "Grouped",
+    ["Grid"]     = "Grid",
+    ["List"]     = "List",
+    ["Restore"]  = "Restore",
+    ["Zoom:"]    = "Zoom:",
+    ["NPCs:"]    = "NPCs:",
+
+    -- Ability category tags. The colour is applied in code so one key serves both the
+    -- plain label and the coloured prefix.
+    ["[Spec]"]   = "[Spec]",
+    ["[Family]"] = "[Family]",
+    ["[Pet]"]    = "[Pet]",
+    ["[Other]"]  = "[Other]",
+    ["Abilities:"]  = "|cFFFFD700Abilities:|r",
+    [" [Exotic]"]   = " |cffff8800[Exotic]|r",
+
+    ["%s (to slot %s)"]    = "%s (to slot %s)",
+    ["%s (Slot %s)"]       = "%s (Slot %s)",
+    [" | Duplicates: %s"]  = " | Duplicates: %s",
+    [" (using data from %s)"]     = " (using data from %s)",
+    [" (using preserved data)"]   = " (using preserved data)",
+    [" (no saved data available)"] = " (no saved data available)",
+
+    ["No pet in slot %s"] = "|cFFFF0000No pet in slot %s|r",
+    ["Pet is already in slot %s (bottom position)"] =
+        "|cFFFFAA00Pet is already in slot %s (bottom position)|r",
+    ["Group '%s' deleted. Pets moved to Ungrouped."] =
+        "|cFF00FF00PetStableManagement: Group '%s' deleted. Pets moved to Ungrouped.|r",
+    ["Created %d group(s), moved %d pet(s)"] =
+        "|cFF00FF00PetStableManagement: Created %d group(s), moved %d pet(s)|r",
+    ["Deleted %d group(s)"] = "|cFF00FF00PetStableManagement: Deleted %d group(s)|r",
+    ["  - '%s' (slot %s): %s -> %s"] = "  - '%s' (slot %s): %s -> %s",
+
+    ["%d item selected"]  = "%d item selected",
+    ["%d items selected"] = "%d items selected",
+    ["%d owned by %s"]    = "%d owned by %s",
+    ["%d display IDs | %d owned"] = "%d display IDs | %d owned",
+    ["%d NPCs found | %d owned"]  = "%d NPCs found | %d owned",
+    ["%d NPCs found | %d owned (%d including duplicates)"] =
+        "%d NPCs found | %d owned (%d including duplicates)",
+
+    -- One key for what RowManager.lua and GridView.lua each held a copy of.
+    ["Shift/Ctrl + drag to reorder slot"] = "Shift/Ctrl + drag to reorder slot",
 })

@@ -778,8 +778,8 @@ function PSM.ModelsDataLoader:_ApplyCachedModelsData(modelsData)
 
     if modelsData.totalCount == 0 then
         panel.allModels = {}
-        panel.infoText:SetText("No matching display IDs | 0 pages")
-        panel.pageText:SetText("Page 0 of 0")
+        panel.infoText:SetText(PSM.L("No matching display IDs | 0 pages"))
+        panel.pageText:SetText(PSM.L("Page %d of %d", 0, 0))
         -- Still need to hide rows cleanly:
         PSM.ModelsPanel:UpdateVisibleRows()
         return
@@ -798,7 +798,7 @@ function PSM.ModelsDataLoader:_ApplyCachedModelsData(modelsData)
     panel.currentPage = (savedPage >= 1 and savedPage <= totalPages)
         and savedPage or 1
 
-    panel.infoText:SetText(string.format("%d display IDs | %d owned",
+    panel.infoText:SetText(PSM.L("%d display IDs | %d owned",
         #panel.allModels, modelsData.ownedCount))
 
     -- Call UpdateModelsPanelLayout to refresh the view

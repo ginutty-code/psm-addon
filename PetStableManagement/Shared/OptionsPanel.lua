@@ -269,7 +269,7 @@ panel:SetScript("OnShow", function(self)
         ApplyCurrentGlobalsToAllModels()
     end
 
-    local zoomSlider = LabelledSlider(petModelTitle, SECTION_SPACING, "Zoom:", {
+    local zoomSlider = LabelledSlider(petModelTitle, SECTION_SPACING, ns.L("Zoom:"), {
         name      = addonName .. "ZoomSlider",
         min       = cfg.MIN_MODEL_ZOOM,
         max       = cfg.MAX_MODEL_ZOOM,

@@ -142,7 +142,7 @@ function ns.PanelManager:CreateBasePanel(name, config)
                 panel:ClearAllPoints()
                 panel:SetPoint("TOPLEFT",     UIParent, "TOPLEFT",     8,  -8)
                 panel:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -8,  8)
-                maxBtn:SetText("Restore")
+                maxBtn:SetText(ns.L("Restore"))
             end
             if config.onResize then config.onResize(panel) end
         end)

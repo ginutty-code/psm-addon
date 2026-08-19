@@ -593,7 +593,7 @@ local function BindCard(card, cat, entries, cardW, expandedInnerW, panel)
         math.max(1, math.floor(expandedInnerW / CELL)), panel)
 
     if card.hiddenCount > 0 then
-        card.moreBtn.label:SetText("and " .. card.hiddenCount .. " more...")
+        card.moreBtn.label:SetText(PSM.L("and %d more...", card.hiddenCount))
         card.moreBtn:Show()
     else
         card.moreBtn:Hide()
@@ -966,7 +966,7 @@ end
     -- Reset the flag when the Ability Browser is opened
     function AB:Toggle()
         if UnitAffectingCombat("player") then
-            print("|cFFFF0000Ability Browser: Cannot open during combat.|r")
+            print(PSM.L("Ability Browser: Cannot open during combat."))
             return
         end
         PSM.state.familiesAppliedFromAbilities = false

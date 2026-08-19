@@ -190,7 +190,7 @@ function ns.UI:SetupRowButtons(row, pet)
             btn:SetScript("OnClick", action)
             ns.Tooltip.Attach(btn, {
                 anchor = "ANCHOR_RIGHT",
-                title  = label .. " (to slot " .. targetSlot .. ")",
+                title  = ns.L("%s (to slot %s)", label, targetSlot),
             })
         end
 
@@ -446,7 +446,7 @@ function ns.UI:_ApplyCachedRender(renderData, preserveScroll)
     local parts = {}
     if renderData.sameCharDuplicatePets  > 0 then table.insert(parts, ns.L("Same-char: %d models (%d pets)",  renderData.sameCharDuplicateGroups,  renderData.sameCharDuplicatePets))  end
     if renderData.crossCharDuplicatePets > 0 then table.insert(parts, ns.L("Cross-char: %d models (%d pets)", renderData.crossCharDuplicateGroups, renderData.crossCharDuplicatePets)) end
-    if #parts > 0 then statsText = statsText .. " | Duplicates: " .. table.concat(parts, "; ") end
+    if #parts > 0 then statsText = statsText .. ns.L(" | Duplicates: %s", table.concat(parts, "; ")) end
     ns.state.panel.statsText:SetText(statsText)
 
     -- Content height
@@ -682,11 +682,11 @@ function ns.UI:UpdatePanelTitle()
        (PetStableManagementDB and PetStableManagementDB.snapshotData and #PetStableManagementDB.snapshotData > 0) then
         local formatted = ns.Data:GetFormattedTimestamp()
         local suffix = formatted ~= "Never"
-            and (" (using data from " .. formatted .. ")")
-            or  " (using preserved data)"
+            and ns.L(" (using data from %s)", formatted)
+            or  ns.L(" (using preserved data)")
         text = text .. suffix
     else
-        text  = text .. " (no saved data available)"
+        text  = text .. ns.L(" (no saved data available)")
         color = {1, 0.7, 0.7}
     end
     ns.state.panel.title:SetText(text)

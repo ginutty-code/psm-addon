@@ -272,7 +272,7 @@ function ns:CreateSaveTeamButtonOnStable()
 
     local teamsListButton = Widgets.Button(StableFrame, {
         name       = "PSM_TeamsListButton",
-        text       = "Teams List",
+        text       = ns.L("Teams List"),
         fontObject = "GameFontNormal",
         strata     = "HIGH",   -- above the stable's model scene
         level      = 10,
@@ -281,9 +281,9 @@ function ns:CreateSaveTeamButtonOnStable()
         tooltip    = function()
             return {
                 anchor = ANCHOR,
-                title  = "View and manage saved pet teams",
+                title  = ns.L("View and manage saved pet teams"),
                 lines  = {
-                    { text  = ("You have %d saved team(s)"):format(ns.Teams:GetTeamCount() or 0),
+                    { text  = ns.L("You have %d saved team(s)", ns.Teams:GetTeamCount() or 0),
                       color = Theme.COLOR.WHITE },
                 },
             }
@@ -312,7 +312,7 @@ function ns:CreateSaveTeamButtonOnStable()
     -- teams can only be saved at a stable, which is false.
     local saveButton = Widgets.Button(StableFrame, {
         name       = "PSM_SaveTeamButton",
-        text       = "Save Team",
+        text       = ns.L("Save Team"),
         fontObject = "GameFontNormal",
         strata     = "HIGH",
         level      = 10,
@@ -320,12 +320,12 @@ function ns:CreateSaveTeamButtonOnStable()
             -- Kept as a guard, not as UI: if this button's visibility ever changes,
             -- capturing slots without a stable would silently save an empty team.
             if not ns.state.isStableOpen then
-                print("|cFFFF8800PetStableManagement: You must be at a Stable Master to save a team.|r")
+                print(ns.L("You must be at a Stable Master to save a team."))
                 return
             end
             ns.UI:HandleSaveTeamClick()
         end,
-        tooltip    = { anchor = ANCHOR, title = "Save current pets in slots 1-6 as a team" },
+        tooltip    = { anchor = ANCHOR, title = ns.L("Save current pets in slots 1-6 as a team") },
     })
     StableFrame.PSM_SaveTeamButton = saveButton
 

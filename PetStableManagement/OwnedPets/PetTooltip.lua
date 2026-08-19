@@ -26,10 +26,10 @@ local PetTooltip = ns.PetTooltip
 -- its family second, so those lead. `prefix` carries its own inline colour and ends
 -- with |r; `color` is the ability name that follows it.
 PetTooltip.ABILITY_BUCKETS = {
-    { key = "spec",    label = "[Spec]",   prefix = "|cFFFFD700[Spec]|r",   color = { 1,   1,   1   } },
-    { key = "family",  label = "[Family]", prefix = "|cFF40FF40[Family]|r", color = { 0.8, 1,   0.8 } },
-    { key = "pet",     label = "[Pet]",    prefix = "|cFF40FFFF[Pet]|r",    color = { 0.8, 1,   1   } },
-    { key = "unknown", label = "[Other]",  prefix = "|cFFAAAAAA[Other]|r",  color = { 0.7, 0.7, 0.7 } },
+    { key = "spec",    label = ns.L("[Spec]"),   prefix = "|cFFFFD700" .. ns.L("[Spec]") .. "|r",   color = { 1,   1,   1   } },
+    { key = "family",  label = ns.L("[Family]"), prefix = "|cFF40FF40" .. ns.L("[Family]") .. "|r", color = { 0.8, 1,   0.8 } },
+    { key = "pet",     label = ns.L("[Pet]"),    prefix = "|cFF40FFFF" .. ns.L("[Pet]") .. "|r",    color = { 0.8, 1,   1   } },
+    { key = "unknown", label = ns.L("[Other]"),  prefix = "|cFFAAAAAA" .. ns.L("[Other]") .. "|r",  color = { 0.7, 0.7, 0.7 } },
 }
 
 -- True when `abilities` uses the per-bucket layout rather than a flat array. Saved
@@ -84,7 +84,7 @@ function PetTooltip.Spec(pet, opts)
     local hasAbilities = false
 
     Add(" ")
-    Add("|cFFFFD700Abilities:|r", Theme.COLOR.WHITE)
+    Add(ns.L("Abilities:"), Theme.COLOR.WHITE)
 
     if PetTooltip.IsBucketed(abilities) then
         for _, bucket in ipairs(PetTooltip.ABILITY_BUCKETS) do
@@ -105,7 +105,7 @@ function PetTooltip.Spec(pet, opts)
     end
 
     if not hasAbilities then
-        Add("|cFFAAAAAA(No abilities available)|r", Theme.COLOR.DIM)
+        Add(ns.L("(No abilities available)"), Theme.COLOR.DIM)
     end
 
     if opts.hints then
@@ -113,7 +113,7 @@ function PetTooltip.Spec(pet, opts)
         Add(opts.hints, Theme.COLOR.DIM)
     end
 
-    local exoticLabel = pet.isExotic and " |cffff8800[Exotic]|r" or ""
+    local exoticLabel = pet.isExotic and ns.L(" [Exotic]") or ""
     local slotLabel   = opts.slotLabel or ns.L("Slot %s", pet.slotID or 0)
     return {
         title      = ns.L("%s: %s%s", slotLabel, pet.name or "?", exoticLabel),

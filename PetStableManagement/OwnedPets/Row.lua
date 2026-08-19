@@ -60,7 +60,7 @@ local function BuildAbilitiesText(abilities)
 end
 
 local function BuildPetText(pet)
-    local exoticLabel = pet.isExotic and " |cffff8800[Exotic]|r" or ""
+    local exoticLabel = pet.isExotic and ns.L(" [Exotic]") or ""
     local familyText  = ns.L("Family: %s", pet.familyName or "?")
     local specText    = ns.L("Spec: %s", pet.specName or "?")
     local tamerText   = pet.tamer      and ("\n" .. ns.L("Owned by: %s", pet.tamer)) or ""
@@ -95,7 +95,7 @@ function ns.UI.Row:EnsureRowElements(row)
     -- Abilities header
     row.abilitiesHeader = Widgets.Label(row, {
         fontSize = Theme.SIZE.SMALL,
-        text     = "|cFFFFD700Abilities:|r",
+        text     = ns.L("Abilities:"),
         justify  = "LEFT",
         justifyV = "MIDDLE",
         width    = ns.Config.ABILITIES_WIDTH,

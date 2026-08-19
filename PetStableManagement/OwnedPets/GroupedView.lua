@@ -285,6 +285,15 @@ end
 -- GROUP CRUD DIALOGS
 --------------------------------------------------------------------------------
 
+-- A rejection reported only in chat is missed with a maximized panel open, which is
+-- exactly how "A group with this name already exists" looked like the pet silently
+-- failing to move. UIErrorsFrame is where the client puts "you cannot do that", so it
+-- lands in front of the eyes already on the screen. Chat keeps the record.
+local function ReportGroupFailure(message)
+    if UIErrorsFrame then UIErrorsFrame:AddMessage(message, 1, 0.2, 0.2) end
+    print("|cFFFF0000PetStableManagement: " .. message .. "|r")
+end
+
 function ns.UI.GroupedView:ShowCreateGroupForPetDialog(pet)
     if not pet then return end
     ns.Dialogs:ShowCreateGroupDialog({
@@ -304,14 +313,7 @@ function ns.UI.GroupedView:ShowCreateGroupForPetDialog(pet)
                     if ns.UI and ns.UI.RenderPanel then ns.UI:RenderPanel(true) end
                 end)
             else
-                -- A rejection reported only in chat is missed with a maximized panel
-                -- open, which is exactly how "A group with this name already exists"
-                -- looked like the pet silently failing to move. UIErrorsFrame is where
-                -- the client puts "you cannot do that", so it lands in front of the eyes
-                -- already on the screen. Chat keeps the record.
-                local message = err or ns.L("Failed to create group")
-                if UIErrorsFrame then UIErrorsFrame:AddMessage(message, 1, 0.2, 0.2) end
-                print("|cFFFF0000PetStableManagement: " .. message .. "|r")
+                ReportGroupFailure(err or ns.L("Failed to create group"))
             end
         end,
     })
@@ -324,7 +326,7 @@ function ns.UI.GroupedView:ShowRenameDialog(groupId, currentName)
         onConfirm = function(newName)
             local ok, err = ns.PetGroups:RenameGroup(groupId, newName)
             if ok then RefreshUI()
-            else print("|cFFFF0000PetStableManagement: " .. (err or ns.L("Failed to rename group")) .. "|r") end
+            else ReportGroupFailure(err or ns.L("Failed to rename group")) end
         end,
     })
 end

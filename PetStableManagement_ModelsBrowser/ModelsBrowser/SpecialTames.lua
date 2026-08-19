@@ -221,19 +221,19 @@ local function CreateRuleRow(parent, ruleKey, ruleData)
             local suffixPart = nil
 
             if ruleData.hint.autoRace then
-                mainParts[#mainParts + 1] = ruleData.hint.autoRace .. " (auto)"
+                mainParts[#mainParts + 1] = PSM.L("%s (auto)", ruleData.hint.autoRace)
             end
             if ruleData.hint.itemID then
                 mainParts[#mainParts + 1] = string.format(
                     "|cff0070dd|Hpsmtaming:%s|h%s|h|r",
                     ruleKey,
-                    ruleData.hint.itemName or ("Item #" .. ruleData.hint.itemID))
+                    ruleData.hint.itemName or PSM.L("Item #%s", ruleData.hint.itemID))
             end
             if ruleData.hint.questID then
                 mainParts[#mainParts + 1] = string.format(
                     "|cff0070dd|Hpsmtaming:%s|h%s|h|r",
                     ruleKey,
-                    ruleData.hint.questName or ("Quest #" .. ruleData.hint.questID))
+                    ruleData.hint.questName or PSM.L("Quest #%s", ruleData.hint.questID))
             end
 
             if ruleData.hint.suffix then
@@ -467,13 +467,13 @@ UpdateSelectAllButton = function(panel)
         else                         hasIgnored  = true end
     end
 
-    local btnText = "Select All"
+    local btnText = PSM.L("Select All")
     if hasIgnored then
-        btnText = "Select All"
+        btnText = PSM.L("Select All")
     elseif hasActive then
-        btnText = "Invert All"
+        btnText = PSM.L("Invert All")
     elseif hasInverted then
-        btnText = "Unselect All"
+        btnText = PSM.L("Unselect All")
     end
 
     panel.selectAllBtn:SetText(btnText)
@@ -616,14 +616,14 @@ RepopulateRows = function(panel, query, activeTag)
 
                 if #matches > CFG.PARTIAL_ROWS then
                     moreBtn:Show()
-                    moreLabel:SetText("and " .. (#matches - CFG.PARTIAL_ROWS) .. " more...")
+                    moreLabel:SetText(PSM.L("and %d more...", #matches - CFG.PARTIAL_ROWS))
                     moreBtn:SetScript("OnClick", function()
                         card.isExpanded = not card.isExpanded
                         card:SetHeight(card.isExpanded and card.expandedHeight or card.partialHeight)
                         moreLabel:SetText(
                             card.isExpanded
-                            and "Show less"
-                            or  ("and " .. (#matches - CFG.PARTIAL_ROWS) .. " more...")
+                            and PSM.L("Show less")
+                            or  PSM.L("and %d more...", #matches - CFG.PARTIAL_ROWS)
                         )
                         for idx2, row in ipairs(card.rows) do
                             row:SetShown(card.isExpanded or idx2 <= CFG.PARTIAL_ROWS)
@@ -701,7 +701,8 @@ RepopulateRows = function(panel, query, activeTag)
         local n = 0
         for _, state in pairs(selectedRules)      do if state ~= nil then n = n + 1 end end
         for _, state in pairs(selectedConditions) do if state ~= nil then n = n + 1 end end
-        panel.selectionNote:SetText(n .. " " .. (n == 1 and "item" or "items") .. " selected")
+        panel.selectionNote:SetText(n == 1 and PSM.L("%d item selected", n)
+                                    or PSM.L("%d items selected", n))
     end
     UpdateSelectAllButton(panel)
 end
@@ -787,7 +788,8 @@ UpdateSelectionNote = function(panel)
     local n = 0
     for _, state in pairs(selectedRules)      do if state ~= nil then n = n + 1 end end
     for _, state in pairs(selectedConditions) do if state ~= nil then n = n + 1 end end
-    panel.selectionNote:SetText(n .. " " .. (n == 1 and "item" or "items") .. " selected")
+    panel.selectionNote:SetText(n == 1 and PSM.L("%d item selected", n)
+                                    or PSM.L("%d items selected", n))
 end
 
 -- ─────────────────────────────────────────────
@@ -918,10 +920,10 @@ local function OnApplyClick(panel)
         if rCount == 1 then
             local rule  = PSM.TamingRules and PSM.TamingRules[lastRuleKey]
             local lbl   = rule and rule.label or lastRuleKey
-            if lastRuleState == "inverted" then lbl = "Not " .. lbl end
+            if lastRuleState == "inverted" then lbl = PSM.L("Not %s", lbl) end
             table.insert(stParts, lbl)
         else
-            table.insert(stParts, "Multiple Skills")
+            table.insert(stParts, PSM.L("Multiple Skills"))
         end
     end
 
@@ -934,16 +936,16 @@ local function OnApplyClick(panel)
         end
         if cCount == 1 then
             local lbl = lastCondKey
-            if lastCondState == "inverted" then lbl = "Not " .. lbl end
+            if lastCondState == "inverted" then lbl = PSM.L("Not %s", lbl) end
             table.insert(stParts, lbl)
         else
-            table.insert(stParts, "Multiple Conditions")
+            table.insert(stParts, PSM.L("Multiple Conditions"))
         end
     end
 
-    local filterDesc = #stParts > 0 and table.concat(stParts, "; ") or "None"
+    local filterDesc = #stParts > 0 and table.concat(stParts, "; ") or PSM.L("None")
     print(PSM.Utils:FormatColorText(
-        "PetStableManagement: Special Tames filter applied (" .. filterDesc .. ").",
+        PSM.L("Special Tames filter applied (%s).", filterDesc),
         PSM.Config.COLORS.SUCCESS
     ))
 
@@ -978,13 +980,13 @@ local function CreateFooter(panel)
         fontSize = PSM.Config.FONT_SIZES.STATS,
         color    = PSM.Config.COLORS.ABILITY_SELECTION_NOTE,
         point    = { "LEFT", footer, "LEFT", 0, -8 },
-        text     = "0 items selected",
+        text     = PSM.L("%d items selected", 0),
     })
 
     local applyButton = Widgets.Button(footer, {
         width      = PSM.Theme.CONTROL.BUTTON_W.M,
         point      = { "RIGHT", footer, "RIGHT", 0, -8 },
-        text       = "Apply Filters",
+        text       = PSM.L("Apply Filters"),
         fontObject = "GameFontNormalSmall",
         onClick    = function() OnApplyClick(panel) end,
     })
@@ -992,7 +994,7 @@ local function CreateFooter(panel)
     panel.selectAllBtn = Widgets.Button(footer, {
         width      = PSM.Theme.CONTROL.BUTTON_W.M,
         point      = { "RIGHT", applyButton, "LEFT", -8, 0 },
-        text       = "Select All",
+        text       = PSM.L("Select All"),
         fontObject = "GameFontNormalSmall",
         onClick    = function() OnSelectAllClick(panel) end,
     })
@@ -1045,7 +1047,7 @@ end
 
 function ST:Toggle()
     if UnitAffectingCombat("player") then
-        print("|cFFFF0000Special Tames: Cannot open during combat.|r")
+        print(PSM.L("Special Tames: Cannot open during combat."))
         return
     end
     PSM.PanelManager:TogglePanel("specialTames", function() self:CreateSpecialTamesPanel() end)
@@ -1058,7 +1060,7 @@ function ST:CreateSpecialTamesPanel()
     local panel = PSM.PanelManager:CreateBasePanel("specialTames", {
         width              = CFG.PANEL_WIDTH,
         height             = CFG.PANEL_HEIGHT,
-        title              = "Special Tames",
+        title              = PSM.L("Special Tames"),
         resizable          = true,
         showResizeHandle   = true,
         showMaximizeButton = false,
@@ -1075,7 +1077,7 @@ function ST:CreateSpecialTamesPanel()
     PSM.PanelManager:CreateSearchBox(panel, function(text)
         RepopulateRows(panel, text, panel.activeTag)
     end, {
-        placeholder = "Search tames...",
+        placeholder = PSM.L("Search tames..."),
     })
 
     panel.activeTag = "All Skills"

@@ -37,10 +37,10 @@ local loaded = false
 -- for the U+2192 arrow that used to be here -- it rendered as an empty square, which
 -- looks like a broken addon rather than an instruction.
 local FAILURE_HINT = {
-    DISABLED     = "It is disabled in the AddOns list (Esc > AddOns).",
-    DEP_DISABLED = "A module it needs is disabled in the AddOns list (Esc > AddOns).",
-    MISSING      = "Its folder is missing from Interface/AddOns.",
-    DEP_MISSING  = "A module it needs is missing from Interface/AddOns.",
+    DISABLED     = ns.L("It is disabled in the AddOns list (Esc > AddOns)."),
+    DEP_DISABLED = ns.L("A module it needs is disabled in the AddOns list (Esc > AddOns)."),
+    MISSING      = ns.L("Its folder is missing from Interface/AddOns."),
+    DEP_MISSING  = ns.L("A module it needs is missing from Interface/AddOns."),
 }
 
 -- Announcing is controlled by the caller's `silent` flag, not by a once-per-session
@@ -51,9 +51,9 @@ local FAILURE_HINT = {
 -- click. Swallowing the answer to a direct request makes the command look broken, and
 -- the latch meant the *second* thing you tried always failed in silence.
 local function Announce(reason)
-    local hint = FAILURE_HINT[reason] or ("Reason: " .. tostring(reason) .. ".")
+    local hint = FAILURE_HINT[reason] or ns.L("Reason: %s.", tostring(reason))
     print(string.format(
-        "|cFFFF8800Pet Stable Management: could not load the Models Browser. %s|r", hint))
+        ns.L("Could not load the Models Browser. %s", hint)))
 end
 
 --------------------------------------------------------------------------------
@@ -118,7 +118,7 @@ function ns.Loader:UnavailableReason()
     -- (MISSING, DEP_MISSING, CORRUPT, INCOMPATIBLE) is a real absence.
     if reason == "DEMAND_LOADED" then return nil end
 
-    return FAILURE_HINT[reason] or ("Reason: " .. tostring(reason) .. ".")
+    return FAILURE_HINT[reason] or ns.L("Reason: %s.", tostring(reason))
 end
 
 -- Loads the Models Browser and its data tables. Returns true when it is available
@@ -132,7 +132,7 @@ function ns.Loader:EnsureBrowser(silent)
     -- realistically land here in combat are passive ones, which degrade quietly.
     if InCombatLockdown and InCombatLockdown() then
         if not silent then
-            print("|cFFFF8800Pet Stable Management: can't load additional modules during combat.|r")
+            print(ns.L("Can't load additional modules during combat."))
         end
         return false
     end

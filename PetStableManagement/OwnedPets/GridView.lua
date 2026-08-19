@@ -40,7 +40,7 @@ end
 local function GridHints(pet)
     local hints = ns.RowManager.MODEL_HINTS
     if ns.state and ns.state.isStableOpen and pet.slotID then
-        hints = hints .. "\nShift/Ctrl + drag to reorder slot"
+        hints = hints .. "\n" .. ns.L("Shift/Ctrl + drag to reorder slot")
     end
     return hints
 end

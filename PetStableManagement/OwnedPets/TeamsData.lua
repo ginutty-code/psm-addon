@@ -114,7 +114,7 @@ end
 
 function ns.Teams:GetCurrentSlots()
     if not ns.state.isStableOpen then
-        return nil, "Stable must be open to capture pet slots"
+        return nil, ns.L("Stable must be open to capture pet slots")
     end
     if not (C_StableInfo and C_StableInfo.GetStablePetInfo) then
         return nil, "C_StableInfo API not available"
@@ -163,9 +163,9 @@ function ns.Teams:ButtonTooltipSpec()
     return function()
         return {
             anchor = "ANCHOR_BOTTOM",
-            title  = "View and manage saved pet teams",
+            title  = ns.L("View and manage saved pet teams"),
             lines  = {{
-                text  = "You have " .. (ns.Teams:GetTeamCount() or 0) .. " saved team(s)",
+                text  = ns.L("You have %d saved team(s)", ns.Teams:GetTeamCount() or 0),
                 color = ns.Theme.COLOR.WHITE,
             }},
         }
@@ -178,7 +178,7 @@ function ns.Teams:GetTeamById(teamId)
 end
 
 function ns.Teams:SaveTeam(name, slots)
-    if not name or name == "" then return nil, "Team name is required" end
+    if not name or name == "" then return nil, ns.L("Team name is required") end
 
     if not slots then
         local err
@@ -190,13 +190,13 @@ function ns.Teams:SaveTeam(name, slots)
     for slot = 1, 6 do
         if slots[slot] then hasPet = true; break end
     end
-    if not hasPet then return nil, "Cannot save empty team - at least one pet required" end
+    if not hasPet then return nil, ns.L("Cannot save empty team - at least one pet required") end
 
     local team    = InsertTeam(name, slots)
     local charData = CharData()
     charData.activeTeamId = team.id
 
-    MsgOK("Team '" .. name .. "' saved successfully.")
+    MsgOK(ns.L("Team '%s' saved successfully.", name))
     return team.id, nil
 end
 
@@ -216,7 +216,7 @@ function ns.Teams:UpdateTeam(teamId, slots)
     teams[index].slots      = ns.Utils.DeepCopy(slots)
     teams[index].modifiedAt = time()
 
-    MsgOK("Team '" .. team.name .. "' updated.")
+    MsgOK(ns.L("Team '%s' updated.", team.name))
     return true, nil
 end
 
@@ -231,13 +231,13 @@ function ns.Teams:DeleteTeam(teamId)
     local charData = CharData()
     if charData.activeTeamId == teamId then charData.activeTeamId = nil end
 
-    MsgOK("Team '" .. team.name .. "' deleted.")
+    MsgOK(ns.L("Team '%s' deleted.", team.name))
     return true, nil
 end
 
 function ns.Teams:RenameTeam(teamId, newName)
     if not teamId              then return false, "Team ID is required"  end
-    if not newName or newName == "" then return false, "New name is required" end
+    if not newName or newName == "" then return false, ns.L("New name is required") end
 
     local index, team = FindTeam(teamId)
     if not index then return false, "Team not found" end
@@ -248,7 +248,7 @@ function ns.Teams:RenameTeam(teamId, newName)
     teams[index].modifiedAt = time()
     SortTeamsAlphabetically()
 
-    MsgOK("Team renamed from '" .. oldName .. "' to '" .. newName .. "'.")
+    MsgOK(ns.L("Team renamed from '%s' to '%s'.", oldName, newName))
     return true, nil
 end
 
@@ -258,10 +258,10 @@ function ns.Teams:DuplicateTeam(teamId, newName)
     local _, source = FindTeam(teamId)
     if not source then return nil, "Source team not found" end
 
-    newName = (newName and newName ~= "") and newName or (source.name .. " (Copy)")
+    newName = (newName and newName ~= "") and newName or ns.L("%s (Copy)", source.name)
     local team = InsertTeam(newName, source.slots)
 
-    MsgOK("Team '" .. source.name .. "' duplicated as '" .. newName .. "'.")
+    MsgOK(ns.L("Team '%s' duplicated as '%s'.", source.name, newName))
     return team.id, nil
 end
 
@@ -273,7 +273,7 @@ function ns.Teams:ApplyTeam(teamId, retryCount)
     retryCount = retryCount or 0
 
     if not ns.state.isStableOpen then
-        return false, "Stable must be open to apply a team"
+        return false, ns.L("Stable must be open to apply a team")
     end
     if not (C_StableInfo and C_StableInfo.SetPetSlot) then
         return false, "C_StableInfo.SetPetSlot not available"
@@ -307,7 +307,7 @@ function ns.Teams:ApplyTeam(teamId, retryCount)
         elseif teamPet and teamPet.petNumber then
             local loc = petLocationMap[teamPet.petNumber]
             if not loc then
-                MsgWarn("Pet '" .. (teamPet.name or "Unknown") .. "' not found in stable")
+                MsgWarn(ns.L("Pet '%s' not found in stable", teamPet.name or ns.L("Unknown")))
             elseif loc ~= targetSlot then
                 table.insert(moveOps, {
                     petNumber = teamPet.petNumber,
@@ -394,7 +394,7 @@ function ns.Teams:OnTeamApplied(teamId)
         end
 
         if allMatch or attempt >= MAX_VERIFY then
-            MsgOK("Team '" .. team.name .. "' applied successfully.")
+            MsgOK(ns.L("Team '%s' applied successfully.", team.name))
             if ns.TeamsPanel and ns.TeamsPanel.RefreshTeamsList then
                 ns.TeamsPanel:RefreshTeamsList()
             end
@@ -435,8 +435,8 @@ function ns.Teams:RestorePetSpecializations(team)
                     if specIndex and C_SpecializationInfo and C_SpecializationInfo.SetPetSpecialization then
                         local ok = pcall(C_SpecializationInfo.SetPetSpecialization, specIndex, info.petNumber)
                         if ok then
-                            MsgOK("Changed '" .. (teamPet.name or "Unknown") ..
-                                  "' spec from " .. currentSpec .. " to " .. teamPet.specName .. ".")
+                            MsgOK(ns.L("Changed '%s' spec from %s to %s.",
+                                  teamPet.name or ns.L("Unknown"), currentSpec, teamPet.specName))
                         else
                             table.insert(remaining, { slot = slot, petName = teamPet.name,
                                                       oldSpec = currentSpec, newSpec = teamPet.specName })
@@ -451,12 +451,12 @@ function ns.Teams:RestorePetSpecializations(team)
     end
 
     if #remaining > 0 then
-        MsgWarn("The following pets need spec changes to match the saved team:")
+        MsgWarn(ns.L("The following pets need spec changes to match the saved team:"))
         for _, c in ipairs(remaining) do
-            MsgWarn("  - '" .. (c.petName or "Unknown") ..
-                    "' (slot " .. c.slot .. "): " .. c.oldSpec .. " -> " .. c.newSpec)
+            MsgWarn(ns.L("  - '%s' (slot %s): %s -> %s",
+                    c.petName or ns.L("Unknown"), c.slot, c.oldSpec, c.newSpec))
         end
-        MsgWarn("Summon the pet(s) that need spec change and click Apply again.")
+        MsgWarn(ns.L("Summon the pet(s) that need spec change and click Apply again."))
     end
 end
 
@@ -478,7 +478,7 @@ function ns.Teams:ExecuteClearOperations(operations, index, callback, usedSlots)
             self:ExecuteClearOperations(operations, index + 1, callback, usedSlots)
         end)
     else
-        MsgErr("No available stable slot to move pet '" .. (op.petName or "Unknown") .. "'!")
+        MsgErr(ns.L("No available stable slot to move pet '%s'!", op.petName or ns.L("Unknown")))
         self:ExecuteClearOperations(operations, index + 1, callback, usedSlots)
     end
 end
@@ -523,7 +523,7 @@ function ns.Teams:ExecuteSlotOperations(operations, index, callback)
                 end)
             end)
         else
-            MsgErr("No available slot for pet swap!")
+            MsgErr(ns.L("No available slot for pet swap!"))
             self:ExecuteSlotOperations(operations, index + 1, callback)
         end
     else
@@ -551,6 +551,6 @@ end
 ----------------------------------------------------------------------------------------------------------------
 
 function ns.Teams:FormatTimestamp(ts)
-    return ts and date("%Y-%m-%d %H:%M", ts) or "Unknown"
+    return ts and date("%Y-%m-%d %H:%M", ts) or ns.L("Unknown")
 end
 

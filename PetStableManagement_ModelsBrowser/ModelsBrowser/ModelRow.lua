@@ -35,11 +35,11 @@ local function RowTooltipSpec(row)
         lines[#lines + 1] = { text = text, color = color, wrap = wrap }
     end
 
-    Add("Family: " .. (d.familyName or "Unknown"))
+    Add(PSM.L("Family: %s", d.familyName or PSM.L("Unknown")))
 
     if #d.npcs > 0 then
         Add(" ")
-        Add("NPCs:")
+        Add(PSM.L("NPCs:"))
         local descriptions = _G.PSM._modelsDescriptionCache
         for _, npc in ipairs(d.npcs) do
             local npcId = _G.ModelsData.NpcId[npc]
@@ -52,7 +52,7 @@ local function RowTooltipSpec(row)
     end
 
     Add(" ")
-    Add("|cff00ff00Click magnifier button for further details.|r", PSM.Theme.COLOR.GREY)
+    Add(PSM.L("Click magnifier button for further details."), PSM.Theme.COLOR.GREY)
 
     return { title = d.title, lines = lines }
 end
@@ -133,7 +133,7 @@ local function buildOwnershipData(displayId)
 
     for _, pet in ipairs(PSM.state.stablePets) do
         if tonumber(pet.displayID) == displayId then
-            local tamer  = pet.tamer or "Unknown"
+            local tamer  = pet.tamer or PSM.L("Unknown")
             local petKey = (pet.petNumber and pet.petNumber ~= 0)
                 and tostring(pet.petNumber)
                 or  (pet.name or "") .. "_" .. (pet.slotID or "") .. "_" .. (pet.displayID or "")
@@ -149,7 +149,7 @@ local function buildOwnershipData(displayId)
     local total, parts = 0, {}
     for tamer, count in pairs(counts) do
         total = total + count
-        table.insert(parts, string.format("%d owned by %s", count, tamer))
+        table.insert(parts, PSM.L("%d owned by %s", count, tamer))
     end
 
     return total, table.concat(parts, "; ")
@@ -201,7 +201,7 @@ function PSM.ModelRow:UpdateItemRow(row, item, index, scale)
     end
 
     -- Name text
-    local nameStr = string.format("Display ID: %d", displayId)
+    local nameStr = PSM.L("Display ID: %d", displayId)
     if totalOwned > 0 then
         nameStr = nameStr .. string.format(" (%s)", ownershipStr)
     end
@@ -228,7 +228,7 @@ function PSM.ModelRow:UpdateItemRow(row, item, index, scale)
 
         if totalNpcs > 1 then
             local more = row.npcTexts[2]
-            more:SetText(string.format("and %d more...", totalNpcs - 1))
+            more:SetText(PSM.L("and %d more...", totalNpcs - 1))
             more:ClearAllPoints()
             more:SetPoint("TOPLEFT", first, "BOTTOMLEFT", 0, -5)
             more:Show()

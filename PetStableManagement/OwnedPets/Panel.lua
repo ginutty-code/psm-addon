@@ -57,7 +57,7 @@ function ns.UI:CreateOwnedPetsPanel()
             relativePoint = "TOPRIGHT",
             x = 0, y = 0,
         },
-        title        = "Pet Stable Management",
+        title        = ns.L("Pet Stable Management"),
 
         onHide = function(panel)
             ns.PanelManager:CleanupPanel(panel)
@@ -221,13 +221,13 @@ function ns.UI:AddOwnedPetsElements(panel)
 
     -- Export (leftmost; anchors to the panel edge instead of a sibling)
     panel.exportButton = PanelButton({
-        text    = "Export",
+        text    = ns.L("Export"),
         point   = { "TOPLEFT", 10, -5 },
         onClick = function() ns.Export:ShowExportDialog() end,
     })
 
     panel.teamsButton = PanelButton({
-        text    = "Pet Teams",
+        text    = ns.L("Pet Teams"),
         point   = { "TOPLEFT", panel.exportButton, "TOPRIGHT", 5, 0 },
         onClick = function() ns.TeamsPanel:Show() end,
         tooltip = ns.Teams:ButtonTooltipSpec(),
@@ -249,9 +249,9 @@ function ns.UI:AddOwnedPetsElements(panel)
     -- showMaximizeButton = false), and a nil anchor is not an error -- SetPoint would
     -- quietly fall back to the parent and put this row against the panel's left edge.
     -- The close button is the one control every panel is guaranteed.
-    panel.groupedButton = ViewButton("Grouped", "grouped", panel.maximizeButton or panel.closeButton)
-    panel.gridButton    = ViewButton("Grid",    "grid",    panel.groupedButton)
-    panel.listButton    = ViewButton("List",    "list",    panel.gridButton)
+    panel.groupedButton = ViewButton(ns.L("Grouped"), "grouped", panel.maximizeButton or panel.closeButton)
+    panel.gridButton    = ViewButton(ns.L("Grid"),    "grid",    panel.groupedButton)
+    panel.listButton    = ViewButton(ns.L("List"),    "list",    panel.gridButton)
 
     -- Disable the button matching the initial view mode
     ApplyViewMode(panel, ns.state.panelViewMode or PetStableManagementDB.settings.panelViewMode)

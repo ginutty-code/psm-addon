@@ -175,7 +175,7 @@ local function SetupModelInteraction(model)
             local tip = ns.RowManager.MODEL_HINTS
             if ns.state and ns.state.isStableOpen
                 and self.petData and self.petData.slotID then
-                tip = tip .. "\nShift/Ctrl + drag to reorder slot"
+                tip = tip .. "\n" .. ns.L("Shift/Ctrl + drag to reorder slot")
             end
             return { title = tip }
         end,

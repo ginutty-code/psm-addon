@@ -274,7 +274,7 @@ function PSM.NPCDataLoader:_CalculateNPCData()
                     if zoneOk then
                         table.insert(items, {
                             npcId          = npcId,
-                            name           = name or ("NPC " .. tostring(npcId)),
+                            name           = name or PSM.L("NPC %s", tostring(npcId)),
                             family         = family,
                             classification = classification or "Normal",
                             nameKeeper     = nameKeeper or false,
@@ -315,8 +315,8 @@ function PSM.NPCDataLoader:_ApplyNPCData(items)
     panel.allNPCs = items
 
     if #items == 0 then
-        if panel.infoText then panel.infoText:SetText("No matching NPCs | 0 pages") end
-        if panel.pageText then panel.pageText:SetText("Page 0 of 0") end
+        if panel.infoText then panel.infoText:SetText(PSM.L("No matching NPCs | 0 pages")) end
+        if panel.pageText then panel.pageText:SetText(PSM.L("Page %d of %d", 0, 0)) end
         PSM.ModelsPanel:UpdateVisibleRows()
         return
     end
@@ -333,10 +333,10 @@ function PSM.NPCDataLoader:_ApplyNPCData(items)
         -- in every filter state rather than one.
         local unique, total = OwnedPetCounts(items)
         if total > unique then
-            panel.infoText:SetText(string.format("%d NPCs found | %d owned (%d including duplicates)",
+            panel.infoText:SetText(PSM.L("%d NPCs found | %d owned (%d including duplicates)",
                 #items, unique, total))
         else
-            panel.infoText:SetText(string.format("%d NPCs found | %d owned", #items, unique))
+            panel.infoText:SetText(PSM.L("%d NPCs found | %d owned", #items, unique))
         end
     end
 
