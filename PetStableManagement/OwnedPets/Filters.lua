@@ -329,6 +329,15 @@ function ns.UI:UpdateFilterUI()
     if panel.sortDrop   then UIDropDownMenu_SetText(panel.sortDrop,   SortDropLabel())                                            end
 end
 
+-- Lives here rather than in UI.lua, which held a byte-identical copy of SORT_LABELS to
+-- do the same job. Its three callers refresh only the sort dropdown, so this cannot just
+-- defer to UpdateFilterUI.
+function ns.UI:UpdateSortButtonTexts()
+    local panel = ns.state.panel
+    if not panel or not panel.sortDrop then return end
+    UIDropDownMenu_SetText(panel.sortDrop, SortDropLabel())
+end
+
 function ns.UI:BuildSortButtons(panel)
     -- Reset Filters button
     panel.resetFiltersButton = ns.Widgets.Button(panel, {

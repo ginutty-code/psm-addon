@@ -10,9 +10,9 @@ ns.RowManager = {}
 -- lives with the code that installs the handlers it describes -- if the interaction
 -- changes, the text sitting next to it is hard to miss.
 ns.RowManager.MODEL_HINTS =
-    "Left-click and drag to rotate\n" ..
-    "Right-click and drag to move (left/right, up/down)\n" ..
-    "Scroll to zoom"
+    ns.L("Left-click and drag to rotate") .. "\n" ..
+    ns.L("Right-click and drag to move (left/right, up/down)") .. "\n" ..
+    ns.L("Scroll to zoom")
 
 -- ─── Shared update frames ────────────────────────────────────────────────────
 
@@ -252,7 +252,7 @@ local function CreateResetButton(parent, model)
         point     = "TOPRIGHT", relPoint = "TOPRIGHT", x = -2, y = -2,
         texture   = "Interface\\Buttons\\UI-RefreshButton",
         highlight = "Interface\\Buttons\\UI-RefreshButton",
-        tooltip   = "Reset View",
+        tooltip   = ns.L("Reset View"),
     })
 
     btn:SetScript("OnClick", function()
@@ -289,7 +289,7 @@ local function CreateMagnifyButton(parent, model)
         size    = 16,
         point   = "TOPRIGHT", relPoint = "TOPRIGHT", x = -20, y = -2,
         texture = "Interface\\Icons\\INV_Misc_Spyglass_02",
-        tooltip = "Magnify Model",
+        tooltip = ns.L("Magnify Model"),
     })
 
     btn:SetScript("OnClick", function()
@@ -310,7 +310,7 @@ local function CreateAddToTeamButton(parent, model)
         texture   = "Interface\\Buttons\\UI-PlusButton-UP",
         highlight = "Interface\\Buttons\\UI-PlusButton-Highlight",
         pushed    = "Interface\\Buttons\\UI-PlusButton-Down",
-        tooltip   = "Add to Team",
+        tooltip   = ns.L("Add to Team"),
     })
 
     btn:SetScript("OnClick", function()
@@ -329,7 +329,7 @@ local function CreateRemoveFromTeamButton(parent, model)
         texture   = "Interface\\Buttons\\UI-MinusButton-UP",
         highlight = "Interface\\Buttons\\UI-MinusButton-Highlight",
         pushed    = "Interface\\Buttons\\UI-MinusButton-Down",
-        tooltip   = "Remove from Team",
+        tooltip   = ns.L("Remove from Team"),
     })
 
     btn:SetScript("OnClick", function()
@@ -431,7 +431,7 @@ function ns.RowManager:CreateBaseRow(parent, config)
         texture   = "Interface\\Common\\ReputationStar",
         highlight = "Interface\\Common\\ReputationStar",
         hidden    = true,
-        tooltip   = "Favorite/Unfavorite",
+        tooltip   = ns.L("Favorite/Unfavorite"),
     })
 
     local function SetFavTexCoords(isFav)

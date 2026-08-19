@@ -69,7 +69,7 @@ function ns.UI:SetupRowButtons(row, pet)
     -- Make Active
     row.makeActive:SetScript("OnClick", function()
         if not C_StableInfo or not C_StableInfo.SetPetSlot then
-            print("|cFFFF0000C_StableInfo.SetPetSlot not available.|r")
+            print(ns.L("C_StableInfo.SetPetSlot not available."))
             return
         end
         ns.Utils.SafeCall(function()
@@ -194,8 +194,8 @@ function ns.UI:SetupRowButtons(row, pet)
             })
         end
 
-        setupMoveButton(row.moveUp,   "Move Up",   pet.slotID - 1, function() ns.Reorder:MovePetUp(pet)   end)
-        setupMoveButton(row.moveDown, "Move Down", pet.slotID + 1, function() ns.Reorder:MovePetDown(pet) end)
+        setupMoveButton(row.moveUp,   ns.L("Move Up"),   pet.slotID - 1, function() ns.Reorder:MovePetUp(pet)   end)
+        setupMoveButton(row.moveDown, ns.L("Move Down"), pet.slotID + 1, function() ns.Reorder:MovePetDown(pet) end)
 
         if pet.slotID > 1   then row.moveUp:Show()   else row.moveUp:Hide()   end
         if pet.slotID < 205 then row.moveDown:Show() else row.moveDown:Hide() end
@@ -442,10 +442,10 @@ function ns.UI:_ApplyCachedRender(renderData, preserveScroll)
     ns.state.currentRenderData = renderData
 
     -- Stats text
-    local statsText = string.format("Showing: %d pets", renderData.filteredCount)
+    local statsText = ns.L("Showing: %d pets", renderData.filteredCount)
     local parts = {}
-    if renderData.sameCharDuplicatePets  > 0 then table.insert(parts, string.format("Same-char: %d models (%d pets)",  renderData.sameCharDuplicateGroups,  renderData.sameCharDuplicatePets))  end
-    if renderData.crossCharDuplicatePets > 0 then table.insert(parts, string.format("Cross-char: %d models (%d pets)", renderData.crossCharDuplicateGroups, renderData.crossCharDuplicatePets)) end
+    if renderData.sameCharDuplicatePets  > 0 then table.insert(parts, ns.L("Same-char: %d models (%d pets)",  renderData.sameCharDuplicateGroups,  renderData.sameCharDuplicatePets))  end
+    if renderData.crossCharDuplicatePets > 0 then table.insert(parts, ns.L("Cross-char: %d models (%d pets)", renderData.crossCharDuplicateGroups, renderData.crossCharDuplicatePets)) end
     if #parts > 0 then statsText = statsText .. " | Duplicates: " .. table.concat(parts, "; ") end
     ns.state.panel.statsText:SetText(statsText)
 
@@ -656,7 +656,7 @@ function ns.UI:UpdatePanel(showIfHidden)
     if not ns.state.panel then self:BuildPanel() end
 
     if not EnsurePetData(false) then
-        print("|cFFFF0000No owned pets data available! Please visit a Stable Master.|r")
+        print(ns.L("No owned pets data available! Please visit a Stable Master."))
         return
     end
 
@@ -672,12 +672,12 @@ function ns.UI:UpdatePanelTitle()
     if not ns.state.panel or not ns.state.panel.title then return end
 
     if ns.state.isStableOpen then
-        ns.state.panel.title:SetText("Pet Stable Management (Live)")
+        ns.state.panel.title:SetText(ns.L("Pet Stable Management (Live)"))
         ns.state.panel.title:SetTextColor(unpack(ns.Config.COLORS.PRIMARY))
         return
     end
 
-    local text, color = "Pet Stable Management", {0.6, 0.8, 1}
+    local text, color = ns.L("Pet Stable Management"), {0.6, 0.8, 1}
     if #ns.state.stablePets > 0 or
        (PetStableManagementDB and PetStableManagementDB.snapshotData and #PetStableManagementDB.snapshotData > 0) then
         local formatted = ns.Data:GetFormattedTimestamp()
@@ -707,20 +707,20 @@ end
 
 function ns.UI:HandleSaveTeamClick()
     if not ns.state.isStableOpen then
-        print("|cFFFF8800PetStableManagement: You must be at a Stable Master to save a team.|r")
+        print(ns.L("You must be at a Stable Master to save a team."))
         return
     end
 
     local currentSlots, err = ns.Teams:GetCurrentSlots()
     if not currentSlots then
-        print("|cFFFF0000PetStableManagement: " .. (err or "Failed to capture current slots") .. "|r")
+        print("|cFFFF0000PetStableManagement: " .. (err or ns.L("Failed to capture current slots")) .. "|r")
         return
     end
 
     local hasPet = false
     for slot = 1, 6 do if currentSlots[slot] then hasPet = true; break end end
     if not hasPet then
-        print("|cFFFF8800PetStableManagement: No pets in slots 1-6 to save.|r")
+        print(ns.L("No pets in slots 1-6 to save."))
         return
     end
 
@@ -735,43 +735,27 @@ function ns.UI:HandleSaveTeamClick()
                 onUpdate = function()
                     local ok, updateErr = ns.Teams:UpdateTeam(activeTeamId)
                     if ok then RefreshTeamsPanel()
-                    else print("|cFFFF0000PetStableManagement: " .. (updateErr or "Failed to update team") .. "|r") end
+                    else print("|cFFFF0000PetStableManagement: " .. (updateErr or ns.L("Failed to update team")) .. "|r") end
                 end,
                 onSaveNew = function(name)
                     local tid, saveErr = ns.Teams:SaveTeam(name)
                     if tid then RefreshTeamsPanel()
-                    else print("|cFFFF0000PetStableManagement: " .. (saveErr or "Failed to save team") .. "|r") end
+                    else print("|cFFFF0000PetStableManagement: " .. (saveErr or ns.L("Failed to save team")) .. "|r") end
                 end,
             })
         else
-            print("|cFF00FF00PetStableManagement: Team '" .. activeTeam.name .. "' is already up to date.|r")
+            print(ns.L("Team '%s' is already up to date.", activeTeam.name))
         end
     else
         ns.Dialogs:ShowNameInputDialog({
-            title       = "Save New Team",
-            description = "Enter a name for your pet team:",
+            title       = ns.L("Save New Team"),
+            description = ns.L("Enter a name for your pet team:"),
             onConfirm   = function(name)
                 local tid, saveErr = ns.Teams:SaveTeam(name)
                 if tid then RefreshTeamsPanel()
-                else print("|cFFFF0000PetStableManagement: " .. (saveErr or "Failed to save team") .. "|r") end
+                else print("|cFFFF0000PetStableManagement: " .. (saveErr or ns.L("Failed to save team")) .. "|r") end
             end,
         })
     end
-end
-
-function ns.UI:UpdateSortButtonTexts()
-    local panel = ns.state.panel
-    if not panel or not panel.sortDrop then return end
-
-    -- Update sort dropdown text based on current sort state
-    local sortLabels = {
-        slot   = "Sorted by Slot",
-        model  = "Sorted by Model",
-        family = "Sorted by Family",
-        spec   = "Sorted by Spec",
-        tamer  = "Sorted by Tamer",
-    }
-    local sortText = sortLabels[ns.state.sortBy] or "Sort by"
-    UIDropDownMenu_SetText(panel.sortDrop, sortText)
 end
 

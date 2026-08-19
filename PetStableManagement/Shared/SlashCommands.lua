@@ -9,7 +9,7 @@ local _, ns = ...
 
 local function InCombat()
     if UnitAffectingCombat("player") then
-        print("|cFFFF0000Pet Stable Management: Cannot open panel during combat.|r")
+        print(ns.L("Cannot open panel during combat."))
         return true
     end
 end
@@ -28,12 +28,12 @@ SLASH_PETSTABLE2 = "/petstable"
 local PETSTABLE_COMMANDS = {
     show = function()
         ns.Minimap:Show()
-        print("|cFF00FF00Pet Stable Management: Minimap button shown.|r")
+        print(ns.L("Minimap button shown."))
     end,
 
     hide = function()
         ns.Minimap:Hide()
-        print("|cFFFFAA00Pet Stable Management: Minimap button hidden. Use /psm show to show it again.|r")
+        print(ns.L("Minimap button hidden. Use /psm show to show it again."))
     end,
 
     menu = function()
@@ -103,8 +103,8 @@ SlashCmdList["PETSWAP"] = function(msg)
     local startSlot, destSlot = tonumber(a), tonumber(b)
 
     if not startSlot or not destSlot then
-        print("|cFFFF0000Usage: /petswap [starting slot] [destination slot]|r")
-        print("|cFFFFAA00Example: /petswap 5 10|r")
+        print(ns.L("Usage: /petswap [starting slot] [destination slot]"))
+        print(ns.L("Example: /petswap 5 10"))
         return
     end
 
@@ -114,26 +114,26 @@ SlashCmdList["PETSWAP"] = function(msg)
     end
 
     if not validSlot(startSlot) or not validSlot(destSlot) then
-        print(string.format("|cFFFF0000Slot numbers must be between 1 and %d.|r", maxSlot))
+        print(ns.L("Slot numbers must be between 1 and %d.", maxSlot))
         return
     end
 
     if startSlot == destSlot then
-        print("|cFFFFAA00Source and destination slots are the same.|r")
+        print(ns.L("Source and destination slots are the same."))
         return
     end
 
     if not ns.state.isStableOpen then
-        print("|cFFFF0000You must be at a stable master to change pet slots.|r")
+        print(ns.L("You must be at a stable master to change pet slots."))
         return
     end
 
     if not C_StableInfo.GetStablePetInfo(startSlot) then
-        print(string.format("|cFFFF0000No pet found in slot %d.|r", startSlot))
+        print(ns.L("No pet found in slot %d.", startSlot))
         return
     end
 
     if not ns.Reorder:SwapPetSlots(startSlot, destSlot) then
-        print("|cFFFF0000Failed to move pet.|r")
+        print(ns.L("Failed to move pet."))
     end
 end

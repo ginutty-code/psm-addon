@@ -405,4 +405,54 @@ L.Register({
     ["Pets in My Zone: OFF"] = "Pets in My Zone: OFF",
     ["Owned: OFF"]           = "Owned: OFF",
     ["Return to first page"] = "Return to first page",
+
+    -- Owned pets panel chrome, row controls and slash commands
+    ["Pet Stable Management"]        = "Pet Stable Management",
+    ["Pet Stable Management (Live)"] = "Pet Stable Management (Live)",
+    ["Move Up"]   = "Move Up",
+    ["Move Down"] = "Move Down",
+    ["Showing: %d pets"]              = "Showing: %d pets",
+    ["Same-char: %d models (%d pets)"]  = "Same-char: %d models (%d pets)",
+    ["Cross-char: %d models (%d pets)"] = "Cross-char: %d models (%d pets)",
+
+    ["Magnify Model"]       = "Magnify Model",
+    ["Add to Team"]         = "Add to Team",
+    ["Favorite/Unfavorite"] = "Favorite/Unfavorite",
+    ["Left-click and drag to rotate"] = "Left-click and drag to rotate",
+    ["Right-click and drag to move (left/right, up/down)"] =
+        "Right-click and drag to move (left/right, up/down)",
+    ["Scroll to zoom"] = "Scroll to zoom",
+
+    ["Team '%s' is already up to date."] =
+        "|cFF00FF00PetStableManagement: Team '%s' is already up to date.|r",
+    ["You must be at a Stable Master to save a team."] =
+        "|cFFFF8800PetStableManagement: You must be at a Stable Master to save a team.|r",
+    ["No pets in slots 1-6 to save."] =
+        "|cFFFF8800PetStableManagement: No pets in slots 1-6 to save.|r",
+    ["No owned pets data available! Please visit a Stable Master."] =
+        "|cFFFF0000No owned pets data available! Please visit a Stable Master.|r",
+    ["C_StableInfo.SetPetSlot not available."] =
+        "|cFFFF0000C_StableInfo.SetPetSlot not available.|r",
+    ["Failed to capture current slots"] = "Failed to capture current slots",
+    ["Failed to update team"]           = "Failed to update team",
+
+    -- Slash commands. The command names inside these stay literal: /psm and /petswap are
+    -- typed, not read, so translating them would break the instruction.
+    ["Cannot open panel during combat."] =
+        "|cFFFF0000Pet Stable Management: Cannot open panel during combat.|r",
+    ["Minimap button shown."] =
+        "|cFF00FF00Pet Stable Management: Minimap button shown.|r",
+    ["Minimap button hidden. Use /psm show to show it again."] =
+        "|cFFFFAA00Pet Stable Management: Minimap button hidden. Use /psm show to show it again.|r",
+    ["Usage: /petswap [starting slot] [destination slot]"] =
+        "|cFFFF0000Usage: /petswap [starting slot] [destination slot]|r",
+    ["Example: /petswap 5 10"]  = "|cFFFFAA00Example: /petswap 5 10|r",
+    ["Slot numbers must be between 1 and %d."] =
+        "|cFFFF0000Slot numbers must be between 1 and %d.|r",
+    ["Source and destination slots are the same."] =
+        "|cFFFFAA00Source and destination slots are the same.|r",
+    ["You must be at a stable master to change pet slots."] =
+        "|cFFFF0000You must be at a stable master to change pet slots.|r",
+    ["No pet found in slot %d."] = "|cFFFF0000No pet found in slot %d.|r",
+    ["Failed to move pet."]      = "|cFFFF0000Failed to move pet.|r",
 })
