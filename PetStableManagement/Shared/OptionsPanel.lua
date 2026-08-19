@@ -203,7 +203,7 @@ panel:SetScript("OnShow", function(self)
     -- ── Minimap checkbox ────────────────────────────────────────────────────
     local showMinimapCheckbox = Widgets.CheckBox(panel, {
         name    = addonName .. "ShowMinimapCheckbox",
-        label   = "Show minimap button",
+        label   = ns.L("Show minimap button"),
         checked = not PetStableManagementDB.settings.minimapButton.hide,
         point   = { "TOPLEFT", title, "BOTTOMLEFT", CHECKBOX_INDENT_X, CHECKBOX_INDENT_Y },
         onClick = function(cb)
@@ -216,7 +216,7 @@ panel:SetScript("OnShow", function(self)
     -- ── Open with Stable checkbox (to the right of minimap checkbox) ─────────
     local openWithStableCheckbox = Widgets.CheckBox(panel, {
         name    = addonName .. "OpenWithStableCheckbox",
-        label   = "Open with the Stable window",
+        label   = ns.L("Open with the Stable window"),
         checked = PetStableManagementDB.settings.openWithStable ~= false,
         point   = { "TOPLEFT", showMinimapCheckbox, "TOPRIGHT", 150, 0 },
         onClick = function(cb)
@@ -225,7 +225,7 @@ panel:SetScript("OnShow", function(self)
     })
 
     -- ── Opacity slider ──────────────────────────────────────────────────────
-    local opacitySlider = LabelledSlider(showMinimapCheckbox, SECTION_SPACING, "UI Opacity:", {
+    local opacitySlider = LabelledSlider(showMinimapCheckbox, SECTION_SPACING, ns.L("UI Opacity:"), {
         name      = addonName .. "OpacitySlider",
         min       = cfg.MIN_TRANSPARENCY,
         max       = cfg.MAX_TRANSPARENCY,
@@ -233,7 +233,7 @@ panel:SetScript("OnShow", function(self)
         value     = cfg:GetOpacity(),
         lowLabel  = "10%",
         highLabel = "100%",
-        format    = function(v) return "Opacity: " .. math.floor(v * 100) .. "%" end,
+        format    = function(v) return ns.L("Opacity: %d%%", math.floor(v * 100)) end,
         onChange  = function(value)
             local v = math.floor(value * 100) / 100
             PetStableManagementDB.settings.opacity = v
@@ -256,7 +256,7 @@ panel:SetScript("OnShow", function(self)
 
     local petModelTitle = Widgets.Label(panel, {
         fontObject = "GameFontNormal",
-        text       = "Pet Model Settings",
+        text       = ns.L("Pet Model Settings"),
         point      = { "TOPLEFT", divider, "BOTTOMLEFT", 0, SECTION_SPACING },
     })
 
@@ -277,13 +277,13 @@ panel:SetScript("OnShow", function(self)
         value     = PetStableManagementDB.settings.modelZoom or cfg.DEFAULT_MODEL_ZOOM,
         lowLabel  = "50%",
         highLabel = "200%",
-        format    = function(v) return "Zoom: " .. math.floor(v * 100) .. "%" end,
+        format    = function(v) return ns.L("Zoom: %d%%", math.floor(v * 100)) end,
         onChange  = function(value)
             ApplyModelSetting("modelZoom", math.floor(value * 100) / 100)
         end,
     })
 
-    local viewAngleSlider = LabelledSlider(zoomSlider, SLIDER_SLIDER_SPACING, "View Angle:", {
+    local viewAngleSlider = LabelledSlider(zoomSlider, SLIDER_SLIDER_SPACING, ns.L("View Angle:"), {
         name      = addonName .. "ViewAngleSlider",
         min       = cfg.MIN_MODEL_VIEW_ANGLE,
         max       = cfg.MAX_MODEL_VIEW_ANGLE,
@@ -291,14 +291,14 @@ panel:SetScript("OnShow", function(self)
         value     = PetStableManagementDB.settings.modelViewAngle or cfg.DEFAULT_MODEL_VIEW_ANGLE,
         lowLabel  = "-180°",
         highLabel = "180°",
-        format    = function(v) return "View Angle: " .. math.floor(v) .. "°" end,
+        format    = function(v) return ns.L("View Angle: %d°", math.floor(v)) end,
         onChange  = function(value)
             ApplyModelSetting("modelViewAngle", math.floor(value))
         end,
     })
 
     local verticalPositionSlider = LabelledSlider(viewAngleSlider, SLIDER_SLIDER_SPACING,
-        "Vertical Positioning (Z-axis):", {
+        ns.L("Vertical Positioning (Z-axis):"), {
         name      = addonName .. "VerticalPositionSlider",
         min       = cfg.MIN_MODEL_VERTICAL_POSITION,
         max       = cfg.MAX_MODEL_VERTICAL_POSITION,
@@ -306,14 +306,14 @@ panel:SetScript("OnShow", function(self)
         value     = PetStableManagementDB.settings.modelVerticalPosition or cfg.DEFAULT_MODEL_VERTICAL_POSITION,
         lowLabel  = "-100%",
         highLabel = "100%",
-        format    = function(v) return "Vertical Position: " .. math.floor(v * 100) .. "%" end,
+        format    = function(v) return ns.L("Vertical Position: %d%%", math.floor(v * 100)) end,
         onChange  = function(value)
             ApplyModelSetting("modelVerticalPosition", math.floor(value * 100) / 100)
         end,
     })
 
     local horizontalPositionSlider = LabelledSlider(verticalPositionSlider, SLIDER_SLIDER_SPACING,
-        "Horizontal Positioning (Y-axis):", {
+        ns.L("Horizontal Positioning (Y-axis):"), {
         name      = addonName .. "HorizontalPositionSlider",
         min       = cfg.MIN_MODEL_HORIZONTAL_POSITION,
         max       = cfg.MAX_MODEL_HORIZONTAL_POSITION,
@@ -321,7 +321,7 @@ panel:SetScript("OnShow", function(self)
         value     = PetStableManagementDB.settings.modelHorizontalPosition or cfg.DEFAULT_MODEL_HORIZONTAL_POSITION,
         lowLabel  = "-100%",
         highLabel = "100%",
-        format    = function(v) return "Horizontal Position: " .. math.floor(v * 100) .. "%" end,
+        format    = function(v) return ns.L("Horizontal Position: %d%%", math.floor(v * 100)) end,
         onChange  = function(value)
             ApplyModelSetting("modelHorizontalPosition", math.floor(value * 100) / 100)
         end,
@@ -330,7 +330,7 @@ panel:SetScript("OnShow", function(self)
     -- ── Pets-per-column dropdown ────────────────────────────────────────────
     local petsPerColumnTitle = Widgets.Label(panel, {
         fontObject = "GameFontNormal",
-        text       = "Pets Per Column in Browser:",
+        text       = ns.L("Pets Per Column in Browser:"),
         point      = { "TOPLEFT", horizontalPositionSlider, "BOTTOMLEFT", 0, SLIDER_SLIDER_SPACING },
     })
 
@@ -362,7 +362,7 @@ panel:SetScript("OnShow", function(self)
     -- ── Background type dropdown ────────────────────────────────────────────
     local backgroundTypeTitle = Widgets.Label(panel, {
         fontObject = "GameFontNormal",
-        text       = "Pet Model Background:",
+        text       = ns.L("Pet Model Background:"),
         point      = { "TOPLEFT", petsPerColumnTitle, "TOPRIGHT", 20, 0 },
     })
 
@@ -370,9 +370,9 @@ panel:SetScript("OnShow", function(self)
         { "TOPLEFT", backgroundTypeTitle, "BOTTOMLEFT", DROPDOWN_OFFSET_X, DROPDOWN_OFFSET_Y })
 
     local backgroundTypeLabels = {
-        simple = "  Simple",
-        stablemaster = "  Stable Master",
-        custom = "  Custom",
+        simple = "  " .. ns.L("Simple"),
+        stablemaster = "  " .. ns.L("Stable Master"),
+        custom = "  " .. ns.L("Custom"),
     }
 
     local currentBgType = PetStableManagementDB.settings.backgroundType or cfg.DEFAULT_BACKGROUND_TYPE
@@ -398,7 +398,7 @@ panel:SetScript("OnShow", function(self)
     -- ── Stop-animation checkbox ─────────────────────────────────────────────
     local stopAnimCheckbox = Widgets.CheckBox(panel, {
         name    = addonName .. "StopAnimCheckbox",
-        label   = "Stop pet animations",
+        label   = ns.L("Stop pet animations"),
         checked = PetStableManagementDB.settings.stopAnimation or cfg.DEFAULT_STOP_ANIMATION,
         point   = { "TOPLEFT", backgroundTypeDropdown, "TOPRIGHT", 40, CHECKBOX_DROPDOWN_OFFSET },
         onClick = function(cb)
@@ -413,7 +413,7 @@ panel:SetScript("OnShow", function(self)
     -- ── Reset button ────────────────────────────────────────────────────────
     Widgets.Button(panel, {
         name  = addonName .. "ResetButton",
-        text  = "Reset All Settings",
+        text  = ns.L("Reset All Settings"),
         width = ns.Theme.CONTROL.BUTTON_W.L,
         point = { "BOTTOMRIGHT", panel, "BOTTOMRIGHT", -RESET_BUTTON_MARGIN, RESET_BUTTON_MARGIN },
         onClick = function()

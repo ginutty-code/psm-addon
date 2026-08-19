@@ -455,4 +455,56 @@ L.Register({
         "|cFFFF0000You must be at a stable master to change pet slots.|r",
     ["No pet found in slot %d."] = "|cFFFF0000No pet found in slot %d.|r",
     ["Failed to move pet."]      = "|cFFFF0000Failed to move pet.|r",
+
+    -- Options panel
+    ["Show minimap button"]         = "Show minimap button",
+    ["Open with the Stable window"] = "Open with the Stable window",
+    ["Stop pet animations"]         = "Stop pet animations",
+    ["Reset All Settings"]          = "Reset All Settings",
+    ["Pet Model Settings"]          = "Pet Model Settings",
+    ["Pets Per Column in Browser:"] = "Pets Per Column in Browser:",
+    ["Pet Model Background:"]       = "Pet Model Background:",
+    ["Simple"]        = "Simple",
+    ["Stable Master"] = "Stable Master",
+    ["Custom"]        = "Custom",
+
+    ["UI Opacity:"] = "UI Opacity:",
+    ["View Angle:"] = "View Angle:",
+    ["Vertical Positioning (Z-axis):"]   = "Vertical Positioning (Z-axis):",
+    ["Horizontal Positioning (Y-axis):"] = "Horizontal Positioning (Y-axis):",
+    ["Opacity: %d%%"]             = "Opacity: %d%%",
+    ["Zoom: %d%%"]                = "Zoom: %d%%",
+    ["Vertical Position: %d%%"]   = "Vertical Position: %d%%",
+    ["Horizontal Position: %d%%"] = "Horizontal Position: %d%%",
+    ["View Angle: %d°"]         = "View Angle: %d°",
+
+    -- Menu, panel chrome, row text and pet tooltip
+    ["PSM Menu"]                     = "PSM Menu",
+    ["Models Browser not available"] = "Models Browser not available",
+    ["Toggle Owned Pets"]     = "Toggle Owned Pets",
+    ["Toggle Models Browser"] = "Toggle Models Browser",
+    ["Toggle Pet Roulette"]   = "Toggle Pet Roulette",
+    ["Toggle Pet Teams"]      = "Toggle Pet Teams",
+    ["Toggle Options"]        = "Toggle Options",
+    ["Close All Panels"]      = "Close All Panels",
+
+    ["Maximize"]      = "Maximize",
+    ["Search..."]     = "Search...",
+    ["Search pets..."] = "Search pets...",
+    ["Showing: 0 pets  |  Duplicates: 0 pets (0 groups)"] =
+        "Showing: 0 pets  |  Duplicates: 0 pets (0 groups)",
+
+    ["Make Active"] = "Make Active",
+    ["Companion"]   = "Companion",
+    ["Stable"]      = "Stable",
+    ["Release"]     = "Release",
+
+    ["Family: %s"]    = "Family: %s",
+    ["Spec: %s"]      = "Spec: %s",
+    ["Owned by: %s"]  = "Owned by: %s",
+    ["DisplayID: %d"] = "DisplayID: %d",
+    ["Level: %s%d|r"] = "Level: %s%d|r",
+    ["%s: %s%s"]      = "%s: %s%s",
+    ["Slot %d: %s%s\nDisplayID: %d\n%s\n%s%s"] =
+        "Slot %d: %s%s\nDisplayID: %d\n%s\n%s%s",
 })

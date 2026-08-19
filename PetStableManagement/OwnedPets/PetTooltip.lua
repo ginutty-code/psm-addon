@@ -69,15 +69,15 @@ function PetTooltip.Spec(pet, opts)
     local lines = {}
     local function Add(text, color) lines[#lines + 1] = { text = text, color = color } end
 
-    Add(string.format("DisplayID: %d", pet.displayID or 0), Theme.COLOR.MUTED)
-    if pet.familyName then Add("Family: " .. pet.familyName, Theme.COLOR.WHITE) end
-    if pet.specName   then Add("Spec: "   .. pet.specName,   Theme.COLOR.MUTED) end
-    if pet.tamer      then Add("Owned by: " .. pet.tamer,    Theme.COLOR.DIM)   end
+    Add(ns.L("DisplayID: %d", pet.displayID or 0), Theme.COLOR.MUTED)
+    if pet.familyName then Add(ns.L("Family: %s", pet.familyName), Theme.COLOR.WHITE) end
+    if pet.specName   then Add(ns.L("Spec: %s", pet.specName),   Theme.COLOR.MUTED) end
+    if pet.tamer      then Add(ns.L("Owned by: %s", pet.tamer),  Theme.COLOR.DIM)   end
 
     if pet.level and pet.level > 0 then
         -- The colour wraps the number. Both older copies appended the escape after it,
         -- where it coloured nothing and left |r unclosed.
-        Add(string.format("Level: %s%d|r", LevelColor(pet.level), pet.level), Theme.COLOR.WHITE)
+        Add(ns.L("Level: %s%d|r", LevelColor(pet.level), pet.level), Theme.COLOR.WHITE)
     end
 
     local abilities    = type(pet.abilities) == "table" and pet.abilities or {}
@@ -114,9 +114,9 @@ function PetTooltip.Spec(pet, opts)
     end
 
     local exoticLabel = pet.isExotic and " |cffff8800[Exotic]|r" or ""
-    local slotLabel   = opts.slotLabel or string.format("Slot %d", pet.slotID or 0)
+    local slotLabel   = opts.slotLabel or ns.L("Slot %s", pet.slotID or 0)
     return {
-        title      = string.format("%s: %s%s", slotLabel, pet.name or "?", exoticLabel),
+        title      = ns.L("%s: %s%s", slotLabel, pet.name or "?", exoticLabel),
         titleColor = Theme.COLOR.WHITE,
         lines      = lines,
     }

@@ -113,7 +113,7 @@ function ns.PanelManager:CreateBasePanel(name, config)
         local maxBtn = Widgets.Button(panel, {
             point      = { "TOPRIGHT", panel.closeButton, "TOPLEFT", -2, 0 },
             width      = ns.Theme.CONTROL.BUTTON_W.S,
-            text       = "Maximize",
+            text       = ns.L("Maximize"),
             fontObject = "GameFontNormalSmall",
         })
 
@@ -128,7 +128,7 @@ function ns.PanelManager:CreateBasePanel(name, config)
                 else
                     panel:SetPoint("TOPLEFT", StableFrame, "TOPRIGHT", 0, 0)
                 end
-                maxBtn:SetText("Maximize")
+                maxBtn:SetText(ns.L("Maximize"))
             else
                 -- Save position relative to UIParent before maximizing
                 local x, y = panel:GetLeft(), panel:GetTop()
@@ -188,7 +188,7 @@ function ns.PanelManager:CreateSearchBox(panel, onTextChanged, config)
 
     -- Placeholder helpers. `placeholderText` is mutable so a view-mode toggle can
     -- retarget it; SetPlaceholder below is the supported way to do that.
-    searchBox.placeholderText = config.placeholder or "Search..."
+    searchBox.placeholderText = config.placeholder or ns.L("Search...")
 
     local function ShowPlaceholder(self)
         self:SetTextColor(0.5, 0.5, 0.5)

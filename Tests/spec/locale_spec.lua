@@ -139,6 +139,21 @@ describe("locale keys", function()
                 undeclared[#undeclared + 1] = site.where .. ' -- "' .. site.key .. '"'
             end
         end
+        -- CallSites reads one line at a time, so `ns.L(` with its key on the next line
+        -- is invisible to it -- neither checkable nor reportable. Rather than make the
+        -- scanner multi-line aware, fail on the shape that would hide a key.
+        local dangling = {}
+        for _, path in ipairs(TocFiles("PetStableManagement/PetStableManagement.toc",
+                                       "PetStableManagement/")) do
+            for i, line in ipairs(CodeLines(ReadFile(path) or {})) do
+                if line:match("[nsPSM]+%.L%(%s*$") then
+                    dangling[#dangling + 1] = path .. ":" .. i
+                end
+            end
+        end
+        eq(#dangling, 0, "L() with its key on the next line, where the check cannot see it:\n      "
+            .. table.concat(dangling, "\n      "))
+
         truthy(#sites > 0, "found no L() call sites at all -- the pattern has gone stale")
         eq(#undeclared, 0, "undeclared L() keys:\n      " .. table.concat(undeclared, "\n      "))
     end)

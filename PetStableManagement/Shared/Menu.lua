@@ -48,7 +48,7 @@ function menu:Create()
         fontSize = ns.Theme.SIZE.HEADING,
         outline  = true,
         color    = ns.Theme.COLOR.GOLD,
-        text     = "PSM Menu",
+        text     = ns.L("PSM Menu"),
         point    = { "TOP", 0, -10 },
     })
 
@@ -87,7 +87,7 @@ function menu:Create()
         if not why then return nil end
         return {
             anchor = "ANCHOR_BOTTOM",
-            title  = "Models Browser not available",
+            title  = ns.L("Models Browser not available"),
             lines  = {{ text = why, color = ns.Theme.COLOR.WHITE, wrap = true }},
         }
     end
@@ -106,12 +106,12 @@ function menu:Create()
         return btn
     end
 
-    window.ownedButton    = AddButton(nil,                   "Toggle Owned Pets",     function() ns.Broker:ToggleOwnedPetsPanel() end)
-    window.modelsButton   = AddButton(window.ownedButton,    "Toggle Models Browser", function() ns.Broker:ToggleModelsBrowserPanel() end, true)
-    window.rouletteButton = AddButton(window.modelsButton,   "Toggle Pet Roulette",   function() ns.Broker:TogglePetRoulette() end,        true)
-    window.teamsButton    = AddButton(window.rouletteButton, "Toggle Pet Teams",      function() ns.Broker:TogglePetTeamsPanel() end, false, ns.Teams:ButtonTooltipSpec())
-    window.optionsButton  = AddButton(window.teamsButton,    "Toggle Options",        function() ns.Broker:ToggleOptionsPanel() end)
-    window.closeAllButton = AddButton(window.optionsButton,  "Close All Panels",      function() ns.Broker:CloseAllPanels() end)
+    window.ownedButton    = AddButton(nil,                   ns.L("Toggle Owned Pets"),     function() ns.Broker:ToggleOwnedPetsPanel() end)
+    window.modelsButton   = AddButton(window.ownedButton,    ns.L("Toggle Models Browser"), function() ns.Broker:ToggleModelsBrowserPanel() end, true)
+    window.rouletteButton = AddButton(window.modelsButton,   ns.L("Toggle Pet Roulette"),   function() ns.Broker:TogglePetRoulette() end,        true)
+    window.teamsButton    = AddButton(window.rouletteButton, ns.L("Toggle Pet Teams"),      function() ns.Broker:TogglePetTeamsPanel() end, false, ns.Teams:ButtonTooltipSpec())
+    window.optionsButton  = AddButton(window.teamsButton,    ns.L("Toggle Options"),        function() ns.Broker:ToggleOptionsPanel() end)
+    window.closeAllButton = AddButton(window.optionsButton,  ns.L("Close All Panels"),      function() ns.Broker:CloseAllPanels() end)
 
     -- The dimming is only a hint, and the tooltip corrects it on hover — but reopening
     -- the menu is the other moment the answer can have changed, so refresh it there too.

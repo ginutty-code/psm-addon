@@ -102,7 +102,7 @@ function ns.UI:AddOwnedPetsElements(panel)
     ns.PanelManager:CreateSearchBox(panel, function()
         ns.UI:UpdatePanel()
     end, {
-        placeholder = "Search pets...",
+        placeholder = ns.L("Search pets..."),
     })
 
     -- Filters & sort buttons ----------------------------------------------
@@ -191,7 +191,7 @@ function ns.UI:AddOwnedPetsElements(panel)
         outline  = true,
         color    = Theme.COLOR.GOLD,
         point    = { "BOTTOM", 0, 15 },
-        text     = "Showing: 0 pets  |  Duplicates: 0 pets (0 groups)",
+        text     = ns.L("Showing: 0 pets  |  Duplicates: 0 pets (0 groups)"),
     })
 
     -- Resize handler (scroll-position-preserving) -------------------------

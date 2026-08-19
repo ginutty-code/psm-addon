@@ -8,10 +8,10 @@ ns.UI.Row = {}
 
 -- Ordered action buttons: { key, label }
 local ACTION_BUTTONS = {
-    { key = "makeActive", label = "Make Active" },
-    { key = "companion",  label = "Companion"   },
-    { key = "stable",     label = "Stable"      },
-    { key = "release",    label = "Release"      },
+    { key = "makeActive", label = ns.L("Make Active") },
+    { key = "companion",  label = ns.L("Companion")   },
+    { key = "stable",     label = ns.L("Stable")      },
+    { key = "release",    label = ns.L("Release")     },
 }
 
 -- Ability groups come from PSM.PetTooltip: this renders them as a block of text
@@ -61,12 +61,11 @@ end
 
 local function BuildPetText(pet)
     local exoticLabel = pet.isExotic and " |cffff8800[Exotic]|r" or ""
-    local familyText  = pet.familyName and ("Family: " .. pet.familyName) or "Family: ?"
-    local specText    = pet.specName   and ("Spec: "   .. pet.specName)   or "Spec: ?"
-    local tamerText   = pet.tamer      and ("\nOwned by: " .. pet.tamer)  or ""
+    local familyText  = ns.L("Family: %s", pet.familyName or "?")
+    local specText    = ns.L("Spec: %s", pet.specName or "?")
+    local tamerText   = pet.tamer      and ("\n" .. ns.L("Owned by: %s", pet.tamer)) or ""
 
-    return string.format(
-        "Slot %d: %s%s\nDisplayID: %d\n%s\n%s%s",
+    return ns.L("Slot %d: %s%s\nDisplayID: %d\n%s\n%s%s",
         pet.slotID    or 0,
         pet.name      or "?",
         exoticLabel,
