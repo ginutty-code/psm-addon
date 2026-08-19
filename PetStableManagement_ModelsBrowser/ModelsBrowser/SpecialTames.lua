@@ -921,7 +921,7 @@ local function OnApplyClick(panel)
             if lastRuleState == "inverted" then lbl = "Not " .. lbl end
             table.insert(stParts, lbl)
         else
-            table.insert(stParts, "Multiple Multiple Skills")
+            table.insert(stParts, "Multiple Skills")
         end
     end
 
@@ -937,7 +937,7 @@ local function OnApplyClick(panel)
             if lastCondState == "inverted" then lbl = "Not " .. lbl end
             table.insert(stParts, lbl)
         else
-            table.insert(stParts, "Multiple Multiple Conditions")
+            table.insert(stParts, "Multiple Conditions")
         end
     end
 
