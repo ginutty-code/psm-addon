@@ -167,7 +167,7 @@ function ns.UI:BuildFilters(panel)
 
     local Widgets = ns.Widgets
     local cfg  = ns.Config
-    local rowY = cfg.DROPDOWN_ROW_Y
+    local rowY = ns.Theme.CHROME.FILTER_TOP
     local step = cfg.DROPDOWN_SPACING
 
     -- All four are UIDropDownMenuTemplate frames of the same width, differing only

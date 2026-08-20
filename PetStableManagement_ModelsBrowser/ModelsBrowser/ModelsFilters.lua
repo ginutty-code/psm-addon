@@ -314,38 +314,38 @@ end
 -- AUXILIARY BUTTONS
 --------------------------------------------------------------------------------
 
-function PSM.ModelsFilters:CreatePetRouletteButton(panel)
-    panel.petRouletteButton = PSM.Widgets.Button(panel, {
-        point      = { "TOPRIGHT", panel.searchBox, "TOPLEFT", -10, 0 },
-        width      = PSM.Theme.CONTROL.BUTTON_W.M,
-        text       = PSM.L("Pet Roulette"),
-        fontObject = "GameFontNormalSmall",
-        onClick    = function() PSM.PetRoulette:SelectPetRoulette() end,
-    })
-end
+-- The "Tools" box: links to the other browser panels, stacked in panel.toolsFrame
+-- (built in ModelsPanel.lua, above "Show Only"). Was three buttons hand-anchored
+-- above showOnlyFrame's top edge -- Pet Roulette beside the search box, the other
+-- two floating above the rail -- now one box, one anchor rule.
+function PSM.ModelsFilters:CreateToolsBox(panel)
+    local Widgets = PSM.Widgets
 
-function PSM.ModelsFilters:CreateSpecialTamesButton(panel)
-    panel.specialTamesButton = PSM.Widgets.Button(panel, {
-        point      = { "BOTTOMLEFT", panel.showOnlyFrame, "TOPLEFT", 0, 5 },
-        width      = PSM.Theme.CONTROL.BUTTON_W.M,
-        text       = PSM.L("Special Tames"),
-        fontObject = "GameFontNormalSmall",
-        onClick    = function()
-            if PSM.SpecialTames then PSM.SpecialTames:Toggle() end
-        end,
-    })
-end
+    -- L, not M: "Ability Browser" is ~128px at this font (Theme.CONTROL.BUTTON_W's own
+    -- comment names this exact label as one that needs the wider tier). At M=100 it and
+    -- "Special Tames" both clipped, which is what actually read as "misaligned" once the
+    -- three were stacked -- centered text in a clipped label no longer looks centered.
+    local function ToolButton(text, anchorTo, onClick)
+        return Widgets.Button(panel.toolsFrame, {
+            point      = anchorTo
+                and { "TOPLEFT", anchorTo, "BOTTOMLEFT", 0, -5 }
+                or  { "TOPLEFT", panel.toolsFrame, "TOPLEFT", 8, -30 },
+            width      = PSM.Theme.CONTROL.BUTTON_W.L,
+            text       = text,
+            fontObject = "GameFontNormalSmall",
+            onClick    = onClick,
+        })
+    end
 
-function PSM.ModelsFilters:CreateAbilityBrowserButton(panel)
-    panel.abilityBrowserButton = PSM.Widgets.Button(panel, {
-        point      = { "BOTTOMRIGHT", panel.showOnlyFrame, "TOPRIGHT", 0, 5 },
-        width      = PSM.Theme.CONTROL.BUTTON_W.M,
-        text       = PSM.L("Ability Browser"),
-        fontObject = "GameFontNormalSmall",
-        onClick    = function()
-            if PSM.AbilityBrowser then PSM.AbilityBrowser:Toggle() end
-        end,
-    })
+    panel.specialTamesButton = ToolButton(PSM.L("Special Tames"), nil, function()
+        if PSM.SpecialTames then PSM.SpecialTames:Toggle() end
+    end)
+    panel.abilityBrowserButton = ToolButton(PSM.L("Ability Browser"), panel.specialTamesButton, function()
+        if PSM.AbilityBrowser then PSM.AbilityBrowser:Toggle() end
+    end)
+    panel.petRouletteButton = ToolButton(PSM.L("Pet Roulette"), panel.abilityBrowserButton, function()
+        PSM.PetRoulette:SelectPetRoulette()
+    end)
 end
 
 local RESET_FILTERS_EFFECTS = {
@@ -649,10 +649,10 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel)
         ---------- Filter frame ----------
     panel.unifiedFilterFrame = PSM.Widgets.Frame(panel, {
         point       = { "TOPLEFT", panel.showOnlyFrame, "BOTTOMLEFT", 0, -5 },
-        size        = { 210, 505 },
+        size        = { 210, 440 },
         backdrop    = "TOOLTIP",
         color       = PSM.Config.COLORS.BACKGROUND,
-        borderColor = { 0.75, 0.75, 0.75, 1 },  -- silver
+        borderColor = PSM.Theme.COLOR.SILVER,
     })
 
     ---------- Tab buttons ----------
@@ -1050,13 +1050,7 @@ local function CreateContinentHeader(panel, index, continentName, locs, yOffset)
     for _, loc in ipairs(locs) do
         if PSM.state.selectedLocations[loc] == true then anySel = true else allSel = false end
     end
-    if allSel then
-        header.label:SetTextColor(0, 1, 0)
-    elseif anySel then
-        header.label:SetTextColor(1, 1, 1)
-    else
-        header.label:SetTextColor(0.6, 0.6, 0.6)
-    end
+    header.label:SetTextColor(unpack(PSM.Theme.SelectionStateColor(allSel, anySel)))
 
     header:SetScript("OnEnter", function() header.bg:SetColorTexture(0.2, 0.2, 0.2, 1) end)
     header:SetScript("OnLeave", function() header.bg:SetColorTexture(0.12, 0.12, 0.12, 1) end)

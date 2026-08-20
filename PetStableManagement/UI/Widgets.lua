@@ -250,11 +250,16 @@ end
 
 -- The standard Blizzard push button, skinned.
 --
--- Height and width both default (Theme.CONTROL.BUTTON, and the M tier of
--- Theme.CONTROL.BUTTON_W), so a call site stays silent unless it genuinely differs --
--- the same rule as CheckBox. Pass `width = Theme.CONTROL.BUTTON_W.<tier>` to pick
--- another tier; `size` still works and still wins, for the buttons that must match
--- something outside the addon.
+-- Height, width, and font all default (Theme.CONTROL.BUTTON, the M tier of
+-- Theme.CONTROL.BUTTON_W, and GameFontNormalSmall), so a call site stays silent
+-- unless it genuinely differs -- the same rule as CheckBox. Pass
+-- `width = Theme.CONTROL.BUTTON_W.<tier>` to pick another tier; `size` still works
+-- and still wins, for the buttons that must match something outside the addon.
+--
+-- The font default exists because `UIPanelButtonTemplate` carries its own
+-- (GameFontNormal, visibly larger) when `fontObject` is left unset -- 14 of the
+-- addon's 34 button call sites did, silently, which is why Ability Browser's footer
+-- buttons rendered larger than Special Tames' otherwise-identical ones (A13).
 function Widgets.Button(parent, opts)
     opts = opts or {}
     CheckOptions("Button", opts, OPTIONS.Button)
@@ -262,8 +267,8 @@ function Widgets.Button(parent, opts)
     ApplyCommon(b, opts)
     if not (opts.size or opts.width)  then b:SetWidth(ns.Theme.CONTROL.BUTTON_W.M) end
     if not (opts.size or opts.height) then b:SetHeight(ns.Theme.CONTROL.BUTTON)    end
-    if opts.text       then b:SetText(opts.text)                   end
-    if opts.fontObject then b:SetNormalFontObject(opts.fontObject) end
+    if opts.text then b:SetText(opts.text) end
+    b:SetNormalFontObject(opts.fontObject or "GameFontNormalSmall")
     if opts.strata     then b:SetFrameStrata(opts.strata)          end
     if opts.level      then b:SetFrameLevel(opts.level)            end
     if opts.onClick    then b:SetScript("OnClick", opts.onClick)   end

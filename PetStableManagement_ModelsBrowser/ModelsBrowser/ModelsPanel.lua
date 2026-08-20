@@ -204,8 +204,6 @@ function PSM.ModelsPanel:CreateModelsPanel()
         width              = MODELS_CONFIG.PANEL_WIDTH,
         height             = MODELS_CONFIG.PANEL_HEIGHT,
         title              = PSM.L("Pet Model Browser"),
-        -- Higher than the default so it clears this panel's search box.
-        titleOffset        = -20,
         resizable          = false,
         showResizeHandle   = false,
         showMaximizeButton = false,
@@ -441,13 +439,33 @@ end
 function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     local Widgets = PSM.Widgets
 
+    -- Tools: navigation to the other browser panels. Topmost in the rail, level with
+    -- the title rather than FILTER_TOP -- the rail column (x=10..220) never shares
+    -- horizontal space with the centered title/search box, so it can start as high as
+    -- the title itself with no collision, recovering the room Tools needs without
+    -- shrinking Show Only or Unified Filters below it.
+    panel.toolsFrame = Widgets.Frame(panel, {
+        size        = { 210, 125 },
+        point       = { "TOPLEFT", 10, PSM.Theme.CHROME.TITLE_Y },
+        backdrop    = "TOOLTIP",
+        color       = PSM.Config.COLORS.BACKGROUND,
+        borderColor = PSM.Theme.COLOR.SILVER,
+    })
+
+    Widgets.SectionHeader(panel.toolsFrame, {
+        size       = { 200, 20 },
+        point      = { "TOPLEFT", 5, -5 },
+        text       = PSM.L("Tools"),
+        fontObject = "GameFontHighlightSmall",
+    })
+
     -- Show Only filters frame
     panel.showOnlyFrame = Widgets.Frame(panel, {
         size        = { 210, 160 },
-        point       = { "TOPLEFT", 10, -100 },
+        point       = { "TOPLEFT", panel.toolsFrame, "BOTTOMLEFT", 0, -5 },
         backdrop    = "TOOLTIP",
         color       = PSM.Config.COLORS.BACKGROUND,
-        borderColor = { 0.75, 0.75, 0.75, 1 },  -- silver
+        borderColor = PSM.Theme.COLOR.SILVER,
     })
 
     Widgets.SectionHeader(panel.showOnlyFrame, {
@@ -459,28 +477,38 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
 
     local MF = PSM.ModelsFilters
     if MF then
+        if MF.CreateToolsBox            then MF:CreateToolsBox(panel)            end
         if MF.CreateRaresToggle         then MF:CreateRaresToggle(panel)         end
         if MF.CreateFavoritesToggle     then MF:CreateFavoritesToggle(panel)     end
         if MF.CreateHideOwnedToggle     then MF:CreateHideOwnedToggle(panel)     end
         if MF.CreateNameKeepersToggle  then MF:CreateNameKeepersToggle(panel)  end
         if MF.CreatePetsInMyZoneToggle  then MF:CreatePetsInMyZoneToggle(panel)  end
         if MF.CreateSearchBox           then MF:CreateSearchBox(panel)           end
-        if MF.CreateSpecialTamesButton then MF:CreateSpecialTamesButton(panel) end
-        if MF.CreateAbilityBrowserButton then MF:CreateAbilityBrowserButton(panel) end
-        if MF.CreatePetRouletteButton   then MF:CreatePetRouletteButton(panel)   end
         if MF.CreateResetFiltersButton  then MF:CreateResetFiltersButton(panel)  end
         if MF.CreateInfoText            then MF:CreateInfoText(panel)            end
         if MF.CreateFilterSummaryText   then MF:CreateFilterSummaryText(panel)   end
         if MF.BuildUnifiedFilterSystem  then MF:BuildUnifiedFilterSystem(panel) end
     end
 
-    -- Pets frame (2-column layout)
+    -- Room reserved below petsFrame for the pagination footer. Named so the footer
+    -- controls below can derive their position from Theme.CHROME.FOOTER_Y instead of
+    -- re-guessing their own offset from petsFrame's bottom edge.
+    local FOOTER_INSET = 50
+
+    -- Pets frame (2-column layout). Anchored to Show Only's top, pulled up 30px --
+    -- a visual-balance choice specific to this panel, not a shared boundary: Models
+    -- Browser is the only LEFT_RAIL panel, so there's no sibling panel this could drift
+    -- out of step with. Level with Show Only exactly (offset 0) read as too far below
+    -- the header once Tools pushed Show Only down; this splits the difference without
+    -- moving Tools any higher (it's already at TITLE_Y, the highest it can go).
+    local PETS_FRAME_TOP_LIFT = 50
     local petsFrame = Widgets.Frame(panel, {
-        backdrop = "TOOLTIP",
-        color    = PSM.Config.COLORS.BACKGROUND,
-        point    = {
-            { "TOPLEFT",     panel.showOnlyFrame, "TOPRIGHT", 25,  0 },
-            { "BOTTOMRIGHT", -10, 50 },
+        backdrop    = "TOOLTIP",
+        color       = PSM.Config.COLORS.BACKGROUND,
+        borderColor = PSM.Theme.COLOR.SILVER,  -- same as Tools/Show Only/Unified Filters
+        point       = {
+            { "TOPLEFT",     panel.showOnlyFrame, "TOPRIGHT", 25,  PETS_FRAME_TOP_LIFT },
+            { "BOTTOMRIGHT", -10, FOOTER_INSET },
         },
     })
 
@@ -534,13 +562,11 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
         panel.npcRows[i] = npcRow
     end
 
-    local viewToggleButton = Widgets.Button(panel, {
-        -- M, not S: this button is created with no text and relabelled to "Models view"
-        -- / "NPC view" later, so it is the one button the truncation audit is blind to
-        -- -- it measured an empty string at build time and reported nothing.
-        width      = PSM.Theme.CONTROL.BUTTON_W.M,
-        point      = { "TOPRIGHT", panel.closeButton, "TOPLEFT", -2, 0 },
-        fontObject = "GameFontNormalSmall",
+    -- M, not S: this button is created with no text and relabelled to "Models view" /
+    -- "NPC view" later, so it is the one button the truncation audit is blind to -- it
+    -- measured an empty string at build time and reported nothing.
+    local viewToggleButton = PSM.PanelManager:CreateViewButton(panel, {
+        width = PSM.Theme.CONTROL.BUTTON_W.M,
     })
     panel.viewToggleButton = viewToggleButton
 
@@ -612,10 +638,12 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     -- only: loading is left to whatever shows the panel.
     ApplyViewModePresentation(panel.modelsViewMode)
 
-    -- Navigation buttons
+    -- Navigation buttons. X stays anchored to petsFrame's own edges (it's the region
+    -- these controls page through); Y is FOOTER_Y-derived so the whole band still
+    -- moves as one with Theme.CHROME.FOOTER_Y instead of re-guessing its own offset.
     local firstButton = Widgets.Button(panel, {
         width   = PSM.Theme.CONTROL.BUTTON_W.XS,
-        point   = { "BOTTOMLEFT", petsFrame, "BOTTOMLEFT", 0, -35 },
+        point   = { "BOTTOMLEFT", petsFrame, "BOTTOMLEFT", 0, PSM.Theme.CHROME.FOOTER_Y - FOOTER_INSET },
         text    = "First",
         onClick = function() GoToPage(panel, 1) end,
     })
@@ -629,7 +657,7 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
 
     local lastButton = Widgets.Button(panel, {
         width   = PSM.Theme.CONTROL.BUTTON_W.XS,
-        point   = { "BOTTOMRIGHT", petsFrame, "BOTTOMRIGHT", 0, -35 },
+        point   = { "BOTTOMRIGHT", petsFrame, "BOTTOMRIGHT", 0, PSM.Theme.CHROME.FOOTER_Y - FOOTER_INSET },
         text    = "Last",
         onClick = function()
             local _, petsPerPage = GetPageLayout()
@@ -647,14 +675,14 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
 
     local pageText = Widgets.Label(panel, {
         fontSize = PSM.Theme.SIZE.LABEL,
-        point    = { "BOTTOM", petsFrame, "BOTTOM", 0, -25 },
+        point    = { "BOTTOM", petsFrame, "BOTTOM", 0, PSM.Theme.CHROME.FOOTER_Y - FOOTER_INSET + 10 },
         text     = PSM.L("Page %d of %d", 1, 1),
     })
 
     -- Page-jump controls
     local pageJumpFrame = Widgets.Frame(panel, {
         size  = { 150, 25 },
-        point = { "BOTTOM", petsFrame, "BOTTOM", 0, -5 },
+        point = { "BOTTOM", petsFrame, "BOTTOM", 0, PSM.Theme.CHROME.FOOTER_Y - FOOTER_INSET + 30 },
     })
 
     local pageJumpEditBox

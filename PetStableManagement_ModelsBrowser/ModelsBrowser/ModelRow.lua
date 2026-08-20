@@ -207,7 +207,7 @@ function PSM.ModelRow:UpdateItemRow(row, item, index, scale)
     end
     row.nameText:SetWidth(PSM.Config.TEXT_WIDTH / scale)
     row.nameText:SetText(nameStr)
-    row.nameText:SetTextColor(totalOwned > 0 and 0 or 1, totalOwned > 0 and 1 or 1, totalOwned > 0 and 0 or 1)
+    row.nameText:SetTextColor(unpack(totalOwned > 0 and PSM.Theme.COLOR.GREEN or PSM.Theme.COLOR.WHITE))
     row.nameText:Show()
 
     if row.infoText then

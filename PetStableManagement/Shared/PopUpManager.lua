@@ -468,9 +468,14 @@ end
 -- CreateModelPopup
 -- ============================================================
 
--- Where a user-chosen popup size is kept, keyed by popupName so the magnifier and the
--- roulette remember their own. Created on demand rather than assumed present: Core seeds
--- it for new installs, and this covers profiles saved before it existed.
+-- Where a user-chosen popup size is kept. One shared entry for every CreateModelPopup
+-- instance -- the magnifier and the roulette are the same kind of window (a 3D model
+-- viewer with a resize grip), so resizing either one now resizes both from then on,
+-- rather than each remembering an independent size under its own popupName. Created on
+-- demand rather than assumed present: Core seeds it for new installs, and this covers
+-- profiles saved before it existed.
+local MODEL_POPUP_SIZE_KEY = "modelPopup"
+
 local function PopupSizeStore()
     if not PetStableManagementDB then return nil end
     PetStableManagementDB.settings = PetStableManagementDB.settings or {}
@@ -516,7 +521,7 @@ function ns.PopUpManager:CreateModelPopup(config)
                 f.userSized = true
                 local store = PopupSizeStore()
                 if store then
-                    store[popupName] = {
+                    store[MODEL_POPUP_SIZE_KEY] = {
                         w = math.floor(f:GetWidth()  + 0.5),
                         h = math.floor(f:GetHeight() + 0.5),
                     }
@@ -524,14 +529,15 @@ function ns.PopUpManager:CreateModelPopup(config)
             end,
         })
 
-        -- Restore a size chosen in an earlier session, and adopt the user-sized state with
-        -- it -- otherwise the first populate would auto-size straight over the restore.
+        -- Restore a size chosen in an earlier session (on this or the other model
+        -- popup -- they now share one), and adopt the user-sized state with it --
+        -- otherwise the first populate would auto-size straight over the restore.
         --
         -- Clamped to the current screen. These popups set no resize bounds, so a size
         -- saved on a larger monitor would otherwise come back bigger than the display with
         -- no way to grab the grip.
         local store = PopupSizeStore()
-        local saved = store and store[popupName]
+        local saved = store and store[MODEL_POPUP_SIZE_KEY]
         if saved and saved.w and saved.h then
             popup:SetSize(
                 math.max(200, math.min(saved.w, UIParent:GetWidth())),

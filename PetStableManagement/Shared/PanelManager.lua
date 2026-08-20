@@ -149,17 +149,19 @@ function ns.PanelManager:CreateBasePanel(name, config)
         panel.maximizeButton = maxBtn
     end
 
-    -- Title. `titleOffset` is a config value rather than a test on the title text: this
-    -- used to read `config.title == "Pet Model Browser" and -20 or -35`, so a shared
-    -- component's layout depended on one caller's exact display string, and renaming
-    -- that panel would silently have moved its title.
+    -- Title. Always at Theme.CHROME.TITLE_Y -- no per-panel override. This used to
+    -- read `config.title == "Pet Model Browser" and -20 or -35`, then later a
+    -- `config.titleOffset` escape hatch (Models Browser's only user, at -20), which
+    -- silently moved everything anchored off the title (CreateSearchBox always
+    -- anchors to panel.title). A13 removed the escape hatch: a panel that needs more
+    -- room below the toolbar moves *its own* chrome, not the title every panel shares.
     if config.title then
         panel.title = Widgets.Label(panel, {
             fontSize = 14,
             outline  = true,
             text     = config.title,
             color    = ns.Theme.COLOR.GOLD,
-            point    = { "TOP", 0, config.titleOffset or -35 },
+            point    = { "TOP", 0, ns.Theme.CHROME.TITLE_Y },
         })
     end
 
@@ -191,13 +193,13 @@ function ns.PanelManager:CreateSearchBox(panel, onTextChanged, config)
     searchBox.placeholderText = config.placeholder or ns.L("Search...")
 
     local function ShowPlaceholder(self)
-        self:SetTextColor(0.5, 0.5, 0.5)
+        self:SetTextColor(unpack(ns.Theme.COLOR.FAINT))
         self:SetText(self.placeholderText)
     end
     local function ClearPlaceholder(self)
         if self:GetText() == self.placeholderText then
             self:SetText("")
-            self:SetTextColor(1, 1, 1)
+            self:SetTextColor(unpack(ns.Theme.COLOR.WHITE))
         end
     end
 
@@ -276,6 +278,94 @@ function ns.PanelManager:CreateSearchBox(panel, onTextChanged, config)
     ShowPlaceholder(searchBox)
     panel.searchBox = searchBox
     return searchBox
+end
+
+-- ─── CreatePillBar ───────────────────────────────────────────────────────────
+
+-- The TOP_BAR filter-bar variant, built from a flat list of tag names. Lifted out of
+-- Ability Browser and Special Tames, which each hand-rolled an identical copy --
+-- same anchor, same tab sizing, same active-state tracking, differing only in what
+-- `onSelect` did with the clicked tag. That difference stays at the call site;
+-- `panel.activeTag` is never set here, since the two callers disagree on what "All"
+-- means (Ability Browser maps it to `""`, Special Tames keeps the literal tag name).
+function ns.PanelManager:CreatePillBar(panel, tags, onSelect)
+    local Widgets = ns.Widgets
+
+    local pillBar = Widgets.Frame(panel, {
+        height = 24,
+        point  = {
+            { "TOPLEFT",  panel, "TOPLEFT",   20, ns.Theme.CHROME.FILTER_TOP },
+            { "TOPRIGHT", panel, "TOPRIGHT", -20, ns.Theme.CHROME.FILTER_TOP },
+        },
+    })
+
+    local pills = {}
+    local xOff  = 0
+
+    local function SetActive(activeIdx)
+        for i, pill in ipairs(pills) do
+            pill:SetActive(i == activeIdx)
+        end
+    end
+
+    for idx, tagName in ipairs(tags) do
+        local labelW = #tagName * 7 + 16
+
+        local pill = Widgets.Tab(pillBar, {
+            frameType = "Button",
+            size      = { labelW, 20 },
+            point     = { "LEFT", pillBar, "LEFT", xOff, 0 },
+            fontSize  = ns.Config.FONT_SIZES.ABILITY_PILL,
+            text      = tagName,
+        })
+
+        pill:SetScript("OnClick", function()
+            SetActive(idx)
+            if onSelect then onSelect(tagName, idx) end
+        end)
+
+        xOff = xOff + labelW + 6
+        pills[idx] = pill
+    end
+
+    SetActive(1)
+    panel.pills   = pills
+    panel.pillBar = pillBar
+    return pillBar
+end
+
+-- ─── CreateFooterLabel ───────────────────────────────────────────────────────
+
+-- The one footer contract: a bare label, no border, no hairline. `statsText` on
+-- Owned Pets/Teams already looked like this; Ability Browser/Special Tames' bordered
+-- `CreateFooter` (hairline + frame) is what changed to match, not the other way
+-- around -- see A13.
+function ns.PanelManager:CreateFooterLabel(panel, opts)
+    opts = opts or {}
+    return ns.Widgets.Label(panel, {
+        fontSize = opts.fontSize or ns.Theme.SIZE.SMALL,
+        outline  = opts.outline,
+        color    = opts.color or ns.Theme.COLOR.GOLD,
+        point    = opts.point or { "BOTTOM", 0, ns.Theme.CHROME.FOOTER_Y },
+        text     = opts.text,
+    })
+end
+
+-- ─── CreateViewButton ────────────────────────────────────────────────────────
+
+-- The "Views" contract slot: title-bar strip, right-to-left, chained off the
+-- previous view button or (for the first one) off Maximize/Close. Owned Pets'
+-- List/Grid/Grouped buttons and Models Browser's Models/NPC toggle both go through
+-- this instead of each re-anchoring the same row by hand.
+function ns.PanelManager:CreateViewButton(panel, opts)
+    return ns.Widgets.Button(panel, {
+        point      = { "TOPRIGHT", opts.rightAnchor or panel.maximizeButton or panel.closeButton, "TOPLEFT", -5, 0 },
+        width      = opts.width or ns.Theme.CONTROL.BUTTON_W.S,
+        text       = opts.text,
+        fontObject = "GameFontNormalSmall",
+        onClick    = opts.onClick,
+        tooltip    = opts.tooltip,
+    })
 end
 
 -- ─── CleanupPanel ────────────────────────────────────────────────────────────

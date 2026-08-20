@@ -375,7 +375,7 @@ function PSM.NPCRow:CreateColumnsPicker(panel, anchorTo)
         strata      = "DIALOG",
         backdrop    = "TOOLTIP",
         color       = PSM.Config.COLORS.BACKGROUND,
-        borderColor = { 0.75, 0.75, 0.75, 1 },  -- silver, matching the Show Only frame
+        borderColor = PSM.Theme.COLOR.SILVER,
         hidden      = true,
     })
 
@@ -697,7 +697,7 @@ function PSM.NPCRow:UpdateItemRow(row, item, index)
 
                 if key == "npcId" then
                     fs:SetText("#" .. tostring(item.npcId))
-                    fs:SetTextColor(0.5, 0.5, 0.47)
+                    fs:SetTextColor(unpack(PSM.Theme.COLOR.SLATE))
                 elseif key == "name" then
                     fs:SetText(item.name)
                     -- Always a valid link: an npcId is always available to build the Wowhead URL from.
@@ -717,7 +717,7 @@ function PSM.NPCRow:UpdateItemRow(row, item, index)
                     if c then fs:SetTextColor(c[1], c[2], c[3]) end
                 elseif key == "nameKeeper" then
                     fs:SetText(item.nameKeeper and "Yes" or "")
-                    fs:SetTextColor(1, 0.82, 0)
+                    fs:SetTextColor(unpack(PSM.Theme.COLOR.GOLD))
                 elseif key == "zone" then
                     fs:SetText(item.uiMapName or "")
                     -- Only some NPCs have stored TomTom coordinate data; only

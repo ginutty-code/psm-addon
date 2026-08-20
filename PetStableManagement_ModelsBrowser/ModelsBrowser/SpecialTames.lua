@@ -85,10 +85,10 @@ local function UpdateCardHeaderVisual(card)
     end
 
     if allSel then
-        card.catLabel:SetTextColor(0, 1, 0)
+        card.catLabel:SetTextColor(unpack(PSM.Theme.COLOR.GREEN))
         if card.headerInvIcon then card.headerInvIcon:Hide() end
     elseif allInv then
-        card.catLabel:SetTextColor(1, 0, 0)
+        card.catLabel:SetTextColor(unpack(PSM.Theme.COLOR.RED))
         if not card.headerInvIcon then
             card.headerInvIcon = PSM.Widgets.Texture(card.header, {
                 layer   = "OVERLAY",
@@ -99,10 +99,10 @@ local function UpdateCardHeaderVisual(card)
         end
         card.headerInvIcon:Show()
     elseif anyAct then
-        card.catLabel:SetTextColor(1, 1, 1)
+        card.catLabel:SetTextColor(unpack(PSM.Theme.COLOR.WHITE))
         if card.headerInvIcon then card.headerInvIcon:Hide() end
     else
-        card.catLabel:SetTextColor(0.6, 0.6, 0.6)
+        card.catLabel:SetTextColor(unpack(PSM.Theme.COLOR.GREY))
         if card.headerInvIcon then card.headerInvIcon:Hide() end
     end
 end
@@ -713,53 +713,13 @@ end
 
 local PILL_TAGS = { "All Skills", "Unlocked Skills", "Locked Skills", "Conditions" }
 
+-- Was a hand-rolled copy of the exact same frame Ability Browser also built
+-- independently; see PanelManager:CreatePillBar (A13).
 local function CreatePillBar(panel)
-    local Widgets = PSM.Widgets
-
-    local pillBar = Widgets.Frame(panel, {
-        height = 24,
-        point  = {
-            { "TOPLEFT",  panel, "TOPLEFT",   20, -90 },
-            { "TOPRIGHT", panel, "TOPRIGHT", -20, -90 },
-        },
-    })
-
-    local pills = {}
-    local xOff  = 0
-
-    local function SetActive(activeIdx)
-        for i, pill in ipairs(pills) do
-            pill:SetActive(i == activeIdx)
-        end
-    end
-
-    for idx, tagName in ipairs(PILL_TAGS) do
-        local labelW = #tagName * 7 + 16
-        local pill = Widgets.Tab(pillBar, {
-            frameType = "Button",
-            size      = { labelW, 20 },
-            fontSize  = PSM.Config.FONT_SIZES.ABILITY_PILL,
-            text      = tagName,
-            point     = { "LEFT", pillBar, "LEFT", xOff, 0 },
-        })
-
-        do
-            local currentTag = tagName
-            local currentIdx = idx
-            pill:SetScript("OnClick", function()
-                SetActive(currentIdx)
-                panel.activeTag = currentTag
-                RepopulateRows(panel, panel.searchBox:GetSearchText(), currentTag)
-            end)
-        end
-
-        xOff = xOff + labelW + 6
-        pills[idx] = pill
-    end
-
-    SetActive(1)
-    panel.pills = pills
-    return pillBar
+    return PSM.PanelManager:CreatePillBar(panel, PILL_TAGS, function(tagName)
+        panel.activeTag = tagName
+        RepopulateRows(panel, panel.searchBox:GetSearchText(), tagName)
+    end)
 end
 
 -- ─────────────────────────────────────────────
@@ -956,42 +916,28 @@ end
 -- Footer
 -- ─────────────────────────────────────────────
 
+-- Bare label, no border/hairline -- the one footer contract every panel uses (A13).
+-- Was a bordered frame with its own hairline, independently duplicated in Ability
+-- Browser; see PanelManager:CreateFooterLabel.
 local function CreateFooter(panel)
     local Widgets = PSM.Widgets
 
-    local footer = Widgets.Frame(panel, {
-        height = 36,
-        point  = {
-            { "BOTTOMLEFT",  panel, "BOTTOMLEFT",   20, 10 },
-            { "BOTTOMRIGHT", panel, "BOTTOMRIGHT", -20, 10 },
-        },
-    })
-
-    Widgets.Line(footer, {
-        layer = "BACKGROUND",
-        color = PSM.Theme.FILL.HAIRLINE,
-        point = {
-            { "TOPLEFT",  footer, "TOPLEFT",  0, 0 },
-            { "TOPRIGHT", footer, "TOPRIGHT", 0, 0 },
-        },
-    })
-
-    panel.selectionNote = Widgets.Label(footer, {
+    panel.selectionNote = PSM.PanelManager:CreateFooterLabel(panel, {
         fontSize = PSM.Config.FONT_SIZES.STATS,
         color    = PSM.Config.COLORS.ABILITY_SELECTION_NOTE,
-        point    = { "LEFT", footer, "LEFT", 0, -8 },
+        point    = { "BOTTOMLEFT", panel, "BOTTOMLEFT", 20, PSM.Theme.CHROME.FOOTER_Y },
         text     = PSM.L("%d items selected", 0),
     })
 
-    local applyButton = Widgets.Button(footer, {
+    local applyButton = Widgets.Button(panel, {
         width      = PSM.Theme.CONTROL.BUTTON_W.M,
-        point      = { "RIGHT", footer, "RIGHT", 0, -8 },
+        point      = { "BOTTOMRIGHT", panel, "BOTTOMRIGHT", -20, PSM.Theme.CHROME.FOOTER_Y },
         text       = PSM.L("Apply Filters"),
         fontObject = "GameFontNormalSmall",
         onClick    = function() OnApplyClick(panel) end,
     })
 
-    panel.selectAllBtn = Widgets.Button(footer, {
+    panel.selectAllBtn = Widgets.Button(panel, {
         width      = PSM.Theme.CONTROL.BUTTON_W.M,
         point      = { "RIGHT", applyButton, "LEFT", -8, 0 },
         text       = PSM.L("Select All"),

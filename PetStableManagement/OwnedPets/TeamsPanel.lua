@@ -167,14 +167,7 @@ function ns.TeamsPanel:CreateTeamsPanel()
 end
 
 function ns.TeamsPanel:AddTeamsPanelElements(panel)
-    -- Info text
-    local Theme, Widgets = ns.Theme, ns.Widgets
-
-    panel.infoText = Widgets.Label(panel, {
-        fontSize = Theme.SIZE.SMALL,
-        color    = Theme.COLOR.MUTED,
-        point    = { "TOP", panel.title, "BOTTOM", 0, -5 },
-    })
+    local Widgets = ns.Widgets
 
     -- Search box
     ns.PanelManager:CreateSearchBox(panel, function(searchText)
@@ -183,13 +176,14 @@ function ns.TeamsPanel:AddTeamsPanelElements(panel)
         placeholder = ns.L("Search teams..."),
     })
 
-    -- Scroll frame + content
+    -- Scroll frame + content. No filter bar on this panel -- content starts right at
+    -- FILTER_TOP, same as every TOP_BAR panel's filter row would if it had one.
     local scrollFrame = Widgets.Frame(panel, {
         frameType = "ScrollFrame",
         template  = "UIPanelScrollFrameTemplate",
         skin      = "scrollframe",
         point     = {
-            { "TOPLEFT",      10, -110 },
+            { "TOPLEFT",      10, ns.Theme.CHROME.FILTER_TOP },
             { "BOTTOMRIGHT", -30,   35 },
         },
     })
@@ -224,18 +218,15 @@ function ns.TeamsPanel:AddTeamsPanelElements(panel)
     end)
 
     -- Stats text
-    panel.statsText = Widgets.Label(panel, {
-        fontSize = Theme.SIZE.SMALL,
-        outline  = true,
-        color    = Theme.COLOR.GOLD,
-        point    = { "BOTTOM", 0, 15 },
-        text     = ns.L("%d team(s) saved", 0),
+    panel.statsText = ns.PanelManager:CreateFooterLabel(panel, {
+        outline = true,
+        text    = ns.L("%d team(s) saved", 0),
     })
 
     -- Empty state message
     panel.emptyText = Widgets.Label(panel, {
-        fontSize = Theme.SIZE.LABEL,
-        color    = Theme.COLOR.GREY,
+        fontSize = ns.Theme.SIZE.LABEL,
+        color    = ns.Theme.COLOR.GREY,
         point    = { "CENTER", content, "CENTER", 0, 0 },
         text     = ns.L("No teams saved yet.\nCreate your teams at the Stable Master \nor by adding pets from the Owned Pets panel."),
         hidden   = true,
@@ -428,7 +419,7 @@ function ns.TeamsPanel:UpdateTeamRow(row, team)
         row.nameText:SetTextColor(unpack(ns.Config.COLORS.SUCCESS))
     elseif isActive then
         row:SetBackdropColor(0.4, 0.25, 0.1, alpha)
-        row.nameText:SetTextColor(1, 0.5, 0)
+        row.nameText:SetTextColor(unpack(ns.Theme.COLOR.ORANGE))
     else
         row:SetBackdropColor(unpack(ns.Config.COLORS.BACKGROUND))
         row.nameText:SetTextColor(unpack(ns.Config.COLORS.PRIMARY))

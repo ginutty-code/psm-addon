@@ -318,6 +318,7 @@ L.Register({
 
     -- Models Browser: panel chrome, NPC table columns, ability browser
     ["Pet Ability Browser"] = "Pet Ability Browser",
+    ["Tools"]      = "Tools",
     ["Show Only"]  = "Show Only",
     ["Previous"]   = "Previous",
     ["Next"]       = "Next",

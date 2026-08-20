@@ -110,12 +110,15 @@ function ns.UI:AddOwnedPetsElements(panel)
     ns.UI:BuildSortButtons(panel)
 
     -- Scroll frame --------------------------------------------------------
+    -- -35 clears the exotic/duplicates checkboxes stacked above the dropdown row
+    -- (BuildFilters anchors them 3px above FILTER_TOP), same gap as before A13, now
+    -- expressed relative to the shared filter-row anchor instead of a second literal.
     local scrollFrame = Widgets.Frame(panel, {
         frameType = "ScrollFrame",
         template  = "UIPanelScrollFrameTemplate",
         skin      = "scrollframe",
         point     = {
-            { "TOPLEFT",      10, -145 },
+            { "TOPLEFT",      10, Theme.CHROME.FILTER_TOP - 35 },
             { "BOTTOMRIGHT", -30,   35 },
         },
     })
@@ -186,12 +189,9 @@ function ns.UI:AddOwnedPetsElements(panel)
     end
 
     -- Stats label ---------------------------------------------------------
-    panel.statsText = Widgets.Label(panel, {
-        fontSize = Theme.SIZE.SMALL,
-        outline  = true,
-        color    = Theme.COLOR.GOLD,
-        point    = { "BOTTOM", 0, 15 },
-        text     = ns.L("Showing: 0 pets  |  Duplicates: 0 pets (0 groups)"),
+    panel.statsText = ns.PanelManager:CreateFooterLabel(panel, {
+        outline = true,
+        text    = ns.L("Showing: 0 pets  |  Duplicates: 0 pets (0 groups)"),
     })
 
     -- Resize handler (scroll-position-preserving) -------------------------
@@ -235,10 +235,10 @@ function ns.UI:AddOwnedPetsElements(panel)
 
     -- View-mode buttons (right side, created right-to-left) ---------------
     local function ViewButton(text, mode, rightAnchor)
-        return PanelButton({
-            text    = text,
-            point   = { "TOPRIGHT", rightAnchor, "TOPLEFT", -5, 0 },
-            onClick = function()
+        return ns.PanelManager:CreateViewButton(panel, {
+            text        = text,
+            rightAnchor = rightAnchor,
+            onClick     = function()
                 ApplyViewMode(panel, mode)
                 PetStableManagementDB.settings.panelViewMode = mode
             end,
@@ -246,10 +246,10 @@ function ns.UI:AddOwnedPetsElements(panel)
     end
 
     -- The maximize button is optional (PanelManager skips it for
-    -- showMaximizeButton = false), and a nil anchor is not an error -- SetPoint would
-    -- quietly fall back to the parent and put this row against the panel's left edge.
-    -- The close button is the one control every panel is guaranteed.
-    panel.groupedButton = ViewButton(ns.L("Grouped"), "grouped", panel.maximizeButton or panel.closeButton)
+    -- showMaximizeButton = false), and a nil anchor is not an error -- CreateViewButton
+    -- falls back to panel.maximizeButton or panel.closeButton itself when no explicit
+    -- rightAnchor is given. The close button is the one control every panel is guaranteed.
+    panel.groupedButton = ViewButton(ns.L("Grouped"), "grouped")
     panel.gridButton    = ViewButton(ns.L("Grid"),    "grid",    panel.groupedButton)
     panel.listButton    = ViewButton(ns.L("List"),    "list",    panel.gridButton)
 

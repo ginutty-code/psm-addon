@@ -46,6 +46,10 @@ Theme.COLOR = {
     GOLD   = { 1,    0.82, 0    },
     WHITE  = { 1,    1,    1    },
     MUTED  = { 0.8,  0.8,  0.8  },
+    -- The panel-chrome box border (Tools/Show Only/Unified Filters/petsFrame/NPC
+    -- column header). Not folded into DIM: this one is specifically a border tint,
+    -- those are text.
+    SILVER = { 0.75, 0.75, 0.75 },
     DIM    = { 0.7,  0.7,  0.7  },
     GREY   = { 0.6,  0.6,  0.6  },
     FAINT  = { 0.5,  0.5,  0.5  },
@@ -55,7 +59,18 @@ Theme.COLOR = {
     GREEN  = { 0,    1,    0    },
     RED    = { 1,    0,    0    },
     ORANGE = { 1,    0.5,  0    },
+    -- Warm-tinted grey (a hair less blue than FAINT). The NPC-view id column.
+    SLATE  = { 0.5,  0.5,  0.47 },
 }
+
+-- Selection-state header color: the "all/some/none selected" 3-state idiom used by
+-- both continent headers (ModelsFilters) and category-card headers (AbilityBrowser,
+-- SpecialTames) -- previously three independent copies of the same if/elseif chain.
+function Theme.SelectionStateColor(allSelected, someSelected)
+    if allSelected then return Theme.COLOR.GREEN end
+    if someSelected then return Theme.COLOR.WHITE end
+    return Theme.COLOR.GREY
+end
 
 --------------------------------------------------------------------------------
 -- CONTROL SIZES
@@ -133,6 +148,23 @@ Theme.CONTROL = {
         L  = 140,
         XL = 180,
     },
+}
+
+--------------------------------------------------------------------------------
+-- PANEL CHROME
+--------------------------------------------------------------------------------
+
+-- The vertical position of every shared panel region, read by PanelManager and by
+-- panels building their own filter bar/rail, so a panel's chrome comes from one
+-- place instead of being re-derived as an independent pixel guess per panel. See
+-- A13 in ../../ARCHITECTURE_PLAN.md for the survey of what these numbers replace.
+Theme.CHROME = {
+    TITLE_Y    = -35,  -- title, from panel TOP. No per-panel override -- that
+                        -- escape hatch (Models Browser's old -20) is what let its
+                        -- search box silently drift.
+    FILTER_TOP = -100,  -- TOP_BAR filter row / LEFT_RAIL top, from panel TOP.
+                         -- Collapses three independent guesses (-110/-100/-90).
+    FOOTER_Y   = 15,     -- bare-label footer, from panel BOTTOM.
 }
 
 --------------------------------------------------------------------------------

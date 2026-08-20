@@ -1,4 +1,4 @@
-## Interface: 120007, 121000
+## Interface: 120100, 120105
 ## Title: Pet Stable Management
 ## Notes: Complementary pet stable panel for collection management (with advanced sorting, filtering, persistent pet data storage), and pet model browser panel for discovering next taming choices
 ## Author: Ginutty

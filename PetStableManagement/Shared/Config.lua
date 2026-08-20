@@ -22,10 +22,11 @@ ns.Config = {
     -- configuration, and the two constants here disagreed with each other and with
     -- two dozen literals.
 
-    -- Dropdowns
+    -- Dropdowns. Row Y lives in Theme.CHROME.FILTER_TOP -- it's chrome layout, not
+    -- configuration, and the panel's own filter row is now one of several regions
+    -- that all read the same shared anchor.
     DROPDOWN_WIDTH   = 90,
     DROPDOWN_SPACING = 118,
-    DROPDOWN_ROW_Y   = -110,
 
     -- Panel
     DEFAULT_PANEL_WIDTH  = 550,
