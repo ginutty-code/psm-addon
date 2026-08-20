@@ -154,6 +154,229 @@ local function RefreshOpenPanels(opts)
 end
 
 -------------------------------------------------------------------------------
+-- Option definitions
+--
+-- Each option knows its own persistence (a plain `settings[key]`, or a `get`/`set`
+-- pair for the rare one that isn't -- see the minimap checkbox) and its own side
+-- effects beyond that write (`apply`). BuildOption is the one place that reads and
+-- writes them, and Reset All Settings walks this same list, so a 12th option is one
+-- row here rather than a hand-built widget, a hand-written onClick, and a third copy
+-- in the reset handler that has to be remembered separately.
+--
+-- `apply` always re-reads from PetStableManagementDB rather than taking the new
+-- value as an argument -- the write has already landed by the time it runs, so
+-- there is one source of truth for "what is the setting right now" instead of two
+-- (the argument and the DB) that could disagree.
+-------------------------------------------------------------------------------
+
+local function ApplyModelReapply()
+    ns.state.modelViews = {}
+    ApplyCurrentGlobalsToAllModels()
+end
+
+-- Value currently in effect: `get()` if the option supplies one, else
+-- `settings[key]` falling back to `default` -- nil-coalescing, not `or`, because a
+-- boolean option whose default is `true` (openWithStable) must still let an explicit
+-- `false` stick; `or` would silently flip it back.
+local function OptionValue(spec)
+    if spec.get then return spec.get() end
+    local v = PetStableManagementDB.settings[spec.key]
+    if v == nil then return spec.default end
+    return v
+end
+
+local function WriteOption(spec, value)
+    if spec.set then
+        spec.set(value)
+        return
+    end
+    PetStableManagementDB.settings[spec.key] = value
+    if spec.apply then spec.apply() end
+end
+
+-- Built inside OnShow, not at file scope: every value below reads `ns.Config`, and
+-- capturing another module's table into a file-scope local is the snapshot-not-
+-- reference trap this codebase specifically avoids (see CLAUDE.md).
+local function BuildOptions(cfg)
+    return {
+        {
+            kind    = "checkbox",
+            name    = "ShowMinimapCheckbox",
+            label   = ns.L("Show minimap button"),
+            -- Shown by default -- matches the `hide = false` Events.lua seeds into a
+            -- fresh PetStableManagementDB on first ADDON_LOADED.
+            default = true,
+            get     = function() return not PetStableManagementDB.settings.minimapButton.hide end,
+            set     = function(checked)
+                PetStableManagementDB.settings.minimapButton.hide = not checked
+                if checked then ns.Minimap:Show() else ns.Minimap:Hide() end
+            end,
+        },
+        {
+            kind    = "checkbox",
+            name    = "OpenWithStableCheckbox",
+            key     = "openWithStable",
+            label   = ns.L("Open with the Stable window"),
+            default = cfg.DEFAULT_OPEN_WITH_STABLE,
+        },
+        {
+            kind      = "slider",
+            name      = "OpacitySlider",
+            key       = "opacity",
+            title     = ns.L("UI Opacity:"),
+            default   = cfg.DEFAULT_OPACITY,
+            min       = cfg.MIN_TRANSPARENCY,
+            max       = cfg.MAX_TRANSPARENCY,
+            step      = 0.01,
+            round     = 2,
+            lowLabel  = "10%",
+            highLabel = "100%",
+            format    = function(v) return ns.L("Opacity: %d%%", math.floor(v * 100)) end,
+            apply     = function()
+                -- Covers every panel that draws its own backdrop, the Ability Browser
+                -- and Special Tames included. Only the teams panel needs telling
+                -- separately, hence `opacity = true` below.
+                ns.Config:UpdateColors()
+                ns.PanelManager:UpdatePanelBackgrounds()
+                RefreshOpenPanels({ opacity = true })
+            end,
+        },
+        {
+            kind      = "slider",
+            name      = "ZoomSlider",
+            key       = "modelZoom",
+            title     = ns.L("Zoom:"),
+            default   = cfg.DEFAULT_MODEL_ZOOM,
+            min       = cfg.MIN_MODEL_ZOOM,
+            max       = cfg.MAX_MODEL_ZOOM,
+            step      = 0.01,
+            round     = 2,
+            lowLabel  = "50%",
+            highLabel = "200%",
+            format    = function(v) return ns.L("Zoom: %d%%", math.floor(v * 100)) end,
+            apply     = ApplyModelReapply,
+        },
+        {
+            kind      = "slider",
+            name      = "ViewAngleSlider",
+            key       = "modelViewAngle",
+            title     = ns.L("View Angle:"),
+            default   = cfg.DEFAULT_MODEL_VIEW_ANGLE,
+            min       = cfg.MIN_MODEL_VIEW_ANGLE,
+            max       = cfg.MAX_MODEL_VIEW_ANGLE,
+            step      = 1,
+            round     = 0,
+            lowLabel  = "-180°",
+            highLabel = "180°",
+            format    = function(v) return ns.L("View Angle: %d°", math.floor(v)) end,
+            apply     = ApplyModelReapply,
+        },
+        {
+            kind      = "slider",
+            name      = "VerticalPositionSlider",
+            key       = "modelVerticalPosition",
+            title     = ns.L("Vertical Positioning (Z-axis):"),
+            default   = cfg.DEFAULT_MODEL_VERTICAL_POSITION,
+            min       = cfg.MIN_MODEL_VERTICAL_POSITION,
+            max       = cfg.MAX_MODEL_VERTICAL_POSITION,
+            step      = 0.01,
+            round     = 2,
+            lowLabel  = "-100%",
+            highLabel = "100%",
+            format    = function(v) return ns.L("Vertical Position: %d%%", math.floor(v * 100)) end,
+            apply     = ApplyModelReapply,
+        },
+        {
+            kind      = "slider",
+            name      = "HorizontalPositionSlider",
+            key       = "modelHorizontalPosition",
+            title     = ns.L("Horizontal Positioning (Y-axis):"),
+            default   = cfg.DEFAULT_MODEL_HORIZONTAL_POSITION,
+            min       = cfg.MIN_MODEL_HORIZONTAL_POSITION,
+            max       = cfg.MAX_MODEL_HORIZONTAL_POSITION,
+            step      = 0.01,
+            round     = 2,
+            lowLabel  = "-100%",
+            highLabel = "100%",
+            format    = function(v) return ns.L("Horizontal Position: %d%%", math.floor(v * 100)) end,
+            apply     = ApplyModelReapply,
+        },
+        {
+            kind    = "dropdown",
+            name    = "PetsPerColumnDropdown",
+            key     = "petsPerColumn",
+            title   = ns.L("Pets Per Column in Browser:"),
+            default = cfg.DEFAULT_PETS_PER_COLUMN,
+            choices = (function()
+                local list = {}
+                for i = cfg.MIN_PETS_PER_COLUMN, cfg.MAX_PETS_PER_COLUMN do
+                    list[#list + 1] = { value = i, text = "  " .. i }
+                end
+                return list
+            end)(),
+            -- No displayText override: unified with backgroundType below, both now
+            -- show their list text (padded) as the current-selection text too.
+            apply = function()
+                -- Column count only affects the browser's grid; nothing else repaints.
+                if ns.state.modelsPanel and ns.Browser.ModelsPanel then
+                    ns.Browser.ModelsPanel:UpdateModelsPanelLayout()
+                    ns.Browser.ModelsPanel:UpdateVisibleRows()
+                end
+            end,
+        },
+        {
+            kind    = "dropdown",
+            name    = "BackgroundTypeDropdown",
+            key     = "backgroundType",
+            title   = ns.L("Pet Model Background:"),
+            default = cfg.DEFAULT_BACKGROUND_TYPE,
+            choices = (function()
+                local labels = {
+                    simple       = "  " .. ns.L("Simple"),
+                    stablemaster = "  " .. ns.L("Stable Master"),
+                    custom       = "  " .. ns.L("Custom"),
+                }
+                local list = {}
+                for _, bgType in ipairs(cfg.BACKGROUND_TYPES) do
+                    list[#list + 1] = { value = bgType, text = labels[bgType] }
+                end
+                return list
+            end)(),
+            apply = function() RefreshOpenPanels({ popups = true }) end,
+        },
+        {
+            kind    = "checkbox",
+            name    = "StopAnimCheckbox",
+            key     = "stopAnimation",
+            label   = ns.L("Stop pet animations"),
+            default = cfg.DEFAULT_STOP_ANIMATION,
+            apply   = function()
+                local checked = PetStableManagementDB.settings.stopAnimation
+                IterateAllVisibleModels(function(model)
+                    ApplyAnimationStateToModel(model, checked)
+                end)
+            end,
+        },
+    }
+end
+
+-- A dropdown's display text for a given value, found by scanning its own `choices`
+-- -- the default, since `choices` already carries the labels and a second copy
+-- would only be one more thing to keep in sync with it. `petsPerColumn` overrides
+-- via `displayText` instead (see BuildOptions): its display text has never matched
+-- its list text (no leading-space indent).
+local function TextForChoice(spec, value)
+    for _, choice in ipairs(spec.choices) do
+        if choice.value == value then return choice.text end
+    end
+end
+
+local function DisplayText(spec, value)
+    if spec.displayText then return spec.displayText(value) end
+    return TextForChoice(spec, value)
+end
+
+-------------------------------------------------------------------------------
 -- Panel definition
 -------------------------------------------------------------------------------
 
@@ -168,6 +391,12 @@ panel:SetScript("OnShow", function(self)
 
     local Widgets = ns.Widgets
     local cfg     = ns.Config
+    local OPTIONS = BuildOptions(cfg)
+
+    local byKey = {}
+    for _, spec in ipairs(OPTIONS) do
+        byKey[spec.key or spec.name] = spec
+    end
 
     -- A title above the slider, then the slider under it. The title carries the
     -- anchor because the vertical rhythm of this panel is measured title-to-title.
@@ -193,6 +422,59 @@ panel:SetScript("OnShow", function(self)
         return d
     end
 
+    -- Builds the widget for one spec and wires its persistence/apply through
+    -- WriteOption. Layout is still the caller's job -- `point` (checkbox/dropdown)
+    -- or `anchorWidget`/`anchorOffset` (slider, via LabelledSlider) -- since where a
+    -- control sits is a real per-panel decision, not something a generic builder
+    -- should be guessing at.
+    local function BuildOption(spec, layout)
+        local widget, title
+        if spec.kind == "checkbox" then
+            widget = Widgets.CheckBox(panel, {
+                name    = addonName .. spec.name,
+                label   = spec.label,
+                checked = OptionValue(spec),
+                point   = layout.point,
+                onClick = function(cb) WriteOption(spec, cb:GetChecked() or false) end,
+            })
+        elseif spec.kind == "slider" then
+            widget, title = LabelledSlider(layout.anchorWidget, layout.anchorOffset, spec.title, {
+                name      = addonName .. spec.name,
+                min       = spec.min,
+                max       = spec.max,
+                step      = spec.step,
+                value     = OptionValue(spec),
+                lowLabel  = spec.lowLabel,
+                highLabel = spec.highLabel,
+                format    = spec.format,
+                onChange  = function(value)
+                    local scale = 10 ^ spec.round
+                    WriteOption(spec, math.floor(value * scale) / scale)
+                end,
+            })
+        elseif spec.kind == "dropdown" then
+            widget = Dropdown(spec.name, layout.point)
+            local current = OptionValue(spec)
+            UIDropDownMenu_SetText(widget, DisplayText(spec, current))
+            UIDropDownMenu_Initialize(widget, function()
+                local selected = OptionValue(spec)
+                for _, choice in ipairs(spec.choices) do
+                    local info = UIDropDownMenu_CreateInfo()
+                    info.text    = choice.text
+                    info.value   = choice.value
+                    info.checked = (selected == choice.value)
+                    info.func    = function(btn)
+                        WriteOption(spec, btn.value)
+                        UIDropDownMenu_SetText(widget, DisplayText(spec, btn.value))
+                    end
+                    UIDropDownMenu_AddButton(info)
+                end
+            end)
+        end
+        spec.widget = widget
+        return widget, title
+    end
+
     -- Title
     local title = Widgets.Label(panel, {
         fontObject = "GameFontNormalLarge",
@@ -201,48 +483,18 @@ panel:SetScript("OnShow", function(self)
     })
 
     -- ── Minimap checkbox ────────────────────────────────────────────────────
-    local showMinimapCheckbox = Widgets.CheckBox(panel, {
-        name    = addonName .. "ShowMinimapCheckbox",
-        label   = ns.L("Show minimap button"),
-        checked = not PetStableManagementDB.settings.minimapButton.hide,
-        point   = { "TOPLEFT", title, "BOTTOMLEFT", CHECKBOX_INDENT_X, CHECKBOX_INDENT_Y },
-        onClick = function(cb)
-            local checked = cb:GetChecked()
-            PetStableManagementDB.settings.minimapButton.hide = not checked
-            if checked then ns.Minimap:Show() else ns.Minimap:Hide() end
-        end,
+    local showMinimapCheckbox = BuildOption(byKey.ShowMinimapCheckbox, {
+        point = { "TOPLEFT", title, "BOTTOMLEFT", CHECKBOX_INDENT_X, CHECKBOX_INDENT_Y },
     })
 
     -- ── Open with Stable checkbox (to the right of minimap checkbox) ─────────
-    local openWithStableCheckbox = Widgets.CheckBox(panel, {
-        name    = addonName .. "OpenWithStableCheckbox",
-        label   = ns.L("Open with the Stable window"),
-        checked = PetStableManagementDB.settings.openWithStable ~= false,
-        point   = { "TOPLEFT", showMinimapCheckbox, "TOPRIGHT", 150, 0 },
-        onClick = function(cb)
-            PetStableManagementDB.settings.openWithStable = cb:GetChecked() or false
-        end,
+    BuildOption(byKey.openWithStable, {
+        point = { "TOPLEFT", showMinimapCheckbox, "TOPRIGHT", 150, 0 },
     })
 
     -- ── Opacity slider ──────────────────────────────────────────────────────
-    local opacitySlider = LabelledSlider(showMinimapCheckbox, SECTION_SPACING, ns.L("UI Opacity:"), {
-        name      = addonName .. "OpacitySlider",
-        min       = cfg.MIN_TRANSPARENCY,
-        max       = cfg.MAX_TRANSPARENCY,
-        step      = 0.01,
-        value     = cfg:GetOpacity(),
-        lowLabel  = "10%",
-        highLabel = "100%",
-        format    = function(v) return ns.L("Opacity: %d%%", math.floor(v * 100)) end,
-        onChange  = function(value)
-            local v = math.floor(value * 100) / 100
-            PetStableManagementDB.settings.opacity = v
-            ns.Config:UpdateColors()
-            -- Covers every panel that draws its own backdrop, the Ability Browser and
-            -- Special Tames included. Only the teams panel needs telling separately.
-            ns.PanelManager:UpdatePanelBackgrounds()
-            RefreshOpenPanels({ opacity = true })
-        end,
+    local opacitySlider = BuildOption(byKey.opacity, {
+        anchorWidget = showMinimapCheckbox, anchorOffset = SECTION_SPACING,
     })
 
     -- ── Divider ─────────────────────────────────────────────────────────────
@@ -261,153 +513,42 @@ panel:SetScript("OnShow", function(self)
     })
 
     -- ── Model sliders ───────────────────────────────────────────────────────
-    -- All four write one setting, discard the cached model views and re-apply the
-    -- new globals to whatever is on screen.
-    local function ApplyModelSetting(key, value)
-        PetStableManagementDB.settings[key] = value
-        ns.state.modelViews = {}
-        ApplyCurrentGlobalsToAllModels()
-    end
-
-    local zoomSlider = LabelledSlider(petModelTitle, SECTION_SPACING, ns.L("Zoom:"), {
-        name      = addonName .. "ZoomSlider",
-        min       = cfg.MIN_MODEL_ZOOM,
-        max       = cfg.MAX_MODEL_ZOOM,
-        step      = 0.01,
-        value     = PetStableManagementDB.settings.modelZoom or cfg.DEFAULT_MODEL_ZOOM,
-        lowLabel  = "50%",
-        highLabel = "200%",
-        format    = function(v) return ns.L("Zoom: %d%%", math.floor(v * 100)) end,
-        onChange  = function(value)
-            ApplyModelSetting("modelZoom", math.floor(value * 100) / 100)
-        end,
+    local zoomSlider = BuildOption(byKey.modelZoom, {
+        anchorWidget = petModelTitle, anchorOffset = SECTION_SPACING,
     })
-
-    local viewAngleSlider = LabelledSlider(zoomSlider, SLIDER_SLIDER_SPACING, ns.L("View Angle:"), {
-        name      = addonName .. "ViewAngleSlider",
-        min       = cfg.MIN_MODEL_VIEW_ANGLE,
-        max       = cfg.MAX_MODEL_VIEW_ANGLE,
-        step      = 1,
-        value     = PetStableManagementDB.settings.modelViewAngle or cfg.DEFAULT_MODEL_VIEW_ANGLE,
-        lowLabel  = "-180°",
-        highLabel = "180°",
-        format    = function(v) return ns.L("View Angle: %d°", math.floor(v)) end,
-        onChange  = function(value)
-            ApplyModelSetting("modelViewAngle", math.floor(value))
-        end,
+    local viewAngleSlider = BuildOption(byKey.modelViewAngle, {
+        anchorWidget = zoomSlider, anchorOffset = SLIDER_SLIDER_SPACING,
     })
-
-    local verticalPositionSlider = LabelledSlider(viewAngleSlider, SLIDER_SLIDER_SPACING,
-        ns.L("Vertical Positioning (Z-axis):"), {
-        name      = addonName .. "VerticalPositionSlider",
-        min       = cfg.MIN_MODEL_VERTICAL_POSITION,
-        max       = cfg.MAX_MODEL_VERTICAL_POSITION,
-        step      = 0.01,
-        value     = PetStableManagementDB.settings.modelVerticalPosition or cfg.DEFAULT_MODEL_VERTICAL_POSITION,
-        lowLabel  = "-100%",
-        highLabel = "100%",
-        format    = function(v) return ns.L("Vertical Position: %d%%", math.floor(v * 100)) end,
-        onChange  = function(value)
-            ApplyModelSetting("modelVerticalPosition", math.floor(value * 100) / 100)
-        end,
+    local verticalPositionSlider = BuildOption(byKey.modelVerticalPosition, {
+        anchorWidget = viewAngleSlider, anchorOffset = SLIDER_SLIDER_SPACING,
     })
-
-    local horizontalPositionSlider = LabelledSlider(verticalPositionSlider, SLIDER_SLIDER_SPACING,
-        ns.L("Horizontal Positioning (Y-axis):"), {
-        name      = addonName .. "HorizontalPositionSlider",
-        min       = cfg.MIN_MODEL_HORIZONTAL_POSITION,
-        max       = cfg.MAX_MODEL_HORIZONTAL_POSITION,
-        step      = 0.01,
-        value     = PetStableManagementDB.settings.modelHorizontalPosition or cfg.DEFAULT_MODEL_HORIZONTAL_POSITION,
-        lowLabel  = "-100%",
-        highLabel = "100%",
-        format    = function(v) return ns.L("Horizontal Position: %d%%", math.floor(v * 100)) end,
-        onChange  = function(value)
-            ApplyModelSetting("modelHorizontalPosition", math.floor(value * 100) / 100)
-        end,
+    local horizontalPositionSlider = BuildOption(byKey.modelHorizontalPosition, {
+        anchorWidget = verticalPositionSlider, anchorOffset = SLIDER_SLIDER_SPACING,
     })
 
     -- ── Pets-per-column dropdown ────────────────────────────────────────────
     local petsPerColumnTitle = Widgets.Label(panel, {
         fontObject = "GameFontNormal",
-        text       = ns.L("Pets Per Column in Browser:"),
+        text       = byKey.petsPerColumn.title,
         point      = { "TOPLEFT", horizontalPositionSlider, "BOTTOMLEFT", 0, SLIDER_SLIDER_SPACING },
     })
-
-    local petsPerColumnDropdown = Dropdown("PetsPerColumnDropdown",
-        { "TOPLEFT", petsPerColumnTitle, "BOTTOMLEFT", DROPDOWN_OFFSET_X, DROPDOWN_OFFSET_Y })
-    UIDropDownMenu_SetText(petsPerColumnDropdown,
-        PetStableManagementDB.settings.petsPerColumn or cfg.DEFAULT_PETS_PER_COLUMN)
-
-    UIDropDownMenu_Initialize(petsPerColumnDropdown, function()
-        local current = PetStableManagementDB.settings.petsPerColumn or cfg.DEFAULT_PETS_PER_COLUMN
-        local info = UIDropDownMenu_CreateInfo()
-        for i = cfg.MIN_PETS_PER_COLUMN, cfg.MAX_PETS_PER_COLUMN do
-            info.text    = "  " .. i
-            info.value   = i
-            info.checked = (current == i)
-            info.func    = function(btn)
-                PetStableManagementDB.settings.petsPerColumn = btn.value
-                UIDropDownMenu_SetText(petsPerColumnDropdown, btn.value)
-                -- Column count only affects the browser's grid; nothing else repaints.
-                if ns.state.modelsPanel and ns.Browser.ModelsPanel then
-                    ns.Browser.ModelsPanel:UpdateModelsPanelLayout()
-                    ns.Browser.ModelsPanel:UpdateVisibleRows()
-                end
-            end
-            UIDropDownMenu_AddButton(info)
-        end
-    end)
+    BuildOption(byKey.petsPerColumn, {
+        point = { "TOPLEFT", petsPerColumnTitle, "BOTTOMLEFT", DROPDOWN_OFFSET_X, DROPDOWN_OFFSET_Y },
+    })
 
     -- ── Background type dropdown ────────────────────────────────────────────
     local backgroundTypeTitle = Widgets.Label(panel, {
         fontObject = "GameFontNormal",
-        text       = ns.L("Pet Model Background:"),
+        text       = byKey.backgroundType.title,
         point      = { "TOPLEFT", petsPerColumnTitle, "TOPRIGHT", 20, 0 },
     })
-
-    local backgroundTypeDropdown = Dropdown("BackgroundTypeDropdown",
-        { "TOPLEFT", backgroundTypeTitle, "BOTTOMLEFT", DROPDOWN_OFFSET_X, DROPDOWN_OFFSET_Y })
-
-    local backgroundTypeLabels = {
-        simple = "  " .. ns.L("Simple"),
-        stablemaster = "  " .. ns.L("Stable Master"),
-        custom = "  " .. ns.L("Custom"),
-    }
-
-    local currentBgType = PetStableManagementDB.settings.backgroundType or cfg.DEFAULT_BACKGROUND_TYPE
-    UIDropDownMenu_SetText(backgroundTypeDropdown,
-        backgroundTypeLabels[currentBgType] or backgroundTypeLabels[cfg.DEFAULT_BACKGROUND_TYPE])
-
-    UIDropDownMenu_Initialize(backgroundTypeDropdown, function()
-        local current = PetStableManagementDB.settings.backgroundType or cfg.DEFAULT_BACKGROUND_TYPE
-        local info = UIDropDownMenu_CreateInfo()
-        for _, bgType in ipairs(cfg.BACKGROUND_TYPES) do
-            info.text = backgroundTypeLabels[bgType]
-            info.value = bgType
-            info.checked = (current == bgType)
-            info.func = function(btn)
-                PetStableManagementDB.settings.backgroundType = btn.value
-                UIDropDownMenu_SetText(backgroundTypeDropdown, backgroundTypeLabels[btn.value])
-                RefreshOpenPanels({ popups = true })
-            end
-            UIDropDownMenu_AddButton(info)
-        end
-    end)
+    local backgroundTypeDropdown = BuildOption(byKey.backgroundType, {
+        point = { "TOPLEFT", backgroundTypeTitle, "BOTTOMLEFT", DROPDOWN_OFFSET_X, DROPDOWN_OFFSET_Y },
+    })
 
     -- ── Stop-animation checkbox ─────────────────────────────────────────────
-    local stopAnimCheckbox = Widgets.CheckBox(panel, {
-        name    = addonName .. "StopAnimCheckbox",
-        label   = ns.L("Stop pet animations"),
-        checked = PetStableManagementDB.settings.stopAnimation or cfg.DEFAULT_STOP_ANIMATION,
-        point   = { "TOPLEFT", backgroundTypeDropdown, "TOPRIGHT", 40, CHECKBOX_DROPDOWN_OFFSET },
-        onClick = function(cb)
-            local checked = cb:GetChecked()
-            PetStableManagementDB.settings.stopAnimation = checked
-            IterateAllVisibleModels(function(model)
-                ApplyAnimationStateToModel(model, checked)
-            end)
-        end,
+    BuildOption(byKey.stopAnimation, {
+        point = { "TOPLEFT", backgroundTypeDropdown, "TOPRIGHT", 40, CHECKBOX_DROPDOWN_OFFSET },
     })
 
     -- ── Reset button ────────────────────────────────────────────────────────
@@ -417,16 +558,31 @@ panel:SetScript("OnShow", function(self)
         width = ns.Theme.CONTROL.BUTTON_W.L,
         point = { "BOTTOMRIGHT", panel, "BOTTOMRIGHT", -RESET_BUTTON_MARGIN, RESET_BUTTON_MARGIN },
         onClick = function()
-            -- Write defaults to DB
-            PetStableManagementDB.settings.opacity                 = cfg.DEFAULT_OPACITY
-            PetStableManagementDB.settings.modelZoom               = cfg.DEFAULT_MODEL_ZOOM
-            PetStableManagementDB.settings.modelViewAngle          = cfg.DEFAULT_MODEL_VIEW_ANGLE
-            PetStableManagementDB.settings.modelVerticalPosition   = cfg.DEFAULT_MODEL_VERTICAL_POSITION
-            PetStableManagementDB.settings.modelHorizontalPosition = cfg.DEFAULT_MODEL_HORIZONTAL_POSITION
-            PetStableManagementDB.settings.stopAnimation           = cfg.DEFAULT_STOP_ANIMATION
-            PetStableManagementDB.settings.openWithStable          = cfg.DEFAULT_OPEN_WITH_STABLE
-            PetStableManagementDB.settings.petsPerColumn           = cfg.DEFAULT_PETS_PER_COLUMN
-            PetStableManagementDB.settings.backgroundType          = cfg.DEFAULT_BACKGROUND_TYPE
+            -- Write every resettable option's default to DB, then move its widget to
+            -- match -- silently, or each control would re-write the value we just
+            -- wrote and re-run its own `apply` on the way past (five times over for
+            -- the model sliders alone). `apply` still runs once, below, after every
+            -- default has landed -- except the minimap checkbox, whose `set` is a
+            -- single cheap Show()/Hide() rather than a batched reapply, so there's
+            -- nothing to gain by deferring it.
+            for _, spec in ipairs(OPTIONS) do
+                if spec.resettable ~= false then
+                    if spec.set then
+                        spec.set(spec.default)
+                    else
+                        PetStableManagementDB.settings[spec.key] = spec.default
+                    end
+
+                    local w = spec.widget
+                    if spec.kind == "checkbox" then
+                        w:SetChecked(spec.default)
+                    elseif spec.kind == "slider" then
+                        w:SetValueSilently(spec.default)
+                    elseif spec.kind == "dropdown" then
+                        UIDropDownMenu_SetText(w, DisplayText(spec, spec.default))
+                    end
+                end
+            end
 
             -- Chosen popup sizes are a setting too, so Reset returns them to auto-sizing.
             --
@@ -476,21 +632,6 @@ panel:SetScript("OnShow", function(self)
                 ns.Selections:Clear("locations")
             end
 
-            -- Move the controls to match the values just written. Silently, or each
-            -- slider would re-write the setting we already wrote and rebuild every
-            -- visible model on the way past -- five times over. The value captions
-            -- still repaint; that is the slider's job, not this handler's.
-            opacitySlider:SetValueSilently(cfg.DEFAULT_OPACITY)
-            zoomSlider:SetValueSilently(cfg.DEFAULT_MODEL_ZOOM)
-            viewAngleSlider:SetValueSilently(cfg.DEFAULT_MODEL_VIEW_ANGLE)
-            verticalPositionSlider:SetValueSilently(cfg.DEFAULT_MODEL_VERTICAL_POSITION)
-            horizontalPositionSlider:SetValueSilently(cfg.DEFAULT_MODEL_HORIZONTAL_POSITION)
-
-            stopAnimCheckbox:SetChecked(cfg.DEFAULT_STOP_ANIMATION)
-            openWithStableCheckbox:SetChecked(cfg.DEFAULT_OPEN_WITH_STABLE)
-            UIDropDownMenu_SetText(petsPerColumnDropdown, cfg.DEFAULT_PETS_PER_COLUMN)
-            UIDropDownMenu_SetText(backgroundTypeDropdown, backgroundTypeLabels[cfg.DEFAULT_BACKGROUND_TYPE])
-
             -- Applying the default opacity is this handler's job precisely because the
             -- silent SetValue above skipped the slider's own handler. Reset used to
             -- write the default opacity to the DB and repaint nothing with it, so the
@@ -508,14 +649,12 @@ end)
 -- Register with the game's settings system
 -------------------------------------------------------------------------------
 
-local categoryId = nil
-if InterfaceOptions_AddCategory then
-    InterfaceOptions_AddCategory(panel)
-elseif Settings and Settings.RegisterAddOnCategory and Settings.RegisterCanvasLayoutCategory then
-    local category = Settings.RegisterCanvasLayoutCategory(panel, panel.name)
-    categoryId = category.ID
-    Settings.RegisterAddOnCategory(category)
-end
+-- `InterfaceOptions_AddCategory` predates Dragonflight's Settings API and does not
+-- exist on this addon's target Interface versions (120007, 121000); the branch that
+-- used to test for it first was unreachable dead weight, not a real fallback.
+local category = Settings.RegisterCanvasLayoutCategory(panel, panel.name)
+local categoryId = category.ID
+Settings.RegisterAddOnCategory(category)
 
 ns.state.optionsPanel      = panel
 ns.state.optionsCategoryId = categoryId
