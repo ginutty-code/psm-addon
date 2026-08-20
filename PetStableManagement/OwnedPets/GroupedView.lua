@@ -144,14 +144,18 @@ function ns.UI.GroupedView:UpdateRow(row, pet)
     row.contextMenuPet       = pet
     row.model.contextMenuPet = pet
 
-    local origOnMouseDown = row.model:GetScript("OnMouseDown")
-    row.model:SetScript("OnMouseDown", function(self, button)
-        if button == "RightButton" and (IsShiftKeyDown() or IsControlKeyDown()) then
-            ns.UI.GroupedView:ShowPetGroupContextMenu(self.contextMenuPet)
-            return
-        end
-        if origOnMouseDown then origOnMouseDown(self, button) end
-    end)
+    -- Wire once, same reasoning as DragDrop.lua's __dragDropWired guard.
+    if not row.model.__groupContextMenuWired then
+        row.model.__groupContextMenuWired = true
+        local origOnMouseDown = row.model:GetScript("OnMouseDown")
+        row.model:SetScript("OnMouseDown", function(self, button)
+            if button == "RightButton" and (IsShiftKeyDown() or IsControlKeyDown()) then
+                ns.UI.GroupedView:ShowPetGroupContextMenu(self.contextMenuPet)
+                return
+            end
+            if origOnMouseDown then origOnMouseDown(self, button) end
+        end)
+    end
 
     row:Show()
 end

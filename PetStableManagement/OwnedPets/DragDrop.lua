@@ -515,6 +515,11 @@ function DD:SetupModelDragDrop(model, pet, parentRow, allowOutsideStable)
         model.__allowDragOutsideStable = allowOutsideStable
     end
 
+    -- Wire once: the handlers below read pet/parent live off `self`, so re-wrapping
+    -- GetScript()'s current handler on every render just grew the chain forever.
+    if model.__dragDropWired then return end
+    model.__dragDropWired = true
+
     local orig = {
         OnMouseDown = model:GetScript("OnMouseDown"),
         OnMouseUp   = model:GetScript("OnMouseUp"),
