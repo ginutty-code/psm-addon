@@ -455,6 +455,12 @@ L.Register({
         "|cFFFF0000You must be at a stable master to change pet slots.|r",
     ["No pet found in slot %d."] = "|cFFFF0000No pet found in slot %d.|r",
     ["Failed to move pet."]      = "|cFFFF0000Failed to move pet.|r",
+    ["Error: %s Type /psm debug for details."] =
+        "|cFFFF0000Pet Stable Management error: %s Type /psm debug for details.|r",
+    ["No errors recorded this session."] =
+        "|cFF00FF00Pet Stable Management: no errors recorded this session.|r",
+    ["Pet Stable Management: last %d error(s), oldest first:"] =
+        "|cFFFF0000Pet Stable Management: last %d error(s), oldest first:|r",
 
     -- Options panel
     ["Show minimap button"]         = "Show minimap button",

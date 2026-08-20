@@ -65,18 +65,24 @@ local PETSTABLE_COMMANDS = {
     teams = function()
         ns.Broker:TogglePetTeamsPanel()
     end,
+
+    debug = function()
+        ns.Log:Dump()
+    end,
 }
 
 SlashCmdList["PETSTABLE"] = function(msg)
-    local cmd = msg:lower():trim()
-    local handler = PETSTABLE_COMMANDS[cmd]
+    ns.Utils.SafeCall(function()
+        local cmd = msg:lower():trim()
+        local handler = PETSTABLE_COMMANDS[cmd]
 
-    if handler then
-        handler()
-    else
-        if InCombat() then return end
-        ns.Minimap:TogglePanel()
-    end
+        if handler then
+            handler()
+        else
+            if InCombat() then return end
+            ns.Minimap:TogglePanel()
+        end
+    end)
 end
 
 -- ============================================================
@@ -99,41 +105,43 @@ local function MaxStableSlot()
 end
 
 SlashCmdList["PETSWAP"] = function(msg)
-    local a, b = msg:match("^(%S+)%s+(%S+)$")
-    local startSlot, destSlot = tonumber(a), tonumber(b)
+    ns.Utils.SafeCall(function()
+        local a, b = msg:match("^(%S+)%s+(%S+)$")
+        local startSlot, destSlot = tonumber(a), tonumber(b)
 
-    if not startSlot or not destSlot then
-        print(ns.L("Usage: /petswap [starting slot] [destination slot]"))
-        print(ns.L("Example: /petswap 5 10"))
-        return
-    end
+        if not startSlot or not destSlot then
+            print(ns.L("Usage: /petswap [starting slot] [destination slot]"))
+            print(ns.L("Example: /petswap 5 10"))
+            return
+        end
 
-    local maxSlot = MaxStableSlot()
-    local function validSlot(n)
-        return n >= 1 and n <= maxSlot
-    end
+        local maxSlot = MaxStableSlot()
+        local function validSlot(n)
+            return n >= 1 and n <= maxSlot
+        end
 
-    if not validSlot(startSlot) or not validSlot(destSlot) then
-        print(ns.L("Slot numbers must be between 1 and %d.", maxSlot))
-        return
-    end
+        if not validSlot(startSlot) or not validSlot(destSlot) then
+            print(ns.L("Slot numbers must be between 1 and %d.", maxSlot))
+            return
+        end
 
-    if startSlot == destSlot then
-        print(ns.L("Source and destination slots are the same."))
-        return
-    end
+        if startSlot == destSlot then
+            print(ns.L("Source and destination slots are the same."))
+            return
+        end
 
-    if not ns.state.isStableOpen then
-        print(ns.L("You must be at a stable master to change pet slots."))
-        return
-    end
+        if not ns.state.isStableOpen then
+            print(ns.L("You must be at a stable master to change pet slots."))
+            return
+        end
 
-    if not C_StableInfo.GetStablePetInfo(startSlot) then
-        print(ns.L("No pet found in slot %d.", startSlot))
-        return
-    end
+        if not C_StableInfo.GetStablePetInfo(startSlot) then
+            print(ns.L("No pet found in slot %d.", startSlot))
+            return
+        end
 
-    if not ns.Reorder:SwapPetSlots(startSlot, destSlot) then
-        print(ns.L("Failed to move pet."))
-    end
+        if not ns.Reorder:SwapPetSlots(startSlot, destSlot) then
+            print(ns.L("Failed to move pet."))
+        end
+    end)
 end

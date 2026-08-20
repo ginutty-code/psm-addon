@@ -69,7 +69,6 @@ ns.Config = {
     COMPANION_SLOT      = 6,
     MAX_SEARCH_RESULTS  = 205,
     MIN_SEARCH_LENGTH   = 1,
-    FORCE_GC_ON_CLEAR   = false,
 
 -- ============================================================
 -- Display Settings

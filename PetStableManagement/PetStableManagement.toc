@@ -26,6 +26,7 @@ State/Selections.lua
 
 # Shared modules
 Shared/Config.lua
+Shared/Log.lua
 Shared/Utils.lua
 
 # UI kit -- generic widget factories, loaded before anything that builds frames.

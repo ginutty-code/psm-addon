@@ -69,6 +69,16 @@ local NIL_FILTER_KEYS = {
     duplicatesOnlyFilter = true,
 }
 
+-- An empty table and an absent key already load identically -- see the comment in
+-- LoadFilterSettings below -- so persisting {} for a filter nobody has touched is pure
+-- weight: 15 characters x 5 of these keys is 75 saved tables holding nothing.
+local function DeepCopyIfNonEmpty(t)
+    if t and next(t) then
+        return ns.Utils.DeepCopy(t)
+    end
+    return nil
+end
+
 local function LoadFilterSettings(src)
     if not src then return end
     for _, k in ipairs(FILTER_KEYS) do
@@ -101,13 +111,21 @@ function ns.Data:SavePersistentData()
     local count = 0
     for _, pet in ipairs(ns.state.stablePets) do
         if pet.tamer == key then
-            table.insert(char.snapshotData, ns.Utils.DeepCopy(pet))
+            local p = ns.Utils.DeepCopy(pet)
+            -- Dropped on the way to disk, not out of the live pet: `modelSceneID` is
+            -- always the constant 783, `guid` always equals `petNumber`, and `tamer` is
+            -- re-derived from the character key this record is already nested under --
+            -- LoadPersistentDataForDisplay overwrites all three the moment it loads a
+            -- snapshot, so storing them is 205-pets-per-character of pure duplication.
+            p.modelSceneID = nil
+            p.guid         = nil
+            p.tamer        = nil
+            table.insert(char.snapshotData, p)
             count = count + 1
         end
     end
 
     self:SaveSettings()
-    collectgarbage("collect")
     return count
 end
 
@@ -141,16 +159,17 @@ function ns.Data:SaveSettings()
             sortBy                 = ns.state.sortBy or nil,
             exoticFilter           = ns.state.exoticFilter or false,
             duplicatesOnlyFilter   = ns.state.duplicatesOnlyFilter or false,
-            selectedSpecs          = ns.Utils.DeepCopy(ns.state.selectedSpecs) or {},
-            selectedFamilies       = ns.Utils.DeepCopy(ns.state.selectedFamilies) or {},
-            selectedTamers         = ns.Utils.DeepCopy(ns.state.selectedTamers) or {},
-            selectedTamingRules    = ns.Utils.DeepCopy(ns.state.selectedTamingRules) or {},
-            selectedConditions     = ns.Utils.DeepCopy(ns.state.selectedConditions) or {},
+            selectedSpecs          = DeepCopyIfNonEmpty(ns.state.selectedSpecs),
+            selectedFamilies       = DeepCopyIfNonEmpty(ns.state.selectedFamilies),
+            selectedTamers         = DeepCopyIfNonEmpty(ns.state.selectedTamers),
+            selectedTamingRules    = DeepCopyIfNonEmpty(ns.state.selectedTamingRules),
+            selectedConditions     = DeepCopyIfNonEmpty(ns.state.selectedConditions),
             modelsPanelCurrentPage = currentPage or savedPage or 1,
             tamerSelectionInitialized = ns.state.tamerSelectionInitialized or false,
-            minimapButton = (db.settings and db.settings.minimapButton) or {
-                hide = false, minimapPos = 220, lock = false,
-            },
+            -- No per-character minimapButton: every reader uses the account-wide
+            -- PetStableManagementDB.settings.minimapButton (see Events.lua's
+            -- ADDON_LOADED handler). This used to write a same-session copy of it here
+            -- on every save, on every one of up to 15 characters, that nothing read.
         }
 end
 
@@ -332,10 +351,12 @@ function ns.Data:CollectStablePets()
         return 0
     end
 
-    self:CollectActivePets()
-    self:CollectStabledPets()
-    self:RebuildSpecAndFamilyLists()
-    self:ValidateCollectedData()
+    ns.Utils.SafeCall(function()
+        self:CollectActivePets()
+        self:CollectStabledPets()
+        self:RebuildSpecAndFamilyLists()
+        self:ValidateCollectedData()
+    end)
 
     return #ns.state.stablePets
 end
@@ -394,8 +415,7 @@ function ns.Data:CollectStabledPets()
     -- `expectedCount` is internal and load-bearing despite not being returned: it decides
     -- whether the C_StableInfo fallback runs below when ForEach under-collects.
     local collected, collectedKeys = {}, {}
-    local expectedCount = 0
-    pcall(function() expectedCount = dataProvider:GetSize(false) or 0 end)
+    local expectedCount = ns.Utils.SafeCall(dataProvider.GetSize, dataProvider, false) or 0
 
     local function processPet(petData)
         if not petData or not petData.icon then return end
@@ -428,27 +448,25 @@ function ns.Data:CollectStabledPets()
         if p.name then table.insert(collected, p) end
     end
 
-    -- Primary: ForEach
-    pcall(function()
-        dataProvider:ForEach(function(node)
-            pcall(function() processPet(node:GetData()) end)
-        end, false)
-    end)
+    -- Primary: ForEach. One SafeCall per node, so a single malformed record can't
+    -- take the rest of the stable down with it -- the boundary in CollectStablePets
+    -- only covers a total failure of this function, not a per-item one.
+    dataProvider:ForEach(function(node)
+        ns.Utils.SafeCall(processPet, node:GetData())
+    end, false)
 
     -- Fallback: C_StableInfo API
     if #collected == 0 or (expectedCount > 0 and #collected < expectedCount) then
-        pcall(function()
-            if C_StableInfo and C_StableInfo.GetStablePetInfo then
-                for slot = 7, ns.Config.MAX_STABLE_SLOTS do
-                    pcall(function()
-                        local petInfo = C_StableInfo.GetStablePetInfo(slot)
-                        if petInfo and petInfo.name and petInfo.icon then
-                            processPet(petInfo)
-                        end
-                    end)
-                end
+        if C_StableInfo and C_StableInfo.GetStablePetInfo then
+            for slot = 7, ns.Config.MAX_STABLE_SLOTS do
+                ns.Utils.SafeCall(function()
+                    local petInfo = C_StableInfo.GetStablePetInfo(slot)
+                    if petInfo and petInfo.name and petInfo.icon then
+                        processPet(petInfo)
+                    end
+                end)
             end
-        end)
+        end
     end
 
     for _, pet in ipairs(collected) do
@@ -635,10 +653,6 @@ function ns.Data:ClearMemory(preserveFilters)
         ns.Selections:Clear("tamingRules")
         ns.Selections:Clear("conditions")
     end
-
-    if ns.Config.FORCE_GC_ON_CLEAR then
-        collectgarbage("collect")
-    end
 end
 
 function ns.Data:ClearUIRows()
@@ -691,10 +705,6 @@ function ns.Data:ClearUIRows()
 
     if ns.UI and ns.UI.GroupedView and ns.UI.GroupedView.ClearLayout then
         ns.UI.GroupedView:ClearLayout()
-    end
-
-    if ns.Config.FORCE_GC_ON_CLEAR then
-        collectgarbage("collect")
     end
 end
 

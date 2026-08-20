@@ -362,8 +362,6 @@ function ns.PanelManager:CleanupPanel(panel)
             ns.Data:ClearMemory()
         end
     end
-
-    C_Timer.After(0.5, function() collectgarbage("collect") end)
 end
 
 -- ─── Misc public helpers ──────────────────────────────────────────────────────

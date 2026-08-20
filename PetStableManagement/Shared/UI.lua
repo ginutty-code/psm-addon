@@ -251,7 +251,7 @@ function ns.UI:RenderPanel(preserveScroll)
     end
     if ns._renderDebounceTimer then ns._renderDebounceTimer:Cancel() end
     ns._renderDebounceTimer = ns.C_Timer.NewTimer(ns.Config.RENDER_DELAY or 0.01, function()
-        self:_RenderPanelImmediate(preserveScroll)
+        ns.Utils.SafeCall(function() self:_RenderPanelImmediate(preserveScroll) end)
     end)
 end
 

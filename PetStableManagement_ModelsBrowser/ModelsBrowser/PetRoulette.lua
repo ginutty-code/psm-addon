@@ -118,7 +118,6 @@ function PetRoulette:CleanupPetRoulette()
     end
 
     PSM.ModelsPanel:ReleaseCaches()
-    collectgarbage("collect")
 end
 
 -- Preserves the visible model and text (e.g. after AFK)
@@ -132,7 +131,6 @@ function PetRoulette:CleanupPetRouletteWithoutModel()
     end
 
     PSM.ModelsPanel:ReleaseCaches()
-    collectgarbage("collect")
 end
 
 -- ============================================================

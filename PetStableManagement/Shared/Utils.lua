@@ -9,11 +9,23 @@ ns.Utils = {}
 -- SAFE CALL / ERROR HANDLING
 --------------------------------------------------------------------------------
 
+-- The addon's one error boundary. `xpcall`'s message handler runs while the stack is
+-- still live, which `pcall` cannot give us -- that's the only reason this isn't just
+-- pcall with a log call bolted on. Lua 5.1's xpcall takes no arguments beyond the
+-- handler, so `func`'s own varargs are captured and applied inside the protected
+-- closure instead.
 function ns.Utils.SafeCall(func, ...)
     if type(func) ~= "function" then return nil end
-    local ok, result = pcall(func, ...)
+    local n, args = select("#", ...), { ... }
+    local result
+    local ok, err = xpcall(function()
+        result = func(unpack(args, 1, n))
+    end, function(e)
+        ns.Log:Record(e, debug.traceback("", 2))
+        return e
+    end)
     if ok then return result end
-    print(string.format("|cFFFF0000Error: %s|r", tostring(result)))
+    print(ns.L("Error: %s Type /psm debug for details.", tostring(err)))
 end
 
 --------------------------------------------------------------------------------

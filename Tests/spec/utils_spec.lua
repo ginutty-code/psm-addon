@@ -20,7 +20,11 @@ local Addon = dofile("Tests/wow/addon.lua")
 -- than to a global it creates itself. _G.PSM is cleared first to prove exactly that: the
 -- file no longer needs a global to exist, and in the game Core.lua is what makes one.
 _G.PSM = nil
-local ns = Addon.load("PetStableManagement/Shared/Utils.lua")
+-- SafeCall records into ns.Log; Locale.lua supplies ns.L for its chat message, same as
+-- the client's .toc load order.
+local ns = Addon.load("PetStableManagement/Shared/Locale.lua")
+Addon.load("PetStableManagement/Shared/Log.lua", ns)
+Addon.load("PetStableManagement/Shared/Utils.lua", ns)
 local U = ns.Utils
 
 describe("Utils namespace", function()
@@ -154,6 +158,28 @@ describe("Utils.SafeCall", function()
         local result = U.SafeCall(function() error("boom") end)
         _G.print = realPrint
         eq(result, nil, "errored call")
+    end)
+
+    it("passes the call's own arguments through to the protected function", function()
+        eq(U.SafeCall(function(a, b, c) return a .. b .. c end, "x", "y", "z"), "xyz", "3 args")
+    end)
+
+    it("records the error and a stack trace in Log rather than letting it vanish", function()
+        ns.Log:Clear()
+        local realPrint = _G.print
+        _G.print = function() end
+        U.SafeCall(function() error("boom") end)
+        _G.print = realPrint
+
+        local dumped = {}
+        realPrint = _G.print
+        _G.print = function(msg) dumped[#dumped + 1] = msg end
+        ns.Log:Dump()
+        _G.print = realPrint
+
+        eq(#dumped, 3, "header + message + traceback")
+        truthy(dumped[2]:find("boom", 1, true), "the error message survived")
+        truthy(dumped[3]:find("utils_spec", 1, true), "the traceback names this file")
     end)
 
     it("returns nil for non-functions", function()
