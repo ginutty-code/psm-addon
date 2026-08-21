@@ -497,6 +497,8 @@ L.Register({
 
     ["Maximize"]      = "Maximize",
     ["Search..."]     = "Search...",
+    ["%s is larger than your screen at the current UI scale (%dx%d needed, %dx%d available). You can drag it from any blank area to bring different parts into view, but it may not all fit on screen at once. Lowering your UI scale in the game's Options avoids this entirely."] =
+        "%s is larger than your screen at the current UI scale (%dx%d needed, %dx%d available). You can drag it from any blank area to bring different parts into view, but it may not all fit on screen at once. Lowering your UI scale in the game's Options avoids this entirely.",
     ["Search pets..."] = "Search pets...",
     ["Showing: 0 pets  |  Duplicates: 0 pets (0 groups)"] =
         "Showing: 0 pets  |  Duplicates: 0 pets (0 groups)",

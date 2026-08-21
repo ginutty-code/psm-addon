@@ -22,6 +22,24 @@ local function IsLastPanel()
     return true
 end
 
+-- Tells the player *why* a panel needed the clamp-inset workaround above, rather than
+-- leaving them to guess after finding a panel bigger than their screen. Fires on every
+-- show while oversized, not just the first -- a one-time-per-session version missed a
+-- player who didn't catch it the first time and had no way to see it again. Same
+-- reasoning as `GroupedView.lua`'s `ReportGroupFailure`: a message that only goes to
+-- chat is easy to miss with a large panel covering the chat frame, so this uses
+-- UIErrorsFrame too -- it renders in front of whatever's on screen, chat keeps the
+-- permanent record.
+local function WarnIfOversized(panel, title)
+    local uw, uh = UIParent:GetWidth(), UIParent:GetHeight()
+    local pw, ph = panel:GetWidth(), panel:GetHeight()
+    if pw <= uw and ph <= uh then return end
+    local message = ns.L("%s is larger than your screen at the current UI scale (%dx%d needed, %dx%d available). You can drag it from any blank area to bring different parts into view, but it may not all fit on screen at once. Lowering your UI scale in the game's Options avoids this entirely.",
+        title or "This panel", math.floor(pw), math.floor(ph), math.floor(uw), math.floor(uh))
+    if UIErrorsFrame then UIErrorsFrame:AddMessage(message, 1, 0.53, 0) end
+    print("|cffff8800" .. message .. "|r")
+end
+
 -- ─── CreateBasePanel ─────────────────────────────────────────────────────────
 
 function ns.PanelManager:CreateBasePanel(name, config)
@@ -42,6 +60,33 @@ function ns.PanelManager:CreateBasePanel(name, config)
     })
     panel:SetToplevel(true)
     panel:SetClampedToScreen(true)
+
+    -- At high enough Blizzard UI scale, a fixed-point panel (Models Browser is
+    -- 1100x820) can exceed UIParent's shrunken effective size. Plain clamping is
+    -- correct for a panel that fits -- it stops one being lost off-screen -- but for
+    -- one that doesn't, it pins the oversized frame so the far edge can never be
+    -- dragged back into reach.
+    --
+    -- SetClampRectInsets widens (or narrows) the clamp rect per edge, and the sign
+    -- convention is NOT symmetric -- confirmed against Wowpedia's own example
+    -- (`SetClampRectInsets(42, -42, -42, 42)`, permitting overhang on every edge):
+    -- left/bottom need *positive* values to permit overhang, right/top need
+    -- *negative* values. Getting this backwards on left/bottom doesn't just fail to
+    -- help -- it actively enforces a *minimum* distance from those edges, which is
+    -- how the first version of this fix pinned a panel with its top permanently
+    -- off-screen and no drag direction that could bring it back.
+    --
+    -- Symmetric on all four edges, not pinning top/right on-screen. Pinning them was
+    -- tried and reverted: if the panel's height alone exceeds the screen (the actual
+    -- reported case -- 1099x820 needed, 1307x679 available, width was never the
+    -- problem), a pinned top makes the cut-off bottom *permanently* unreachable by any
+    -- drag, since the top can't move and the height doesn't change. Letting every edge
+    -- move means the player can trade which part is visible by dragging -- not see the
+    -- whole thing at once, but reach every part of it. Dragging works from anywhere on
+    -- the panel's blank area, not just the title bar -- Widgets.MovableFrame enables
+    -- mouse and registers drag on the whole frame, and the border/background child
+    -- doesn't claim its own mouse, so it doesn't block that.
+    panel:SetClampRectInsets(400, -400, -400, 400)
 
     -- ESC. This looks like it could be left to Blizzard, because every panel used to
     -- pass an `escKeyframe` for UISpecialFrames -- but those names never resolved. The
@@ -105,7 +150,10 @@ function ns.PanelManager:CreateBasePanel(name, config)
         CloseDropDownMenus()
         if config.onHide then config.onHide(self) end
     end)
-    panel:SetScript("OnShow", function(self) if config.onShow then config.onShow(self) end end)
+    panel:SetScript("OnShow", function(self)
+        WarnIfOversized(self, config.title)
+        if config.onShow then config.onShow(self) end
+    end)
 
     -- Maximize button
     if config.showMaximizeButton ~= false then
