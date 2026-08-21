@@ -61,6 +61,7 @@ function broker:ToggleOptionsPanel()
     end
 
     -- Open
+    if ns.PanelManager:CombatBlocked(ns.L("Options")) then return end
     if InterfaceOptionsFrame_OpenToCategory then
         InterfaceOptionsFrame_OpenToCategory(ns.state.optionsPanel)
         InterfaceOptionsFrame_OpenToCategory(ns.state.optionsPanel)  -- called twice intentionally (Blizzard bug workaround)
@@ -74,6 +75,8 @@ function broker:CloseAllPanels()
 
     safeHide(ns.state.panel)
     safeHide(ns.state.modelsPanel)
+    safeHide(ns.state.abilityBrowser)
+    safeHide(ns.state.specialTames)
     safeHide(ns.state.petRoulettePopup)
     safeHide(ns.state.teamsPanel)
     safeHide(ns.state.modelMagnificationPopup)

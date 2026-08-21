@@ -639,12 +639,17 @@ end
 ----------------------------------------------------------------------------------------------------------------
 
 function ns.TeamsPanel:Toggle()
+    if ns.state.teamsPanel and ns.state.teamsPanel:IsVisible() then
+        ns.state.teamsPanel:Hide()
+        return
+    end
+    if ns.PanelManager:CombatBlocked(ns.L("Pet Teams")) then return end
     local panel = EnsurePanel()
-    if panel:IsVisible() then panel:Hide()
-    else panel:Show(); panel:Raise() end
+    panel:Show(); panel:Raise()
 end
 
 function ns.TeamsPanel:Show()
+    if ns.PanelManager:CombatBlocked(ns.L("Pet Teams")) then return end
     local panel = EnsurePanel()
     panel:Show(); panel:Raise()
 end

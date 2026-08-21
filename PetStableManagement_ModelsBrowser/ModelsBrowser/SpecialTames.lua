@@ -992,11 +992,7 @@ end
 -- ─────────────────────────────────────────────
 
 function ST:Toggle()
-    if UnitAffectingCombat("player") then
-        print(PSM.L("Special Tames: Cannot open during combat."))
-        return
-    end
-    PSM.PanelManager:TogglePanel("specialTames", function() self:CreateSpecialTamesPanel() end)
+    PSM.PanelManager:TogglePanel("specialTames", function() self:CreateSpecialTamesPanel() end, PSM.L("Special Tames"))
 end
 
 function ST:CreateSpecialTamesPanel()

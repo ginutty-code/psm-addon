@@ -72,8 +72,7 @@ function PetRoulette:SelectPetRoulette()
         return
     end
     local pet = self:_SelectRandomPet(panel.allModels)
-    self:ShowPetRoulettePopup(pet)
-    PrintRoulette(pet)
+    if self:ShowPetRoulettePopup(pet) then PrintRoulette(pet) end
 end
 
 function PetRoulette:SelectPetRouletteFromCommand()
@@ -92,8 +91,7 @@ function PetRoulette:SelectPetRouletteFromCommand()
     end
 
     local pet = self:_SelectRandomPet(allModels)
-    self:ShowPetRoulettePopup(pet)
-    PrintRoulette(pet)
+    if self:ShowPetRoulettePopup(pet) then PrintRoulette(pet) end
 end
 
 -- ============================================================
@@ -163,7 +161,11 @@ local function ApplyModelView(popup, petData)
     mf:Show()
 end
 
+-- Returns true when the popup actually opened, false when combat blocked it -- the
+-- caller uses this to decide whether the "you rolled X" chat line still applies.
 function PetRoulette:ShowPetRoulettePopup(petData)
+    if PSM.PanelManager:CombatBlocked(PSM.L("Pet Roulette")) then return false end
+
     if not PSM.state.petRoulettePopup then
         PSM.state.petRoulettePopup = PSM.PopUpManager:CreateModelPopup({
             title               = PSM.L("Pet Roulette"),
@@ -212,6 +214,7 @@ function PetRoulette:ShowPetRoulettePopup(petData)
 
     popup:Show()
     popup:Raise()
+    return true
 end
 
 -- A "module load: enable menu buttons" block used to sit here, reaching back into

@@ -653,6 +653,10 @@ local function EnsurePetData(collectSnapshot)
 end
 
 function ns.UI:UpdatePanel(showIfHidden)
+    if showIfHidden and not (ns.state.panel and ns.state.panel:IsVisible()) then
+        if ns.PanelManager:CombatBlocked(ns.L("Owned Pets")) then return end
+    end
+
     if not ns.state.panel then self:BuildPanel() end
 
     if not EnsurePetData(false) then

@@ -750,9 +750,5 @@ end
 -- ─────────────────────────────────────────────
 
 function PSM.ModelsPanel:Toggle()
-    if UnitAffectingCombat("player") then
-        print(PSM.L("Pet Model Browser: Cannot open panel during combat."))
-        return
-    end
-    PSM.PanelManager:TogglePanel("modelsPanel", function() self:CreateModelsPanel() end)
+    PSM.PanelManager:TogglePanel("modelsPanel", function() self:CreateModelsPanel() end, PSM.L("Pet Model Browser"))
 end

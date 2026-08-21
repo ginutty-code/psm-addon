@@ -7,13 +7,6 @@ local _, ns = ...
 -- Helpers
 -- ============================================================
 
-local function InCombat()
-    if UnitAffectingCombat("player") then
-        print(ns.L("Cannot open panel during combat."))
-        return true
-    end
-end
-
 -- Models Browser and its data are LoadOnDemand; PSM.Loader pulls them in on first
 -- use and reports a precise reason (disabled / missing / in combat) if it can't,
 -- so callers below don't print a "module not loaded" message of their own.
@@ -41,19 +34,13 @@ local PETSTABLE_COMMANDS = {
     end,
 
     models = function()
-        if InCombat() then return end
         if ns.Loader:EnsureBrowser() and ns.Browser.ModelsPanel then
             ns.Browser.ModelsPanel:Toggle()
         end
     end,
 
     options = function()
-        if ns.state.optionsPanel and InterfaceOptionsFrame_OpenToCategory then
-            InterfaceOptionsFrame_OpenToCategory(ns.state.optionsPanel)
-            InterfaceOptionsFrame_OpenToCategory(ns.state.optionsPanel)  -- called twice intentionally (Blizzard quirk)
-        elseif ns.state.optionsCategoryId then
-            Settings.OpenToCategory(ns.state.optionsCategoryId)
-        end
+        ns.Broker:ToggleOptionsPanel()
     end,
 
     roulette = function()
@@ -79,7 +66,6 @@ SlashCmdList["PETSTABLE"] = function(msg)
         if handler then
             handler()
         else
-            if InCombat() then return end
             ns.Minimap:TogglePanel()
         end
     end)

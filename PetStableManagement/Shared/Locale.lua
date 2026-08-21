@@ -66,8 +66,15 @@ L.Register({
     ["Reset Filters"]     = "Reset Filters",
     ["Reset all filters"] = "Reset all filters",
     ["Pet Model Browser"] = "Pet Model Browser",
-    ["Pet Model Browser: Cannot open panel during combat."] =
-        "|cFFFF0000Pet Model Browser: Cannot open panel during combat.|r",
+
+    -- One combat-block message for every PSM window (PanelManager:CombatBlocked),
+    -- %s filled with the window's own name. Matches the addon's existing "Pet
+    -- Stable Management: <detail>" convention (see "Minimap button shown." etc.
+    -- below) instead of putting the window name first -- used to be four
+    -- near-identical keys, one per panel, each written (and coloured) separately,
+    -- and inconsistent with the rest of the addon's own messages. See Backlog.md.
+    ["Pet Stable Management: %s cannot open during combat."] =
+        "|cFFFF0000Pet Stable Management: %s cannot open during combat.|r",
 
     -- Dialogs: teams, groups, slot pickers
     ["OK"]     = "OK",
@@ -206,6 +213,10 @@ L.Register({
     ["Sort by: Unsorted"]    = "Sort by: Unsorted",
 
     ["Export Pet Data (CSV)"] = "Export Pet Data (CSV)",
+    -- Short form, for CombatBlocked's "Pet Stable Management: %s cannot open during
+    -- combat." -- the dialog title above already carries the "(CSV)" qualifier that
+    -- message doesn't need.
+    ["Export Pet Data"] = "Export Pet Data",
     ["Select All"]  = "Select All",
     ["How to Copy"] = "How to Copy",
     ["Select the columns to export, then copy the text below and paste it into a .csv file or spreadsheet"] =
@@ -439,8 +450,6 @@ L.Register({
 
     -- Slash commands. The command names inside these stay literal: /psm and /petswap are
     -- typed, not read, so translating them would break the instruction.
-    ["Cannot open panel during combat."] =
-        "|cFFFF0000Pet Stable Management: Cannot open panel during combat.|r",
     ["Minimap button shown."] =
         "|cFF00FF00Pet Stable Management: Minimap button shown.|r",
     ["Minimap button hidden. Use /psm show to show it again."] =
@@ -489,11 +498,20 @@ L.Register({
     ["PSM Menu"]                     = "PSM Menu",
     ["Models Browser not available"] = "Models Browser not available",
     ["Toggle Owned Pets"]     = "Toggle Owned Pets",
+    -- Short form, for CombatBlocked's "Pet Stable Management: %s cannot open during
+    -- combat." -- the panel's own title is "Pet Stable Management" too, which the
+    -- prefix already says, so the window itself needs a distinct short name here.
+    ["Owned Pets"] = "Owned Pets",
     ["Toggle Models Browser"] = "Toggle Models Browser",
     ["Toggle Pet Roulette"]   = "Toggle Pet Roulette",
     ["Toggle Pet Teams"]      = "Toggle Pet Teams",
     ["Toggle Options"]        = "Toggle Options",
     ["Close All Panels"]      = "Close All Panels",
+    -- Short form, for CombatBlocked's "Pet Stable Management: %s cannot open during
+    -- combat." -- every other panel's short name is already its own title; the
+    -- options window's only existing strings ("Toggle Options" etc.) carry the verb,
+    -- not the noun alone.
+    ["Options"] = "Options",
 
     ["Maximize"]      = "Maximize",
     ["Search..."]     = "Search...",
@@ -602,10 +620,6 @@ L.Register({
     ["No pets available for Pet Roulette."] = "|cFFFFAA00No pets available for Pet Roulette.|r",
     ["No pet models available for Pet Roulette."] =
         "|cFFFFAA00No pet models available for Pet Roulette.|r",
-    ["Ability Browser: Cannot open during combat."] =
-        "|cFFFF0000Ability Browser: Cannot open during combat.|r",
-    ["Special Tames: Cannot open during combat."] =
-        "|cFFFF0000Special Tames: Cannot open during combat.|r",
 
     -- Special Tames. Its PILL_TAGS stay English: the tab label is also the activeTag
     -- compared in RowMatchesTag, exactly like AbilityBrowser's.

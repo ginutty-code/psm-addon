@@ -581,7 +581,7 @@ function ns.PopUpManager:CreateModelPopup(config)
                         if ns.Browser.ModelsPanel and ns.Browser.ModelsPanel.CreateModelsPanel then
                             ns.Browser.ModelsPanel:CreateModelsPanel()
                         end
-                    end)
+                    end, ns.L("Pet Model Browser"))
                 elseif ns.state.modelsPanel then
                     ns.state.modelsPanel:Show()
                     ns.state.modelsPanel:Raise()
@@ -1249,6 +1249,7 @@ end
 
 function ns.PopUpManager:ShowMagnificationPopup(displayId, petData)
     if not displayId then return end
+    if ns.PanelManager:CombatBlocked(ns.L("Model Magnifier")) then return end
 
     displayId = tonumber(displayId)
 

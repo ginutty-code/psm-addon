@@ -203,10 +203,16 @@ end
 -- ============================================================
 
 function ns.Minimap:TogglePanel()
-    if UnitAffectingCombat("player") then
-        print(ns.L("Cannot open panel during combat."))
+    -- Hide if already visible -- checked before the combat guard, same as every
+    -- other panel: closing one is always safe, only opening needs blocking.
+    if ns.state.panel and ns.state.panel:IsVisible() then
+        ns.state.panel:Hide()
+        ns.state.isStableOpen = StableFrame and StableFrame:IsVisible() or false
+        if not ns.state.isStableOpen then ns.Data:ClearMemory() end
         return
     end
+
+    if ns.PanelManager:CombatBlocked(ns.L("Owned Pets")) then return end
 
     ns.state.isStableOpen = StableFrame and StableFrame:IsVisible() or false
 
@@ -217,13 +223,6 @@ function ns.Minimap:TogglePanel()
             print(ns.L("Failed to create panel."))
             return
         end
-    end
-
-    -- Hide if already visible
-    if ns.state.panel:IsVisible() then
-        ns.state.panel:Hide()
-        if not ns.state.isStableOpen then ns.Data:ClearMemory() end
-        return
     end
 
     ns.state.panel:Show()

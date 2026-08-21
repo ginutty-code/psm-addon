@@ -191,7 +191,7 @@ local function CreateEditBoxSection(frame, topY)
     scrollFrame:SetScrollChild(editBox)
 
     -- Background behind edit box
-    Widgets.Frame(scrollFrame, {
+    frame.editBg = Widgets.Frame(scrollFrame, {
         backdrop    = "TOOLTIP",
         color       = { 0.1, 0.1, 0.1, ns.Config:GetOpacity() },
         borderColor = { 0.4, 0.4, 0.4, 1 },
@@ -239,6 +239,8 @@ local function CreateBottomBar(frame)
 end
 
 function ns.Export:ShowExportDialog()
+    if ns.PanelManager:CombatBlocked(ns.L("Export Pet Data")) then return end
+
     -- Reuse existing frame if already open
     if ns.state.exportFrame then
         local f = ns.state.exportFrame
@@ -251,20 +253,31 @@ function ns.Export:ShowExportDialog()
     local Widgets = ns.Widgets
 
     local frame = Widgets.MovableFrame(UIParent, {
-        name              = "PetStableExportFrame",
-        size              = { 600, 600 },
-        point             = { "CENTER" },
-        strata            = "DIALOG",
-        level             = 100,
-        backdrop          = "TOOLTIP",
+        name   = "PetStableExportFrame",
+        size   = { 600, 600 },
+        point  = { "CENTER" },
+        strata = "DIALOG",
+        level  = 100,
+        skin   = "frame",
+    })
+    frame:SetToplevel(true)
+    frame:SetClampedToScreen(true)
+
+    -- Own translucent backdrop on a separate, unskinned child -- same split as
+    -- PanelManager's panel.border and Menu.lua's window.border. ElvUI's "frame" skin
+    -- above re-templates whatever frame it's given, so a backdrop set directly on the
+    -- skinned frame gets fought by it and stops tracking the opacity slider; every
+    -- other panel avoids that by keeping the addon-colored backdrop off the skinned
+    -- frame entirely.
+    frame.border = Widgets.Frame(frame, {
+        allPoints = true,
+        backdrop  = "TOOLTIP",
         -- Wider tile than the default preset: this dialog is 600px of flat
         -- background and a 16px tile visibly repeats across it.
         backdropOverrides = { tileSize = 32 },
         color             = { 0, 0, 0, ns.Config:GetOpacity() },
-        skin              = "frame",
+        level             = frame:GetFrameLevel() - 1,
     })
-    frame:SetToplevel(true)
-    frame:SetClampedToScreen(true)
 
     -- Was EnableKeyboard(true) plus a bare OnKeyDown, with no
     -- SetPropagateKeyboardInput -- which meant this dialog swallowed *every*

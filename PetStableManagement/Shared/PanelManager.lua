@@ -22,6 +22,21 @@ local function IsLastPanel()
     return true
 end
 
+-- ─── Combat guard ─────────────────────────────────────────────────────────────
+
+-- The one check every PSM window makes before it opens. Previously each panel either
+-- hand-rolled its own UnitAffectingCombat check (Ability Browser, Special Tames,
+-- Models Browser -- three call sites, three copies) or had none at all (Owned Pets,
+-- Teams, Export, Options, Pet Roulette, Model Magnifier all opened straight into
+-- combat with no guard, which is what actually produced the protected-call errors
+-- this exists to prevent). One function, called from the one real "open" verb per
+-- window rather than from every click handler that can reach it -- see Backlog.md.
+function ns.PanelManager:CombatBlocked(label)
+    if not UnitAffectingCombat("player") then return false end
+    print(ns.L("Pet Stable Management: %s cannot open during combat.", label))
+    return true
+end
+
 -- Tells the player *why* a panel needed the clamp-inset workaround above, rather than
 -- leaving them to guess after finding a panel bigger than their screen. Fires on every
 -- show while oversized, not just the first -- a one-time-per-session version missed a
@@ -508,10 +523,20 @@ function ns.PanelManager:Initialize()
     ns.state = ns.state or {}
 end
 
-function ns.PanelManager:TogglePanel(panelName, createFunc)
-    if not ns.state[panelName] then createFunc() end
+-- `label` is what CombatBlocked prints -- the panel's own title text. Hiding an
+-- open panel never needs the guard, only showing one does, so a panel already open
+-- when combat starts can still be closed by the same button that opens it.
+function ns.PanelManager:TogglePanel(panelName, createFunc, label)
+    local existing = ns.state[panelName]
+    if existing and existing:IsVisible() then
+        existing:Hide()
+        return
+    end
+    if self:CombatBlocked(label) then return end
+    if not existing then createFunc() end
     local p = ns.state[panelName]
-    if p:IsVisible() then p:Hide() else p:Show(); p:Raise() end
+    p:Show()
+    p:Raise()
 end
 
 function ns.PanelManager:UpdatePanelBackgrounds()
@@ -539,7 +564,7 @@ function ns.PanelManager:UpdatePanelBackgrounds()
 
     -- Export frame
     local ef = ns.state.exportFrame
-    if ef and ef.SetBackdropColor then ef:SetBackdropColor(0, 0, 0, alpha) end
+    SetBg(ef, "border", 0, 0, 0, alpha)
     SetBg(ef, "editBg", 0.1, 0.1, 0.1, alpha)
 
     -- Dropdown backdrops

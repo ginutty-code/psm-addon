@@ -911,12 +911,8 @@ end
 
     -- Reset the flag when the Ability Browser is opened
     function AB:Toggle()
-        if UnitAffectingCombat("player") then
-            print(PSM.L("Ability Browser: Cannot open during combat."))
-            return
-        end
         PSM.state.familiesAppliedFromAbilities = false
-        PSM.PanelManager:TogglePanel("abilityBrowser", function() self:CreateAbilityBrowser() end)
+        PSM.PanelManager:TogglePanel("abilityBrowser", function() self:CreateAbilityBrowser() end, PSM.L("Pet Ability Browser"))
     end
 
 function AB:CreateAbilityBrowser()
