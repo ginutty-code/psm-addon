@@ -387,7 +387,7 @@ function ns.Teams:OnTeamApplied(teamId)
             if teamPet and teamPet.specName then
                 local info = C_StableInfo.GetStablePetInfo(slot)
                 if info and info.name then
-                    local currentSpec = info.specName or info.specialization or "Unknown"
+                    local currentSpec = info.specialization or "Unknown"
                     if currentSpec ~= teamPet.specName then allMatch = false; break end
                 end
             end
@@ -429,7 +429,7 @@ function ns.Teams:RestorePetSpecializations(team)
         if teamPet and teamPet.specName then
             local info = C_StableInfo.GetStablePetInfo(slot)
             if info and info.name then
-                local currentSpec = info.specName or info.specialization or "Unknown"
+                local currentSpec = info.specialization or "Unknown"
                 if currentSpec ~= teamPet.specName then
                     local specIndex = specNameToIndex[teamPet.specName]
                     if specIndex and C_SpecializationInfo and C_SpecializationInfo.SetPetSpecialization then

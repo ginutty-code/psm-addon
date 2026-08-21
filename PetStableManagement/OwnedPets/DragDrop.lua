@@ -468,7 +468,8 @@ function DD:SetupRowDragDrop(row, pet, allowOutsideStable)
         local allowOutside = self.__allowDragOutsideStable
         if not ns.state.isStableOpen and not allowOutside then return end
         if not IsShiftKeyDown() and not IsControlKeyDown() then return end
-        local focus = GetMouseFocus and GetMouseFocus()
+        local focus = GetMouseFoci and GetMouseFoci() or GetMouseFocus and GetMouseFocus()
+        if type(focus) == "table" then focus = focus[1] end
         if focus and focus ~= self and focus:GetParent() == self
                 and focus:GetObjectType() == "Button" then return end
         ns.DragDrop:StartDrag(self, self.dragDropPet, allowOutside)
