@@ -42,6 +42,40 @@ function PetRoulette:_GetAllAvailableModels()
     return allModels
 end
 
+-- NPC view populates panel.allNPCs, not panel.allModels -- build the same
+-- {displayId, npcs, familyName} shape from the NPCs the current filters left
+-- in view, via GetFamilyModels, so ShowPetRoulettePopup's ResolveNpcRecords
+-- call still works unchanged.
+function PetRoulette:_GetModelsFromNPCList(npcItems)
+    local models = {}
+    if not npcItems or #npcItems == 0 then return models end
+
+    local wantedDisplayIds, families = {}, {}
+    for _, npc in ipairs(npcItems) do
+        families[npc.family] = true
+        for _, displayId in ipairs(npc.displayIds) do
+            wantedDisplayIds[displayId] = true
+        end
+    end
+
+    for familyName in pairs(families) do
+        local familyData = PSM.PetModels:GetFamilyModels(familyName)
+        if familyData and familyData.displayIds then
+            for _, d in ipairs(familyData.displayIds) do
+                if wantedDisplayIds[d.displayId] and not PSM.Config.EXCLUDED_DISPLAY_IDS[d.displayId] then
+                    models[#models + 1] = {
+                        displayId  = d.displayId,
+                        npcs       = d.npcs,
+                        familyName = familyName,
+                        itemType   = "display_with_npcs",
+                    }
+                end
+            end
+        end
+    end
+    return models
+end
+
 function PetRoulette:_SelectRandomPet(modelsList)
     local ownedIds = {}
     for _, pet in ipairs(PSM.state.stablePets) do
@@ -67,11 +101,14 @@ end
 
 function PetRoulette:SelectPetRoulette()
     local panel = PSM.state.modelsPanel
-    if not panel or not panel.allModels or #panel.allModels == 0 then
+    local modelsList = panel and
+        (panel.modelsViewMode == "npc" and self:_GetModelsFromNPCList(panel.allNPCs) or panel.allModels)
+
+    if not modelsList or #modelsList == 0 then
         print(PSM.L("No pets available for Pet Roulette."))
         return
     end
-    local pet = self:_SelectRandomPet(panel.allModels)
+    local pet = self:_SelectRandomPet(modelsList)
     if self:ShowPetRoulettePopup(pet) then PrintRoulette(pet) end
 end
 
@@ -180,7 +217,8 @@ function PetRoulette:ShowPetRoulettePopup(petData)
             onTryAgain          = function()
                 PetRoulette:CleanupPetRoulette()
                 local panel = PSM.state.modelsPanel
-                if panel and panel.allModels and #panel.allModels > 0 then
+                if panel and ((panel.allModels and #panel.allModels > 0)
+                    or (panel.allNPCs and #panel.allNPCs > 0)) then
                     PetRoulette:SelectPetRoulette()
                 else
                     PetRoulette:SelectPetRouletteFromCommand()
