@@ -166,6 +166,26 @@ function ns.PetGroups:ReorderPetInGroup(groupId, petGUID, newPosition)
     return true, nil
 end
 
+-- One-time sweep for the entries DeleteGroup couldn't have caught before it started
+-- cleaning up after itself: any collapsed-state key left over from a group deleted (or
+-- regenerated with a fresh GenerateGroupId, e.g. by AutoGroupPets under a different
+-- criteria) by an older version of the addon. Called once at login, after both DB
+-- tables exist -- see Events.lua's ADDON_LOADED handler.
+function ns.PetGroups:PruneCollapsedGroups()
+    local collapsed = PetStableManagementDB and PetStableManagementDB.collapsedGroups
+    if not collapsed then return 0 end
+
+    local storage = EnsureStorage()
+    local pruned = 0
+    for groupId in pairs(collapsed) do
+        if not storage[groupId] then
+            collapsed[groupId] = nil
+            pruned = pruned + 1
+        end
+    end
+    return pruned
+end
+
 function ns.PetGroups:DeleteGroup(groupId)
     if not groupId            then return false, "Group ID is required" end
     if groupId == UNGROUPED_ID then return false, ns.L("Cannot delete the Ungrouped group") end
@@ -178,6 +198,13 @@ function ns.PetGroups:DeleteGroup(groupId)
         table.insert(ungroupedStorage, guid)
     end
     storage[groupId] = nil
+    -- GroupedView.lua's collapsed/expanded state (PetStableManagementDB.collapsedGroups)
+    -- is a separate table keyed by this same groupId, and nothing else ever prunes it --
+    -- confirmed against a real account's SavedVariables file (2026-08-21): every one of
+    -- 154 entries there was orphaned, referencing a groupId no longer in storage.
+    if PetStableManagementDB.collapsedGroups then
+        PetStableManagementDB.collapsedGroups[groupId] = nil
+    end
     Save()
 
     print(ns.L("Group '%s' deleted. Pets moved to Ungrouped.", groupName))

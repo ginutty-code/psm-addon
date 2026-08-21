@@ -45,6 +45,77 @@ local function GetAccountWide()
     return EnsureDB().accountWide
 end
 
+-- ─── Abilities pool ───────────────────────────────────────────────────────────
+-- Family-linked and spec-linked ability spell IDs are pure functions of family/spec
+-- respectively -- confirmed in-game (2026-08-21): every pet sharing a family carries
+-- identical petAbilities IDs, every pet sharing a spec carries identical specAbilities
+-- IDs. So instead of persisting the resolved ability list on every one of up to 205
+-- pets per character, this pool remembers the raw spell-ID list once per family/spec,
+-- account-wide, and every pet reconstructs its own abilities from it by looking up its
+-- (already-persisted) familyName/specName. isExotic can differ from its family's usual
+-- value for an individual pet grandfathered before a Blizzard family-rule change (the
+-- Clefthoof case), so it is NOT derived this way -- it stays persisted per pet, and
+-- this pool only supplies a better-informed fallback for the rare case a record is
+-- missing it entirely, never an override of a value already on disk.
+--
+-- Bounded and small by construction: at most ~61 families and 3 specs will ever have
+-- entries. A family/spec can only be missing here if this account has never once
+-- collected a pet of it -- which also means no persisted pet record could need it.
+local function GetAbilitiesPool()
+    local aw = GetAccountWide()
+    aw.abilitiesPool = aw.abilitiesPool or {}
+    local pool = aw.abilitiesPool
+    pool.byFamily         = pool.byFamily         or {}
+    pool.bySpec           = pool.bySpec           or {}
+    pool.specIdBySpecName = pool.specIdBySpecName or {}
+    pool.exoticByFamily   = pool.exoticByFamily   or {}
+    return pool
+end
+
+-- Called from live collection only (CollectStabledPets/ProcessPetInfo), with the raw
+-- Blizzard spell-ID arrays -- never with already-resolved ability names.
+function ns.Data:RecordAbilitiesObservation(familyName, specName, specID, isExotic, petAbilities, specAbilities)
+    local pool = GetAbilitiesPool()
+    if familyName and type(petAbilities) == "table" and #petAbilities > 0 then
+        pool.byFamily[familyName] = petAbilities
+    end
+    if specName and type(specAbilities) == "table" and #specAbilities > 0 then
+        pool.bySpec[specName] = specAbilities
+    end
+    if specName and specID then
+        pool.specIdBySpecName[specName] = specID
+    end
+    if familyName and isExotic ~= nil then
+        pool.exoticByFamily[familyName] = isExotic
+    end
+end
+
+function ns.Data:GetPoolSpecID(specName)
+    if not specName then return nil end
+    return GetAbilitiesPool().specIdBySpecName[specName]
+end
+
+-- Rebuilds the same {family={}, spec={}, pet={}, unknown={}} shape ExtractPetAbilities
+-- produces live. `family`/`unknown` stay empty here on purpose: confirmed in-game that
+-- modern Blizzard stable-pet records carry no generic `abilities` field at all (only
+-- `specAbilities`/`petAbilities`), so those two buckets are already always empty today,
+-- live or reconstructed -- this isn't a simplification, it's what the real data does.
+function ns.Data:GetPoolAbilities(familyName, specName)
+    local pool = GetAbilitiesPool()
+    local result = { family = {}, spec = {}, pet = {}, unknown = {} }
+    local seen = {}
+    local function addTo(list, ability)
+        local name = self:GetAbilityName(ability)
+        if name and not seen[name] then
+            seen[name] = true
+            list[#list + 1] = name
+        end
+    end
+    for _, id in ipairs(pool.bySpec[specName] or {}) do addTo(result.spec, id) end
+    for _, id in ipairs(pool.byFamily[familyName] or {}) do addTo(result.pet, id) end
+    return result
+end
+
 -- ─── Filter settings ──────────────────────────────────────────────────────────
 
 -- selectedModelsFamilies/selectedExpansions/selectedLocations are deliberately NOT here --
@@ -120,6 +191,18 @@ function ns.Data:SavePersistentData()
             p.modelSceneID = nil
             p.guid         = nil
             p.tamer        = nil
+            -- `abilities` and `specID` are reconstructed on load from the abilities
+            -- pool (see GetPoolAbilities/GetPoolSpecID above) keyed by the familyName/
+            -- specName this same record still carries -- confirmed in-game that both
+            -- are pure functions of family/spec, identical across every pet sharing
+            -- one. `isExotic`/`specName` are NOT stripped here: specName is a mutable,
+            -- player-chosen fact (re-specced at the stable master) with no fixed
+            -- relationship to family, and isExotic can genuinely differ from its
+            -- family's current default for an individual pet grandfathered before a
+            -- Blizzard family-rule change -- only the per-pet stored value protects
+            -- that case, so both stay.
+            p.abilities    = nil
+            p.specID       = nil
             table.insert(char.snapshotData, p)
             count = count + 1
         end
@@ -442,8 +525,30 @@ function ns.Data:CollectStabledPets()
         else
             self:NormalizePetData(p)
             p.abilities = self:ExtractPetAbilities(p)
+            -- p.specID/p.petAbilities/p.specAbilities survive the deep copy above
+            -- untouched (Blizzard's own record), unlike ProcessPetInfo's active-pet
+            -- path, which builds a fresh table and must read them off petInfo instead.
+            self:RecordAbilitiesObservation(p.familyName, p.specName, p.specID,
+                p.isExotic, p.petAbilities, p.specAbilities)
             self:SetCachedDerivedFields(key, fingerprint, p.abilities, p.isExotic, p.familyName, p.specName)
         end
+
+        -- Confirmed in-game (2026-08-21): the deep copy above carries Blizzard's raw
+        -- record wholesale, including these six fields nothing ever reads once the
+        -- block above has consumed them -- caught because they were still showing up
+        -- in the real SavedVariables file, on all 204 stabled pets, after they should
+        -- have been made redundant by the abilities pool. `specialization`/`type`
+        -- duplicate `specName`/`familyName` exactly; `petAbilities`/`specAbilities` are
+        -- the raw arrays RecordAbilitiesObservation just consumed, now fully captured
+        -- account-wide; `uiModelSceneID`/`creatureID` have no reader anywhere in either
+        -- addon today. Cleared here, not just on the way to disk, so the live in-memory
+        -- record is the same shape ProcessPetInfo's active-pet path already produces.
+        p.specialization = nil
+        p.petAbilities   = nil
+        p.specAbilities  = nil
+        p.type           = nil
+        p.uiModelSceneID = nil
+        p.creatureID     = nil
 
         if p.name then table.insert(collected, p) end
     end
@@ -488,6 +593,8 @@ function ns.Data:ProcessPetInfo(petInfo, slotID, isActive)
         specName   = self:GetPetSpecName(petInfo)
         isExotic   = self:GetPetExoticStatus(petInfo)
         abilities  = self:ExtractPetAbilities(petInfo)
+        self:RecordAbilitiesObservation(familyName, specName, petInfo.specID or petInfo.specId,
+            isExotic, petInfo.petAbilities, petInfo.specAbilities)
         self:SetCachedDerivedFields(petKey, fingerprint, abilities, isExotic, familyName, specName)
     end
 
@@ -504,6 +611,7 @@ function ns.Data:ProcessPetInfo(petInfo, slotID, isActive)
         specID     = petInfo.specID or petInfo.specId,
         isExotic   = isExotic,
         isActive   = isActive,
+        isFavorite = petInfo.isFavorite,
         abilities  = abilities,
         modelSceneID = 783,
         tamer      = ns.GetCharacterKey(),
@@ -533,7 +641,14 @@ function ns.Data:GetPetExoticStatus(petInfo)
         end)
         if ok and isExotic then return true end
     end
-    return EXOTIC_FAMILIES[self:GetPetFamilyName(petInfo)] or false
+    -- Pool first (live-observed, self-updating as Blizzard changes a family's rule),
+    -- static table as the last resort for a family this account has truly never
+    -- collected. Explicit nil-check, not `or` -- a pool value of exactly `false` must
+    -- not fall through to the static table.
+    local familyName = self:GetPetFamilyName(petInfo)
+    local pooled = GetAbilitiesPool().exoticByFamily[familyName]
+    if pooled ~= nil then return pooled end
+    return EXOTIC_FAMILIES[familyName] or false
 end
 
 function ns.Data:NormalizePetData(pet)
@@ -546,6 +661,17 @@ function ns.Data:NormalizePetData(pet)
     end
     if pet.isExotic == nil then
         pet.isExotic = self:GetPetExoticStatus(pet)
+    end
+    -- Offline reconstruction, same closure argument as GetPetExoticStatus's pool
+    -- fallback: a pet can only have been persisted via a live collection that already
+    -- seeded these pool entries for its family/spec, so a genuinely missing entry only
+    -- happens for a family/spec this account has never collected at all -- which also
+    -- means no persisted pet could be waiting to need it.
+    if pet.specID == nil then
+        pet.specID = self:GetPoolSpecID(pet.specName)
+    end
+    if pet.abilities == nil then
+        pet.abilities = self:GetPoolAbilities(pet.familyName, pet.specName)
     end
 end
 

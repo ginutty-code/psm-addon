@@ -161,6 +161,7 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
 
         if event == "ADDON_LOADED" and arg1 == addonName then
             ns.Data:LoadSettingsOnly()
+            ns.PetGroups:PruneCollapsedGroups()
 
              if not PetStableManagementDB.settings.minimapButton then
                  PetStableManagementDB.settings.minimapButton = {
