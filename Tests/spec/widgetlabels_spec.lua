@@ -81,14 +81,23 @@ local TEXT_FACTORIES = {
           .. "OptionsSliderTemplate, positioned by the template. What we put in them is a "
           .. "formatted value, not a caller-supplied string.",
 
-    -- **A known gap, recorded rather than fixed.** Same defect Tab had: `.label` is a
-    -- separate font string with no width. It differs enough to need its own decision --
-    -- left-anchored at a caller-controlled `labelInset` rather than centred, so "available
-    -- width" is not the same subtraction -- and guessing at that is how Tab's padding would
-    -- have truncated labels that fit today. Listed here so it is a decision someone took,
-    -- not a thing nobody noticed.
-    SectionHeader = "GAP: unclamped. Left-anchored at a caller-controlled labelInset, so it "
-                 .. "needs its own padding rule rather than Tab's.",
+    -- SectionHeader no longer builds a font string itself -- it delegates to
+    -- SectionHeaderLabel below, which is where the gap now lives. Kept listed because
+    -- it still passes text through, so if it ever grows its own label again this entry
+    -- is already here demanding an answer.
+    SectionHeader = "delegates its label to Widgets.SectionHeaderLabel; see that entry "
+                 .. "for the clamping decision.",
+
+    -- **A known gap, recorded rather than fixed.** Same defect Tab had: this is a bare
+    -- font string with no width. It differs enough to need its own decision --
+    -- left-anchored at a point the *caller* chooses rather than centred in a known
+    -- frame, so "available width" is not the same subtraction Tab makes -- and guessing
+    -- at it is how Tab's padding would have truncated labels that fit today. The NPC
+    -- column header is the case that makes this concrete: its available width is the
+    -- column's width, which only RecomputeColumnLayout knows. Listed here so it is a
+    -- decision someone took, not a thing nobody noticed.
+    SectionHeaderLabel = "GAP: unclamped. Anchored at a caller-supplied point inside a "
+                      .. "frame the caller sized, so the bound is the caller's to apply.",
 }
 
 describe("UI kit label clipping", function()

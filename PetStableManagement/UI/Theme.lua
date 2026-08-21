@@ -148,6 +148,14 @@ Theme.CONTROL = {
         L  = 140,
         XL = 180,
     },
+
+    -- The gold-on-dark section header band (Widgets.SectionHeader) -- Tools, Show
+    -- Only, and the NPC table's column header. Three call sites ran two heights (20
+    -- and 22) and two different label fonts, which is the drift the kit exists to
+    -- remove. 22 rather than 20 because the NPC column header is the one that has to
+    -- fit a sort arrow beside its label, and 20 clipped the descenders at BODY.
+    -- Both boxes that grow by 2px have 3px of clearance above their first control.
+    SECTION_HEADER = 22,
 }
 
 --------------------------------------------------------------------------------

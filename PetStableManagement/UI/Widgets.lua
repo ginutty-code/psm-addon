@@ -44,7 +44,10 @@ local OPTIONS = {
     Texture     = { layer = true, sublayer = true, allPoints = true, color = true, texture = true, atlas = true, texCoord = true, vertexColor = true },
     CheckBox    = { name = true, template = true, checked = true, onClick = true, tooltip = true, label = true, labelFontObject = true, labelFontSize = true, labelColor = true },
     Slider      = { name = true, template = true, min = true, max = true, step = true, value = true, lowLabel = true, highLabel = true, format = true, onChange = true },
-    SectionHeader = { palette = true, inset = true, text = true, fontSize = true, fontObject = true, color = true, labelInset = true },
+    -- No fontSize/fontObject/color: the label's type is the kit's, not the caller's
+    -- (see Widgets.SectionHeader). Passing one now lands in Widgets.unknownOptions
+    -- rather than silently reintroducing the drift this factory just removed.
+    SectionHeader = { palette = true, inset = true, text = true, labelInset = true },
 }
 
 local function CheckOptions(factory, opts, allowed)
@@ -551,10 +554,23 @@ end
 -- both this shape -- the latter's comment says outright that it was written to match
 -- the former, which is the clearest possible sign it wanted to be shared.
 --
+-- **Everything visual here is a default, not a parameter.** The three call sites had
+-- drifted to two heights (20 and 22), two label fonts (GameFontHighlightSmall vs a
+-- raw BODY size) and two text colours -- the same failure mode CHECKBOX's 16-vs-20
+-- split had, relocated from CreateFrame blocks into options tables. Height, font,
+-- colour and insets now come from Theme/the palette; a call site says only *where*
+-- the bar goes and *what* it says.
+--
+-- The label is `palette.ACTIVE_TEXT` (white), not gold. That is what makes this
+-- match an active Tab, which is what the paragraph above claims it is -- the old
+-- gold default quietly contradicted it, so a header and a selected tab sitting on
+-- the same panel never read as the same component.
+--
 -- `text` adds a left-aligned label, returned as `.label`. Omit it when the caller
--- fills the bar itself, as the NPC column header does with its sort buttons.
--- `inset` is how far the accent rules stop short of each end (2 for a pill that sits
--- inside a panel, 0 for one that spans an edge).
+-- fills the bar itself, as the NPC column header does with its sort buttons -- those
+-- labels come from Widgets.SectionHeaderLabel so they match this one.
+-- `inset` is how far the accent rules (the gold top/bottom highlights) stop short of
+-- each end: 2 for a pill inside a panel, 0 for one that spans an edge.
 function Widgets.SectionHeader(parent, opts)
     opts = opts or {}
     CheckOptions("SectionHeader", opts, OPTIONS.SectionHeader)
@@ -564,7 +580,11 @@ function Widgets.SectionHeader(parent, opts)
 
     local header = Widgets.Frame(parent, {
         size  = opts.size,
-        width = opts.width, height = opts.height,
+        width = opts.width,
+        -- Height is the kit's, not the caller's: a bar that differs in height from
+        -- the next bar over is the drift this factory exists to prevent. `size`
+        -- still wins when a caller passes one, since that carries a width too.
+        height = opts.height or (not opts.size and ns.Theme.CONTROL.SECTION_HEADER or nil),
         point = opts.point,
     })
 
@@ -587,17 +607,33 @@ function Widgets.SectionHeader(parent, opts)
     end
 
     if opts.text then
-        header.label = Widgets.Label(header, {
-            fontObject = opts.fontObject,
-            fontSize   = opts.fontObject and nil or opts.fontSize,
-            color      = opts.color or ns.Theme.COLOR.GOLD,
-            justify    = "LEFT",
-            point      = { "LEFT", opts.labelInset or 5, 0 },
-            text       = opts.text,
+        header.label = Widgets.SectionHeaderLabel(header, {
+            palette = palette,
+            justify = "LEFT",
+            point   = { "LEFT", opts.labelInset or 5, 0 },
+            text    = opts.text,
         })
     end
 
     return header
+end
+
+-- The text style of a section header's label, for content a caller places in the bar
+-- itself. The NPC table's column header is the only such caller: its labels live in
+-- per-column sort buttons rather than in one header label, and they had drifted to
+-- gold-on-outline while the headers beside them were plain -- two spellings of the
+-- same thing. Sharing the style is the whole point; SectionHeader builds its own
+-- label through this too, so there is one definition and not two that agree today.
+function Widgets.SectionHeaderLabel(parent, opts)
+    opts = opts or {}
+    local palette = opts.palette or ns.Config.TAB
+    return Widgets.Label(parent, {
+        fontSize = ns.Theme.SIZE.BODY,
+        color    = palette.ACTIVE_TEXT,
+        justify  = opts.justify or "LEFT",
+        point    = opts.point,
+        text     = opts.text,
+    })
 end
 
 --------------------------------------------------------------------------------

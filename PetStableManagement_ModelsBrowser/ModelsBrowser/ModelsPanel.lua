@@ -52,11 +52,14 @@ local function GetPageLayout()
     if panel and panel.modelsViewMode == "npc" then
         local rowHeight    = PSM.NPCRow and PSM.NPCRow.ROW_HEIGHT or 22
         local headerHeight = PSM.NPCRow and PSM.NPCRow.HEADER_HEIGHT or 20
+        local inset        = (PSM.NPCRow and PSM.NPCRow.TABLE_INSET) or 0
         local fit = MODELS_CONFIG.NPC_PETS_PER_PAGE
         if panel.petsFrame then
             -- Extra safety margin so the last row never runs into the
-            -- pagination controls anchored just below petsFrame.
-            local available = panel.petsFrame:GetHeight() - headerHeight - 50
+            -- pagination controls anchored just below petsFrame. `inset` is the
+            -- gap above the header (UpdateNPCPanelLayout), which is height the
+            -- rows no longer have.
+            local available = panel.petsFrame:GetHeight() - inset - headerHeight - 50
             fit = math.max(5, math.floor(available / rowHeight))
         end
         return 1, math.min(fit, MODELS_CONFIG.NPC_MAX_ROWS)
@@ -422,11 +425,15 @@ function PSM.ModelsPanel:UpdateNPCPanelLayout()
 
     local headerHeight = panel.npcHeaderRow and panel.npcHeaderRow:GetHeight() or PSM.NPCRow.HEADER_HEIGHT
     local rowHeight = PSM.NPCRow.ROW_HEIGHT
+    -- Same inset the header uses (NPCRow's TABLE_INSET), so the rows sit inside
+    -- petsFrame's silver border and their cells stay under the header's columns --
+    -- the two anchor to different frames but share one column layout.
+    local inset = PSM.NPCRow.TABLE_INSET
     for i, row in ipairs(panel.npcRows) do
-        local yOffset = -(headerHeight + (i - 1) * rowHeight)
+        local yOffset = -(inset + headerHeight + (i - 1) * rowHeight)
         row:ClearAllPoints()
-        row:SetPoint("TOPLEFT",  panel.petsFrame, "TOPLEFT",  0, yOffset)
-        row:SetPoint("TOPRIGHT", panel.petsFrame, "TOPRIGHT", 0, yOffset)
+        row:SetPoint("TOPLEFT",  panel.petsFrame, "TOPLEFT",   inset, yOffset)
+        row:SetPoint("TOPRIGHT", panel.petsFrame, "TOPRIGHT", -inset, yOffset)
     end
 
     self:UpdateVisibleRows()
@@ -453,10 +460,9 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     })
 
     Widgets.SectionHeader(panel.toolsFrame, {
-        size       = { 200, 20 },
-        point      = { "TOPLEFT", 5, -5 },
-        text       = PSM.L("Tools"),
-        fontObject = "GameFontHighlightSmall",
+        width = 200,
+        point = { "TOPLEFT", 5, -5 },
+        text  = PSM.L("Tools"),
     })
 
     -- Show Only filters frame
@@ -469,10 +475,9 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     })
 
     Widgets.SectionHeader(panel.showOnlyFrame, {
-        size       = { 200, 20 },
-        point      = { "TOPLEFT", 5, -5 },
-        text       = PSM.L("Show Only"),
-        fontObject = "GameFontHighlightSmall",
+        width = 200,
+        point = { "TOPLEFT", 5, -5 },
+        text  = PSM.L("Show Only"),
     })
 
     local MF = PSM.ModelsFilters
