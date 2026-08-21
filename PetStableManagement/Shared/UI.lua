@@ -69,7 +69,7 @@ function ns.UI:SetupRowButtons(row, pet)
     -- Make Active
     row.makeActive:SetScript("OnClick", function()
         if not C_StableInfo or not C_StableInfo.SetPetSlot then
-            print(ns.L("C_StableInfo.SetPetSlot not available."))
+            ns.Utils:Msg("ERROR", ns.L("C_StableInfo.SetPetSlot not available."))
             return
         end
         ns.Utils.SafeCall(function()
@@ -86,7 +86,7 @@ function ns.UI:SetupRowButtons(row, pet)
                         ns.C_Timer.After(0.2, function() ns.UI:UpdatePanel() end)
                     end)
                 else
-                    print(ns.L("No available slots to displace pet from slot 1!"))
+                    ns.Utils:Msg("ERROR", ns.L("No available slots to displace pet from slot 1!"))
                 end
             else
                 C_StableInfo.SetPetSlot(pet.slotID, 1)
@@ -121,7 +121,7 @@ function ns.UI:SetupRowButtons(row, pet)
                 C_StableInfo.SetPetSlot(pet.slotID, targetSlot)
                 ns.C_Timer.After(0.2, function() ns.UI:UpdatePanel() end)
             else
-                print(ns.L("No available stable slots found! (Max 205 slots)"))
+                ns.Utils:Msg("ERROR", ns.L("No available stable slots found! (Max 205 slots)"))
             end
         end
     end)
@@ -246,7 +246,7 @@ end
 
 function ns.UI:RenderPanel(preserveScroll)
     if not ns.state.panel or not ns.state.content then
-        print(ns.L("Panel failed to show!"))
+        ns.Utils:Msg("ERROR", ns.L("Panel failed to show!"))
         return
     end
     if ns._renderDebounceTimer then ns._renderDebounceTimer:Cancel() end
@@ -660,7 +660,7 @@ function ns.UI:UpdatePanel(showIfHidden)
     if not ns.state.panel then self:BuildPanel() end
 
     if not EnsurePetData(false) then
-        print(ns.L("No owned pets data available! Please visit a Stable Master."))
+        ns.Utils:Msg("ERROR", ns.L("No owned pets data available! Please visit a Stable Master."))
         return
     end
 
@@ -711,20 +711,20 @@ end
 
 function ns.UI:HandleSaveTeamClick()
     if not ns.state.isStableOpen then
-        print(ns.L("You must be at a Stable Master to save a team."))
+        ns.Utils:Msg("WARNING", ns.L("You must be at a Stable Master to save a team."))
         return
     end
 
     local currentSlots, err = ns.Teams:GetCurrentSlots()
     if not currentSlots then
-        print("|cFFFF0000PetStableManagement: " .. (err or ns.L("Failed to capture current slots")) .. "|r")
+        ns.Utils:Msg("ERROR", err or ns.L("Failed to capture current slots"))
         return
     end
 
     local hasPet = false
     for slot = 1, 6 do if currentSlots[slot] then hasPet = true; break end end
     if not hasPet then
-        print(ns.L("No pets in slots 1-6 to save."))
+        ns.Utils:Msg("WARNING", ns.L("No pets in slots 1-6 to save."))
         return
     end
 
@@ -739,16 +739,16 @@ function ns.UI:HandleSaveTeamClick()
                 onUpdate = function()
                     local ok, updateErr = ns.Teams:UpdateTeam(activeTeamId)
                     if ok then RefreshTeamsPanel()
-                    else print("|cFFFF0000PetStableManagement: " .. (updateErr or ns.L("Failed to update team")) .. "|r") end
+                    else ns.Utils:Msg("ERROR", updateErr or ns.L("Failed to update team")) end
                 end,
                 onSaveNew = function(name)
                     local tid, saveErr = ns.Teams:SaveTeam(name)
                     if tid then RefreshTeamsPanel()
-                    else print("|cFFFF0000PetStableManagement: " .. (saveErr or ns.L("Failed to save team")) .. "|r") end
+                    else ns.Utils:Msg("ERROR", saveErr or ns.L("Failed to save team")) end
                 end,
             })
         else
-            print(ns.L("Team '%s' is already up to date.", activeTeam.name))
+            ns.Utils:Msg("SUCCESS", ns.L("Team '%s' is already up to date.", activeTeam.name))
         end
     else
         ns.Dialogs:ShowNameInputDialog({
@@ -757,7 +757,7 @@ function ns.UI:HandleSaveTeamClick()
             onConfirm   = function(name)
                 local tid, saveErr = ns.Teams:SaveTeam(name)
                 if tid then RefreshTeamsPanel()
-                else print("|cFFFF0000PetStableManagement: " .. (saveErr or ns.L("Failed to save team")) .. "|r") end
+                else ns.Utils:Msg("ERROR", saveErr or ns.L("Failed to save team")) end
             end,
         })
     end

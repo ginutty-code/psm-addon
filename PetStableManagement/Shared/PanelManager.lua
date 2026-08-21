@@ -33,7 +33,7 @@ end
 -- window rather than from every click handler that can reach it -- see Backlog.md.
 function ns.PanelManager:CombatBlocked(label)
     if not UnitAffectingCombat("player") then return false end
-    print(ns.L("Pet Stable Management: %s cannot open during combat.", label))
+    ns.Utils:Msg("ERROR", ns.L("%s cannot open during combat.", label))
     return true
 end
 
@@ -52,7 +52,7 @@ local function WarnIfOversized(panel, title)
     local message = ns.L("%s is larger than your screen at the current UI scale (%dx%d needed, %dx%d available). You can drag it from any blank area to bring different parts into view, but it may not all fit on screen at once. Lowering your UI scale in the game's Options avoids this entirely.",
         title or "This panel", math.floor(pw), math.floor(ph), math.floor(uw), math.floor(uh))
     if UIErrorsFrame then UIErrorsFrame:AddMessage(message, 1, 0.53, 0) end
-    print("|cffff8800" .. message .. "|r")
+    ns.Utils:Msg("WARNING", message)
 end
 
 -- ─── CreateBasePanel ─────────────────────────────────────────────────────────

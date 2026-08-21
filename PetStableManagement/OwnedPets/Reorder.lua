@@ -31,33 +31,33 @@ end
 
 function ns.Reorder:SwapPetSlots(slot1, slot2, skipUpdate)
     if not ns.Reorder:CanReorderPets() then
-        print(ns.L("Must be at stable master to reorder pets"))
+        ns.Utils:Msg("ERROR", ns.L("Must be at stable master to reorder pets"))
         return false
     end
 
     if not C_StableInfo or not C_StableInfo.SetPetSlot then
-        print("|cFFFF0000SetPetSlot API not available|r")
+        ns.Utils:Msg("ERROR", "SetPetSlot API not available")
         return false
     end
 
     if not slot1 or not slot2 or slot1 == slot2 then
-        print(ns.L("Invalid slot numbers"))
+        ns.Utils:Msg("ERROR", ns.L("Invalid slot numbers"))
         return false
     end
 
     if slot1 < 1 or slot1 > MAX_STABLE_SLOT or slot2 < 1 or slot2 > MAX_STABLE_SLOT then
-        print(ns.L("Slots must be between 1 and %s", MAX_STABLE_SLOT))
+        ns.Utils:Msg("ERROR", ns.L("Slots must be between 1 and %s", MAX_STABLE_SLOT))
         return false
     end
 
     local pet1 = C_StableInfo.GetStablePetInfo(slot1)
     if not pet1 then
-        print(ns.L("No pet in slot %s", slot1))
+        ns.Utils:Msg("ERROR", ns.L("No pet in slot %s", slot1))
         return false
     end
 
     -- SetPetSlot handles both move (empty target) and swap (occupied target)
-    print(ns.L("Moving pet from slot %s to slot %s...", slot1, slot2))
+    ns.Utils:Msg("WARNING", ns.L("Moving pet from slot %s to slot %s...", slot1, slot2))
     ns.Utils.SafeCall(C_StableInfo.SetPetSlot, slot1, slot2)
 
     -- **`skipUpdate` means the caller owns the whole post-swap refresh, data included.**
@@ -89,12 +89,12 @@ function ns.Reorder:MovePet(pet, offset)
     local targetSlot = currentSlot + offset
 
     if targetSlot < 1 then
-        print(ns.L("Pet is already in slot 1 (top position)"))
+        ns.Utils:Msg("WARNING", ns.L("Pet is already in slot 1 (top position)"))
         return false
     end
 
     if targetSlot > MAX_STABLE_SLOT then
-        print(ns.L("Pet is already in slot %s (bottom position)", MAX_STABLE_SLOT))
+        ns.Utils:Msg("WARNING", ns.L("Pet is already in slot %s (bottom position)", MAX_STABLE_SLOT))
         return false
     end
 

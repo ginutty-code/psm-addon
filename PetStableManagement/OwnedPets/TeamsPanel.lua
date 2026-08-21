@@ -432,7 +432,7 @@ function ns.TeamsPanel:UpdateTeamRow(row, team)
     -- Apply
     row.applyButton:SetScript("OnClick", function()
         if not ns.state.isStableOpen then
-            print(ns.L("You must be at a Stable Master to apply a team."))
+            ns.Utils:Msg("WARNING", ns.L("You must be at a Stable Master to apply a team."))
             return
         end
         ns.Dialogs:ShowApplyConfirmDialog(teamName, function()
@@ -440,7 +440,7 @@ function ns.TeamsPanel:UpdateTeamRow(row, team)
             if ok then
                 ns.TeamsPanel:RefreshTeamsList()
             else
-                print("|cFFFF0000PetStableManagement: " .. (err or ns.L("Failed to apply team")) .. "|r")
+                ns.Utils:Msg("ERROR", err or ns.L("Failed to apply team"))
             end
         end)
     end)
@@ -483,7 +483,7 @@ function ns.TeamsPanel:UpdateTeamRow(row, team)
             onConfirm = function(newName)
                 local ok, err = ns.Teams:RenameTeam(teamId, newName)
                 if ok then ns.TeamsPanel:RefreshTeamsList()
-                else print("|cFFFF0000PetStableManagement: " .. (err or ns.L("Failed to rename team")) .. "|r") end
+                else ns.Utils:Msg("ERROR", err or ns.L("Failed to rename team")) end
             end,
         })
     end)
@@ -498,7 +498,7 @@ function ns.TeamsPanel:UpdateTeamRow(row, team)
             onConfirm = function(newName)
                 local newId, err = ns.Teams:DuplicateTeam(teamId, newName)
                 if newId then ns.TeamsPanel:RefreshTeamsList()
-                else print("|cFFFF0000PetStableManagement: " .. (err or ns.L("Failed to duplicate team")) .. "|r") end
+                else ns.Utils:Msg("ERROR", err or ns.L("Failed to duplicate team")) end
             end,
         })
     end)
@@ -508,7 +508,7 @@ function ns.TeamsPanel:UpdateTeamRow(row, team)
         ns.Dialogs:ShowDeleteConfirmDialog(teamName, function()
             local ok, err = ns.Teams:DeleteTeam(teamId)
             if ok then ns.TeamsPanel:RefreshTeamsList()
-            else print("|cFFFF0000PetStableManagement: " .. (err or ns.L("Failed to delete team")) .. "|r") end
+            else ns.Utils:Msg("ERROR", err or ns.L("Failed to delete team")) end
         end)
     end)
 

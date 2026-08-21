@@ -21,12 +21,12 @@ SLASH_PETSTABLE2 = "/petstable"
 local PETSTABLE_COMMANDS = {
     show = function()
         ns.Minimap:Show()
-        print(ns.L("Minimap button shown."))
+        ns.Utils:Msg("SUCCESS", ns.L("Minimap button shown."))
     end,
 
     hide = function()
         ns.Minimap:Hide()
-        print(ns.L("Minimap button hidden. Use /psm show to show it again."))
+        ns.Utils:Msg("WARNING", ns.L("Minimap button hidden. Use /psm show to show it again."))
     end,
 
     menu = function()
@@ -96,8 +96,8 @@ SlashCmdList["PETSWAP"] = function(msg)
         local startSlot, destSlot = tonumber(a), tonumber(b)
 
         if not startSlot or not destSlot then
-            print(ns.L("Usage: /petswap [starting slot] [destination slot]"))
-            print(ns.L("Example: /petswap 5 10"))
+            ns.Utils:Msg("ERROR", ns.L("Usage: /petswap [starting slot] [destination slot]"))
+            ns.Utils:Msg("WARNING", ns.L("Example: /petswap 5 10"))
             return
         end
 
@@ -107,27 +107,27 @@ SlashCmdList["PETSWAP"] = function(msg)
         end
 
         if not validSlot(startSlot) or not validSlot(destSlot) then
-            print(ns.L("Slot numbers must be between 1 and %d.", maxSlot))
+            ns.Utils:Msg("ERROR", ns.L("Slot numbers must be between 1 and %d.", maxSlot))
             return
         end
 
         if startSlot == destSlot then
-            print(ns.L("Source and destination slots are the same."))
+            ns.Utils:Msg("WARNING", ns.L("Source and destination slots are the same."))
             return
         end
 
         if not ns.state.isStableOpen then
-            print(ns.L("You must be at a stable master to change pet slots."))
+            ns.Utils:Msg("ERROR", ns.L("You must be at a stable master to change pet slots."))
             return
         end
 
         if not C_StableInfo.GetStablePetInfo(startSlot) then
-            print(ns.L("No pet found in slot %d.", startSlot))
+            ns.Utils:Msg("ERROR", ns.L("No pet found in slot %d.", startSlot))
             return
         end
 
         if not ns.Reorder:SwapPetSlots(startSlot, destSlot) then
-            print(ns.L("Failed to move pet."))
+            ns.Utils:Msg("ERROR", ns.L("Failed to move pet."))
         end
     end)
 end

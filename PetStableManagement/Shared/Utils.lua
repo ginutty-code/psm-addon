@@ -25,7 +25,28 @@ function ns.Utils.SafeCall(func, ...)
         return e
     end)
     if ok then return result end
-    print(ns.L("Error: %s Type /psm debug for details.", tostring(err)))
+    ns.Utils:Msg("ERROR", ns.L("Error: %s Type /psm debug for details.", tostring(err)))
+end
+
+--------------------------------------------------------------------------------
+-- CHAT MESSAGES
+--------------------------------------------------------------------------------
+
+-- The one place a confirmation, warning, or failure reaches the chat frame. Every
+-- print() call site used to build its own colour and its own spelling of the addon's
+-- name -- "PetStableManagement:" in one file, "Pet Stable Management:" in another, no
+-- prefix at all in most -- and two different oranges for "warning". `kind` is one of
+-- Config.COLORS' ERROR / WARNING / SUCCESS keys, so the three message colours and
+-- every other semantic use of that same colour (e.g. TeamsPanel's active-team-name
+-- text) come from one definition. See Backlog.md.
+local MSG_PREFIX = "Pet Stable Management: "
+
+function ns.Utils:Msg(kind, text)
+    local color = ns.Config.COLORS[kind]
+    if not color then
+        error(("ns.Utils:Msg: unknown kind %q"):format(tostring(kind)), 2)
+    end
+    print(ns.Utils:FormatColorText(MSG_PREFIX .. text, color))
 end
 
 --------------------------------------------------------------------------------

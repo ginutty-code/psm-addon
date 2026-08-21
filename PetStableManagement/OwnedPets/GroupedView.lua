@@ -295,7 +295,7 @@ end
 -- lands in front of the eyes already on the screen. Chat keeps the record.
 local function ReportGroupFailure(message)
     if UIErrorsFrame then UIErrorsFrame:AddMessage(message, 1, 0.2, 0.2) end
-    print("|cFFFF0000PetStableManagement: " .. message .. "|r")
+    ns.Utils:Msg("ERROR", message)
 end
 
 function ns.UI.GroupedView:ShowCreateGroupForPetDialog(pet)
@@ -310,8 +310,7 @@ function ns.UI.GroupedView:ShowCreateGroupForPetDialog(pet)
                 -- is reported two lines down; this one was not.
                 local moved, moveErr = ns.PetGroups:MovePetToGroup(pet.guid, groupId)
                 if not moved then
-                    print("|cFFFF0000PetStableManagement: " ..
-                        (moveErr or ns.L("Failed to move pet to group")) .. "|r")
+                    ns.Utils:Msg("ERROR", moveErr or ns.L("Failed to move pet to group"))
                 end
                 ns.C_Timer.After(0.05, function()
                     if ns.UI and ns.UI.RenderPanel then ns.UI:RenderPanel(true) end
@@ -340,7 +339,7 @@ function ns.UI.GroupedView:ConfirmDeleteGroup(groupId, groupName)
     ns.Dialogs:ShowDeleteGroupConfirmDialog(groupName, function()
         local ok, err = ns.PetGroups:DeleteGroup(groupId)
         if ok then RefreshUI()
-        else print("|cFFFF0000PetStableManagement: " .. (err or ns.L("Failed to delete group")) .. "|r") end
+        else ns.Utils:Msg("ERROR", err or ns.L("Failed to delete group")) end
     end)
 end
 

@@ -390,7 +390,7 @@ end
 function ns.Data:CreateSnapshot()
     local count = self:SavePersistentData()
     if count > 0 then
-        print(ns.L("Pet data snapshot created: %d pets saved.", count))
+        ns.Utils:Msg("SUCCESS", ns.L("Pet data snapshot created: %d pets saved.", count))
     end
 end
 
@@ -430,7 +430,7 @@ function ns.Data:CollectStablePets()
     self:ClearMemory(true)
 
     if not ns.GetStableFrame() then
-        print(ns.L("StableFrame not found!"))
+        ns.Utils:Msg("ERROR", ns.L("StableFrame not found!"))
         return 0
     end
 

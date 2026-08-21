@@ -904,10 +904,7 @@ local function OnApplyClick(panel)
     end
 
     local filterDesc = #stParts > 0 and table.concat(stParts, "; ") or PSM.L("None")
-    print(PSM.Utils:FormatColorText(
-        PSM.L("Special Tames filter applied (%s).", filterDesc),
-        PSM.Config.COLORS.SUCCESS
-    ))
+    PSM.Utils:Msg("SUCCESS", PSM.L("Special Tames filter applied (%s).", filterDesc))
 
     panel:Hide()
 end

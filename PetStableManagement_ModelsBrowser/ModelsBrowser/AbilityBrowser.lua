@@ -844,10 +844,7 @@ local function ApplyAbilityFilters(panel)
     if PSM.ModelsFilters and PSM.ModelsFilters.ReloadAndSummarise then
         PSM.ModelsFilters:ReloadAndSummarise()
     end
-    print(PSM.Utils:FormatColorText(
-        PSM.L("Filter applied - %d families from selected abilities.", appliedCount),
-        PSM.Config.COLORS.SUCCESS
-    ))
+    PSM.Utils:Msg("SUCCESS", PSM.L("Filter applied - %d families from selected abilities.", appliedCount))
 end
 
 -- Select or unselect every currently visible ability. "Visible" is what the search

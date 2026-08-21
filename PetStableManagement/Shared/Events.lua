@@ -182,7 +182,7 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
             end
 
             ns:InitializeOpacity()
-            print(ns.L("Pet Stable Management loaded. Use /psm or /petstable or click the minimap button to toggle the panel."))
+            ns.Utils:Msg("SUCCESS", ns.L("Loaded. Use /psm or /petstable or click the minimap button to toggle the panel."))
 
         elseif event == "PET_STABLE_SHOW" then
             ns.state.isStableOpen = true

@@ -320,7 +320,7 @@ function ns:CreateSaveTeamButtonOnStable()
             -- Kept as a guard, not as UI: if this button's visibility ever changes,
             -- capturing slots without a stable would silently save an empty team.
             if not ns.state.isStableOpen then
-                print(ns.L("You must be at a Stable Master to save a team."))
+                ns.Utils:Msg("WARNING", ns.L("You must be at a Stable Master to save a team."))
                 return
             end
             ns.UI:HandleSaveTeamClick()

@@ -52,8 +52,7 @@ local FAILURE_HINT = {
 -- the latch meant the *second* thing you tried always failed in silence.
 local function Announce(reason)
     local hint = FAILURE_HINT[reason] or ns.L("Reason: %s.", tostring(reason))
-    print(string.format(
-        ns.L("Could not load the Models Browser. %s", hint)))
+    ns.Utils:Msg("WARNING", ns.L("Could not load the Models Browser. %s", hint))
 end
 
 --------------------------------------------------------------------------------
@@ -132,7 +131,7 @@ function ns.Loader:EnsureBrowser(silent)
     -- realistically land here in combat are passive ones, which degrade quietly.
     if InCombatLockdown and InCombatLockdown() then
         if not silent then
-            print(ns.L("Can't load additional modules during combat."))
+            ns.Utils:Msg("WARNING", ns.L("Can't load additional modules during combat."))
         end
         return false
     end

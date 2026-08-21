@@ -14,7 +14,7 @@ local PetRoulette = PSM.PetRoulette
 local function GetDB() return PetStableManagementDB.settings end
 
 local function PrintRoulette(pet)
-    print(PSM.L("Pet Roulette: %s (Display ID: %d)",
+    PSM.Utils:Msg("SUCCESS", PSM.L("Pet Roulette: %s (Display ID: %d)",
         pet.familyName or "Unknown", pet.displayId))
 end
 
@@ -105,7 +105,7 @@ function PetRoulette:SelectPetRoulette()
         (panel.modelsViewMode == "npc" and self:_GetModelsFromNPCList(panel.allNPCs) or panel.allModels)
 
     if not modelsList or #modelsList == 0 then
-        print(PSM.L("No pets available for Pet Roulette."))
+        PSM.Utils:Msg("WARNING", PSM.L("No pets available for Pet Roulette."))
         return
     end
     local pet = self:_SelectRandomPet(modelsList)
@@ -123,7 +123,7 @@ function PetRoulette:SelectPetRouletteFromCommand()
 
     local allModels = self:_GetAllAvailableModels()
     if #allModels == 0 then
-        print(PSM.L("No pet models available for Pet Roulette."))
+        PSM.Utils:Msg("WARNING", PSM.L("No pet models available for Pet Roulette."))
         return
     end
 

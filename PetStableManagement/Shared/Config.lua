@@ -153,9 +153,13 @@ ns.Config = {
     COLORS = {
         PRIMARY                       = { 1,    0.82, 0    },
         SECONDARY                     = { 0.7,  0.7,  1    },
-        ERROR                         = { 1,    0.2,  0.2  },
-        WARNING                       = { 1,    0.8,  0.2  },
-        SUCCESS                       = { 0.2,  1,    0.2  },
+        -- The one palette for chat messages (ns.Utils:Msg) -- confirmation, warning,
+        -- failure. Also picked up by anything else wanting that same semantic colour
+        -- (e.g. TeamsPanel's active-team-name text), so a message and the state it
+        -- describes always read as the same colour.
+        ERROR                         = { 1,    0,    0    },
+        WARNING                       = { 1,    0.667, 0   },
+        SUCCESS                       = { 0,    1,    0    },
         DUPLICATE                     = { 1,    0.6,  0.6  },
         BORDER                        = { 0.5,  0.5,  0.5  },
         BORDER_DUPLICATE            = { 1,   0.2, 0.2, 1 },

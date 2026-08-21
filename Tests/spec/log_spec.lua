@@ -9,8 +9,12 @@ dofile("Tests/wow/stubs.lua").install()
 local Addon = dofile("Tests/wow/addon.lua")
 
 local function freshLog()
+    -- Log:Dump prints through ns.Utils:Msg, which needs ns.Config.COLORS -- same
+    -- load order as the client's .toc: Locale, Config, Log, Utils.
     local ns = Addon.load("PetStableManagement/Shared/Locale.lua")
+    Addon.load("PetStableManagement/Shared/Config.lua", ns)
     Addon.load("PetStableManagement/Shared/Log.lua", ns)
+    Addon.load("PetStableManagement/Shared/Utils.lua", ns)
     return ns.Log
 end
 
@@ -23,7 +27,7 @@ describe("Log:Record / Dump", function()
         Log:Dump()
         _G.print = realPrint
         eq(#printed, 1, "one line")
-        truthy(printed[1]:find("no errors recorded", 1, true), "says nothing recorded")
+        truthy(printed[1]:find("No errors recorded", 1, true), "says nothing recorded")
     end)
 
     it("dumps every recorded entry, oldest first, with its traceback", function()

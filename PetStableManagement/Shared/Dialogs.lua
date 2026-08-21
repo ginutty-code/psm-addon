@@ -366,7 +366,7 @@ local function CreateNewTeamFromPet(petData)
             if teamId and ns.TeamsPanel then
                 ns.TeamsPanel:RefreshTeamsList()
             else
-                print("|cFFFF0000PetStableManagement: " .. (err or ns.L("Failed to save team")) .. "|r")
+                ns.Utils:Msg("ERROR", err or ns.L("Failed to save team"))
             end
         end,
     })
@@ -606,7 +606,7 @@ function ns.Dialogs:ConfirmAddToTeam(team, petData, slot)
     if team.slots then
         for i = 1, 6 do
             if team.slots[i] and team.slots[i].petNumber == petData.petNumber then
-                print(ns.L("Cannot add duplicate pet '%s' to team '%s'. Pet already exists at slot %s.",
+                ns.Utils:Msg("ERROR", ns.L("Cannot add duplicate pet '%s' to team '%s'. Pet already exists at slot %s.",
                     petData.name or ns.L("Unknown"), team.name, i))
                 return
             end
@@ -622,10 +622,10 @@ function ns.Dialogs:ConfirmAddToTeam(team, petData, slot)
     local ok, err = ns.Teams:UpdateTeam(team.id, slots)
     if ok then
         if ns.TeamsPanel then ns.TeamsPanel:RefreshTeamsList() end
-        print(ns.L("Added '%s' to team '%s' at slot %s.",
+        ns.Utils:Msg("SUCCESS", ns.L("Added '%s' to team '%s' at slot %s.",
             petData.name or ns.L("Unknown"), team.name, slot))
     else
-        print("|cFFFF0000PetStableManagement: " .. (err or ns.L("Failed to add pet to team")) .. "|r")
+        ns.Utils:Msg("ERROR", err or ns.L("Failed to add pet to team"))
     end
 end
 
@@ -642,9 +642,9 @@ function ns.Dialogs:ConfirmRemoveFromTeam(team, slot, petName)
     local ok, err = ns.Teams:UpdateTeam(team.id, slots)
     if ok then
         if ns.TeamsPanel then ns.TeamsPanel:RefreshTeamsList() end
-        print(ns.L("Removed %s from team '%s'.", petName or ns.L("pet"), team.name))
+        ns.Utils:Msg("SUCCESS", ns.L("Removed %s from team '%s'.", petName or ns.L("pet"), team.name))
     else
-        print("|cFFFF0000PetStableManagement: " .. (err or ns.L("Failed to remove pet from team")) .. "|r")
+        ns.Utils:Msg("ERROR", err or ns.L("Failed to remove pet from team"))
     end
 end
 

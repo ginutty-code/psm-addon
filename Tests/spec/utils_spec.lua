@@ -20,9 +20,11 @@ local Addon = dofile("Tests/wow/addon.lua")
 -- than to a global it creates itself. _G.PSM is cleared first to prove exactly that: the
 -- file no longer needs a global to exist, and in the game Core.lua is what makes one.
 _G.PSM = nil
--- SafeCall records into ns.Log; Locale.lua supplies ns.L for its chat message, same as
--- the client's .toc load order.
+-- SafeCall reports through ns.Utils:Msg, which needs ns.Config.COLORS and prints
+-- through ns.L; Log.lua is where SafeCall records the error. Same order as the
+-- client's .toc: Locale, Config, Log, Utils.
 local ns = Addon.load("PetStableManagement/Shared/Locale.lua")
+Addon.load("PetStableManagement/Shared/Config.lua", ns)
 Addon.load("PetStableManagement/Shared/Log.lua", ns)
 Addon.load("PetStableManagement/Shared/Utils.lua", ns)
 local U = ns.Utils

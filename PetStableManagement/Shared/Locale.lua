@@ -48,19 +48,21 @@ ns.L = L
 --------------------------------------------------------------------------------
 
 L.Register({
-    -- Keys are the plain sentence; the value carries its colour. A key nobody declared
-    -- therefore falls back to the same words without the markup.
-    ["StableFrame not found!"]                        = "|cFFFF0000StableFrame not found!|r",
-    ["Panel creation failed!"]                        = "|cFFFF0000Panel creation failed!|r",
-    ["Panel failed to show!"]                         = "|cFFFF0000Panel failed to show!|r",
-    ["No available slots to displace pet from slot 1!"] = "|cFFFF0000No available slots to displace pet from slot 1!|r",
-    ["No available stable slots found! (Max 205 slots)"] = "|cFFFF0000No available stable slots found! (Max 205 slots)|r",
+    -- Keys are the plain sentence, and now so are almost all the values: colour and
+    -- the addon's own name used to be baked into the value here, one escape-code
+    -- spelling per author. Both are applied once now, by ns.Utils:Msg at the print()
+    -- call site, so every value below that reaches chat is plain text. See Backlog.md.
+    ["StableFrame not found!"]                        = "StableFrame not found!",
+    ["Panel creation failed!"]                        = "Panel creation failed!",
+    ["Panel failed to show!"]                         = "Panel failed to show!",
+    ["No available slots to displace pet from slot 1!"] = "No available slots to displace pet from slot 1!",
+    ["No available stable slots found! (Max 205 slots)"] = "No available stable slots found! (Max 205 slots)",
 
-    ["Pet data snapshot created: %d pets saved."]     = "|cFF00FF00Pet data snapshot created: %d pets saved.|r",
+    ["Pet data snapshot created: %d pets saved."]     = "Pet data snapshot created: %d pets saved.",
     ["No snapshot available. Please visit a Stable Master to collect your owned pets data."] =
-        "|cFFFF8800No snapshot available. Please visit a Stable Master to collect your owned pets data.|r",
-    ["Pet Stable Management loaded. Use /psm or /petstable or click the minimap button to toggle the panel."] =
-        "|cFF00FF00Pet Stable Management loaded. Use /psm or /petstable or click the minimap button to toggle the panel.|r",
+        "No snapshot available. Please visit a Stable Master to collect your owned pets data.",
+    ["Loaded. Use /psm or /petstable or click the minimap button to toggle the panel."] =
+        "Loaded. Use /psm or /petstable or click the minimap button to toggle the panel.",
 
     -- Shared with the Models Browser, which reaches them through PSM.L.
     ["Reset Filters"]     = "Reset Filters",
@@ -68,13 +70,9 @@ L.Register({
     ["Pet Model Browser"] = "Pet Model Browser",
 
     -- One combat-block message for every PSM window (PanelManager:CombatBlocked),
-    -- %s filled with the window's own name. Matches the addon's existing "Pet
-    -- Stable Management: <detail>" convention (see "Minimap button shown." etc.
-    -- below) instead of putting the window name first -- used to be four
-    -- near-identical keys, one per panel, each written (and coloured) separately,
-    -- and inconsistent with the rest of the addon's own messages. See Backlog.md.
-    ["Pet Stable Management: %s cannot open during combat."] =
-        "|cFFFF0000Pet Stable Management: %s cannot open during combat.|r",
+    -- %s filled with the window's own name -- used to be four near-identical keys,
+    -- one per panel, each written (and coloured) separately. See Backlog.md.
+    ["%s cannot open during combat."] = "%s cannot open during combat.",
 
     -- Dialogs: teams, groups, slot pickers
     ["OK"]     = "OK",
@@ -120,11 +118,11 @@ L.Register({
     ["Failed to remove pet from team"] = "Failed to remove pet from team",
 
     ["Cannot add duplicate pet '%s' to team '%s'. Pet already exists at slot %s."] =
-        "|cFFFF0000PetStableManagement: Cannot add duplicate pet '%s' to team '%s'. Pet already exists at slot %s.|r",
+        "Cannot add duplicate pet '%s' to team '%s'. Pet already exists at slot %s.",
     ["Added '%s' to team '%s' at slot %s."] =
-        "|cFF00FF00PetStableManagement: Added '%s' to team '%s' at slot %s.|r",
+        "Added '%s' to team '%s' at slot %s.",
     ["Removed %s from team '%s'."] =
-        "|cFF00FF00PetStableManagement: Removed %s from team '%s'.|r",
+        "Removed %s from team '%s'.",
 
     -- Popups: model viewer, notes, waypoints, taming requirements
     ["Save"]  = "Save",
@@ -155,9 +153,9 @@ L.Register({
         "Install TomTom for portrait icons, multiple waypoints, and navigation.",
     ["Waypoints for \n %s \n(%s)"] = "Waypoints for \n %s \n(%s)",
     ["%s waypoint(s) added on %s map for %s"] =
-        "|cff00ff00%s waypoint(s) added on %s map for %s|r",
+        "%s waypoint(s) added on %s map for %s",
     ["Only the first location was marked. Install TomTom for all waypoints, portrait icons, and navigation."] =
-        "|cffffff00PSM:|r Only the first location was marked. Install |cff3fc7ebTomTom|r for all waypoints, portrait icons, and navigation.",
+        "Only the first location was marked. Install TomTom for all waypoints, portrait icons, and navigation.",
 
     -- Fallbacks for data the client may not have yet.
     ["NPC"]     = "NPC",
@@ -312,7 +310,7 @@ L.Register({
 
     ["Visit a Stable Master to apply teams"] = "Visit a Stable Master to apply teams",
     ["You must be at a Stable Master to apply a team."] =
-        "|cFFFF8800PetStableManagement: You must be at a Stable Master to apply a team.|r",
+        "You must be at a Stable Master to apply a team.",
     ["Failed to apply team"]     = "Failed to apply team",
     ["Failed to rename team"]    = "Failed to rename team",
     ["Failed to duplicate team"] = "Failed to duplicate team",
@@ -371,7 +369,7 @@ L.Register({
     ["%d ability selected"]   = "%d ability selected",
     ["%d abilities selected"] = "%d abilities selected",
     ["Filter applied - %d families from selected abilities."] =
-        "PetStableManagement: Filter applied - %d families from selected abilities.",
+        "Filter applied - %d families from selected abilities.",
 
     -- Models Browser filter bar and its summary line
     ["Pet Roulette"]    = "Pet Roulette",
@@ -436,41 +434,38 @@ L.Register({
     ["Scroll to zoom"] = "Scroll to zoom",
 
     ["Team '%s' is already up to date."] =
-        "|cFF00FF00PetStableManagement: Team '%s' is already up to date.|r",
+        "Team '%s' is already up to date.",
     ["You must be at a Stable Master to save a team."] =
-        "|cFFFF8800PetStableManagement: You must be at a Stable Master to save a team.|r",
+        "You must be at a Stable Master to save a team.",
     ["No pets in slots 1-6 to save."] =
-        "|cFFFF8800PetStableManagement: No pets in slots 1-6 to save.|r",
+        "No pets in slots 1-6 to save.",
     ["No owned pets data available! Please visit a Stable Master."] =
-        "|cFFFF0000No owned pets data available! Please visit a Stable Master.|r",
+        "No owned pets data available! Please visit a Stable Master.",
     ["C_StableInfo.SetPetSlot not available."] =
-        "|cFFFF0000C_StableInfo.SetPetSlot not available.|r",
+        "C_StableInfo.SetPetSlot not available.",
     ["Failed to capture current slots"] = "Failed to capture current slots",
     ["Failed to update team"]           = "Failed to update team",
 
     -- Slash commands. The command names inside these stay literal: /psm and /petswap are
     -- typed, not read, so translating them would break the instruction.
-    ["Minimap button shown."] =
-        "|cFF00FF00Pet Stable Management: Minimap button shown.|r",
+    ["Minimap button shown."] = "Minimap button shown.",
     ["Minimap button hidden. Use /psm show to show it again."] =
-        "|cFFFFAA00Pet Stable Management: Minimap button hidden. Use /psm show to show it again.|r",
+        "Minimap button hidden. Use /psm show to show it again.",
     ["Usage: /petswap [starting slot] [destination slot]"] =
-        "|cFFFF0000Usage: /petswap [starting slot] [destination slot]|r",
-    ["Example: /petswap 5 10"]  = "|cFFFFAA00Example: /petswap 5 10|r",
+        "Usage: /petswap [starting slot] [destination slot]",
+    ["Example: /petswap 5 10"]  = "Example: /petswap 5 10",
     ["Slot numbers must be between 1 and %d."] =
-        "|cFFFF0000Slot numbers must be between 1 and %d.|r",
+        "Slot numbers must be between 1 and %d.",
     ["Source and destination slots are the same."] =
-        "|cFFFFAA00Source and destination slots are the same.|r",
+        "Source and destination slots are the same.",
     ["You must be at a stable master to change pet slots."] =
-        "|cFFFF0000You must be at a stable master to change pet slots.|r",
-    ["No pet found in slot %d."] = "|cFFFF0000No pet found in slot %d.|r",
-    ["Failed to move pet."]      = "|cFFFF0000Failed to move pet.|r",
+        "You must be at a stable master to change pet slots.",
+    ["No pet found in slot %d."] = "No pet found in slot %d.",
+    ["Failed to move pet."]      = "Failed to move pet.",
     ["Error: %s Type /psm debug for details."] =
-        "|cFFFF0000Pet Stable Management error: %s Type /psm debug for details.|r",
-    ["No errors recorded this session."] =
-        "|cFF00FF00Pet Stable Management: no errors recorded this session.|r",
-    ["Pet Stable Management: last %d error(s), oldest first:"] =
-        "|cFFFF0000Pet Stable Management: last %d error(s), oldest first:|r",
+        "Error: %s Type /psm debug for details.",
+    ["No errors recorded this session."] = "No errors recorded this session.",
+    ["Last %d error(s), oldest first:"] = "Last %d error(s), oldest first:",
 
     -- Options panel
     ["Show minimap button"]         = "Show minimap button",
@@ -596,30 +591,26 @@ L.Register({
 
     -- Messages the earlier scans could not see: their literal begins with a colour escape.
     ["Could not load the Models Browser. %s"] =
-        "|cFFFF8800Pet Stable Management: could not load the Models Browser. %s|r",
+        "Could not load the Models Browser. %s",
     ["Can't load additional modules during combat."] =
-        "|cFFFF8800Pet Stable Management: can't load additional modules during combat.|r",
-    ["Failed to create panel."] = "|cFFFF0000Failed to create panel.|r",
+        "Can't load additional modules during combat.",
+    ["Failed to create panel."] = "Failed to create panel.",
     ["(No abilities available)"] = "|cFFAAAAAA(No abilities available)|r",
 
     -- One key for what used to be two identical copies, in Reorder.lua and DragDrop.lua.
-    ["Must be at stable master to reorder pets"] =
-        "|cFFFF0000Must be at stable master to reorder pets|r",
-    ["Invalid slot numbers"] = "|cFFFF0000Invalid slot numbers|r",
-    ["Slots must be between 1 and %s"] = "|cFFFF0000Slots must be between 1 and %s|r",
-    ["Moving pet from slot %s to slot %s..."] =
-        "|cFFFFAA00Moving pet from slot %s to slot %s...|r",
-    ["Pet is already in slot 1 (top position)"] =
-        "|cFFFFAA00Pet is already in slot 1 (top position)|r",
-    ["Group '%s' created successfully."] =
-        "|cFF00FF00PetStableManagement: Group '%s' created successfully.|r",
+    ["Must be at stable master to reorder pets"] = "Must be at stable master to reorder pets",
+    ["Invalid slot numbers"] = "Invalid slot numbers",
+    ["Slots must be between 1 and %s"] = "Slots must be between 1 and %s",
+    ["Moving pet from slot %s to slot %s..."] = "Moving pet from slot %s to slot %s...",
+    ["Pet is already in slot 1 (top position)"] = "Pet is already in slot 1 (top position)",
+    ["Group '%s' created successfully."] = "Group '%s' created successfully.",
 
     ["Click magnifier button for further details."] =
         "|cff00ff00Click magnifier button for further details.|r",
-    ["Pet Roulette: %s (Display ID: %d)"] = "|cFF00FF00Pet Roulette: %s (Display ID: %d)|r",
-    ["No pets available for Pet Roulette."] = "|cFFFFAA00No pets available for Pet Roulette.|r",
+    ["Pet Roulette: %s (Display ID: %d)"] = "Pet Roulette: %s (Display ID: %d)",
+    ["No pets available for Pet Roulette."] = "No pets available for Pet Roulette.",
     ["No pet models available for Pet Roulette."] =
-        "|cFFFFAA00No pet models available for Pet Roulette.|r",
+        "No pet models available for Pet Roulette.",
 
     -- Special Tames. Its PILL_TAGS stay English: the tab label is also the activeTag
     -- compared in RowMatchesTag, exactly like AbilityBrowser's.
@@ -627,7 +618,7 @@ L.Register({
     ["Search tames..."] = "Search tames...",
     ["None"] = "None",
     ["Special Tames filter applied (%s)."] =
-        "PetStableManagement: Special Tames filter applied (%s).",
+        "Special Tames filter applied (%s).",
 
     -- The remainder, found by an exhaustive scan rather than a shape-guessing one.
     ["Export"]   = "Export",
@@ -654,14 +645,11 @@ L.Register({
     [" (using preserved data)"]   = " (using preserved data)",
     [" (no saved data available)"] = " (no saved data available)",
 
-    ["No pet in slot %s"] = "|cFFFF0000No pet in slot %s|r",
-    ["Pet is already in slot %s (bottom position)"] =
-        "|cFFFFAA00Pet is already in slot %s (bottom position)|r",
-    ["Group '%s' deleted. Pets moved to Ungrouped."] =
-        "|cFF00FF00PetStableManagement: Group '%s' deleted. Pets moved to Ungrouped.|r",
-    ["Created %d group(s), moved %d pet(s)"] =
-        "|cFF00FF00PetStableManagement: Created %d group(s), moved %d pet(s)|r",
-    ["Deleted %d group(s)"] = "|cFF00FF00PetStableManagement: Deleted %d group(s)|r",
+    ["No pet in slot %s"] = "No pet in slot %s",
+    ["Pet is already in slot %s (bottom position)"] = "Pet is already in slot %s (bottom position)",
+    ["Group '%s' deleted. Pets moved to Ungrouped."] = "Group '%s' deleted. Pets moved to Ungrouped.",
+    ["Created %d group(s), moved %d pet(s)"] = "Created %d group(s), moved %d pet(s)",
+    ["Deleted %d group(s)"] = "Deleted %d group(s)",
     ["  - '%s' (slot %s): %s -> %s"] = "  - '%s' (slot %s): %s -> %s",
 
     ["%d item selected"]  = "%d item selected",

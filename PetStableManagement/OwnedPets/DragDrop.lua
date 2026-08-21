@@ -195,7 +195,7 @@ end
 function DD:StartDrag(row, pet, allowOutsideStable)
     if not row or not pet then return end
     if not ns.state.isStableOpen and not allowOutsideStable then
-        print(ns.L("Must be at stable master to reorder pets"))
+        ns.Utils:Msg("ERROR", ns.L("Must be at stable master to reorder pets"))
         return false
     end
 

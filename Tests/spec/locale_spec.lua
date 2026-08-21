@@ -23,7 +23,7 @@ end
 describe("locale lookup", function()
     it("returns the registered text for a declared key", function()
         local L = freshL()
-        eq(L("Panel failed to show!"), "|cFFFF0000Panel failed to show!|r", "declared key")
+        eq(L("Panel failed to show!"), "Panel failed to show!", "declared key")
     end)
 
     it("returns the key itself for an undeclared one", function()
@@ -43,7 +43,7 @@ describe("locale lookup", function()
     it("applies format arguments only when some are passed", function()
         local L = freshL()
         eq(L("Pet data snapshot created: %d pets saved.", 7),
-           "|cFF00FF00Pet data snapshot created: 7 pets saved.|r", "formatted")
+           "Pet data snapshot created: 7 pets saved.", "formatted")
         -- Without args the text is returned untouched, so a literal % cannot crash a
         -- caller that never intended a format string.
         eq(L("100% complete"), "100% complete", "unformatted")

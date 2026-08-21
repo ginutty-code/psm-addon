@@ -94,7 +94,7 @@ function ns.PetGroups:CreateGroup(name, silent)
     Save()
 
     if not silent then
-        print(ns.L("Group '%s' created successfully.", name))
+        ns.Utils:Msg("SUCCESS", ns.L("Group '%s' created successfully.", name))
     end
     return groupId, nil
 end
@@ -207,7 +207,7 @@ function ns.PetGroups:DeleteGroup(groupId)
     end
     Save()
 
-    print(ns.L("Group '%s' deleted. Pets moved to Ungrouped.", groupName))
+    ns.Utils:Msg("SUCCESS", ns.L("Group '%s' deleted. Pets moved to Ungrouped.", groupName))
     return true, nil
 end
 
@@ -281,7 +281,7 @@ function ns.PetGroups:AutoGroupPets(pets, criteria)
     end
 
     Save()
-    print(ns.L("Created %d group(s), moved %d pet(s)",
+    ns.Utils:Msg("SUCCESS", ns.L("Created %d group(s), moved %d pet(s)",
         createdCount, movedCount))
     return { createdCount = createdCount, movedCount = movedCount }
 end
@@ -291,6 +291,6 @@ function ns.PetGroups:DeleteAllGroups()
     local count = 0
     for id in pairs(storage) do storage[id] = nil; count = count + 1 end
     Save()
-    print(ns.L("Deleted %d group(s)", count))
+    ns.Utils:Msg("SUCCESS", ns.L("Deleted %d group(s)", count))
     return count
 end

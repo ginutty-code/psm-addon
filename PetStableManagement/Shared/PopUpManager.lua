@@ -1178,9 +1178,9 @@ function ns.PopUpManager:ShowCoordsPopup(text, npcName, location, displayId)
                     -- only firstCoord is actually placed, so reporting the count would
                     -- claim pins that do not exist.
                     local placed = hasTomTom and waypointCount or 1
-                    print(ns.L("%s waypoint(s) added on %s map for %s", placed, f.location, f.npcName))
+                    ns.Utils:Msg("SUCCESS", ns.L("%s waypoint(s) added on %s map for %s", placed, f.location, f.npcName))
                     if not hasTomTom then
-                        print(ns.L("Only the first location was marked. Install TomTom for all waypoints, portrait icons, and navigation."))
+                        ns.Utils:Msg("WARNING", ns.L("Only the first location was marked. Install TomTom for all waypoints, portrait icons, and navigation."))
                     end
                 end
                 if firstMapId then

@@ -68,13 +68,11 @@ local function InsertTeam(name, slots)
     return team
 end
 
--- Shared: print a colour-formatted addon message
-local function Msg(colour, text)
-    print(("|c%sPetStableManagement: %s|r"):format(colour, text))
-end
-local function MsgOK(text)  Msg("FF00FF00", text) end
-local function MsgWarn(text) Msg("FFFF8800", text) end
-local function MsgErr(text)  Msg("FFFF0000", text) end
+-- Thin aliases over the shared chat-message factory (ns.Utils:Msg), kept local so
+-- every call site below reads as a verb instead of ns.Utils:Msg("SUCCESS", ...).
+local function MsgOK(text)   ns.Utils:Msg("SUCCESS", text) end
+local function MsgWarn(text) ns.Utils:Msg("WARNING", text) end
+local function MsgErr(text)  ns.Utils:Msg("ERROR", text) end
 
 ----------------------------------------------------------------------------------------------------------------
 -- SLOT CAPTURE AND COMPARISON

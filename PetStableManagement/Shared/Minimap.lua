@@ -220,7 +220,7 @@ function ns.Minimap:TogglePanel()
     if not ns.state.panel then
         ns.UI:BuildPanel()
         if not ns.state.panel then
-            print(ns.L("Failed to create panel."))
+            ns.Utils:Msg("ERROR", ns.L("Failed to create panel."))
             return
         end
     end
@@ -232,7 +232,7 @@ function ns.Minimap:TogglePanel()
     if ns.state.isStableOpen then
         ns.Data:CollectStablePets()
     elseif not ns.Data:LoadPersistentDataForDisplay() then
-        print(ns.L("No snapshot available. Please visit a Stable Master to collect your owned pets data."))
+        ns.Utils:Msg("WARNING", ns.L("No snapshot available. Please visit a Stable Master to collect your owned pets data."))
         return
     end
 

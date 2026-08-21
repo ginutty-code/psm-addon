@@ -24,10 +24,10 @@ end
 
 function ns.Log:Dump()
     if #entries == 0 then
-        print(ns.L("No errors recorded this session."))
+        ns.Utils:Msg("SUCCESS", ns.L("No errors recorded this session."))
         return
     end
-    print(ns.L("Pet Stable Management: last %d error(s), oldest first:", #entries))
+    ns.Utils:Msg("ERROR", ns.L("Last %d error(s), oldest first:", #entries))
     for _, entry in ipairs(entries) do
         print(string.format("|cFFFFAA00[%s]|r %s", entry.time, entry.message))
         if entry.traceback then
