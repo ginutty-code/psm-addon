@@ -56,6 +56,29 @@ local PETSTABLE_COMMANDS = {
     debug = function()
         ns.Log:Dump()
     end,
+
+    -- Descriptions reuse the exact "Toggle X" strings the PSM Menu already shows on
+    -- its own buttons for these same actions (Menu.lua), and "Show minimap button"
+    -- from the Options panel checkbox -- one label per action instead of the help
+    -- list inventing its own wording and drifting from the surfaces it describes.
+    help = function()
+        ns.Utils:Msg("SUCCESS", ns.L("Available commands:"))
+        for _, line in ipairs({
+            { "/psm",                 ns.L("Toggle Owned Pets") },
+            { "/psm show",            ns.L("Show minimap button") },
+            { "/psm hide",            ns.L("Hide minimap button") },
+            { "/psm menu",            ns.L("Toggle Menu") },
+            { "/psm models",          ns.L("Toggle Models Browser") },
+            { "/psm options",         ns.L("Toggle Options") },
+            { "/psm roulette",        ns.L("Toggle Pet Roulette") },
+            { "/psm teams",           ns.L("Toggle Pet Teams") },
+            { "/psm debug",           ns.L("Show recent errors") },
+            { "/psm help",            ns.L("Show this list of commands") },
+            { "/petswap [from] [to]", ns.L("Swap two stable pet slots") },
+        }) do
+            print(("|cFFFFD700%s|r - %s"):format(line[1], line[2]))
+        end
+    end,
 }
 
 SlashCmdList["PETSTABLE"] = function(msg)

@@ -467,6 +467,19 @@ L.Register({
     ["No errors recorded this session."] = "No errors recorded this session.",
     ["Last %d error(s), oldest first:"] = "Last %d error(s), oldest first:",
 
+    -- /psm help. Reuses the exact "Toggle X" / "Show minimap button" strings the PSM
+    -- Menu and Options panel already declare for the same actions (Menu.lua,
+    -- OptionsPanel.lua) rather than writing new phrasing, so the two surfaces describe
+    -- the same command identically instead of drifting the way chat messages did
+    -- before ns.Utils:Msg. Only the four entries below with no existing counterpart
+    -- (Menu itself, and help/debug/petswap, which have no button to match) are new.
+    ["Available commands:"] = "Available commands:",
+    ["Hide minimap button"] = "Hide minimap button",
+    ["Toggle Menu"] = "Toggle Menu",
+    ["Show recent errors"] = "Show recent errors",
+    ["Show this list of commands"] = "Show this list of commands",
+    ["Swap two stable pet slots"] = "Swap two stable pet slots",
+
     -- Options panel
     ["Show minimap button"]         = "Show minimap button",
     ["Open with the Stable window"] = "Open with the Stable window",

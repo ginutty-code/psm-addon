@@ -121,6 +121,7 @@ In the WoW addon list (Esc → AddOns), you can enable/disable:
 - `/psm options`: Toggle the options panel
 - `/psm menu`: Toggle the floating menu
 - `/psm show` / `/psm hide`: Show or hide the minimap button
+- `/psm help`: List all available slash commands
 - `/petswap [slot1] [slot2]`: Swap pets between stable slots
 
 ### Settings
