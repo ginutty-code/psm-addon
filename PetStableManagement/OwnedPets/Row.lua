@@ -189,6 +189,7 @@ function ns.UI.Row:UpdateRow(row, pet, groups)
     self:EnsureRowElements(row)
 
     ns.RowManager:UpdateModelDisplay(row, pet.displayID, pet.icon, pet)
+    ns.RowManager:UpdateFavoriteButton(row, pet.displayID)
 
     row.text:SetText(BuildPetText(pet))
 

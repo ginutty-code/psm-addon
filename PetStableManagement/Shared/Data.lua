@@ -441,6 +441,25 @@ function ns.Data:CollectStablePets()
         self:ValidateCollectedData()
     end)
 
+    -- Now that ns.state.stablePets is fully rebuilt (not partway through, as
+    -- it was while SyncFavoriteFromNative was noticing changes above), act on
+    -- everything it queued: broadcast each changed model to every owned pet,
+    -- save once, and repaint both panels once, instead of doing all of that
+    -- against an incomplete list on every single pet that changed.
+    if ns.state.pendingFavoriteBroadcast and next(ns.state.pendingFavoriteBroadcast) then
+        local pending = ns.state.pendingFavoriteBroadcast
+        ns.state.pendingFavoriteBroadcast = {}
+        for displayID, isFav in pairs(pending) do
+            self:PushFavoriteToOwnedPets(displayID, isFav)
+        end
+        self:SaveSettings()
+        self:RefreshFavoriteDisplays()
+        local panel = ns.state.modelsPanel
+        if panel and ns.FilterState:Get("showFavorites") then
+            ns.Browser.ModelsDataLoader:LoadModelsForSelectedFamilies()
+        end
+    end
+
     return #ns.state.stablePets
 end
 
@@ -484,6 +503,117 @@ function ns.Data:SetCachedDerivedFields(petKey, fingerprint, abilities, isExotic
         familyName  = familyName,
         specName    = specName,
     }
+end
+
+-- ─── Favorites: one flag per model, in lockstep with every owned pet ───────────
+-- Favorite is a model-level concept (ns.state.favoriteModels, keyed by
+-- displayID) -- there is no separate "this one specific pet" favorite. Both
+-- of the two ways a favorite can change -- a click anywhere in PSM (Browser
+-- row, popup, or an owned pet's own row, which all share the same handler),
+-- or a direct click on Blizzard's own native star in the default Stable UI,
+-- entirely outside PSM -- broadcast the new value onto every live pet the
+-- current character owns of that model, so Blizzard's own native star and
+-- the Browser always agree regardless of which one the click happened on.
+--
+-- Earlier attempts tried to let a specific owned pet disagree with its model
+-- (its own native flag distinct from the aggregate) and reconcile the two
+-- after the fact, several different ways. All of them either let a still-true
+-- sibling silently re-favorite a pet that had just been explicitly turned
+-- off, or left the Browser's flag hostage to stale data from an offline
+-- character's snapshot. Collapsing to one flag removes the reconciliation
+-- step entirely, rather than fixing it -- there is nothing left to reconcile.
+
+-- Notices a pet's native favorite changing since we last saw it -- whether
+-- that's Blizzard's own stable star clicked directly (PSM's own buttons only
+-- ever fire from a PSM click, so that's otherwise invisible to us), or one of
+-- PSM's own pushes catching up on a pet whose row wasn't visible when it
+-- happened. Either way it's treated as "favorite this model now": the
+-- aggregate is set to match, and every other owned pet of the same model gets
+-- broadcast the same value, same as clicking PSM's own star would. The very
+-- first time a given pet is ever seen this session there's nothing to compare
+-- against, so that read only *seeds* favoriteModels if it's still untouched --
+-- it doesn't broadcast, since arriving at the stable isn't a user action.
+local function SyncFavoriteFromNative(pet)
+    if not pet.petNumber or pet.petNumber == 0 then return end
+    if not pet.displayID or pet.displayID == 0 then return end
+    if not ns.state.favoriteModelsLoaded then return end
+
+    ns.state.lastKnownNativeFavorite = ns.state.lastKnownNativeFavorite or {}
+    local last = ns.state.lastKnownNativeFavorite[pet.petNumber]
+    ns.state.lastKnownNativeFavorite[pet.petNumber] = pet.isFavorite
+
+    if last == nil then
+        if pet.isFavorite and ns.state.favoriteModels[pet.displayID] == nil then
+            ns.state.favoriteModels[pet.displayID] = true
+        end
+        return
+    end
+
+    if last ~= pet.isFavorite then
+        ns.state.favoriteModels[pet.displayID] = pet.isFavorite
+        -- Deferred to once collection fully finishes (see CollectStablePets)
+        -- rather than acted on here: ns.state.stablePets is only partially
+        -- rebuilt at this point in the pass (cleared, then refilled pet by
+        -- pet), so broadcasting to siblings or repainting from it right now
+        -- would scan an incomplete list -- which is what caused a Browser
+        -- row's ownership border to flash correct and then go wrong.
+        ns.state.pendingFavoriteBroadcast = ns.state.pendingFavoriteBroadcast or {}
+        ns.state.pendingFavoriteBroadcast[pet.displayID] = pet.isFavorite
+    end
+end
+
+-- Repaints already-visible favorite stars on both panels. Neither Owned Pets
+-- rows (which read a specific pet's own isFavorite) nor Browser rows (which
+-- read the shared aggregate) repaint themselves just because the underlying
+-- table changed elsewhere -- this is the one place both get told to. Cheap:
+-- both are pure "redraw what's already built from current state", not a
+-- refetch or refilter.
+function ns.Data:RefreshFavoriteDisplays()
+    if ns.UI and ns.UI.UpdateVisibleRows then ns.UI:UpdateVisibleRows() end
+    if ns.Browser.ModelsPanel and ns.Browser.ModelsPanel.UpdateVisibleRows then
+        ns.Browser.ModelsPanel:UpdateVisibleRows()
+    end
+end
+
+-- Pushes isFav onto one specific live pet's native favorite flag. Only ever
+-- called for the current character's own live pet at an open stable -- slotID
+-- is stale/meaningless otherwise, and every other C_StableInfo write in this
+-- codebase is scoped the same way (see Reorder.lua). When it can't act
+-- immediately (away from the stable, or slotID not yet known), the intent is
+-- queued by petNumber and applied next time this exact pet is collected live.
+function ns.Data:PushNativeFavorite(petData, isFav)
+    if not petData or petData.tamer ~= ns.GetCharacterKey() then return end
+    if not (ns.C_StableInfo and ns.C_StableInfo.SetPetFavorite) then return end
+    if not ns.state.isStableOpen or not petData.slotID then
+        if petData.petNumber then
+            ns.state.pendingNativeFavorite = ns.state.pendingNativeFavorite or {}
+            ns.state.pendingNativeFavorite[petData.petNumber] = isFav
+        end
+        return
+    end
+    ns.Utils.SafeCall(ns.C_StableInfo.SetPetFavorite, petData.slotID, isFav)
+end
+
+-- Catches up a native push queued while away from the stable, keyed by
+-- petNumber so it only ever applies to the exact pet that was clicked.
+local function ApplyPendingNativeFavorite(pet)
+    local pending = pet.petNumber and ns.state.pendingNativeFavorite
+                    and ns.state.pendingNativeFavorite[pet.petNumber]
+    if pending ~= nil and pet.slotID then
+        ns.Data:PushNativeFavorite(pet, pending)
+        ns.state.pendingNativeFavorite[pet.petNumber] = nil
+    end
+end
+
+-- The broadcast side of the lockstep: every live pet the current character
+-- owns of this model gets pushed to the same new value, unconditionally.
+function ns.Data:PushFavoriteToOwnedPets(displayID, isFav)
+    local currentKey = ns.GetCharacterKey()
+    for _, pet in ipairs(ns.state.stablePets) do
+        if pet.tamer == currentKey and pet.displayID == displayID then
+            self:PushNativeFavorite(pet, isFav)
+        end
+    end
 end
 
 -- Appends to ns.state.stablePets; returns nothing. It used to return
@@ -550,6 +680,9 @@ function ns.Data:CollectStabledPets()
         p.uiModelSceneID = nil
         p.creatureID     = nil
 
+        SyncFavoriteFromNative(p)
+        ApplyPendingNativeFavorite(p)
+
         if p.name then table.insert(collected, p) end
     end
 
@@ -598,7 +731,7 @@ function ns.Data:ProcessPetInfo(petInfo, slotID, isActive)
         self:SetCachedDerivedFields(petKey, fingerprint, abilities, isExotic, familyName, specName)
     end
 
-    return {
+    local pet = {
         slotID     = slotID,
         name       = petInfo.name,
         icon       = petInfo.icon,
@@ -616,6 +749,9 @@ function ns.Data:ProcessPetInfo(petInfo, slotID, isActive)
         modelSceneID = 783,
         tamer      = ns.GetCharacterKey(),
     }
+    SyncFavoriteFromNative(pet)
+    ApplyPendingNativeFavorite(pet)
+    return pet
 end
 
 function ns.Data:GetPetSpecName(pet)

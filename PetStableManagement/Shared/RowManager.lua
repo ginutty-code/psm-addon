@@ -446,6 +446,20 @@ function ns.RowManager:CreateBaseRow(parent, config)
         ns.state.favoriteModels[row.displayId] = isFav
         SetFavTexCoords(isFav)
         if ns.Data and ns.Data.SaveSettings then ns.Data:SaveSettings() end
+        -- Favorite is a model-level concept: every pet sharing this displayId
+        -- stays in lockstep, so this pushes the SAME new value onto every live
+        -- pet the current character owns of it -- unconditionally, both
+        -- directions. There is deliberately no per-pet favorite distinct from
+        -- this shared flag.
+        if ns.Data and ns.Data.PushFavoriteToOwnedPets then
+            ns.Data:PushFavoriteToOwnedPets(row.displayId, isFav)
+        end
+        -- Redraws every currently-visible row on both panels, not just this
+        -- one -- a sibling pet sharing this displayId (Owned Pets) or an
+        -- already-open Browser row for this model is showing a now-stale
+        -- texture otherwise, since favoriteModels changed but nothing
+        -- repainted the button that was already built.
+        if ns.Data and ns.Data.RefreshFavoriteDisplays then ns.Data:RefreshFavoriteDisplays() end
         local panel = ns.state.modelsPanel
         if panel and ns.FilterState:Get("showFavorites") then
             ns.Browser.ModelsDataLoader:LoadModelsForSelectedFamilies()

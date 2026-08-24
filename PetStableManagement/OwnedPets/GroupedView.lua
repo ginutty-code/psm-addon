@@ -135,7 +135,7 @@ function ns.UI.GroupedView:UpdateRow(row, pet)
     end
     local isSame, isCross = ns.RowManager:CheckDuplicates(pet, ns.state.allGroups)
     ns.RowManager:UpdateBackgroundColor(row, isSame, isCross, false, pet.specName)
-    ns.RowManager:HideFavoriteButton(row)
+    ns.RowManager:UpdateFavoriteButton(row, pet.displayID)
     if ns.DragDrop then
         ns.DragDrop:SetupRowDragDrop(row, pet, true)
         ns.DragDrop:SetupModelDragDrop(row.model, pet, row, true)

@@ -121,7 +121,7 @@ function GV:UpdateRow(row, pet)
     }
     for _, el in ipairs(unused) do HideIfExists(el) end
 
-    ns.RowManager:HideFavoriteButton(row)
+    ns.RowManager:UpdateFavoriteButton(row, pet.displayID)
 
     if ns.DragDrop then
         ns.DragDrop:SetupRowDragDrop(row, pet)

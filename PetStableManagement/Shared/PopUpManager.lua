@@ -713,6 +713,13 @@ function ns.PopUpManager:CreateModelPopup(config)
         ns.state.favoriteModels[id] = not ns.state.favoriteModels[id]
         SetFavTexCoord(self, ns.state.favoriteModels[id])
         if ns.Data and ns.Data.SaveSettings then ns.Data:SaveSettings() end
+        -- Same lockstep broadcast as RowManager.lua's row star -- see there for why.
+        if ns.Data and ns.Data.PushFavoriteToOwnedPets then
+            ns.Data:PushFavoriteToOwnedPets(id, ns.state.favoriteModels[id])
+        end
+        -- See RowManager.lua's row star -- redraws every visible row on both
+        -- panels so a now-stale button texture gets repainted.
+        if ns.Data and ns.Data.RefreshFavoriteDisplays then ns.Data:RefreshFavoriteDisplays() end
         local panel = ns.state.modelsPanel
         if panel and ns.FilterState:Get("showFavorites") and ns.Browser.ModelsDataLoader then
             ns.Browser.ModelsDataLoader:LoadModelsForSelectedFamilies()
