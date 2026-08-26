@@ -110,15 +110,16 @@ function ns.UI:AddOwnedPetsElements(panel)
     ns.UI:BuildSortButtons(panel)
 
     -- Scroll frame --------------------------------------------------------
-    -- -35 clears the exotic/duplicates checkboxes stacked above the dropdown row
-    -- (BuildFilters anchors them 3px above FILTER_TOP), same gap as before A13, now
-    -- expressed relative to the shared filter-row anchor instead of a second literal.
+    -- -69 clears the second dropdown row below FILTER_TOP (BuildFilters' row2Y, 34px
+    -- down -- one dropdown's height plus a 2px gap -- plus the original 35px
+    -- clearance). The stacked exotic/duplicates checkboxes live *above* FILTER_TOP
+    -- instead, in the search-box/reset-button gap, so they don't factor in here.
     local scrollFrame = Widgets.Frame(panel, {
         frameType = "ScrollFrame",
         template  = "UIPanelScrollFrameTemplate",
         skin      = "scrollframe",
         point     = {
-            { "TOPLEFT",      10, Theme.CHROME.FILTER_TOP - 35 },
+            { "TOPLEFT",      10, Theme.CHROME.FILTER_TOP - 69 },
             { "BOTTOMRIGHT", -30,   35 },
         },
     })

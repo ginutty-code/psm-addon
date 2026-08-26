@@ -57,6 +57,7 @@ local COVERED = {
     selectedSpecs        = "ownedSpecs",
     selectedFamilies     = "ownedFamilies",
     selectedTamers       = "ownedTamers",
+    selectedAbilities    = "ownedAbilities",
     exoticFilter         = "ownedExotic",
     duplicatesOnlyFilter = "ownedDuplicates",
     sortBy               = "ownedSort",

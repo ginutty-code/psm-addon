@@ -185,9 +185,10 @@ L.Register({
     ["Exotic Only"]     = "Exotic Only",
     ["Duplicates Only"] = "Duplicates Only",
 
-    ["All Specs"]    = "All Specs",
-    ["All Hunters"]  = "All Hunters",
-    ["All Families"] = "All Families",
+    ["All Specs"]     = "All Specs",
+    ["All Hunters"]   = "All Hunters",
+    ["All Families"]  = "All Families",
+    ["All Abilities"] = "All Abilities",
     ["All Exotic Families"]     = "All Exotic Families",
     ["All Non-Exotic Families"] = "All Non-Exotic Families",
 
@@ -201,9 +202,10 @@ L.Register({
     ["Grouped view requires Unsorted."]        = "Grouped view requires Unsorted.",
 
     -- What the Reset Filters tooltip promises it will do.
-    ["All Specs selected"]    = "All Specs selected",
-    ["All Families selected"] = "All Families selected",
-    ["All Hunters selected"]  = "All Hunters selected",
+    ["All Specs selected"]     = "All Specs selected",
+    ["All Families selected"]  = "All Families selected",
+    ["All Hunters selected"]   = "All Hunters selected",
+    ["All Abilities selected"] = "All Abilities selected",
     ["Tamer: kept on current hunter"] = "Tamer: kept on current hunter",
     ["Exotic Only: OFF"]     = "Exotic Only: OFF",
     ["Duplicates Only: OFF"] = "Duplicates Only: OFF",

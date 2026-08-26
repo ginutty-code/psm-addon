@@ -86,6 +86,140 @@ local function InitMultiDropdown(getItems, getStateTable, dropdown, allLabel, fi
     UIDropDownMenu_SetText(dropdown, DropdownText(getStateTable(), allLabel))
 end
 
+-- ─── Ability dropdown (two-level: category, then abilities within it) ─────────
+-- A flat list of every ability the account's pets carry got unwieldy fast with no
+-- way to know which one does what (the case that started this: "which of my pets
+-- can slow?"). AbilitiesData's `category` field answers that directly (e.g. "Enemy
+-- movement reduction"), so it's the one grouping level -- the coarser `tag` field
+-- (Control/Damage/...) was tried first and dropped: Tag -> Category -> Ability would
+-- be a real third click for no benefit here, since this list only ever holds
+-- categories actually present on the account's pets, not the whole game's catalog
+-- tag exists to keep browsable in the Ability Browser.
+
+-- The distinct categories among `abilities` (an array of ability names), sorted.
+local function AbilityCategories(abilities)
+    local seen, list = {}, {}
+    for _, name in ipairs(abilities) do
+        local category = ns.Data:GetAbilityCategory(name)
+        if not seen[category] then
+            seen[category] = true
+            list[#list + 1] = category
+        end
+    end
+    table.sort(list)
+    return list
+end
+
+-- The ability names under one category, sorted. Filters ns.state.abilityList fresh
+-- rather than caching, on the same reasoning as InitMultiDropdown's getItems/
+-- getStateTable functions: a stale copy would survive past ClearMemory/reload.
+local function AbilitiesInCategory(category)
+    local list = {}
+    for _, name in ipairs(ns.state.abilityList) do
+        if ns.Data:GetAbilityCategory(name) == category then
+            list[#list + 1] = name
+        end
+    end
+    table.sort(list)
+    return list
+end
+
+local function InitAbilityDropdown(panel)
+    local dropdown = panel.abilityDrop
+    local allLabel = ns.L("All Abilities")
+
+    -- allOn, noneOn for a category's abilities against the given selection set.
+    -- Read fresh at call time rather than cached, so a click that fires it gets the
+    -- true current state even if the submenu was fiddled with since level 1 was drawn.
+    local function CategorySelectionState(category, selected)
+        local allOn, noneOn = true, true
+        for _, name in ipairs(AbilitiesInCategory(category)) do
+            if selected[name] then noneOn = false else allOn = false end
+        end
+        return allOn, noneOn
+    end
+
+    -- Same "all/some/none selected" idiom AbilityBrowser's own category-card headers
+    -- use (Theme.SelectionStateColor's doc comment names it as shared with them).
+    local function CategoryColor(category)
+        local allOn, noneOn = CategorySelectionState(category, ns.state.selectedAbilities)
+        return ns.Theme.SelectionStateColor(allOn, not noneOn)
+    end
+
+    UIDropDownMenu_Initialize(dropdown, function(_, level)
+        level = level or 1
+        local selected = ns.state.selectedAbilities
+
+        if level == 1 then
+            local info = UIDropDownMenu_CreateInfo()
+            info.text    = "  " .. allLabel
+            info.value   = "ALL"
+            info.checked = false
+            info.func = function()
+                ns.Utils:ClearTable(selected)
+                UIDropDownMenu_SetText(dropdown, allLabel)
+                ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
+            end
+            UIDropDownMenu_AddButton(info, level)
+
+            for _, category in ipairs(AbilityCategories(ns.state.abilityList)) do
+                local r, g, b = unpack(CategoryColor(category))
+                info = UIDropDownMenu_CreateInfo()
+                -- +0.5 before the implicit truncation string.format("%x", ...) does on a
+                -- float (Lua 5.1: a C-style (int) cast, not a rounding one) -- without it,
+                -- a channel like Theme.COLOR.GREY's 0.6 (not exactly representable in
+                -- binary float) can land a shade off.
+                info.text         = ("|cff%02x%02x%02x%s|r"):format(
+                    math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5), category)
+                info.value        = category
+                info.hasArrow     = true
+                info.notCheckable = true
+                -- Clicking the row itself (not just opening its arrow submenu) selects
+                -- every ability in the category in one step -- ticking each individually
+                -- was the friction this category grouping exists to remove. Toggles: a
+                -- category already fully selected clicks back to none.
+                --
+                -- Deliberately NOT keepShownOnClick: this row's own colour is baked into
+                -- `info.text` above, computed once when level 1 was drawn, and closing
+                -- rather than staying open is what guarantees the next open recomputes it
+                -- (and, if a submenu is open, its checkmarks) from the real state instead
+                -- of leaving the just-clicked row showing its pre-click colour until
+                -- something else forces a redraw.
+                info.func = function()
+                    local allOn = CategorySelectionState(category, selected)
+                    for _, name in ipairs(AbilitiesInCategory(category)) do
+                        selected[name] = (not allOn) or nil
+                    end
+                    UIDropDownMenu_SetText(dropdown, DropdownText(selected, allLabel))
+                    ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
+                end
+                UIDropDownMenu_AddButton(info, level)
+            end
+        elseif level == 2 then
+            local category = UIDROPDOWNMENU_MENU_VALUE
+            for _, name in ipairs(AbilitiesInCategory(category)) do
+                local info = UIDropDownMenu_CreateInfo()
+                info.text             = "  " .. name
+                info.value            = name
+                info.checked          = selected[name] or false
+                info.keepShownOnClick = true
+                info.isNotRadio       = true
+                info.icon             = ns.Data:GetAbilityIcon(name)
+                info.tooltipTitle     = name
+                info.tooltipText      = category
+                info.tooltipOnButton  = true
+                info.func = function(_, _, _, checked)
+                    selected[name] = checked or nil
+                    UIDropDownMenu_SetText(dropdown, DropdownText(selected, allLabel))
+                    ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
+                end
+                UIDropDownMenu_AddButton(info, level)
+            end
+        end
+    end)
+    UIDropDownMenu_SetText(dropdown, DropdownText(ns.state.selectedAbilities, allLabel))
+end
+
 -- Returns the family dropdown's "all" label given the current exotic filter.
 local function FamilyAllLabel()
     if ns.state.exoticFilter == true then
@@ -170,7 +304,19 @@ function ns.UI:BuildFilters(panel)
     local rowY = ns.Theme.CHROME.FILTER_TOP
     local step = cfg.DROPDOWN_SPACING
 
-    -- All four are UIDropDownMenuTemplate frames of the same width, differing only
+    -- Second row, directly below the first -- a 2x2 grid reads better than three
+    -- dropdowns crammed on one row plus a fourth on its own below. Columns are by
+    -- use/flow rather than by what fit where: column 1 narrows by exotic-ness then
+    -- browses by family then ability, column 2 narrows to duplicates then browses by
+    -- tamer then spec -- each checkbox sits directly over the dropdown it actually
+    -- affects (Exotic Only rebuilds the family dropdown's own contents; see
+    -- InitFamilyDropdown) rather than the other column's.
+    --
+    -- -34 is one dropdown template's height (32) plus a 2px gap; Panel.lua's scroll
+    -- frame clearance below FILTER_TOP is sized to match (see its comment).
+    local row2Y = rowY - 34
+
+    -- All five are UIDropDownMenuTemplate frames of the same width, differing only
     -- in where they sit and how they are populated.
     local function Dropdown(name, point)
         local d = Widgets.Frame(panel, {
@@ -183,18 +329,25 @@ function ns.UI:BuildFilters(panel)
         return d
     end
 
-    panel.specDrop = Dropdown("PetDupSpecDrop", { "TOPLEFT", -10, rowY })
+    -- Column 1: Family (row 1), then Ability (row 2).
+    panel.familyDrop = Dropdown("PetDupFamilyDrop", { "TOPLEFT", -10, rowY })
+    InitFamilyDropdown(panel)
+
+    panel.abilityDrop = Dropdown("PetDupAbilityDrop", { "TOPLEFT", -10, row2Y })
+    InitAbilityDropdown(panel)
+
+    -- Column 2: Tamer (row 1), then Spec (row 2).
+    panel.tamerDrop = Dropdown("PetDupTamerDrop", { "TOPLEFT", step * 1 - 10, rowY })
+    self:ReinitializeTamerDropdown()
+
+    panel.specDrop = Dropdown("PetDupSpecDrop", { "TOPLEFT", step * 1 - 10, row2Y })
     InitMultiDropdown(function() return ns.state.specList end,
                       function() return ns.state.selectedSpecs end,
                       panel.specDrop, ns.L("All Specs"))
 
-    panel.familyDrop = Dropdown("PetDupFamilyDrop", { "TOPLEFT", step * 1 - 10, rowY })
-    InitFamilyDropdown(panel)
-
-    panel.tamerDrop = Dropdown("PetDupTamerDrop", { "TOPLEFT", step * 2 - 10, rowY })
-    self:ReinitializeTamerDropdown()
-
-    panel.sortDrop = Dropdown("PetDupSortDrop", { "TOPRIGHT", -17, rowY })
+    -- row2Y, not rowY: lined up with the bottom dropdown row (Ability/Spec), not the
+    -- top one -- there's nothing else on the right at row2Y's height to compete with.
+    panel.sortDrop = Dropdown("PetDupSortDrop", { "TOPRIGHT", -17, row2Y })
     InitSortDropdown(panel)
 
     local DIM, GOLD = ns.Theme.COLOR.DIM, ns.Theme.COLOR.GOLD
@@ -217,6 +370,9 @@ function ns.UI:BuildFilters(panel)
         },
     })
 
+    -- Each checkbox sits directly above the column it heads -- Exotic Only over
+    -- Family (it also rebuilds that dropdown's contents, see onChanged below),
+    -- Duplicates Only over Tamer -- rather than stacked together over one column.
     panel.exoticCheck = CreateFilterCheckbox(panel, {
         point         = { "BOTTOMLEFT", panel.familyDrop, "TOPLEFT", 16, 3 },
         label         = ns.L("Exotic Only"),
@@ -323,10 +479,11 @@ function ns.UI:UpdateFilterUI()
     if panel.exoticCheck     then panel.exoticCheck:SetTriState(ns.state.exoticFilter)              end
     if panel.duplicatesCheck then panel.duplicatesCheck:SetTriState(ns.state.duplicatesOnlyFilter)  end
 
-    if panel.specDrop   then UIDropDownMenu_SetText(panel.specDrop,   DropdownText(ns.state.selectedSpecs,   ns.L("All Specs")))       end
-    if panel.familyDrop then UIDropDownMenu_SetText(panel.familyDrop, DropdownText(ns.state.selectedFamilies, FamilyAllLabel())) end
-    if panel.tamerDrop  then UIDropDownMenu_SetText(panel.tamerDrop,  DropdownText(ns.state.selectedTamers,  ns.L("All Hunters")))     end
-    if panel.sortDrop   then UIDropDownMenu_SetText(panel.sortDrop,   SortDropLabel())                                            end
+    if panel.specDrop    then UIDropDownMenu_SetText(panel.specDrop,    DropdownText(ns.state.selectedSpecs,   ns.L("All Specs")))       end
+    if panel.familyDrop  then UIDropDownMenu_SetText(panel.familyDrop,  DropdownText(ns.state.selectedFamilies, FamilyAllLabel())) end
+    if panel.tamerDrop   then UIDropDownMenu_SetText(panel.tamerDrop,   DropdownText(ns.state.selectedTamers,  ns.L("All Hunters")))     end
+    if panel.abilityDrop then UIDropDownMenu_SetText(panel.abilityDrop, DropdownText(ns.state.selectedAbilities, ns.L("All Abilities"))) end
+    if panel.sortDrop    then UIDropDownMenu_SetText(panel.sortDrop,    SortDropLabel())                                            end
 end
 
 -- Lives here rather than in UI.lua, which held a byte-identical copy of SORT_LABELS to
@@ -354,6 +511,7 @@ function ns.UI:BuildSortButtons(panel)
                 ns.L("All Specs selected"), ns.L("All Families selected"),
                 ns.state.isStableOpen and ns.L("Tamer: kept on current hunter")
                                        or ns.L("All Hunters selected"),
+                ns.L("All Abilities selected"),
                 ns.L("Exotic Only: OFF"), ns.L("Duplicates Only: OFF"), ns.L("Clear search box"),
                 ns.L("Sort by: Unsorted"),
             }) do
@@ -374,8 +532,10 @@ function ns.UI:BuildSortButtons(panel)
 
             ns.Utils:ClearTable(ns.state.selectedSpecs)
             ns.Utils:ClearTable(ns.state.selectedFamilies)
-            UIDropDownMenu_SetText(panel.specDrop,   ns.L("All Specs"))
-            UIDropDownMenu_SetText(panel.familyDrop, ns.L("All Families"))
+            ns.Utils:ClearTable(ns.state.selectedAbilities)
+            UIDropDownMenu_SetText(panel.specDrop,    ns.L("All Specs"))
+            UIDropDownMenu_SetText(panel.familyDrop,  ns.L("All Families"))
+            UIDropDownMenu_SetText(panel.abilityDrop, ns.L("All Abilities"))
 
             -- When stable is open, keep tamer locked to current hunter
             if not ns.state.isStableOpen then

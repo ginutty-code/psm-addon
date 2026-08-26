@@ -29,7 +29,13 @@ ns.Config = {
     DROPDOWN_SPACING = 118,
 
     -- Panel
-    DEFAULT_PANEL_WIDTH  = 550,
+    -- 570, not the original 550: the 2x2 filter grid (two dropdown columns plus the
+    -- Sort dropdown on the right) needs a little more breathing room than the panel
+    -- had when it was three dropdowns across one row. Also the fallback default for
+    -- TeamsPanel's width (until a player resizes it -- see GetTeamsPanelWidth), so
+    -- that panel grows by the same 20px until then, deliberately, since nothing about
+    -- growing the shared baseline should read as a bug to fix later.
+    DEFAULT_PANEL_WIDTH  = 570,
     DEFAULT_PANEL_HEIGHT = 640,
     DEFAULT_ROW_WIDTH    = 400,
     MIN_PANEL_WIDTH      = 500,

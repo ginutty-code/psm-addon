@@ -25,7 +25,9 @@ ns.state = ns.state or {
     sortBy = nil,
     exoticFilter = false, duplicatesOnlyFilter = false,
     selectedSpecs = {}, selectedFamilies = {}, selectedModelsFamilies = {},
+    selectedAbilities = {},
     favoriteModels = {}, favoriteModelsLoaded = false, specList = {}, familyList = {},
+    abilityList = {},
     isStableOpen = false, minimapButton = nil, exportFrame = nil,
 }
 ns.UI.state = ns.state  -- backward-compat alias
@@ -222,7 +224,7 @@ end
 -- trusting the cache key it replaces -- which is how `panelWidth` was found missing.
 local RENDER_SLICES = {
     "ownedPets", "ownedSearch", "ownedSpecs", "ownedFamilies", "ownedTamers",
-    "ownedExotic", "ownedDuplicates", "ownedSort", "panelWidth",
+    "ownedAbilities", "ownedExotic", "ownedDuplicates", "ownedSort", "panelWidth",
 }
 
 local renderResults   -- the selector; built on first use, dropped by CreateRenderCache
@@ -274,6 +276,20 @@ function ns.UI:_RenderPanelImmediate(preserveScroll)
     self:_ApplyCachedRender(renderResults(), preserveScroll)
 end
 
+-- True when `pet` carries at least one ability in `selected` (a name -> true set), across
+-- any bucket. Same bucket-name list as the search match below, on purpose: both walk the
+-- same per-pet ability shape and neither has a reason to disagree about it.
+local function PetHasSelectedAbility(pet, selected)
+    local abs = pet.abilities
+    if not abs then return false end
+    for _, cat in ipairs({"family", "spec", "pet", "unknown"}) do
+        for _, ability in ipairs(abs[cat] or {}) do
+            if selected[ability] then return true end
+        end
+    end
+    return false
+end
+
 function ns.UI:_CalculateRenderData()
     local searchText  = ns.state.panel.searchBox:GetSearchText() or ""
     local searchLower = searchText ~= "" and ns.Utils:NormalizeSearchText(searchText) or ""
@@ -287,12 +303,13 @@ function ns.UI:_CalculateRenderData()
     end
 
     -- Filter flags
-    local hasSpecsFilter  = next(ns.state.selectedSpecs)    ~= nil
-    local hasFamilyFilter = next(ns.state.selectedFamilies) ~= nil
-    local hasTamerFilter  = next(ns.state.selectedTamers)   ~= nil
-    local hasSearch       = searchLower ~= ""
-    local needsDupes      = ns.state.duplicatesOnlyFilter == true
-    local needsNoDupes    = ns.state.duplicatesOnlyFilter == "inverted"
+    local hasSpecsFilter    = next(ns.state.selectedSpecs)      ~= nil
+    local hasFamilyFilter   = next(ns.state.selectedFamilies)   ~= nil
+    local hasTamerFilter    = next(ns.state.selectedTamers)     ~= nil
+    local hasAbilityFilter  = next(ns.state.selectedAbilities)  ~= nil
+    local hasSearch         = searchLower ~= ""
+    local needsDupes        = ns.state.duplicatesOnlyFilter == true
+    local needsNoDupes      = ns.state.duplicatesOnlyFilter == "inverted"
 
     local duplicateKeys = {}
     if needsDupes or needsNoDupes then
@@ -312,6 +329,7 @@ function ns.UI:_CalculateRenderData()
         elseif hasSpecsFilter  and not ns.state.selectedSpecs[pet.specName]                 then skip = true
         elseif hasFamilyFilter and not ns.state.selectedFamilies[pet.familyName]            then skip = true
         elseif hasTamerFilter  and not ns.state.selectedTamers[pet.tamer]                   then skip = true
+        elseif hasAbilityFilter and not PetHasSelectedAbility(pet, ns.state.selectedAbilities) then skip = true
         elseif needsDupes      and not duplicateKeys[ns.Utils:GetPetDuplicateKey(pet)]      then skip = true
         elseif needsNoDupes    and     duplicateKeys[ns.Utils:GetPetDuplicateKey(pet)]      then skip = true
         end

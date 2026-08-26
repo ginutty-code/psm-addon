@@ -1,5 +1,7 @@
 -- Schema.lua
 -- Asserts the generated Data/ tables match what this addon was built against.
+-- AbilitiesData.lua's own copy of this check lives in core's Shared/DataSchema.lua --
+-- see that file for why.
 
 local EXPECTED_SCHEMA_VERSION = 1
 

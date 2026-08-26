@@ -6,18 +6,27 @@ sees and reasons about, so keep it that way:
 
 - **`PetStableManagement/`** — the core addon (Owned Pets panel, teams,
   filters, minimap button, options). Always loaded, and the only one that is.
+  Its own `Data/AbilitiesData.lua` is one of the five generated tables (see below) —
+  the one exception pulled into core rather than the optional module, because
+  Owned Pets' ability filter needs it at login and it's small enough (~34KB) that it
+  doesn't need `LoadOnDemand`'s deferral. `Shared/DataSchema.lua` asserts it, right
+  after it loads.
 - **`PetStableManagement_ModelsBrowser/`** — optional module, **`LoadOnDemand`**
   (`RequiredDeps: PetStableManagement`) adding the Models/NPC browser, Abilities
   Browser, Special Tames, and Pet Roulette. Split internally:
   - `ModelsBrowser/` — hand-written Lua.
-  - `Data/` — the five generated tables (`ModelsData.lua`, `AbilitiesData.lua`,
-    `CoordsData.lua`, `ConditionsData.lua`, `NotesData.lua`), and the sync target of
-    `../psm-data`'s `config.sync_output_to_addon()`. **Never hand-edit these** —
-    change the generator. The subfolder exists only to keep generated and
-    hand-written Lua apart; it is not a separate addon.
+  - `Data/` — four of the five generated tables (`ModelsData.lua`, `CoordsData.lua`,
+    `ConditionsData.lua`, `NotesData.lua`) — the ones too large (hundreds of KB each)
+    to parse at login, which is the whole reason this module is `LoadOnDemand`.
+    **Never hand-edit these** — change the generator. The subfolder exists only to
+    keep generated and hand-written Lua apart; it is not a separate addon.
 
 Those five files come from a sibling repo, `../psm-data` (a Python Wowhead/Petopia
-scraping pipeline).
+scraping pipeline), which syncs `AbilitiesData.lua` to core's `Data/` and the other
+four to the Models Browser's `Data/` (`CORE_ADDON_DATA_DIR` / `ADDON_DATA_DIR` in
+`psm-data/config.py`). Both addons read the same bare global `AbilitiesData` table
+either way — it isn't namespaced under `ns` or `PSM` — so which `.toc` happens to
+load the file is the only thing that changed.
 
 ## Loading the Models Browser
 

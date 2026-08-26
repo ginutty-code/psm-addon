@@ -23,7 +23,7 @@ The main panel for viewing and managing your hunter's pet collection.
 
 #### Default/List View
 - **Advanced Sorting**: Sort pets by: family, model (display ID), slot, spec, tamer (owner)
-- **Powerful Filtering**: Filter by exotic status, duplicates, specs, families, and tamers — ownership is tracked account-wide across all your hunters, but while the Blizzard Stable window is open, the tamer filter locks to the current hunter
+- **Powerful Filtering**: Filter by exotic status, duplicates, specs, families, tamers, and abilities — ownership is tracked account-wide across all your hunters, but while the Blizzard Stable window is open, the tamer filter locks to the current hunter
 - **Search Functionality**: Quickly find specific pets with real-time search by various criteria
 - **Persistent Data Storage**: Your pet data is saved across sessions
 - **Export Options**: Export your pet collection data as CSV with selectable columns

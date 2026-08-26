@@ -258,9 +258,10 @@ end)
 -- `UI:_CalculateRenderData` -- checked by reading it rather than by trusting the old cache
 -- key, which turned out to be missing one (see `panelWidth`).
 
-Store:Declare("ownedSpecs",    function() return ns.Utils:GetTableHash(ns.state.selectedSpecs) end)
-Store:Declare("ownedFamilies", function() return ns.Utils:GetTableHash(ns.state.selectedFamilies) end)
-Store:Declare("ownedTamers",   function() return ns.Utils:GetTableHash(ns.state.selectedTamers) end)
+Store:Declare("ownedSpecs",     function() return ns.Utils:GetTableHash(ns.state.selectedSpecs) end)
+Store:Declare("ownedFamilies",  function() return ns.Utils:GetTableHash(ns.state.selectedFamilies) end)
+Store:Declare("ownedTamers",    function() return ns.Utils:GetTableHash(ns.state.selectedTamers) end)
+Store:Declare("ownedAbilities", function() return ns.Utils:GetTableHash(ns.state.selectedAbilities) end)
 
 Store:Declare("ownedExotic",     function() return tostring(ns.state.exoticFilter) end)
 Store:Declare("ownedDuplicates", function() return tostring(ns.state.duplicatesOnlyFilter) end)

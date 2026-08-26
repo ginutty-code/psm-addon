@@ -12,16 +12,22 @@
 # Kept in their own subfolder purely to keep generated and hand-written Lua apart;
 # they are part of this addon, not a separate one.
 #
+# AbilitiesData.lua is NOT here -- it moved to the core addon's own Data/ folder
+# (PetStableManagement/Data/AbilitiesData.lua), because Owned Pets' ability filter
+# needs it at login and the core addon has no LoadOnDemand deferral to wait for.
+# This module still reads the same global `AbilitiesData` table; it just no longer
+# loads the file that defines it.
+#
 # Loaded first: nothing here reads them at file scope today, but ordering the data
 # ahead of its consumers removes the question entirely.
 Data/ModelsData.lua
-Data/AbilitiesData.lua
 Data/CoordsData.lua
 Data/NotesData.lua
 Data/ConditionsData.lua
 
-# Asserts the tables above match what this addon expects (PSM_DataSchemaVersion),
-# failing loud here instead of every consumer hitting nil-index errors independently.
+# Asserts the tables above match what this addon expects (PSM_DataSchemaVersion).
+# AbilitiesData.lua's own copy of this check now lives in core's Shared/DataSchema.lua
+# instead -- it stamps the same global, checked independently on each side.
 ModelsBrowser/Schema.lua
 
 # Models Browser feature

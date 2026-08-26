@@ -125,12 +125,13 @@ end
 -- its untouched {} default as real data, permanently overriding "all selected" on next login.
 local FILTER_KEYS = {
     "sortBy", "exoticFilter", "duplicatesOnlyFilter",
-    "selectedSpecs", "selectedFamilies", "selectedTamers",
+    "selectedSpecs", "selectedFamilies", "selectedTamers", "selectedAbilities",
     "selectedTamingRules", "selectedConditions",
 }
 
 local TABLE_FILTER_KEYS = {
     selectedSpecs = true, selectedFamilies = true, selectedTamers = true,
+    selectedAbilities = true,
     selectedTamingRules = true, selectedConditions = true,
 }
 
@@ -245,6 +246,7 @@ function ns.Data:SaveSettings()
             selectedSpecs          = DeepCopyIfNonEmpty(ns.state.selectedSpecs),
             selectedFamilies       = DeepCopyIfNonEmpty(ns.state.selectedFamilies),
             selectedTamers         = DeepCopyIfNonEmpty(ns.state.selectedTamers),
+            selectedAbilities      = DeepCopyIfNonEmpty(ns.state.selectedAbilities),
             selectedTamingRules    = DeepCopyIfNonEmpty(ns.state.selectedTamingRules),
             selectedConditions     = DeepCopyIfNonEmpty(ns.state.selectedConditions),
             modelsPanelCurrentPage = currentPage or savedPage or 1,
@@ -322,7 +324,7 @@ function ns.Data:LoadPersistentDataForDisplay(preserveCurrentData)
         if #ns.state.stablePets == 0 then return false end
     end
 
-    self:RebuildSpecAndFamilyLists()
+    self:RebuildSpecFamilyAndAbilityLists()
     self:RebuildTamerList()
 
     local key = GetCharacterKey()
@@ -437,7 +439,7 @@ function ns.Data:CollectStablePets()
     ns.Utils.SafeCall(function()
         self:CollectActivePets()
         self:CollectStabledPets()
-        self:RebuildSpecAndFamilyLists()
+        self:RebuildSpecFamilyAndAbilityLists()
         self:ValidateCollectedData()
     end)
 
@@ -861,21 +863,92 @@ function ns.Data:GetAbilityName(ability)
     return nil
 end
 
+-- ─── Ability detail lookup ────────────────────────────────────────────────────
+-- An owned pet's abilities are already resolved names (ExtractPetAbilities /
+-- GetAbilityName), not spell IDs, so grouping the Owned Pets ability filter by
+-- category needs a name -> {category, icon} index built from the same
+-- Data/AbilitiesData.lua the Ability Browser indexes by spell ID (BuildAbilityIndex
+-- in AbilityBrowser.lua) -- same source table, keyed differently, because that's
+-- what each caller already has on hand. Cached module-locally: AbilitiesData is
+-- static generated data, set once at file load and never mutated at runtime.
+--
+-- Category, not tag: tag (Control/Damage/...) is the coarser of the two groupings
+-- AbilitiesData carries, and would make the ability filter's submenu a three-click
+-- Tag -> Category -> Ability path for no benefit here -- Owned Pets only ever lists
+-- categories actually present on the account's pets, not the whole game's catalog
+-- tag exists to keep browsable in the Ability Browser.
+local abilityDetailByName
+
+local function BuildAbilityDetailIndex()
+    if abilityDetailByName then return abilityDetailByName end
+    abilityDetailByName = {}
+    for _, familyData in pairs(_G.AbilitiesData or {}) do
+        if familyData.ranks then
+            for _, rankAbilities in pairs(familyData.ranks) do
+                for _, abilityData in pairs(rankAbilities) do
+                    if abilityData.name and not abilityDetailByName[abilityData.name] then
+                        abilityDetailByName[abilityData.name] = {
+                            category = abilityData.category or "Other",
+                            icon     = abilityData.icon,
+                        }
+                    end
+                end
+            end
+        end
+    end
+    return abilityDetailByName
+end
+
+-- The category an ability name groups under, or "Other" for a name AbilitiesData
+-- doesn't carry (an offline-reconstructed pool ability predating some entry, or one
+-- psm-data hasn't scraped yet). Unlocalized, matching AbilityBrowser's category-card
+-- precedent for the same field -- Wowhead-sourced English with nothing to translate
+-- against.
+function ns.Data:GetAbilityCategory(name)
+    local detail = BuildAbilityDetailIndex()[name]
+    return detail and detail.category or "Other"
+end
+
+-- The icon texture for an ability name, or nil when AbilitiesData doesn't carry it
+-- (same cases as GetAbilityCategory's fallback) -- callers already handle a nil icon
+-- (UIDropDownMenu_AddButton simply shows no icon).
+function ns.Data:GetAbilityIcon(name)
+    local detail = BuildAbilityDetailIndex()[name]
+    return detail and detail.icon or nil
+end
+
 -- ─── List rebuilding ──────────────────────────────────────────────────────────
 
-function ns.Data:RebuildSpecAndFamilyLists()
-    local specSet, familySet = {}, {}
-    ns.state.specList, ns.state.familyList = {}, {}
+function ns.Data:RebuildSpecFamilyAndAbilityLists()
+    local specSet, familySet, abilitySet = {}, {}, {}
+    ns.state.specList, ns.state.familyList, ns.state.abilityList = {}, {}, {}
+
+    -- Same bucket-name list _CalculateRenderData's ability filter and search match walk --
+    -- see the comment on PetHasSelectedAbility in Shared/UI.lua.
+    local BUCKETS = {"family", "spec", "pet", "unknown"}
 
     for _, pet in ipairs(ns.state.stablePets) do
         local spec   = self:GetPetSpecName(pet)
         local family = self:GetPetFamilyName(pet)
         if spec   and not specSet[spec]     then specSet[spec]     = true; ns.state.specList[#ns.state.specList + 1]     = spec   end
         if family and not familySet[family] then familySet[family] = true; ns.state.familyList[#ns.state.familyList + 1] = family end
+
+        local abs = pet.abilities
+        if abs then
+            for _, cat in ipairs(BUCKETS) do
+                for _, ability in ipairs(abs[cat] or {}) do
+                    if not abilitySet[ability] then
+                        abilitySet[ability] = true
+                        ns.state.abilityList[#ns.state.abilityList + 1] = ability
+                    end
+                end
+            end
+        end
     end
 
     table.sort(ns.state.specList)
     table.sort(ns.state.familyList)
+    table.sort(ns.state.abilityList)
 end
 
 function ns.Data:RebuildTamerList()
@@ -901,17 +974,19 @@ function ns.Data:ClearMemory(preserveFilters)
     end
 
     ns.state.stablePetsSnapshot = {}
-    ns.state.specList   = {}
-    ns.state.familyList = {}
+    ns.state.specList    = {}
+    ns.state.familyList  = {}
+    ns.state.abilityList = {}
 
     if ns.state.tamerList then
         ns.state.tamerList = {}
     end
 
     if not preserveFilters then
-        ns.state.selectedSpecs    = {}
-        ns.state.selectedFamilies = {}
-        ns.state.selectedTamers   = {}
+        ns.state.selectedSpecs     = {}
+        ns.state.selectedFamilies  = {}
+        ns.state.selectedTamers    = {}
+        ns.state.selectedAbilities = {}
         ns.Selections:Clear("tamingRules")
         ns.Selections:Clear("conditions")
     end
