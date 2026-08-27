@@ -105,7 +105,7 @@ between them.
 
 Three rules follow, and they are enforced by tests rather than by memory:
 
-- **What core exports is declared, in `Shared/PublicAPI.lua`** — eleven names, loaded
+- **What core exports is declared, in `Shared/PublicAPI.lua`** — fifteen names, loaded
   last in the `.toc` so every module has attached itself first. Everything else stays
   private. `_G.PSM` carries a trap: reading a core member that was *not* published
   raises an error naming the key, instead of returning the nil that used to be silently
