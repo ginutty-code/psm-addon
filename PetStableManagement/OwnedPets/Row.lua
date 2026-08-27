@@ -217,19 +217,3 @@ function ns.UI.Row:UpdateRow(row, pet, groups)
 
     row:Show()
 end
-
-function ns.UI.Row:HideRow(i)
-    local row = ns.state.rows[i]
-    if not row then return end
-
-    ns.RowManager:HideRow(row)
-
-    -- Hide all OwnedPets-specific elements via the registry
-    if row.customElements then
-        for _, el in ipairs(row.customElements) do
-            el:Hide()
-        end
-    end
-
-    ns.RowManager:HideFavoriteButton(row)
-end

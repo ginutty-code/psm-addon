@@ -594,40 +594,6 @@ function ns.RowManager:UpdateBackgroundColor(row, isSameCharDup, isCrossCharDup,
     end
 end
 
-function ns.RowManager:HideRow(row)
-    if not row then return end
-    row:Hide()
-    if row.model then
-        row.model:SetDisplayInfo(0)
-        row.model:Hide()
-        row.model.isRotating = false
-        ns.RowManager:ReleaseModel(row.model)
-    end
-    for _, key in ipairs({ "icon", "abilitiesHeader", "abilitiesList", "separator" }) do
-        if row[key] then
-            if key == "icon" or key == "separator" then row[key]:Hide()
-            elseif row[key].SetText then row[key]:Hide(); row[key]:SetText("")
-            else row[key]:Hide()
-            end
-        end
-    end
-    if row.text then row.text:SetText("") end
-    if row.nameText then row.nameText:SetText("") end
-    if row.infoText then row.infoText:SetText("") end
-    if row.npcNamesText then row.npcNamesText:SetText("") end
-    if row.customElements then
-        for _, el in pairs(row.customElements) do
-            if el.Hide then el:Hide() end
-        end
-    end
-    -- Hide drag drop indicator
-    if row._dropIndicator then
-        row._dropIndicator:Hide()
-        row._dropIndicator:ClearAllPoints()
-        row._dropIndicator = nil
-    end
-end
-
 function ns.RowManager:EnsureRow(i, parent, config)
     if not i or i < 1 then return nil end
     ns.state.rows = ns.state.rows or {}
@@ -646,10 +612,6 @@ function ns.RowManager:UpdateFavoriteButton(row, displayId)
     row.displayId = displayId
     row.favoriteButton:Show()
     row._setFavTexCoords(ns.state.favoriteModels[displayId])
-end
-
-function ns.RowManager:HideFavoriteButton(row)
-    if row and row.favoriteButton then row.favoriteButton:Hide() end
 end
 
 -- Account-wide, independent of who is currently logged in: a pet is a

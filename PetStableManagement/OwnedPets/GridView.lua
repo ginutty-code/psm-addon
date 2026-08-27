@@ -50,10 +50,6 @@ function GV:PetTooltipSpec(pet)
     return ns.PetTooltip.Spec(pet, { hints = GridHints(pet) })
 end
 
-function GV:ShowPetTooltip(row, pet)
-    ns.Tooltip.Show(row, GV:PetTooltipSpec(pet))
-end
-
 ------------------------------------------------------------------------
 -- Row creation
 ------------------------------------------------------------------------
@@ -129,13 +125,6 @@ function GV:UpdateRow(row, pet)
     end
 
     row:Show()
-end
-
-function GV:HideRow(i)
-    local row = ns.state.modelViewRows and ns.state.modelViewRows[i]
-    if not row then return end
-    ns.RowManager:HideRow(row)
-    row.petData = nil
 end
 
 ------------------------------------------------------------------------
@@ -295,12 +284,4 @@ function GV:Disable()
 
     HideGroupedView(panel)
     ScheduleRerender()
-end
-
-function GV:Toggle()
-    if ns.state.panelViewMode == "grid" then self:Disable() else self:Enable() end
-end
-
-function GV:IsEnabled()
-    return ns.state.panelViewMode == "grid"
 end

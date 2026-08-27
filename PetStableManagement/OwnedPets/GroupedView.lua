@@ -81,10 +81,6 @@ local function PetTooltipSpec(pet)
     return ns.PetTooltip.Spec(pet, { hints = GroupedHints(pet) })
 end
 
-function ns.UI.GroupedView:ShowPetTooltip(row, pet)
-    ns.Tooltip.Show(row, PetTooltipSpec(pet))
-end
-
 --------------------------------------------------------------------------------
 -- ROW CREATION / UPDATE
 --------------------------------------------------------------------------------
@@ -348,16 +344,6 @@ function ns.UI.GroupedView:ConfirmDeleteAllGroups()
         ns.PetGroups:DeleteAllGroups()
         RefreshUI()
     end)
-end
-
--- Kept for any external callers; now just delegate to SetAllGroupsCollapsed
-function ns.UI.GroupedView:ExpandAllGroups()  SetAllGroupsCollapsed(false) end
-function ns.UI.GroupedView:CollapseAllGroups() SetAllGroupsCollapsed(true)  end
-
-function ns.UI.GroupedView:AutoCreateGroupsByCriteria(pets, criteria)
-    if not pets or #pets == 0 then return end
-    ns.PetGroups:AutoGroupPets(pets, criteria)
-    RefreshUI()
 end
 
 --------------------------------------------------------------------------------
@@ -740,12 +726,4 @@ end
 function ns.UI.GroupedView:ClearLayout()
     groupedLayout.sections      = {}
     groupedLayout.contentHeight = 0
-end
-
-function ns.UI.GroupedView:Toggle()
-    if ns.state.panelViewMode == "grouped" then self:Disable() else self:Enable() end
-end
-
-function ns.UI.GroupedView:IsEnabled()
-    return ns.state.panelViewMode == "grouped"
 end

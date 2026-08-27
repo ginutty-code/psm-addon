@@ -1,7 +1,5 @@
 -- PetModels.lua
 
-local addonName = "PetStableManagement"
-
 _G.PSM = _G.PSM or {}
 local M = _G.PSM.PetModels or {}
 _G.PSM.PetModels = M
@@ -133,12 +131,6 @@ function M.NpcPassesConditions(npcId, selConds, userHasActive)
         if state == true then matchedActive = true end
     end
     return not userHasActive or matchedActive
-end
-
--- npcId -> denseIndex, or nil if npcId isn't in ModelsData.
-function M:GetModelsIndex(npcId)
-    local modelsData = _G.ModelsData
-    return modelsData and modelsData.Index[npcId]
 end
 
 -- Per-field resolvers for the columns that need a join through a lookup
@@ -309,54 +301,6 @@ function M:GetAvailableFamilies()
     table.sort(result)
     self._availableFamiliesCache = result
     return result
-end
-
--- Returns the number of display IDs for a family
-function M:GetModelCount(familyName)
-    local f = self:GetFamilyModels(familyName)
-    return f and #f.displayIds or 0
-end
-
--- Returns the displayData entry for a specific display ID, or nil
-function M:GetModelInfo(familyName, displayId)
-    local f = self:GetFamilyModels(familyName)
-    if not f then return nil end
-    local id = tostring(displayId)
-    for _, d in ipairs(f.displayIds) do
-        if tostring(d.displayId) == id then return d end
-    end
-end
-
--- Returns the NPC list for a specific display ID, or {}
-function M:GetAllPetsForDisplay(familyName, displayId)
-    local info = self:GetModelInfo(familyName, displayId)
-    return info and info.npcs or {}
-end
-
--- Processes all known families and caches them; returns count and elapsed ms
-function M:PreloadAllFamilies()
-    local t0, count = debugprofilestop(), 0
-    for _, name in ipairs(self:GetAvailableFamilies()) do
-        if self:GetFamilyModels(name) then count = count + 1 end
-    end
-    local elapsed = debugprofilestop() - t0
-    print(string.format("[%s] Preloaded %d families in %.2fms", addonName, count, elapsed))
-    return count, elapsed
-end
-
--- Returns a snapshot of load progress
-function M:GetLoadingStats()
-    local families = self:GetAvailableFamilies()
-    local total, loaded = #families, 0
-    for _, name in ipairs(families) do
-        if self[name] and self[name].displayIds then loaded = loaded + 1 end
-    end
-    return {
-        totalFamilies   = total,
-        loadedFamilies  = loaded,
-        pendingFamilies = total - loaded,
-        loadPercentage  = total > 0 and (loaded / total * 100) or 0,
-    }
 end
 
 -- Evicts all cached family data

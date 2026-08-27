@@ -155,19 +155,6 @@ function PetRoulette:CleanupPetRoulette()
     PSM.ModelsPanel:ReleaseCaches()
 end
 
--- Preserves the visible model and text (e.g. after AFK)
-function PetRoulette:CleanupPetRouletteWithoutModel()
-    PSM.PetModels:ClearCache()
-
-    local popup = PSM.state.petRoulettePopup
-    if popup then
-        popup.currentPetData   = nil
-        popup.currentDisplayId = nil
-    end
-
-    PSM.ModelsPanel:ReleaseCaches()
-end
-
 -- ============================================================
 -- Popup
 -- ============================================================

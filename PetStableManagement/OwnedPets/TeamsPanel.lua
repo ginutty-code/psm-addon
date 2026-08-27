@@ -654,10 +654,6 @@ function ns.TeamsPanel:Show()
     panel:Show(); panel:Raise()
 end
 
-function ns.TeamsPanel:Hide()
-    if ns.state.teamsPanel then ns.state.teamsPanel:Hide() end
-end
-
 ----------------------------------------------------------------------------------------------------------------
 -- OPACITY UPDATE
 ----------------------------------------------------------------------------------------------------------------
