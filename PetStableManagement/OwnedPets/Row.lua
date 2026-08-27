@@ -1,54 +1,46 @@
 -- OwnedPets/Row.lua
 -- Row management for PetStableManagement
 
-local addonName = "PetStableManagement"
-
 -- Initialize global namespace
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
+local _, ns = ...
 
-PSM.UI.Row = {}
+ns.UI.Row = {}
 
 -- Ordered action buttons: { key, label }
 local ACTION_BUTTONS = {
-    { key = "makeActive", label = "Make Active" },
-    { key = "companion",  label = "Companion"   },
-    { key = "stable",     label = "Stable"      },
-    { key = "release",    label = "Release"      },
+    { key = "makeActive", label = ns.L("Make Active") },
+    { key = "companion",  label = ns.L("Companion")   },
+    { key = "stable",     label = ns.L("Stable")      },
+    { key = "release",    label = ns.L("Release")     },
 }
 
--- Ability groups in display order: { key, color, label }
-local ABILITY_GROUPS = {
-    { key = "spec",    color = "|cFFFFD700", label = "[Spec]"   },
-    { key = "family",  color = "|cFF40FF40", label = "[Family]" },
-    { key = "pet",     color = "|cFF40FFFF", label = "[Pet]"    },
-    { key = "unknown", color = "|cFFAAAAAA", label = "[Other]"  },
-}
+-- Ability groups come from PSM.PetTooltip: this renders them as a block of text
+-- rather than as tooltip lines, but it is the same four buckets in the same order
+-- with the same colours, and they used to drift apart when both files owned a copy.
 
 -- ---------------------------------------------------------------------------
 -- Private helpers
 -- ---------------------------------------------------------------------------
 
 local function CreateActionButton(parent, label)
-    local btn = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-    btn:SetSize(PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT)
-    btn:SetText(label)
-    btn:SetNormalFontObject("GameFontNormalSmall")
-    btn:Hide()
-    PSM.UI:ApplyElvUISkin(btn, "button")
-    return btn
+    return ns.Widgets.Button(parent, {
+        width      = ns.Theme.CONTROL.BUTTON_W.M,
+        text       = label,
+        fontObject = "GameFontNormalSmall",
+        hidden     = true,
+    })
 end
 
 local function BuildAbilitiesText(abilities)
     local parts = {}
     local hasAbilities = false
 
-    if abilities.family or abilities.spec or abilities.pet or abilities.unknown then
+    if ns.PetTooltip.IsBucketed(abilities) then
         -- Grouped format
-        for _, group in ipairs(ABILITY_GROUPS) do
+        for _, group in ipairs(ns.PetTooltip.ABILITY_BUCKETS) do
             local list = abilities[group.key]
             if list and #list > 0 then
-                parts[#parts + 1] = group.color .. group.label .. "|r\n"
+                parts[#parts + 1] = group.prefix .. "\n"
                 for _, ability in ipairs(list) do
                     parts[#parts + 1] = "  • " .. ability .. "\n"
                 end
@@ -68,13 +60,12 @@ local function BuildAbilitiesText(abilities)
 end
 
 local function BuildPetText(pet)
-    local exoticLabel = pet.isExotic and " |cffff8800[Exotic]|r" or ""
-    local familyText  = pet.familyName and ("Family: " .. pet.familyName) or "Family: ?"
-    local specText    = pet.specName   and ("Spec: "   .. pet.specName)   or "Spec: ?"
-    local tamerText   = pet.tamer      and ("\nOwned by: " .. pet.tamer)  or ""
+    local exoticLabel = pet.isExotic and ns.L(" [Exotic]") or ""
+    local familyText  = ns.L("Family: %s", pet.familyName or "?")
+    local specText    = ns.L("Spec: %s", pet.specName or "?")
+    local tamerText   = pet.tamer      and ("\n" .. ns.L("Owned by: %s", pet.tamer)) or ""
 
-    return string.format(
-        "Slot %d: %s%s\nDisplayID: %d\n%s\n%s%s",
+    return ns.L("Slot %d: %s%s\nDisplayID: %d\n%s\n%s%s",
         pet.slotID    or 0,
         pet.name      or "?",
         exoticLabel,
@@ -89,7 +80,7 @@ end
 -- Row element initialization
 -- ---------------------------------------------------------------------------
 
-function PSM.UI.Row:EnsureRowElements(row)
+function ns.UI.Row:EnsureRowElements(row)
     if not row or row._ownedPetsInitialized then return end
     row._ownedPetsInitialized = true
 
@@ -98,28 +89,32 @@ function PSM.UI.Row:EnsureRowElements(row)
 
     row.customElements = row.customElements or {}
 
+    local Widgets = ns.Widgets
+    local Theme   = ns.Theme
+
     -- Abilities header
-    row.abilitiesHeader = row:CreateFontString(nil, "OVERLAY")
-    row.abilitiesHeader:SetFont("Fonts\\FRIZQT__.TTF", 10)
-    row.abilitiesHeader:SetPoint("TOPLEFT", row.text, "TOPRIGHT", 20, 10)
-    row.abilitiesHeader:SetText("|cFFFFD700Abilities:|r")
-    row.abilitiesHeader:SetJustifyH("LEFT")
-    row.abilitiesHeader:SetJustifyV("MIDDLE")
-    row.abilitiesHeader:SetWidth(PSM.Config.ABILITIES_WIDTH)
-    row.abilitiesHeader:Hide()
+    row.abilitiesHeader = Widgets.Label(row, {
+        fontSize = Theme.SIZE.SMALL,
+        text     = ns.L("Abilities:"),
+        justify  = "LEFT",
+        justifyV = "MIDDLE",
+        width    = ns.Config.ABILITIES_WIDTH,
+        hidden   = true,
+        point    = { "TOPLEFT", row.text, "TOPRIGHT", 20, 10 },
+    })
     table.insert(row.customElements, row.abilitiesHeader)
 
     -- Abilities list
-    row.abilitiesList = row:CreateFontString(nil, "OVERLAY")
-    row.abilitiesList:SetFont("Fonts\\FRIZQT__.TTF", 9)
-    row.abilitiesList:SetPoint("TOPLEFT", row.abilitiesHeader, "BOTTOMLEFT", 0, -2)
-    row.abilitiesList:SetWidth(PSM.Config.ABILITIES_WIDTH)
-    row.abilitiesList:SetHeight(200)
-    row.abilitiesList:SetJustifyH("LEFT")
-    row.abilitiesList:SetJustifyV("TOP")
-    row.abilitiesList:SetWordWrap(true)
-    row.abilitiesList:SetNonSpaceWrap(true)
-    row.abilitiesList:Hide()
+    row.abilitiesList = Widgets.Label(row, {
+        fontSize     = Theme.SIZE.TINY,
+        justify      = "LEFT",
+        justifyV     = "TOP",
+        wordWrap     = true,
+        nonSpaceWrap = true,
+        size         = { ns.Config.ABILITIES_WIDTH, 200 },
+        hidden       = true,
+        point        = { "TOPLEFT", row.abilitiesHeader, "BOTTOMLEFT", 0, -2 },
+    })
     table.insert(row.customElements, row.abilitiesList)
 
     -- Action buttons
@@ -128,43 +123,73 @@ function PSM.UI.Row:EnsureRowElements(row)
         table.insert(row.customElements, row[def.key])
     end
 
-    -- Move Up button
-    row.moveUp = CreateFrame("Button", nil, row)
-    row.moveUp:SetSize(24, 24)
-    row.moveUp:SetPoint("LEFT", row.text, "LEFT", 0, 0)
-    row.moveUp:SetNormalTexture("Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Up")
-    row.moveUp:SetHighlightTexture("Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Highlight")
-    row.moveUp:SetPushedTexture("Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Down")
-    row.moveUp:Hide()
-    table.insert(row.customElements, row.moveUp)
+    -- Reorder arrows. IconButton rather than Button because ElvUI's HandleButton strips
+    -- exactly the kind of bare texture these are made of -- which is why IconButton is the
+    -- one factory that does not skin by default.
+    --
+    -- The `reorderup`/`reorderdown` skins are the deliberate exception: under ElvUI they
+    -- hand the button to its own next/prev treatment. Without ElvUI the skin is a no-op
+    -- and the texture below is what shows.
+    --
+    -- The dropdown arrow. Despite living under ChatFrame\, this is the texture
+    -- UIDropDownMenuTemplate puts on its button, so the reorder arrows are literally the
+    -- same glyph as every dropdown in the addon rather than merely a similar one.
+    --
+    -- One texture serves both directions: it points *down*, so `flip` mirrors it
+    -- vertically for the up arrow. That is the only thing separating the two -- if they
+    -- ever render inverted, move that key to the other row; there is no second place to
+    -- check.
+    local ARROW = "Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-%s"
+    local ARROWS = {
+        { key = "moveUp",   skin = "reorderup",   flip = true },
+        { key = "moveDown", skin = "reorderdown"              },
+    }
 
-    -- Move Down button
-    row.moveDown = CreateFrame("Button", nil, row)
-    row.moveDown:SetSize(24, 24)
-    row.moveDown:SetPoint("LEFT", row.moveUp, "RIGHT", 2, 0)
-    row.moveDown:SetNormalTexture("Interface\\Buttons\\UI-ScrollBar-ScrollDownButton-Up")
-    row.moveDown:SetHighlightTexture("Interface\\Buttons\\UI-ScrollBar-ScrollDownButton-Highlight")
-    row.moveDown:SetPushedTexture("Interface\\Buttons\\UI-ScrollBar-ScrollDownButton-Down")
-    row.moveDown:Hide()
-    table.insert(row.customElements, row.moveDown)
+    -- Blizzard's dropdown-arrow size. Under ElvUI the skin resizes these on its own, the
+    -- same way it resizes every dropdown's arrow -- no branch here. See
+    -- Theme.CONTROL.ROW_ARROW.
+    local side = Theme.CONTROL.ROW_ARROW
+    local previous
+    for _, arrow in ipairs(ARROWS) do
+        row[arrow.key] = Widgets.IconButton(row, {
+            size      = { side, side },
+            texture   = ARROW:format("Up"),
+            -- Real pushed art, unlike the bare triangle this replaced: that had a single
+            -- glyph, so a pushed texture would have been identical to the normal one and
+            -- clicking showed no feedback at all.
+            pushed    = ARROW:format("Down"),
+            -- Its own texture as the highlight: SetHighlightTexture blends additively, so
+            -- it brightens on hover without needing separate art.
+            highlight = ARROW:format("Up"),
+            texCoord  = arrow.flip and { 0, 1, 1, 0 } or nil,
+            skin      = arrow.skin,
+            hidden    = true,
+            point     = previous
+                and { "LEFT", previous, "RIGHT", 2, 0 }
+                 or { "LEFT", row.text, "LEFT",  0, 0 },
+        })
+        table.insert(row.customElements, row[arrow.key])
+        previous = row[arrow.key]
+    end
 end
 
 -- ---------------------------------------------------------------------------
 -- Row update / hide
 -- ---------------------------------------------------------------------------
 
-function PSM.UI.Row:UpdateRow(row, pet, groups)
+function ns.UI.Row:UpdateRow(row, pet, groups)
     if not row or not pet then return end
 
     self:EnsureRowElements(row)
 
-    PSM.RowManager:UpdateModelDisplay(row, pet.displayID, pet.icon, pet)
+    ns.RowManager:UpdateModelDisplay(row, pet.displayID, pet.icon, pet)
+    ns.RowManager:UpdateFavoriteButton(row, pet.displayID)
 
     row.text:SetText(BuildPetText(pet))
 
     -- Duplicate highlighting
-    local isSameCharDuplicate, isCrossCharDuplicate = PSM.RowManager:CheckDuplicates(pet, groups)
-    PSM.RowManager:UpdateBackgroundColor(row, isSameCharDuplicate, isCrossCharDuplicate, false, pet.specName)
+    local isSameCharDuplicate, isCrossCharDuplicate = ns.RowManager:CheckDuplicates(pet, groups)
+    ns.RowManager:UpdateBackgroundColor(row, isSameCharDuplicate, isCrossCharDuplicate, false, pet.specName)
 
     -- Abilities
     local abilities = type(pet.abilities) == "table" and pet.abilities or {}
@@ -177,28 +202,12 @@ function PSM.UI.Row:UpdateRow(row, pet, groups)
     row.moveUp:ClearAllPoints()
     row.moveUp:SetPoint("TOPLEFT", row.text, "TOPLEFT", -5, 25)
 
-    PSM.UI:SetupRowButtons(row, pet)
+    ns.UI:SetupRowButtons(row, pet)
 
-    if PSM.DragDrop then
-        PSM.DragDrop:SetupRowDragDrop(row, pet)
-        PSM.DragDrop:SetupModelDragDrop(row.model, pet, row)
+    if ns.DragDrop then
+        ns.DragDrop:SetupRowDragDrop(row, pet)
+        ns.DragDrop:SetupModelDragDrop(row.model, pet, row)
     end
 
     row:Show()
-end
-
-function PSM.UI.Row:HideRow(i)
-    local row = PSM.state.rows[i]
-    if not row then return end
-
-    PSM.RowManager:HideRow(row)
-
-    -- Hide all OwnedPets-specific elements via the registry
-    if row.customElements then
-        for _, el in ipairs(row.customElements) do
-            el:Hide()
-        end
-    end
-
-    PSM.RowManager:HideFavoriteButton(row)
 end

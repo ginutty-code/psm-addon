@@ -1,12 +1,12 @@
 -- Config.lua
 -- Configuration constants for PetStableManagement
 
-_G.PSM = _G.PSM or {}
+local _, ns = ...
 
 -- ============================================================
 -- UI Dimensions
 -- ============================================================
-PSM.Config = {
+ns.Config = {
     -- List View
     ROW_HEIGHT        = 130,
     ICON_SIZE         = 60,
@@ -18,19 +18,24 @@ PSM.Config = {
     GRID_ROW_HEIGHT   = 215,
     GRID_MODEL_SIZE   = 215,
 
-    -- Buttons
-    BUTTON_WIDTH        = 80,
-    BUTTON_HEIGHT       = 22,
-    PANEL_BUTTON_WIDTH  = 70,
-    PANEL_BUTTON_HEIGHT = 25,
+    -- Button sizes live in Theme.CONTROL (BUTTON, BUTTON_W) -- they are a look, not
+    -- configuration, and the two constants here disagreed with each other and with
+    -- two dozen literals.
 
-    -- Dropdowns
+    -- Dropdowns. Row Y lives in Theme.CHROME.FILTER_TOP -- it's chrome layout, not
+    -- configuration, and the panel's own filter row is now one of several regions
+    -- that all read the same shared anchor.
     DROPDOWN_WIDTH   = 90,
     DROPDOWN_SPACING = 118,
-    DROPDOWN_ROW_Y   = -110,
 
     -- Panel
-    DEFAULT_PANEL_WIDTH  = 550,
+    -- 570, not the original 550: the 2x2 filter grid (two dropdown columns plus the
+    -- Sort dropdown on the right) needs a little more breathing room than the panel
+    -- had when it was three dropdowns across one row. Also the fallback default for
+    -- TeamsPanel's width (until a player resizes it -- see GetTeamsPanelWidth), so
+    -- that panel grows by the same 20px until then, deliberately, since nothing about
+    -- growing the shared baseline should read as a bug to fix later.
+    DEFAULT_PANEL_WIDTH  = 570,
     DEFAULT_PANEL_HEIGHT = 640,
     DEFAULT_ROW_WIDTH    = 400,
     MIN_PANEL_WIDTH      = 500,
@@ -71,7 +76,6 @@ PSM.Config = {
     COMPANION_SLOT      = 6,
     MAX_SEARCH_RESULTS  = 205,
     MIN_SEARCH_LENGTH   = 1,
-    FORCE_GC_ON_CLEAR   = false,
 
 -- ============================================================
 -- Display Settings
@@ -155,9 +159,13 @@ PSM.Config = {
     COLORS = {
         PRIMARY                       = { 1,    0.82, 0    },
         SECONDARY                     = { 0.7,  0.7,  1    },
-        ERROR                         = { 1,    0.2,  0.2  },
-        WARNING                       = { 1,    0.8,  0.2  },
-        SUCCESS                       = { 0.2,  1,    0.2  },
+        -- The one palette for chat messages (ns.Utils:Msg) -- confirmation, warning,
+        -- failure. Also picked up by anything else wanting that same semantic colour
+        -- (e.g. TeamsPanel's active-team-name text), so a message and the state it
+        -- describes always read as the same colour.
+        ERROR                         = { 1,    0,    0    },
+        WARNING                       = { 1,    0.667, 0   },
+        SUCCESS                       = { 0,    1,    0    },
         DUPLICATE                     = { 1,    0.6,  0.6  },
         BORDER                        = { 0.5,  0.5,  0.5  },
         BORDER_DUPLICATE            = { 1,   0.2, 0.2, 1 },
@@ -200,31 +208,17 @@ PSM.Config = {
         -- [12345] = true,
     },
 
--- ============================================================
--- Messages
--- ============================================================
-    MESSAGES = {
-        STABLE_FRAME_NOT_FOUND  = "|cFFFF0000StableFrame not found!|r",
-        PANEL_CREATION_FAILED   = "|cFFFF0000Panel creation failed!|r",
-        PANEL_SHOW_FAILED       = "|cFFFF0000Panel failed to show!|r",
-        STABLE_MUST_BE_OPEN     = "|cFFFF0000Stable must be open to %s!|r",
-        NO_AVAILABLE_SLOTS      = "|cFFFF0000No available slots to displace pet from slot 1!|r",
-        NO_STABLE_SLOTS         = "|cFFFF0000No available stable slots found! (Max 205 slots)|r",
-        SNAPSHOT_CREATED        = "|cFF00FF00Pet data snapshot created: %d pets saved.|r",
-        NO_SNAPSHOT             = "|cFFFF8800No snapshot available. Please visit a Stable Master to collect your owned pets data.|r",
-        ADDON_LOADED            = "|cFF00FF00Pet Stable Management loaded. Use /psm or /petstable or click the minimap button to toggle the panel.|r",
-    },
 }
 
 -- ============================================================
 -- Methods
 -- ============================================================
 
-function PSM.Config:GetOpacity()
+function ns.Config:GetOpacity()
     return PetStableManagementDB.settings.opacity or self.DEFAULT_OPACITY
 end
 
-function PSM.Config:UpdateColors()
+function ns.Config:UpdateColors()
     local a = self:GetOpacity()
     self.COLORS.BACKGROUND       = { 0.1,  0.1, 0.1, a }
     self.COLORS.BACKGROUND_DUPLICATE       = { 0.35, 0,   0,   a }
@@ -232,8 +226,8 @@ function PSM.Config:UpdateColors()
 end
 
 -- Populate FAMILY_TO_SPEC mapping
-for spec, families in pairs(PSM.Config.FAMILY_SPECS) do
+for spec, families in pairs(ns.Config.FAMILY_SPECS) do
     for _, family in ipairs(families) do
-        PSM.Config.FAMILY_TO_SPEC[family] = spec
+        ns.Config.FAMILY_TO_SPEC[family] = spec
     end
 end

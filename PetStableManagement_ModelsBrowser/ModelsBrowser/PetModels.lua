@@ -1,7 +1,5 @@
 -- PetModels.lua
 
-local addonName = "PetStableManagement"
-
 _G.PSM = _G.PSM or {}
 local M = _G.PSM.PetModels or {}
 _G.PSM.PetModels = M
@@ -15,10 +13,113 @@ _G.PSM.PetModels = M
 -- GetModelsRecord below. GetModelsRecord is for cold, one-off lookups only;
 -- it allocates a new table and does several lookup-table joins per call.
 
--- npcId -> denseIndex, or nil if npcId isn't in ModelsData.
-function M:GetModelsIndex(npcId)
-    local modelsData = _G.ModelsData
-    return modelsData and modelsData.Index[npcId]
+-- ─── Selection filters (locations, expansions) ────────────────────────────
+-- Locations and expansions are the same shape, so the rule is one function -- both views
+-- and both tabs must answer it identically. An NPC carries a single `UiMapId`, so
+-- `NpcLocation` resolves exactly one name and there is nothing to split on "|".
+--
+-- The three answers are distinct, and conflating any two is the bug:
+--
+--   nil table   -- the filter was never initialised. Nothing is being asked; everything
+--                  passes.
+--   no `true`   -- the player chose "None". Only a value the data does not have passes,
+--                  which is how an NPC with no expansion recorded survives an empty
+--                  expansion selection.
+--   otherwise   -- the value must be actively selected.
+--
+-- `false` counts as absent, and that is load-bearing: expansions go through
+-- `checkbox:GetChecked()`, which writes `false` on uncheck, while locations write `nil`.
+-- "Every box unticked" must mean the same thing for both.
+--
+-- `mode` is optional and exists for the hot loops: callers filtering thousands of rows
+-- resolve it once with `SelectionMode` rather than rescanning the selection per row.
+
+function M.SelectionMode(selection)
+    if not selection then return "all" end
+    for _, state in pairs(selection) do
+        if state == true then return "match" end
+    end
+    return "none"
+end
+
+function M.SelectionAllows(selection, value, mode)
+    mode = mode or M.SelectionMode(selection)
+    if mode == "all"  then return true end
+    if mode == "none" then return value == nil end
+    return value ~= nil and selection[value] == true
+end
+
+-- ─── Special Tames predicates ─────────────────────────────────────────────
+-- The taming-rule and condition tests, in one place so both views and SpecialTames' own
+-- family computation answer them identically by construction.
+--
+-- The granularities are not interchangeable: taming skills attach to a *display*,
+-- conditions attach to an *NPC*. A family is neither -- `ComputeMatchingFamilies` returns
+-- families with at least one matching display, which is a seeding aid, never a filter.
+
+-- Does a display's set of required taming skills satisfy the current selection?
+-- `tamingSet` is a set of rule names; `selRules` is the tristate selection map.
+--
+-- The Florafaun/Direhorn clause is the one piece of real logic here: a display needing
+-- *both* must not count as a match when the player selected only one of them, because
+-- one skill alone will not tame it.
+function M.TamingSetPasses(tamingSet, selRules)
+    if not selRules or not next(selRules) then return true end
+
+    local hasActive, matchActive = false, false
+    for rKey, state in pairs(selRules) do
+        if state == true then
+            hasActive = true
+            if tamingSet[rKey] then
+                local fSel, dSel = selRules["Florafaun"] == true, selRules["Direhorn"] == true
+                if not (tamingSet["Florafaun"] and tamingSet["Direhorn"]
+                        and ((fSel and not dSel) or (dSel and not fSel))) then
+                    matchActive = true
+                end
+            end
+        elseif state == "inverted" then
+            if tamingSet[rKey] then return false end
+        end
+    end
+    return not hasActive or matchActive
+end
+
+-- Build the set form `TamingSetPasses` expects from a raw ModelsData.Taming array.
+function M.TamingSet(list)
+    local set = {}
+    if list then
+        for _, rule in ipairs(list) do set[rule] = true end
+    end
+    return set
+end
+
+-- Whether any condition is *actively* selected, as opposed to only excluded. Hoisted out
+-- of the per-NPC test because callers run it inside loops over thousands of rows.
+function M.ConditionsHaveActive(selConds)
+    for _, state in pairs(selConds or {}) do
+        if state == true then return true end
+    end
+    return false
+end
+
+-- Does one NPC satisfy the condition selection? An "inverted" condition disqualifies it
+-- outright; with anything actively selected it must carry at least one of those.
+-- `npcId` is coerced here rather than by the caller: the two previous copies of this test
+-- disagreed about it (one passed the raw column, the other tonumber'd it), which is the
+-- kind of difference that decides whether a lookup hits.
+function M.NpcPassesConditions(npcId, selConds, userHasActive)
+    local id = tonumber(npcId)
+    if not id then return false end
+    local condList = _G.PSM.ConditionsData and _G.PSM.ConditionsData.Get(id)
+    if not condList then return not userHasActive end
+
+    local matchedActive = false
+    for _, cName in ipairs(condList) do
+        local state = selConds[cName]
+        if state == "inverted" then return false end
+        if state == true then matchedActive = true end
+    end
+    return not userHasActive or matchedActive
 end
 
 -- Per-field resolvers for the columns that need a join through a lookup
@@ -77,11 +178,8 @@ function M:GetModelsRecord(npcId)
     }
 end
 
--- Resolves an array of denseIndex values (the shape GetFamilyModels/
--- GetModelInfo's .npcs arrays store) to an array of full records, via
--- GetModelsRecord. Shared by every consumer that hands a family's .npcs
--- list to UI code expecting object-style npc.name/npc.classification access
--- (PopUpManager's magnify popups, Pet Roulette).
+-- Resolves an array of denseIndex values (the shape GetFamilyModels' .npcs arrays store)
+-- to full records, for UI code expecting object-style npc.name/npc.classification access.
 function M:ResolveNpcRecords(npcs)
     local resolved = {}
     local modelsData = _G.ModelsData
@@ -189,54 +287,6 @@ function M:GetAvailableFamilies()
     table.sort(result)
     self._availableFamiliesCache = result
     return result
-end
-
--- Returns the number of display IDs for a family
-function M:GetModelCount(familyName)
-    local f = self:GetFamilyModels(familyName)
-    return f and #f.displayIds or 0
-end
-
--- Returns the displayData entry for a specific display ID, or nil
-function M:GetModelInfo(familyName, displayId)
-    local f = self:GetFamilyModels(familyName)
-    if not f then return nil end
-    local id = tostring(displayId)
-    for _, d in ipairs(f.displayIds) do
-        if tostring(d.displayId) == id then return d end
-    end
-end
-
--- Returns the NPC list for a specific display ID, or {}
-function M:GetAllPetsForDisplay(familyName, displayId)
-    local info = self:GetModelInfo(familyName, displayId)
-    return info and info.npcs or {}
-end
-
--- Processes all known families and caches them; returns count and elapsed ms
-function M:PreloadAllFamilies()
-    local t0, count = debugprofilestop(), 0
-    for _, name in ipairs(self:GetAvailableFamilies()) do
-        if self:GetFamilyModels(name) then count = count + 1 end
-    end
-    local elapsed = debugprofilestop() - t0
-    print(string.format("[%s] Preloaded %d families in %.2fms", addonName, count, elapsed))
-    return count, elapsed
-end
-
--- Returns a snapshot of load progress
-function M:GetLoadingStats()
-    local families = self:GetAvailableFamilies()
-    local total, loaded = #families, 0
-    for _, name in ipairs(families) do
-        if self[name] and self[name].displayIds then loaded = loaded + 1 end
-    end
-    return {
-        totalFamilies   = total,
-        loadedFamilies  = loaded,
-        pendingFamilies = total - loaded,
-        loadPercentage  = total > 0 and (loaded / total * 100) or 0,
-    }
 end
 
 -- Evicts all cached family data

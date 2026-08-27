@@ -1,22 +1,15 @@
 -- SlashCommands.lua
 -- Slash command registration for PetStableManagement
 
-_G.PSM = _G.PSM or {}
+local _, ns = ...
 
 -- ============================================================
 -- Helpers
 -- ============================================================
 
-local function InCombat()
-    if UnitAffectingCombat("player") then
-        print("|cFFFF0000Pet Stable Management: Cannot open panel during combat.|r")
-        return true
-    end
-end
-
-local function ModulesMissing()
-    print("|cFFFF8800PetStableManagement: Models Browser module is not loaded. Enable 'Pet Stable Management: Models Browser' in your addon list.|r")
-end
+-- Models Browser and its data are LoadOnDemand; PSM.Loader pulls them in on first
+-- use and reports a precise reason (disabled / missing / in combat) if it can't,
+-- so callers below don't print a "module not loaded" message of their own.
 
 -- ============================================================
 -- /psm  /petstable
@@ -27,60 +20,78 @@ SLASH_PETSTABLE2 = "/petstable"
 
 local PETSTABLE_COMMANDS = {
     show = function()
-        PSM.Minimap:Show()
-        print("|cFF00FF00Pet Stable Management: Minimap button shown.|r")
+        ns.Minimap:Show()
+        ns.Utils:Msg("SUCCESS", ns.L("Minimap button shown."))
     end,
 
     hide = function()
-        PSM.Minimap:Hide()
-        print("|cFFFFAA00Pet Stable Management: Minimap button hidden. Use /psm show to show it again.|r")
+        ns.Minimap:Hide()
+        ns.Utils:Msg("WARNING", ns.L("Minimap button hidden. Use /psm show to show it again."))
     end,
 
     menu = function()
-        PSM.Menu:Toggle()
+        ns.Menu:Toggle()
     end,
 
     models = function()
-        if InCombat() then return end
-        if PSM.ModelsPanel and PSM.ModelsPanel.Toggle then
-            PSM.ModelsPanel:Toggle()
-        else
-            ModulesMissing()
+        if ns.Loader:EnsureBrowser() and ns.Browser.ModelsPanel then
+            ns.Browser.ModelsPanel:Toggle()
         end
     end,
 
     options = function()
-        if PSM.state.optionsPanel and InterfaceOptionsFrame_OpenToCategory then
-            InterfaceOptionsFrame_OpenToCategory(PSM.state.optionsPanel)
-            InterfaceOptionsFrame_OpenToCategory(PSM.state.optionsPanel)  -- called twice intentionally (Blizzard quirk)
-        elseif PSM.state.optionsCategoryId then
-            Settings.OpenToCategory(PSM.state.optionsCategoryId)
-        end
+        ns.Broker:ToggleOptionsPanel()
     end,
 
     roulette = function()
-        if PSM.PetRoulette and PSM.PetRoulette.SelectPetRouletteFromCommand then
-            PSM.PetRoulette:SelectPetRouletteFromCommand()
-        else
-            ModulesMissing()
+        if ns.Loader:EnsureBrowser() and ns.Browser.PetRoulette then
+            ns.Browser.PetRoulette:SelectPetRouletteFromCommand()
         end
     end,
 
     teams = function()
-        PSM.Broker:TogglePetTeamsPanel()
+        ns.Broker:TogglePetTeamsPanel()
+    end,
+
+    debug = function()
+        ns.Log:Dump()
+    end,
+
+    -- Descriptions reuse the exact "Toggle X" strings the PSM Menu already shows on
+    -- its own buttons for these same actions (Menu.lua), and "Show minimap button"
+    -- from the Options panel checkbox -- one label per action instead of the help
+    -- list inventing its own wording and drifting from the surfaces it describes.
+    help = function()
+        ns.Utils:Msg("SUCCESS", ns.L("Available commands:"))
+        for _, line in ipairs({
+            { "/psm",                 ns.L("Toggle Owned Pets") },
+            { "/psm show",            ns.L("Show minimap button") },
+            { "/psm hide",            ns.L("Hide minimap button") },
+            { "/psm menu",            ns.L("Toggle Menu") },
+            { "/psm models",          ns.L("Toggle Models Browser") },
+            { "/psm options",         ns.L("Toggle Options") },
+            { "/psm roulette",        ns.L("Toggle Pet Roulette") },
+            { "/psm teams",           ns.L("Toggle Pet Teams") },
+            { "/psm debug",           ns.L("Show recent errors") },
+            { "/psm help",            ns.L("Show this list of commands") },
+            { "/petswap [from] [to]", ns.L("Swap two stable pet slots") },
+        }) do
+            print(("|cFFFFD700%s|r - %s"):format(line[1], line[2]))
+        end
     end,
 }
 
 SlashCmdList["PETSTABLE"] = function(msg)
-    local cmd = msg:lower():trim()
-    local handler = PETSTABLE_COMMANDS[cmd]
+    ns.Utils.SafeCall(function()
+        local cmd = msg:lower():trim()
+        local handler = PETSTABLE_COMMANDS[cmd]
 
-    if handler then
-        handler()
-    else
-        if InCombat() then return end
-        PSM.Minimap:TogglePanel()
-    end
+        if handler then
+            handler()
+        else
+            ns.Minimap:TogglePanel()
+        end
+    end)
 end
 
 -- ============================================================
@@ -89,43 +100,52 @@ end
 
 SLASH_PETSWAP1 = "/petswap"
 
-local PETSWAP_MAX_SLOT = PSM.Config and PSM.Config.MAX_STABLE_SLOTS or 205
+-- Read at call time, not captured at file scope. A guarded capture
+-- (`local MAX = ns.Config and ns.Config.MAX_STABLE_SLOTS or 205`) would survive a
+-- load-order change without erroring, silently freezing the limit and rejecting valid
+-- slots with a confident message quoting the wrong number.
+local function MaxStableSlot()
+    return (ns.Config and ns.Config.MAX_STABLE_SLOTS) or 205
+end
 
 SlashCmdList["PETSWAP"] = function(msg)
-    local a, b = msg:match("^(%S+)%s+(%S+)$")
-    local startSlot, destSlot = tonumber(a), tonumber(b)
+    ns.Utils.SafeCall(function()
+        local a, b = msg:match("^(%S+)%s+(%S+)$")
+        local startSlot, destSlot = tonumber(a), tonumber(b)
 
-    if not startSlot or not destSlot then
-        print("|cFFFF0000Usage: /petswap [starting slot] [destination slot]|r")
-        print("|cFFFFAA00Example: /petswap 5 10|r")
-        return
-    end
+        if not startSlot or not destSlot then
+            ns.Utils:Msg("ERROR", ns.L("Usage: /petswap [starting slot] [destination slot]"))
+            ns.Utils:Msg("WARNING", ns.L("Example: /petswap 5 10"))
+            return
+        end
 
-    local function validSlot(n)
-        return n >= 1 and n <= PETSWAP_MAX_SLOT
-    end
+        local maxSlot = MaxStableSlot()
+        local function validSlot(n)
+            return n >= 1 and n <= maxSlot
+        end
 
-    if not validSlot(startSlot) or not validSlot(destSlot) then
-        print(string.format("|cFFFF0000Slot numbers must be between 1 and %d.|r", PETSWAP_MAX_SLOT))
-        return
-    end
+        if not validSlot(startSlot) or not validSlot(destSlot) then
+            ns.Utils:Msg("ERROR", ns.L("Slot numbers must be between 1 and %d.", maxSlot))
+            return
+        end
 
-    if startSlot == destSlot then
-        print("|cFFFFAA00Source and destination slots are the same.|r")
-        return
-    end
+        if startSlot == destSlot then
+            ns.Utils:Msg("WARNING", ns.L("Source and destination slots are the same."))
+            return
+        end
 
-    if not PSM.state.isStableOpen then
-        print("|cFFFF0000You must be at a stable master to change pet slots.|r")
-        return
-    end
+        if not ns.state.isStableOpen then
+            ns.Utils:Msg("ERROR", ns.L("You must be at a stable master to change pet slots."))
+            return
+        end
 
-    if not C_StableInfo.GetStablePetInfo(startSlot) then
-        print(string.format("|cFFFF0000No pet found in slot %d.|r", startSlot))
-        return
-    end
+        if not C_StableInfo.GetStablePetInfo(startSlot) then
+            ns.Utils:Msg("ERROR", ns.L("No pet found in slot %d.", startSlot))
+            return
+        end
 
-    if not PSM.Reorder:SwapPetSlots(startSlot, destSlot) then
-        print("|cFFFF0000Failed to move pet.|r")
-    end
+        if not ns.Reorder:SwapPetSlots(startSlot, destSlot) then
+            ns.Utils:Msg("ERROR", ns.L("Failed to move pet."))
+        end
+    end)
 end

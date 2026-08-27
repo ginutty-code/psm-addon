@@ -1,17 +1,14 @@
 -- OwnedPets/GridView.lua
 -- Alternative grid view for Owned Pets panel (3D models with tooltip on mouseover)
 
-local addonName = "PetStableManagement"
+local _, ns = ...
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
-
-PSM.UI.GridView = {}
-local GV = PSM.UI.GridView  -- local alias to avoid repeated global lookups
+ns.UI.GridView = {}
+local GV = ns.UI.GridView  -- local alias to avoid repeated global lookups
 
 -- Constants (reference Config for consistency)
-GV.GRID_VIEW_ROW_HEIGHT = PSM.Config.GRID_ROW_HEIGHT
-GV.GRID_VIEW_MODEL_SIZE = PSM.Config.GRID_MODEL_SIZE
+GV.GRID_VIEW_ROW_HEIGHT = ns.Config.GRID_ROW_HEIGHT
+GV.GRID_VIEW_MODEL_SIZE = ns.Config.GRID_MODEL_SIZE
 
 -- Button layout constants
 local BTN_OFFSET_X  = 0
@@ -35,11 +32,30 @@ local function AnchorButton(btn, model, corner, xOff, yOff)
 end
 
 ------------------------------------------------------------------------
+-- Tooltip
+------------------------------------------------------------------------
+
+-- Grid view has no reordering of its own to explain, so its hints are the model
+-- interaction plus the stable-slot case RowManager already words.
+local function GridHints(pet)
+    local hints = ns.RowManager.MODEL_HINTS
+    if ns.state and ns.state.isStableOpen and pet.slotID then
+        hints = hints .. "\n" .. ns.L("Shift/Ctrl + drag to reorder slot")
+    end
+    return hints
+end
+
+function GV:PetTooltipSpec(pet)
+    if not pet then return nil end
+    return ns.PetTooltip.Spec(pet, { hints = GridHints(pet) })
+end
+
+------------------------------------------------------------------------
 -- Row creation
 ------------------------------------------------------------------------
 
 function GV:CreateModelRow(parent)
-    local row = PSM.RowManager:CreateBaseRow(parent, {
+    local row = ns.RowManager:CreateBaseRow(parent, {
         useBackdropTemplate = true,
         height      = GV.GRID_VIEW_ROW_HEIGHT,
         modelSize   = GV.GRID_VIEW_MODEL_SIZE,
@@ -62,119 +78,20 @@ function GV:CreateModelRow(parent)
     row.viewType = "grid"
     row.petData  = nil
 
-    -- Shared show/hide logic for overlay buttons
-    local function ShowButtons(model)
-        HideIfExists(model.resetButton)  -- intentional: show via :Show() below
-        if model.resetButton  then model.resetButton:Show()  end
-        if model.magnifyButton then model.magnifyButton:Show() end
-        if model.isOwnedByPlayer then
-            if model.addToTeamButton    then model.addToTeamButton:Show()    end
-            if model.removeFromTeamButton then model.removeFromTeamButton:Show() end
-        end
-    end
+    -- The model and the row show the same tooltip, each anchored to itself, so it
+    -- lands beside whichever the mouse actually entered. Attaching to the model
+    -- deliberately replaces RowManager's rotate/zoom tooltip -- those hints are
+    -- already this tooltip's last section -- and that is why the hover buttons have
+    -- to come along: re-attaching OnEnter/OnLeave drops RowManager's pair with it.
+    local function TooltipForRow() return GV:PetTooltipSpec(row.petData) end
 
-    local function HideButtons(model)
-        local btns = { model.resetButton, model.magnifyButton,
-                       model.addToTeamButton, model.removeFromTeamButton }
-        for _, btn in ipairs(btns) do
-            if btn and not btn:IsMouseOver() then btn:Hide() end
-        end
-    end
-
-    m:SetScript("OnEnter", function(self)
-        ShowButtons(self)
-        if row.petData then GV:ShowPetTooltip(row, row.petData) end
-    end)
-
-    m:SetScript("OnLeave", function(self)
-        HideButtons(self)
-        GameTooltip:Hide()
-    end)
-
-    row:SetScript("OnEnter", function(self)
-        if row.petData then GV:ShowPetTooltip(row, row.petData) end
-    end)
-
-    row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    ns.Tooltip.Attach(m, TooltipForRow, {
+        onEnter = function(self) ns.RowManager:ShowHoverButtons(self) end,
+        onLeave = function(self) ns.RowManager:HideHoverButtons(self) end,
+    })
+    ns.Tooltip.Attach(row, TooltipForRow)
 
     return row
-end
-
-------------------------------------------------------------------------
--- Tooltip
-------------------------------------------------------------------------
-
-local ABILITY_TAGS = {
-    spec    = "|cFFFFD700[Spec]|r ",
-    family  = "|cFF40FF40[Family]|r ",
-    pet     = "|cFF40FFFF[Pet]|r ",
-    unknown = "|cFFAAAAAA[Other]|r ",
-}
-local ABILITY_COLORS = {
-    spec    = { 1,   1,   1   },
-    family  = { 0.8, 1,   0.8 },
-    pet     = { 0.8, 1,   1   },
-    unknown = { 0.7, 0.7, 0.7 },
-}
-
-function GV:ShowPetTooltip(row, pet)
-    if not pet then return end
-
-    GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
-
-    local exotic = pet.isExotic and " |cffff8800[Exotic]|r" or ""
-    GameTooltip:SetText(("Slot %d: %s%s"):format(pet.slotID or 0, pet.name or "?", exotic), 1, 1, 1)
-    GameTooltip:AddLine(("DisplayID: %d"):format(pet.displayID or 0), 0.8, 0.8, 0.8)
-
-    if pet.familyName then GameTooltip:AddLine("Family: " .. pet.familyName, 1, 1, 1) end
-    if pet.specName   then GameTooltip:AddLine("Spec: "   .. pet.specName,   0.8, 0.8, 0.8) end
-    if pet.tamer      then GameTooltip:AddLine("Owned by: " .. pet.tamer,    0.7, 0.7, 0.7) end
-
-    if pet.level and pet.level > 0 then
-        local lvlColor = pet.level >= 25 and "|cFF00FF00" or (pet.level >= 1 and "|cFFFFFF00" or "|cFF888888")
-        GameTooltip:AddLine(("Level: %d%s"):format(pet.level, lvlColor), 1, 1, 1)
-    end
-
-    -- Abilities
-    local abilities   = type(pet.abilities) == "table" and pet.abilities or {}
-    local hasAbilities = false
-    local isGrouped   = abilities.family or abilities.spec or abilities.pet or abilities.unknown
-
-    GameTooltip:AddLine(" ")
-    GameTooltip:AddLine("|cFFFFD700Abilities:|r", 1, 1, 1)
-
-    if isGrouped then
-        for _, key in ipairs({ "spec", "family", "pet", "unknown" }) do
-            local group = abilities[key]
-            if group and #group > 0 then
-                local c = ABILITY_COLORS[key]
-                for _, ability in ipairs(group) do
-                    GameTooltip:AddLine("  " .. ABILITY_TAGS[key] .. ability, c[1], c[2], c[3])
-                end
-                hasAbilities = true
-            end
-        end
-    else
-        for _, ability in ipairs(abilities) do
-            local name = type(ability) == "table" and ability.name or tostring(ability)
-            GameTooltip:AddLine("  • " .. name, 1, 1, 1)
-            hasAbilities = true
-        end
-    end
-
-    if not hasAbilities then
-        GameTooltip:AddLine("|cFFAAAAAA(No abilities available)", 0.7, 0.7, 0.7)
-    end
-
-    -- Interaction hints
-    local hint = "Left-click and drag to rotate\nRight-click and drag to move (left/right, up/down)\nScroll to zoom"
-    if PSM.state and PSM.state.isStableOpen and pet.slotID then
-        hint = hint .. "\nShift/Ctrl + drag to reorder slot"
-    end
-    GameTooltip:AddLine(" ")
-    GameTooltip:AddLine(hint, 0.7, 0.7, 0.7)
-
-    GameTooltip:Show()
 end
 
 ------------------------------------------------------------------------
@@ -187,17 +104,11 @@ function GV:UpdateRow(row, pet)
     row.petData = pet
 
     if row.model and pet.displayID then
-        PSM.RowManager:UpdateModelDisplay(row, pet.displayID, pet.icon, pet)
+        ns.RowManager:UpdateModelDisplay(row, pet.displayID, pet.icon, pet)
     end
 
-    local isSame, isCross = PSM.RowManager:CheckDuplicates(pet, PSM.state.allGroups)
-    local specName = pet.specName
-    if not specName and pet.specID then
-        local specInfo = C_SpecializationInfo.GetPetSpecialization(pet.specID)
-        specName = specInfo and specInfo.name
-    end
-    
-    PSM.RowManager:UpdateBackgroundColor(row, isSame, isCross, false, pet.specName)
+    local isSame, isCross = ns.RowManager:CheckDuplicates(pet, ns.state.allGroups)
+    ns.RowManager:UpdateBackgroundColor(row, isSame, isCross, false, pet.specName)
         
     -- Hide unused OwnedPets elements
     local unused = {
@@ -206,21 +117,14 @@ function GV:UpdateRow(row, pet)
     }
     for _, el in ipairs(unused) do HideIfExists(el) end
 
-    PSM.RowManager:HideFavoriteButton(row)
+    ns.RowManager:UpdateFavoriteButton(row, pet.displayID)
 
-    if PSM.DragDrop then
-        PSM.DragDrop:SetupRowDragDrop(row, pet)
-        PSM.DragDrop:SetupModelDragDrop(row.model, pet, row)
+    if ns.DragDrop then
+        ns.DragDrop:SetupRowDragDrop(row, pet)
+        ns.DragDrop:SetupModelDragDrop(row.model, pet, row)
     end
 
     row:Show()
-end
-
-function GV:HideRow(i)
-    local row = PSM.state.modelViewRows and PSM.state.modelViewRows[i]
-    if not row then return end
-    PSM.RowManager:HideRow(row)
-    row.petData = nil
 end
 
 ------------------------------------------------------------------------
@@ -228,17 +132,17 @@ end
 ------------------------------------------------------------------------
 
 function GV:UpdateVisibleRows()
-    local renderData = PSM.state.currentRenderData
-    if not renderData or not PSM.state.panel then return end
+    local renderData = ns.state.currentRenderData
+    if not renderData or not ns.state.panel then return end
 
-    local content = PSM.state.content
+    local content = ns.state.content
     if not content then return end
 
     -- Lazily populate row pool
-    local pool = PSM.state.modelViewRows
+    local pool = ns.state.modelViewRows
     if not pool then
         pool = {}
-        PSM.state.modelViewRows = pool
+        ns.state.modelViewRows = pool
         for i = 1, ROWS_PER_PAGE do
             local r = GV:CreateModelRow(content)
             r:Hide()
@@ -256,20 +160,23 @@ function GV:UpdateVisibleRows()
     if not contentWidth or contentWidth <= 0 then contentWidth = 500 end
 
     local modelSize  = GV.GRID_VIEW_MODEL_SIZE
-    local pad        = PSM.Config.COLUMN_SPACING
+    local pad        = ns.Config.COLUMN_SPACING
     local colWidth   = modelSize + 2 * pad
     local colCount   = math.max(1, math.floor(contentWidth / colWidth))
     local margin     = (contentWidth - colCount * colWidth) / 2
     local rowTotal   = math.ceil(totalItems / colCount)
-    local rowHeight  = PSM.Config.GRID_ROW_HEIGHT
+    local rowHeight  = ns.Config.GRID_ROW_HEIGHT
 
     -- Set content height and update scrollbar range
     content:SetHeight(math.max(rowTotal * rowHeight + rowHeight * 0.5, 100))
-    if PSM.state.scrollFrame.UpdateScrollChildRect then
-        PSM.state.scrollFrame:UpdateScrollChildRect()
+    if ns.state.scrollFrame.UpdateScrollChildRect then
+        ns.state.scrollFrame:UpdateScrollChildRect()
     end
+    -- Before deriving the row offset below, not after: the offset must come from a
+    -- scroll position that is actually in range.
+    ns.UI:ClampScrollIntoRange(ns.state.scrollFrame, content)
 
-    local scrollFrameHeight = PSM.state.scrollFrame:GetHeight() or 500
+    local scrollFrameHeight = ns.state.scrollFrame:GetHeight() or 500
     local visibleRowCount   = math.ceil(scrollFrameHeight / rowHeight) + 3
 
     -- Grow pool if needed
@@ -281,7 +188,12 @@ function GV:UpdateVisibleRows()
         end
     end
 
-    local startRow   = math.max(1, PSM.state.panel.gridScrollOffset + 1)
+    -- Grid columns are one model wide, so the column count changes every ~120px of
+    -- panel width — this view crosses the blind spot far more often than list view
+    -- does. See PSM.UI:GetScrollRowOffset.
+    ns.state.panel.gridScrollOffset = ns.UI:GetScrollRowOffset(rowHeight, rowTotal)
+
+    local startRow   = math.max(1, ns.state.panel.gridScrollOffset + 1)
     local endRow     = math.min(rowTotal, startRow + visibleRowCount - 1)
     local startIndex = (startRow - 1) * colCount + 1
     local endIndex   = math.min(totalItems, endRow * colCount)
@@ -289,7 +201,7 @@ function GV:UpdateVisibleRows()
     for _, r in ipairs(pool) do r:Hide() end
 
     local rowIndex = 1
-    PSM.state.allGroups = renderData.allGroups  -- set once, not per-pet
+    ns.state.allGroups = renderData.allGroups  -- set once, not per-pet
 
     for dataIndex = startIndex, endIndex do
         if rowIndex > #pool then break end
@@ -327,21 +239,20 @@ local function HideGroupedView(panel)
 end
 
 local function ScheduleRerender()
-    PSM._renderCache = nil
-    PSM.C_Timer.After(0.01, function()
-        if PSM.UI and PSM.UI.RenderPanel then PSM.UI:RenderPanel() end
+    ns.C_Timer.After(0.01, function()
+        if ns.UI and ns.UI.RenderPanel then ns.UI:RenderPanel() end
     end)
 end
 
 function GV:Enable()
-    PSM.state.panelViewMode = "grid"
+    ns.state.panelViewMode = "grid"
 
-    local panel = PSM.state.panel
+    local panel = ns.state.panel
     panel.gridScrollOffset = 0
     if panel.scrollFrame then panel.scrollFrame:SetVerticalScroll(0) end
 
-    if PSM.state.rows then
-        for _, r in ipairs(PSM.state.rows) do HideIfExists(r) end
+    if ns.state.rows then
+        for _, r in ipairs(ns.state.rows) do HideIfExists(r) end
     end
 
     HideGroupedView(panel)
@@ -349,14 +260,14 @@ function GV:Enable()
 end
 
 function GV:Disable()
-    PSM.state.panelViewMode = "list"
+    ns.state.panelViewMode = "list"
 
-    local panel = PSM.state.panel
+    local panel = ns.state.panel
     panel.scrollOffset = 0
     if panel.scrollFrame then panel.scrollFrame:SetVerticalScroll(0) end
 
-    if PSM.state.modelViewRows then
-        for _, row in ipairs(PSM.state.modelViewRows) do
+    if ns.state.modelViewRows then
+        for _, row in ipairs(ns.state.modelViewRows) do
             if row then
                 row:Hide()
                 row.petData = nil
@@ -365,9 +276,7 @@ function GV:Disable()
                     m:Hide()
                     m:ClearModel()
                     m.isRotating = false
-                    if PSM.RotationFrame and PSM.RotationFrame.activeModels then
-                        PSM.RotationFrame.activeModels[m] = nil
-                    end
+                    ns.RowManager:ReleaseModel(m)
                 end
             end
         end
@@ -375,12 +284,4 @@ function GV:Disable()
 
     HideGroupedView(panel)
     ScheduleRerender()
-end
-
-function GV:Toggle()
-    if PSM.state.panelViewMode == "grid" then self:Disable() else self:Enable() end
-end
-
-function GV:IsEnabled()
-    return PSM.state.panelViewMode == "grid"
 end

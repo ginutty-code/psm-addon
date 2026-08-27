@@ -1,7 +1,6 @@
 -- ModelsBrowser/ModelsPanel.lua
 -- Performance-optimized Pet Models Browser Panel
 
-local addonName = "PetStableManagement"
 
 _G.PSM = _G.PSM or {}
 local PSM = _G.PSM
@@ -22,6 +21,22 @@ local MODELS_CONFIG = {
 
 PSM.ModelsPanel.MODELS_CONFIG = MODELS_CONFIG
 
+-- Release both render caches and cancel both pending renders.
+--
+-- The service core's PanelManager calls on last-panel-close, so the underscore cache
+-- fields stay this addon's business and the timers are actually cancelled.
+--
+-- Safe to call when the loaders have not loaded: this file is what core reaches through,
+-- and it must not assume its siblings parsed first.
+function PSM.ModelsPanel:ReleaseCaches()
+    if PSM.ModelsDataLoader and PSM.ModelsDataLoader.ReleaseCache then
+        PSM.ModelsDataLoader:ReleaseCache()
+    end
+    if PSM.NPCDataLoader and PSM.NPCDataLoader.ReleaseCache then
+        PSM.NPCDataLoader:ReleaseCache()
+    end
+end
+
 -- ─────────────────────────────────────────────
 -- Internal helpers
 -- ─────────────────────────────────────────────
@@ -33,11 +48,14 @@ local function GetPageLayout()
     if panel and panel.modelsViewMode == "npc" then
         local rowHeight    = PSM.NPCRow and PSM.NPCRow.ROW_HEIGHT or 22
         local headerHeight = PSM.NPCRow and PSM.NPCRow.HEADER_HEIGHT or 20
+        local inset        = (PSM.NPCRow and PSM.NPCRow.TABLE_INSET) or 0
         local fit = MODELS_CONFIG.NPC_PETS_PER_PAGE
         if panel.petsFrame then
             -- Extra safety margin so the last row never runs into the
-            -- pagination controls anchored just below petsFrame.
-            local available = panel.petsFrame:GetHeight() - headerHeight - 50
+            -- pagination controls anchored just below petsFrame. `inset` is the
+            -- gap above the header (UpdateNPCPanelLayout), which is height the
+            -- rows no longer have.
+            local available = panel.petsFrame:GetHeight() - inset - headerHeight - 50
             fit = math.max(5, math.floor(available / rowHeight))
         end
         return 1, math.min(fit, MODELS_CONFIG.NPC_MAX_ROWS)
@@ -133,26 +151,6 @@ end
 -- Panel construction
 -- ─────────────────────────────────────────────
 
-function PSM.ModelsPanel:BuildPanel()
-    if PSM.state.modelsPanel then return end
-    self:LoadSavedPage()
-    self:CreateModelsPanel()
-end
-
-function PSM.ModelsPanel:LoadSavedPage()
-    local charKey = UnitName("player") .. "-" .. GetRealmName()
-    local saved = PetStableManagementDB
-        and PetStableManagementDB.characters
-        and PetStableManagementDB.characters[charKey]
-        and PetStableManagementDB.characters[charKey].settings
-        and PetStableManagementDB.characters[charKey].settings.modelsPanelCurrentPage
-
-    local page = saved or PSM.state.modelsPanelCurrentPage or 1
-    PSM.state.modelsPanelCurrentPage = page
-    _G.PSM_modelsPanelCurrentPage    = page
-    return saved ~= nil
-end
-
 -- Restore the "Abilities (N families)" flag and the pure Abilities family set, which a
 -- Special Tames re-Apply intersects against. The current family selection itself is
 -- restored separately by BuildUnifiedFilterSystem from selectedModelsFamilies.
@@ -167,22 +165,16 @@ function PSM.ModelsPanel:LoadSavedFamiliesFromAbilities()
 end
 
 function PSM.ModelsPanel:LoadSavedFilters()
-    -- Load selected taming rules from SavedVariables
-    PSM.state.selectedTamingRules = PSM.state.selectedTamingRules or {}
-    local savedTamingRules = PetStableManagementDB and PetStableManagementDB.filters and PetStableManagementDB.filters.selectedTamingRules
-    if savedTamingRules then
-        for ruleKey, val in pairs(savedTamingRules) do
-            PSM.state.selectedTamingRules[ruleKey] = val
-        end
+    local saved = PetStableManagementDB and PetStableManagementDB.filters
+
+    -- Merged into whatever is already selected, not replacing it: these run after the panel
+    -- may have been seeded from the Ability Browser, so Replace would discard that.
+    for ruleKey, val in pairs(saved and saved.selectedTamingRules or {}) do
+        PSM.Selections:Set("tamingRules", ruleKey, val)
     end
 
-    -- Load selected conditions from SavedVariables
-    PSM.state.selectedConditions = PSM.state.selectedConditions or {}
-    local savedConditions = PetStableManagementDB and PetStableManagementDB.filters and PetStableManagementDB.filters.selectedConditions
-    if savedConditions then
-        for cond, val in pairs(savedConditions) do
-            PSM.state.selectedConditions[cond] = val
-        end
+    for cond, val in pairs(saved and saved.selectedConditions or {}) do
+        PSM.Selections:Set("conditions", cond, val)
     end
 end
 
@@ -190,16 +182,14 @@ function PSM.ModelsPanel:CreateModelsPanel()
     local panel = PSM.PanelManager:CreateBasePanel("modelsPanel", {
         width              = MODELS_CONFIG.PANEL_WIDTH,
         height             = MODELS_CONFIG.PANEL_HEIGHT,
-        title              = "Pet Model Browser",
-        escKeyframe        = "PetStableManagementModelsPanel",
+        title              = PSM.L("Pet Model Browser"),
         resizable          = false,
         showResizeHandle   = false,
         showMaximizeButton = false,
 
         onShow = function(p)
             p._layoutDone = false
-            p._renderGeneration = 0   -- reset generation on each open
-            PSM.C_Timer.After(0.01, function()
+            C_Timer.After(0.01, function()
                 if p.showPetsInMyZone then
                     p.currentPlayerZone = PSM.ModelsFilters:GetPlayerZone()
                 end
@@ -237,12 +227,15 @@ function PSM.ModelsPanel:RegisterZoneEventListeners()
     local panel = PSM.state.modelsPanel
     if not panel or panel.zoneEventFrame then return end
 
-    local f = PSM.CreateFrame("Frame")
+    -- Raw CreateFrame, not PSM.CreateFrame: the core alias exists so core's headless
+    -- tests can stub it, and reaching for it from the browser is the cross-addon capture
+    -- pattern ModelRow.lua was fixed for.
+    local f = CreateFrame("Frame")
     f:RegisterEvent("ZONE_CHANGED")
     f:RegisterEvent("ZONE_CHANGED_INDOORS")
     f:RegisterEvent("ZONE_CHANGED_NEW_AREA")
     f:SetScript("OnEvent", function()
-        if not (panel:IsVisible() and panel.showPetsInMyZone) then return end
+        if not (panel:IsVisible() and PSM.FilterState:Get("showPetsInMyZone")) then return end
 
         local newZone = PSM.ModelsFilters:GetPlayerZone()
         if newZone and newZone ~= panel.currentPlayerZone then
@@ -274,9 +267,6 @@ function PSM.ModelsPanel:UpdateVisibleRows()
 
     if not panel.allModels then return end
 
-    panel._renderGeneration = (panel._renderGeneration or 0) + 1
-    local myGen = panel._renderGeneration
-
     local totalPets = #panel.allModels
 
     for _, row in ipairs(panel.modelRows) do
@@ -284,7 +274,7 @@ function PSM.ModelsPanel:UpdateVisibleRows()
     end
 
     if totalPets == 0 then
-        if panel.pageText then panel.pageText:SetText("Page 0 of 0") end
+        if panel.pageText then panel.pageText:SetText(PSM.L("Page %d of %d", 0, 0)) end
         return
     end
 
@@ -303,7 +293,7 @@ function PSM.ModelsPanel:UpdateVisibleRows()
     _G.PSM_modelsPanelCurrentPage = panel.currentPage
 
     if panel.pageText then
-        panel.pageText:SetText(string.format("Page %d of %d", panel.currentPage, maxPages))
+        panel.pageText:SetText(PSM.L("Page %d of %d", panel.currentPage, maxPages))
     end
     if panel.pageJumpEditBox then
         panel.pageJumpEditBox:SetText(tostring(panel.currentPage))
@@ -339,7 +329,7 @@ function PSM.ModelsPanel:UpdateVisibleNPCRows()
 
     if totalItems == 0 then
         for _, row in ipairs(panel.npcRows) do row:Hide() end
-        if panel.pageText then panel.pageText:SetText("Page 0 of 0") end
+        if panel.pageText then panel.pageText:SetText(PSM.L("Page %d of %d", 0, 0)) end
         if panel.pageJumpEditBox then panel.pageJumpEditBox:SetText("0") end
         if panel.prevButton  then panel.prevButton:SetEnabled(false)  end
         if panel.nextButton  then panel.nextButton:SetEnabled(false)  end
@@ -377,7 +367,7 @@ function PSM.ModelsPanel:UpdateVisibleNPCRows()
     _G.PSM_modelsPanelCurrentPage = panel.currentPage
 
     if panel.pageText then
-        panel.pageText:SetText(string.format("Page %d of %d", panel.currentPage, maxPages))
+        panel.pageText:SetText(PSM.L("Page %d of %d", panel.currentPage, maxPages))
     end
     if panel.pageJumpEditBox then
         panel.pageJumpEditBox:SetText(tostring(panel.currentPage))
@@ -411,11 +401,15 @@ function PSM.ModelsPanel:UpdateNPCPanelLayout()
 
     local headerHeight = panel.npcHeaderRow and panel.npcHeaderRow:GetHeight() or PSM.NPCRow.HEADER_HEIGHT
     local rowHeight = PSM.NPCRow.ROW_HEIGHT
+    -- Same inset the header uses (NPCRow's TABLE_INSET), so the rows sit inside
+    -- petsFrame's silver border and their cells stay under the header's columns --
+    -- the two anchor to different frames but share one column layout.
+    local inset = PSM.NPCRow.TABLE_INSET
     for i, row in ipairs(panel.npcRows) do
-        local yOffset = -(headerHeight + (i - 1) * rowHeight)
+        local yOffset = -(inset + headerHeight + (i - 1) * rowHeight)
         row:ClearAllPoints()
-        row:SetPoint("TOPLEFT",  panel.petsFrame, "TOPLEFT",  0, yOffset)
-        row:SetPoint("TOPRIGHT", panel.petsFrame, "TOPRIGHT", 0, yOffset)
+        row:SetPoint("TOPLEFT",  panel.petsFrame, "TOPLEFT",   inset, yOffset)
+        row:SetPoint("TOPRIGHT", panel.petsFrame, "TOPRIGHT", -inset, yOffset)
     end
 
     self:UpdateVisibleRows()
@@ -425,77 +419,79 @@ end
 -- UI construction helpers
 -- ─────────────────────────────────────────────
 
-function PSM.ModelsPanel:InitializePerformanceOptimizations()
-    PSM.ModelsDataLoader:CreateRenderCache()
-    PSM.NPCDataLoader:CreateRenderCache()
-end
-
 function PSM.ModelsPanel:AddModelsBrowserElements(panel)
-    -- Filters
-        -- Show Only filters frame
-    panel.showOnlyFrame = CreateFrame("Frame", nil, panel, "BackdropTemplate")
-    panel.showOnlyFrame:SetPoint("TOPLEFT", 10, -100)
-    panel.showOnlyFrame:SetSize(180, 160)
-    panel.showOnlyFrame:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 16,
-        insets = {left=4, right=4, top=4, bottom=4},
+    local Widgets = PSM.Widgets
+
+    -- Tools: navigation to the other browser panels. Topmost in the rail, level with
+    -- the title rather than FILTER_TOP -- the rail column (x=10..220) never shares
+    -- horizontal space with the centered title/search box, so it can start as high as
+    -- the title itself with no collision, recovering the room Tools needs without
+    -- shrinking Show Only or Unified Filters below it.
+    panel.toolsFrame = Widgets.Frame(panel, {
+        size        = { 210, 125 },
+        point       = { "TOPLEFT", 10, PSM.Theme.CHROME.TITLE_Y },
+        backdrop    = "TOOLTIP",
+        color       = PSM.Config.COLORS.BACKGROUND,
+        borderColor = PSM.Theme.COLOR.SILVER,
     })
-    panel.showOnlyFrame:SetBackdropColor(unpack(PSM.Config.COLORS.BACKGROUND))
-    panel.showOnlyFrame:SetBackdropBorderColor(0.75, 0.75, 0.75, 1) -- silver border
 
-    -- Title pill
-    local titleFrame = CreateFrame("Frame", nil, panel.showOnlyFrame)
-    titleFrame:SetPoint("TOPLEFT", 5, -5)
-    titleFrame:SetSize(170, 20)
-    local bg = titleFrame:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BG))
-    local topLine = titleFrame:CreateTexture(nil, "BORDER")
-    topLine:SetPoint("TOPLEFT", titleFrame, "TOPLEFT", 2, 0)
-    topLine:SetPoint("TOPRIGHT", titleFrame, "TOPRIGHT", -2, 0)
-    topLine:SetHeight(1)
-    topLine:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BORDER))
-    local bottomLine = titleFrame:CreateTexture(nil, "BORDER")
-    bottomLine:SetPoint("BOTTOMLEFT", titleFrame, "BOTTOMLEFT", 2, 0)
-    bottomLine:SetPoint("BOTTOMRIGHT", titleFrame, "BOTTOMRIGHT", -2, 0)
-    bottomLine:SetHeight(1)
-    bottomLine:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BORDER))
-    local label = titleFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    label:SetPoint("LEFT", 5, 0)
-    label:SetJustifyH("LEFT")
-    label:SetText("Show Only")
-    label:SetTextColor(1, 0.82, 0) -- golden color
+    Widgets.SectionHeader(panel.toolsFrame, {
+        width = 200,
+        point = { "TOPLEFT", 5, -5 },
+        text  = PSM.L("Tools"),
+    })
 
-        local MF = PSM.ModelsFilters
+    -- Show Only filters frame
+    panel.showOnlyFrame = Widgets.Frame(panel, {
+        size        = { 210, 160 },
+        point       = { "TOPLEFT", panel.toolsFrame, "BOTTOMLEFT", 0, -5 },
+        backdrop    = "TOOLTIP",
+        color       = PSM.Config.COLORS.BACKGROUND,
+        borderColor = PSM.Theme.COLOR.SILVER,
+    })
+
+    Widgets.SectionHeader(panel.showOnlyFrame, {
+        width = 200,
+        point = { "TOPLEFT", 5, -5 },
+        text  = PSM.L("Show Only"),
+    })
+
+    local MF = PSM.ModelsFilters
     if MF then
+        if MF.CreateToolsBox            then MF:CreateToolsBox(panel)            end
         if MF.CreateRaresToggle         then MF:CreateRaresToggle(panel)         end
         if MF.CreateFavoritesToggle     then MF:CreateFavoritesToggle(panel)     end
         if MF.CreateHideOwnedToggle     then MF:CreateHideOwnedToggle(panel)     end
         if MF.CreateNameKeepersToggle  then MF:CreateNameKeepersToggle(panel)  end
         if MF.CreatePetsInMyZoneToggle  then MF:CreatePetsInMyZoneToggle(panel)  end
         if MF.CreateSearchBox           then MF:CreateSearchBox(panel)           end
-        if MF.CreateSpecialTamesButton then MF:CreateSpecialTamesButton(panel) end
-        if MF.CreateAbilityBrowserButton then MF:CreateAbilityBrowserButton(panel) end
-        if MF.CreatePetRouletteButton   then MF:CreatePetRouletteButton(panel)   end
         if MF.CreateResetFiltersButton  then MF:CreateResetFiltersButton(panel)  end
         if MF.CreateInfoText            then MF:CreateInfoText(panel)            end
         if MF.CreateFilterSummaryText   then MF:CreateFilterSummaryText(panel)   end
-        if MF.BuildUnifiedFilterSystem  then MF:BuildUnifiedFilterSystem(panel, MODELS_CONFIG) end
+        if MF.BuildUnifiedFilterSystem  then MF:BuildUnifiedFilterSystem(panel) end
     end
 
-    -- Pets frame (2-column layout)
-    local petsFrame = CreateFrame("Frame", nil, panel, "BackdropTemplate")
-    petsFrame:SetPoint("TOPLEFT",     panel.showOnlyFrame, "TOPRIGHT", 25, 0)
-    petsFrame:SetPoint("BOTTOMRIGHT", -10, 50)
-    petsFrame:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 16,
-        insets = {left=4, right=4, top=4, bottom=4},
+    -- Room reserved below petsFrame for the pagination footer. Named so the footer
+    -- controls below can derive their position from Theme.CHROME.FOOTER_Y instead of
+    -- re-guessing their own offset from petsFrame's bottom edge.
+    local FOOTER_INSET = 50
+
+    -- Pets frame (2-column layout). Anchored to Show Only's top, pulled up 30px --
+    -- a visual-balance choice specific to this panel, not a shared boundary: Models
+    -- Browser is the only LEFT_RAIL panel, so there's no sibling panel this could drift
+    -- out of step with. Level with Show Only exactly (offset 0) read as too far below
+    -- the header once Tools pushed Show Only down; this splits the difference without
+    -- moving Tools any higher (it's already at TITLE_Y, the highest it can go).
+    local PETS_FRAME_TOP_LIFT = 50
+    local petsFrame = Widgets.Frame(panel, {
+        backdrop    = "TOOLTIP",
+        color       = PSM.Config.COLORS.BACKGROUND,
+        borderColor = PSM.Theme.COLOR.SILVER,  -- same as Tools/Show Only/Unified Filters
+        point       = {
+            { "TOPLEFT",     panel.showOnlyFrame, "TOPRIGHT", 25,  PETS_FRAME_TOP_LIFT },
+            { "BOTTOMRIGHT", -10, FOOTER_INSET },
+        },
     })
-    petsFrame:SetBackdropColor(unpack(PSM.Config.COLORS.BACKGROUND))
 
     -- Mouse-wheel navigation
     petsFrame:EnableMouseWheel(true)
@@ -547,55 +543,62 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
         panel.npcRows[i] = npcRow
     end
 
-    local viewToggleButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    viewToggleButton:SetPoint("TOPRIGHT", panel.closeButton, "TOPLEFT", -2, 0)
-    viewToggleButton:SetSize(PSM.Config.PANEL_BUTTON_WIDTH, PSM.Config.PANEL_BUTTON_HEIGHT)
-    viewToggleButton:SetNormalFontObject("GameFontNormalSmall")
-    PSM.UI:ApplyElvUISkin(viewToggleButton, "button")
+    -- M, not S: this button is created with no text and relabelled to "Models view" /
+    -- "NPC view" later, so it is the one button the truncation audit is blind to -- it
+    -- measured an empty string at build time and reported nothing.
+    local viewToggleButton = PSM.PanelManager:CreateViewButton(panel, {
+        width = PSM.Theme.CONTROL.BUTTON_W.M,
+    })
     panel.viewToggleButton = viewToggleButton
 
     local npcColumnsButton = PSM.NPCRow:CreateColumnsPicker(panel, viewToggleButton)
 
     local function RefreshViewToggleButtonText()
-        viewToggleButton:SetText(panel.modelsViewMode == "npc" and "Models view" or "NPC view")
+        viewToggleButton:SetText(panel.modelsViewMode == "npc" and PSM.L("Models view") or PSM.L("NPC view"))
     end
 
-    -- Swaps the search box placeholder; refreshes the visible text immediately
-    -- if the box is idle (unfocused, still showing the old placeholder).
+    -- PanelManager owns the rules for when the visible text may be replaced -- assigning
+    -- placeholderText and calling SetText directly fires OnTextChanged and blanks the box.
     local function SetSearchPlaceholder(newPlaceholder)
         local box = panel.searchBox
-        if not box then return end
-        local old = box.placeholderText
-        box.placeholderText = newPlaceholder
-        if not box:HasFocus() and box:GetText() == old then
-            box:SetText(newPlaceholder)
-            box:SetTextColor(0.5, 0.5, 0.5)
+        if box then box:SetPlaceholder(newPlaceholder) end
+    end
+
+    -- What a view mode *looks* like: which frames are up, and what the search box says.
+    -- Separate from the rest of ApplyModelsViewMode because the panel's initial build needs
+    -- exactly this and none of the page reset or data loading -- and one copy, so a panel
+    -- restored into NPC view cannot open with the models placeholder.
+    local function ApplyViewModePresentation(mode)
+        RefreshViewToggleButtonText()
+        if mode == "npc" then
+            for _, row in ipairs(panel.modelRows) do row:Hide() end
+            panel.npcHeaderRow:Show()
+            npcColumnsButton:Show()
+            SetSearchPlaceholder(PSM.L("Search NPCs..."))
+        else
+            for _, row in ipairs(panel.npcRows) do row:Hide() end
+            panel.npcHeaderRow:Hide()
+            npcColumnsButton:Hide()
+            panel.npcColumnsPopout:Hide()
+            SetSearchPlaceholder(PSM.L("Search models..."))
         end
     end
 
     local function ApplyModelsViewMode(mode)
         panel.modelsViewMode = mode
         PetStableManagementDB.settings.modelsViewMode = mode
-        RefreshViewToggleButtonText()
 
         panel.currentPage = 1
         PSM.state.modelsPanelCurrentPage = 1
         _G.PSM_modelsPanelCurrentPage = 1
         SaveCurrentPage(1)
 
+        ApplyViewModePresentation(mode)
+
         if mode == "npc" then
-            for _, row in ipairs(panel.modelRows) do row:Hide() end
-            panel.npcHeaderRow:Show()
-            npcColumnsButton:Show()
-            SetSearchPlaceholder("Search NPCs...")
             PSM.ModelsPanel:UpdateNPCPanelLayout()
             PSM.NPCDataLoader:LoadNPCsForSelectedFamilies()
         else
-            for _, row in ipairs(panel.npcRows) do row:Hide() end
-            panel.npcHeaderRow:Hide()
-            npcColumnsButton:Hide()
-            panel.npcColumnsPopout:Hide()
-            SetSearchPlaceholder("Search models...")
             PSM.ModelsPanel:UpdateModelsPanelLayout()
             PSM.ModelsDataLoader:LoadModelsForSelectedFamilies()
         end
@@ -606,67 +609,58 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
         ApplyModelsViewMode(panel.modelsViewMode == "npc" and "displayId" or "npc")
     end)
 
-    RefreshViewToggleButtonText()
-    if panel.modelsViewMode == "npc" then
-        npcColumnsButton:Show()
-        panel.npcHeaderRow:Show()
-    else
-        panel.npcHeaderRow:Hide()
-        npcColumnsButton:Hide()
-    end
+    -- The restored mode, painted through the same function the toggle uses. Presentation
+    -- only: loading is left to whatever shows the panel.
+    ApplyViewModePresentation(panel.modelsViewMode)
 
-    -- Navigation buttons
-    local firstButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    firstButton:SetPoint("BOTTOMLEFT", petsFrame, "BOTTOMLEFT", 0, -35)
-    firstButton:SetSize(50, 25)
-    firstButton:SetText("First")
-    firstButton:SetScript("OnClick", function()
-        GoToPage(panel, 1)
-    end)
+    -- Navigation buttons. X stays anchored to petsFrame's own edges (it's the region
+    -- these controls page through); Y is FOOTER_Y-derived so the whole band still
+    -- moves as one with Theme.CHROME.FOOTER_Y instead of re-guessing its own offset.
+    local firstButton = Widgets.Button(panel, {
+        width   = PSM.Theme.CONTROL.BUTTON_W.XS,
+        point   = { "BOTTOMLEFT", petsFrame, "BOTTOMLEFT", 0, PSM.Theme.CHROME.FOOTER_Y - FOOTER_INSET },
+        text    = "First",
+        onClick = function() GoToPage(panel, 1) end,
+    })
 
-    local prevButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    prevButton:SetPoint("LEFT", firstButton, "RIGHT", 5, 0)
-    prevButton:SetSize(80, 25)
-    prevButton:SetText("Previous")
-    prevButton:SetScript("OnClick", function()
-        GoToPage(panel, panel.currentPage - 1)
-    end)
+    local prevButton = Widgets.Button(panel, {
+        width   = PSM.Theme.CONTROL.BUTTON_W.S,
+        point   = { "LEFT", firstButton, "RIGHT", 5, 0 },
+        text    = PSM.L("Previous"),
+        onClick = function() GoToPage(panel, panel.currentPage - 1) end,
+    })
 
-    local lastButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    lastButton:SetPoint("BOTTOMRIGHT", petsFrame, "BOTTOMRIGHT", 0, -35)
-    lastButton:SetSize(50, 25)
-    lastButton:SetText("Last")
-    lastButton:SetScript("OnClick", function()
-        local _, petsPerPage = GetPageLayout()
-        local max = math.max(1, math.ceil(#GetActiveList(panel) / petsPerPage))
-        GoToPage(panel, max)
-    end)
+    local lastButton = Widgets.Button(panel, {
+        width   = PSM.Theme.CONTROL.BUTTON_W.XS,
+        point   = { "BOTTOMRIGHT", petsFrame, "BOTTOMRIGHT", 0, PSM.Theme.CHROME.FOOTER_Y - FOOTER_INSET },
+        text    = "Last",
+        onClick = function()
+            local _, petsPerPage = GetPageLayout()
+            local max = math.max(1, math.ceil(#GetActiveList(panel) / petsPerPage))
+            GoToPage(panel, max)
+        end,
+    })
 
-    local nextButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    nextButton:SetPoint("RIGHT", lastButton, "LEFT", -5, 0)
-    nextButton:SetSize(80, 25)
-    nextButton:SetText("Next")
-    nextButton:SetScript("OnClick", function()
-        GoToPage(panel, panel.currentPage + 1)
-    end)
+    local nextButton = Widgets.Button(panel, {
+        width   = PSM.Theme.CONTROL.BUTTON_W.S,
+        point   = { "RIGHT", lastButton, "LEFT", -5, 0 },
+        text    = PSM.L("Next"),
+        onClick = function() GoToPage(panel, panel.currentPage + 1) end,
+    })
 
-    local pageText = panel:CreateFontString(nil, "OVERLAY")
-    pageText:SetFont("Fonts\\FRIZQT__.TTF", 12)
-    pageText:SetPoint("BOTTOM", petsFrame, "BOTTOM", 0, -25)
-    pageText:SetText("Page 1 of 1")
+    local pageText = Widgets.Label(panel, {
+        fontSize = PSM.Theme.SIZE.LABEL,
+        point    = { "BOTTOM", petsFrame, "BOTTOM", 0, PSM.Theme.CHROME.FOOTER_Y - FOOTER_INSET + 10 },
+        text     = PSM.L("Page %d of %d", 1, 1),
+    })
 
     -- Page-jump controls
-    local pageJumpFrame = CreateFrame("Frame", nil, panel)
-    pageJumpFrame:SetSize(150, 25)
-    pageJumpFrame:SetPoint("BOTTOM", petsFrame, "BOTTOM", 0, -5)
+    local pageJumpFrame = Widgets.Frame(panel, {
+        size  = { 150, 25 },
+        point = { "BOTTOM", petsFrame, "BOTTOM", 0, PSM.Theme.CHROME.FOOTER_Y - FOOTER_INSET + 30 },
+    })
 
-    local pageJumpEditBox = CreateFrame("EditBox", nil, pageJumpFrame, "InputBoxTemplate")
-    pageJumpEditBox:SetSize(50, 25)
-    pageJumpEditBox:SetPoint("CENTER", pageJumpFrame, "CENTER", 0, 16)
-    pageJumpEditBox:SetAutoFocus(false)
-    pageJumpEditBox:SetNumeric(true)
-    pageJumpEditBox:SetMaxLetters(4)
-    pageJumpEditBox:SetJustifyH("CENTER")
+    local pageJumpEditBox
 
     local function CommitPageJump()
         local _, ppp = GetPageLayout()
@@ -676,23 +670,26 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
         end
         pageJumpEditBox:ClearFocus()
     end
-    pageJumpEditBox:SetScript("OnEnterPressed", CommitPageJump)
-    pageJumpEditBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 
-    local pageJumpButton = CreateFrame("Button", nil, pageJumpFrame, "UIPanelButtonTemplate")
-    pageJumpButton:SetSize(60, 25)
-    pageJumpButton:SetPoint("LEFT", pageJumpEditBox, "RIGHT", 5, 0)
-    pageJumpButton:SetText("Go")
-    pageJumpButton:SetScript("OnClick", CommitPageJump)
+    pageJumpEditBox = Widgets.EditBox(pageJumpFrame, {
+        size     = { 50, 25 },
+        point    = { "CENTER", pageJumpFrame, "CENTER", 0, 16 },
+        onEnter  = CommitPageJump,
+        onEscape = function(self) self:ClearFocus() end,
+    })
+    -- EditBox specifics the kit has no option for. Set on the returned frame, as
+    -- Dialogs.lua does with SetMaxLetters -- they earn an option once a third caller
+    -- wants them, not before.
+    pageJumpEditBox:SetNumeric(true)
+    pageJumpEditBox:SetMaxLetters(4)
+    pageJumpEditBox:SetJustifyH("CENTER")
 
-    -- Apply ElvUI skin where available
-    if PSM.UI and PSM.UI.ApplyElvUISkin then
-        PSM.UI:ApplyElvUISkin(prevButton,     "button")
-        PSM.UI:ApplyElvUISkin(nextButton,     "button")
-        PSM.UI:ApplyElvUISkin(pageJumpButton, "button")
-        PSM.UI:ApplyElvUISkin(firstButton,    "button")
-        PSM.UI:ApplyElvUISkin(lastButton,     "button")
-    end
+    local pageJumpButton = Widgets.Button(pageJumpFrame, {
+        width   = PSM.Theme.CONTROL.BUTTON_W.XS,
+        point   = { "LEFT", pageJumpEditBox, "RIGHT", 5, 0 },
+        text    = "Go",
+        onClick = CommitPageJump,
+    })
 
     panel.prevButton       = prevButton
     panel.nextButton       = nextButton
@@ -702,15 +699,18 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     panel.pageJumpEditBox  = pageJumpEditBox
     panel.pageJumpButton   = pageJumpButton
 
-    -- Initialise state tables
-    PSM.state.selectedModelsFamilies = PSM.state.selectedModelsFamilies or {}
-    PSM.state.favoriteModels         = PSM.state.favoriteModels         or {}
+    -- Initialise state tables. Selections:Get creates the slice if absent, which is all the
+    -- `= X or {}` here ever did.
+    PSM.Selections:Get("families")
+    PSM.state.favoriteModels = PSM.state.favoriteModels or {}
 
-    if PSM.ModelsDataLoader and PSM.ModelsDataLoader.CreateRenderCache then
-        PSM.ModelsDataLoader:CreateRenderCache()
+    -- A freshly built panel invalidates both loaders' cached results, which were computed
+    -- against the panel being replaced.
+    if PSM.ModelsDataLoader and PSM.ModelsDataLoader.ReleaseCache then
+        PSM.ModelsDataLoader:ReleaseCache()
     end
-    if PSM.NPCDataLoader and PSM.NPCDataLoader.CreateRenderCache then
-        PSM.NPCDataLoader:CreateRenderCache()
+    if PSM.NPCDataLoader and PSM.NPCDataLoader.ReleaseCache then
+        PSM.NPCDataLoader:ReleaseCache()
     end
 
     -- Now that pagination controls exist, position the NPC row pool if that's
@@ -721,194 +721,9 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
 end
 
 -- ─────────────────────────────────────────────
--- Magnification popup
--- ─────────────────────────────────────────────
-
-function PSM.ModelsPanel:ShowMagnificationPopup(displayId)
-    if not displayId then return end
-
-    if not PSM.state.modelMagnificationPopup then
-        PSM.state.modelMagnificationPopup = PSM.PopUpManager:CreateModelPopup({
-            title               = "Model Magnifier",
-            width               = 500,
-            height              = 500,
-            modelSize           = nil,
-            showPetModelsButton = false,
-            showTryAgainButton  = false,
-            resizable           = true,
-            popupName           = "PetStableManagementMagnificationPopup",
-            cleanupFunction     = function()
-                local popup = PSM.state.modelMagnificationPopup
-                if popup then
-                    popup.currentPetData  = nil
-                    popup.currentDisplayId = nil
-                end
-            end,
-        })
-        PSM.state.modelMagnificationPopup:Hide()
-    end
-
-    local popup = PSM.state.modelMagnificationPopup
-    popup.currentDisplayId = displayId
-    popup.currentNPCs    = nil
-
-    PSM.C_Timer.After(0.1, function()
-        local mf       = popup.modelFrame
-        local settings = PetStableManagementDB.settings
-        local views    = PSM.state.modelViews
-
-        mf:SetDisplayInfo(displayId)
-        mf:SetCamDistanceScale(1.0)
-
-        if settings.stopAnimation then
-            mf:FreezeAnimation(0, 0, 0)
-        else
-            mf:SetAnimation(0)
-        end
-
-        local globalZoom = settings.modelZoom or PSM.Config.DEFAULT_MODEL_ZOOM
-        local savedView  = views and views[displayId]
-        if savedView then
-            mf.rotation = savedView.rotation or math.rad(settings.modelViewAngle or PSM.Config.DEFAULT_MODEL_VIEW_ANGLE)
-            mf.zoom     = savedView.zoom or 1.0
-            mf:SetRotation(mf.rotation)
-            mf:SetCamDistanceScale(mf.zoom / globalZoom)
-            mf:SetPosition(savedView.position and unpack(savedView.position) or 0, 0, 0)
-        else
-            mf.rotation = math.rad(settings.modelViewAngle or PSM.Config.DEFAULT_MODEL_VIEW_ANGLE)
-            mf.zoom     = 1.0
-            mf:SetRotation(mf.rotation)
-            mf:SetCamDistanceScale(mf.zoom / globalZoom)
-            mf:SetPosition(0, 0, 0)
-        end
-
-        mf.isRotating = false
-        mf:Show()
-    end)
-
-    -- Favorites button state
-    local favTex = PSM.state.favoriteModels[displayId]
-        and {0, 0.5, 0, 0.5}
-        or  {0.5, 1, 0, 0.5}
-    popup.favoritesButton:GetNormalTexture():SetTexCoord(unpack(favTex))
-    popup.favoritesButton:GetHighlightTexture():SetTexCoord(unpack(favTex))
-
-    -- Resolve model data and family name
-    local modelData, familyName
-
-    -- 1. Models panel list
-    if PSM.state.modelsPanel then
-        for _, m in ipairs(PSM.state.modelsPanel.allModels or {}) do
-            if m.displayId == displayId then
-                modelData  = m
-                familyName = m.familyName
-                break
-            end
-        end
-    end
-
-    -- 2. Stable pets
-    if not modelData then
-        for _, pet in ipairs(PSM.state.stablePets or {}) do
-            if pet.displayID == displayId then
-                familyName = pet.familyName
-                modelData  = { displayId = displayId, familyName = familyName, npcs = {} }
-                break
-            end
-        end
-    end
-
-    -- 3. PetModels registry
-    if not modelData and PSM.PetModels then
-        for _, famName in ipairs(PSM.PetModels:GetAvailableFamilies()) do
-            local info = PSM.PetModels:GetModelInfo(famName, displayId)
-            if info then
-                modelData  = info
-                familyName = famName
-                break
-            end
-        end
-    end
-
-    familyName = familyName or "Unknown"
-    popup.infoText:SetText(string.format("%s - Display ID: %d", familyName, displayId))
-
-    -- modelData.npcs / info.npcs are denseIndex values (see PetModels.lua's
-    -- GetFamilyModels) -- resolve to full records before reading fields, and
-    -- before handing off to popup.currentNPCs, which PopUpManager.lua's
-    -- BuildNPCRows/CreateNPCRow also consume later (on resize or note-save)
-    -- expecting object-style field access.
-
-    -- Build NPC lines
-    local function BuildNPCLines(npcs)
-        local lines = {}
-        for _, npc in ipairs(npcs) do
-            local classTag = (npc.classification and npc.classification ~= "Normal")
-                and string.format("%s, ", npc.classification) or ""
-            lines[#lines + 1] = string.format(
-                "%s (%s|Hnpc:%s|h|cff00ff00ID: %s|h|r, Location: %s, Expansion: %s)",
-                npc.name,
-                classTag,
-                npc.npcId or "?",
-                npc.npcId or "?",
-                PSM.PopUpManager:BuildCoordsLocationLabel(npc.npcId, npc.location),
-                npc.expansion or "Unknown")
-        end
-        return lines
-    end
-
-    local npcLines = {}
-    if modelData and modelData.npcs and #modelData.npcs > 0 then
-        local resolvedNpcs = PSM.PetModels:ResolveNpcRecords(modelData.npcs)
-        npcLines = BuildNPCLines(resolvedNpcs)
-        popup.currentNPCs = resolvedNpcs
-    elseif PSM.PetModels then
-        for _, famName in ipairs(PSM.PetModels:GetAvailableFamilies()) do
-            local info = PSM.PetModels:GetModelInfo(famName, displayId)
-            if info and info.npcs and #info.npcs > 0 then
-                local resolvedNpcs = PSM.PetModels:ResolveNpcRecords(info.npcs)
-                npcLines = BuildNPCLines(resolvedNpcs)
-                popup.currentNPCs = resolvedNpcs
-                break
-            end
-        end
-    end
-
-    if #npcLines == 0 then
-        npcLines[1] = "No location data available"
-    end
-
-    local npcText = table.concat(npcLines, "\n")
-    popup.currentNPCs = modelData and PSM.PetModels:ResolveNpcRecords(modelData.npcs or {}) or popup.currentNPCs or {}
-    popup.npcPlainText = npcText
-    popup:SetNPCText(npcText)
-    popup.npcsScrollFrame:Show()
-    popup.npcsScrollBar:Show()
-
-    PSM.C_Timer.After(0.01, function()
-        local extraHeight = popup.npcsText:GetContentHeight() - 7 + 20
-        if extraHeight > 0 then
-            local newHeight = math.max(
-                popup.modelFrame:GetHeight() + 20,
-                popup:GetHeight() - extraHeight + extraHeight)
-            popup:SetHeight(newHeight)
-        end
-    end)
-
-    popup:SetScript("OnEnter", nil)
-    popup:SetScript("OnLeave", nil)
-    popup:Show()
-    popup:Raise()
-end
-
--- ─────────────────────────────────────────────
 -- Public toggle
 -- ─────────────────────────────────────────────
 
 function PSM.ModelsPanel:Toggle()
-    if UnitAffectingCombat("player") then
-        print("|cFFFF0000Pet Model Browser: Cannot open panel during combat.|r")
-        return
-    end
-    PSM.PanelManager:TogglePanel("modelsPanel", function() self:CreateModelsPanel() end)
+    PSM.PanelManager:TogglePanel("modelsPanel", function() self:CreateModelsPanel() end, PSM.L("Pet Model Browser"))
 end

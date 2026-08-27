@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: luacheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Lua 5.1 and luacheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.1 liblua5.1-0-dev luarocks
+          sudo luarocks --lua-version=5.1 install luacheck
+
+      - name: Run luacheck
+        run: |
+          set +e
+          luacheck PetStableManagement PetStableManagement_ModelsBrowser Tests
+          code=$?
+          set -e
+          echo "luacheck exit code: $code"
+          # luacheck exits 1 for warnings, >=2 for errors/critical/fatal. The project
+          # carries a known, stable warning baseline (70 at time of writing), so
+          # gating on any warning would fail every run. Errors are the real gate.
+          # The count is printed above -- treat drift in it as something you caused.
+          if [ "$code" -ge 2 ]; then
+            echo "::error::luacheck reported errors (exit $code)"
+            exit 1
+          fi
+
+  test:
+    name: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Lua 5.1
+        # The WoW client is Lua 5.1, which is why .luacheckrc sets std = "lua51".
+        # Locally the suite is usually run through Tests/run.py (lupa's bundled 5.1)
+        # because the dev machine has no Lua installed; CI exercises the primary
+        # entry point, Tests/run.lua, so both stay honest.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.1
+
+      - name: Run test suite
+        # Must run from the repo root: Tests/suite.lua resolves spec and data paths
+        # relative to it. Exits non-zero on any failing spec.
+        run: lua5.1 Tests/run.lua

@@ -1,12 +1,9 @@
 -- OwnedPets/PetGroups.lua
 -- Built-in groups functionality for Owned Pets panel
 
-local addonName = "PetStableManagement"
+local _, ns = ...
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
-
-PSM.PetGroups = PSM.PetGroups or {}
+ns.PetGroups = ns.PetGroups or {}
 
 local UNGROUPED_ID   = "ungrouped"
 local UNGROUPED_NAME = "Ungrouped"
@@ -29,8 +26,8 @@ local function EnsureStorage()
 end
 
 local function Save()
-    if PSM.Data and PSM.Data.SavePersistentData then
-        PSM.Data:SavePersistentData()
+    if ns.Data and ns.Data.SavePersistentData then
+        ns.Data:SavePersistentData()
     end
 end
 
@@ -61,7 +58,7 @@ end
 -- Public API
 -------------------------------------------------------------------------------
 
-function PSM.PetGroups:GetGroups()
+function ns.PetGroups:GetGroups()
     local storage, ungroupedStorage = EnsureStorage()
     local groups = { { id = UNGROUPED_ID, name = UNGROUPED_NAME, pets = ungroupedStorage } }
     for id, group in pairs(storage) do
@@ -70,14 +67,7 @@ function PSM.PetGroups:GetGroups()
     return groups
 end
 
-function PSM.PetGroups:GetGroupCount()
-    local storage = EnsureStorage()
-    local count = 0
-    for _ in pairs(storage) do count = count + 1 end
-    return count
-end
-
-function PSM.PetGroups:GetGroupById(groupId)
+function ns.PetGroups:GetGroupById(groupId)
     if not groupId then return nil end
     local storage, ungroupedStorage = EnsureStorage()
     if groupId == UNGROUPED_ID then
@@ -90,13 +80,13 @@ function PSM.PetGroups:GetGroupById(groupId)
     return nil
 end
 
-function PSM.PetGroups:CreateGroup(name, silent)
-    if not name or name == "" then return nil, "Group name is required" end
-    if name == UNGROUPED_NAME   then return nil, "Cannot create a group named 'Ungrouped'" end
+function ns.PetGroups:CreateGroup(name, silent)
+    if not name or name == "" then return nil, ns.L("Group name is required") end
+    if name == UNGROUPED_NAME   then return nil, ns.L("'Ungrouped' is a reserved group name") end
 
     local storage = EnsureStorage()
     for _, group in pairs(storage) do
-        if group.name == name then return nil, "A group with this name already exists" end
+        if group.name == name then return nil, ns.L("A group with this name already exists") end
     end
 
     local groupId = GenerateGroupId()
@@ -104,59 +94,12 @@ function PSM.PetGroups:CreateGroup(name, silent)
     Save()
 
     if not silent then
-        print("|cFF00FF00PetStableManagement: Group '" .. name .. "' created successfully.|r")
+        ns.Utils:Msg("SUCCESS", ns.L("Group '%s' created successfully.", name))
     end
     return groupId, nil
 end
 
-function PSM.PetGroups:GetPetsInGroup(groupId)
-    if not groupId then return {} end
-    local allPets = PSM.state.stablePets or {}
-    local storage, ungroupedStorage = EnsureStorage()
-
-    -- Build GUID→pet lookup once.
-    local byGUID = {}
-    for _, pet in ipairs(allPets) do
-        if pet.guid then byGUID[pet.guid] = pet end
-    end
-
-    if groupId == UNGROUPED_ID then
-        -- Collect GUIDs belonging to custom groups.
-        local inGroup = {}
-        for _, group in pairs(storage) do
-            for _, guid in ipairs(group.pets or {}) do inGroup[guid] = true end
-        end
-
-        local result, seen = {}, {}
-        -- Respect stored ungrouped order first.
-        for _, guid in ipairs(ungroupedStorage) do
-            local pet = byGUID[guid]
-            if pet and not inGroup[guid] then
-                table.insert(result, pet)
-                seen[guid] = true
-            end
-        end
-        -- Append newly acquired pets (not yet in any list).
-        for _, pet in ipairs(allPets) do
-            if pet.guid and not inGroup[pet.guid] and not seen[pet.guid] then
-                table.insert(result, pet)
-            end
-        end
-        return result
-    end
-
-    local group = self:GetGroupById(groupId)
-    if not group then return {} end
-
-    local result = {}
-    for _, guid in ipairs(group.pets) do
-        local pet = byGUID[guid]
-        if pet then table.insert(result, pet) end
-    end
-    return result
-end
-
-function PSM.PetGroups:MovePetToGroup(petGUID, targetGroupId, targetPosition)
+function ns.PetGroups:MovePetToGroup(petGUID, targetGroupId, targetPosition)
     if not petGUID      then return false, "Pet GUID is required" end
     if not targetGroupId then return false, "Target group ID is required" end
 
@@ -178,7 +121,7 @@ function PSM.PetGroups:MovePetToGroup(petGUID, targetGroupId, targetPosition)
     return true, nil
 end
 
-function PSM.PetGroups:SeedUngroupedPets(guids)
+function ns.PetGroups:SeedUngroupedPets(guids)
     if not guids or #guids == 0 then return end
     local _, ungroupedStorage = EnsureStorage()
     local tracked = {}
@@ -192,7 +135,7 @@ function PSM.PetGroups:SeedUngroupedPets(guids)
     Save()
 end
 
-function PSM.PetGroups:ReorderPetInGroup(groupId, petGUID, newPosition)
+function ns.PetGroups:ReorderPetInGroup(groupId, petGUID, newPosition)
     if not groupId  then return false, "Group ID is required" end
     if not petGUID  then return false, "Pet GUID is required" end
 
@@ -223,9 +166,29 @@ function PSM.PetGroups:ReorderPetInGroup(groupId, petGUID, newPosition)
     return true, nil
 end
 
-function PSM.PetGroups:DeleteGroup(groupId)
+-- One-time sweep for the entries DeleteGroup couldn't have caught before it started
+-- cleaning up after itself: any collapsed-state key left over from a group deleted (or
+-- regenerated with a fresh GenerateGroupId, e.g. by AutoGroupPets under a different
+-- criteria) by an older version of the addon. Called once at login, after both DB
+-- tables exist -- see Events.lua's ADDON_LOADED handler.
+function ns.PetGroups:PruneCollapsedGroups()
+    local collapsed = PetStableManagementDB and PetStableManagementDB.collapsedGroups
+    if not collapsed then return 0 end
+
+    local storage = EnsureStorage()
+    local pruned = 0
+    for groupId in pairs(collapsed) do
+        if not storage[groupId] then
+            collapsed[groupId] = nil
+            pruned = pruned + 1
+        end
+    end
+    return pruned
+end
+
+function ns.PetGroups:DeleteGroup(groupId)
     if not groupId            then return false, "Group ID is required" end
-    if groupId == UNGROUPED_ID then return false, "Cannot delete the Ungrouped group" end
+    if groupId == UNGROUPED_ID then return false, ns.L("Cannot delete the Ungrouped group") end
 
     local storage, ungroupedStorage = EnsureStorage()
     if not storage[groupId] then return false, "Group not found" end
@@ -235,26 +198,43 @@ function PSM.PetGroups:DeleteGroup(groupId)
         table.insert(ungroupedStorage, guid)
     end
     storage[groupId] = nil
+    -- GroupedView.lua's collapsed/expanded state (PetStableManagementDB.collapsedGroups)
+    -- is a separate table keyed by this same groupId, and nothing else ever prunes it --
+    -- confirmed against a real account's SavedVariables file (2026-08-21): every one of
+    -- 154 entries there was orphaned, referencing a groupId no longer in storage.
+    if PetStableManagementDB.collapsedGroups then
+        PetStableManagementDB.collapsedGroups[groupId] = nil
+    end
     Save()
 
-    print("|cFF00FF00PetStableManagement: Group '" .. groupName .. "' deleted. Pets moved to Ungrouped.|r")
+    ns.Utils:Msg("SUCCESS", ns.L("Group '%s' deleted. Pets moved to Ungrouped.", groupName))
     return true, nil
 end
 
-function PSM.PetGroups:RenameGroup(groupId, newName)
+function ns.PetGroups:RenameGroup(groupId, newName)
     if not groupId             then return false, "Group ID is required" end
-    if not newName or newName == "" then return false, "New name is required" end
-    if groupId == UNGROUPED_ID  then return false, "Cannot rename the Ungrouped group" end
+    if not newName or newName == "" then return false, ns.L("New name is required") end
+    if groupId == UNGROUPED_ID  then return false, ns.L("Cannot rename the Ungrouped group") end
+    if newName == UNGROUPED_NAME then return false, ns.L("'Ungrouped' is a reserved group name") end
 
     local storage = EnsureStorage()
     if not storage[groupId] then return false, "Group not found" end
+
+    -- The same two name checks CreateGroup makes. Without them a rename could produce a
+    -- second group called Ungrouped, or two groups sharing a name -- validated on one
+    -- path and not the other.
+    for id, group in pairs(storage) do
+        if id ~= groupId and group.name == newName then
+            return false, ns.L("A group with this name already exists")
+        end
+    end
 
     storage[groupId].name = newName
     Save()
     return true, nil
 end
 
-function PSM.PetGroups:AutoGroupPets(pets, criteria)
+function ns.PetGroups:AutoGroupPets(pets, criteria)
     if not pets or #pets == 0 then return {} end
 
     local storage, ungroupedStorage = EnsureStorage()
@@ -301,16 +281,16 @@ function PSM.PetGroups:AutoGroupPets(pets, criteria)
     end
 
     Save()
-    print(string.format("|cFF00FF00PetStableManagement: Created %d group(s), moved %d pet(s)|r",
+    ns.Utils:Msg("SUCCESS", ns.L("Created %d group(s), moved %d pet(s)",
         createdCount, movedCount))
     return { createdCount = createdCount, movedCount = movedCount }
 end
 
-function PSM.PetGroups:DeleteAllGroups()
+function ns.PetGroups:DeleteAllGroups()
     local storage = EnsureStorage()
     local count = 0
     for id in pairs(storage) do storage[id] = nil; count = count + 1 end
     Save()
-    print(string.format("|cFF00FF00PetStableManagement: Deleted %d group(s)|r", count))
+    ns.Utils:Msg("SUCCESS", ns.L("Deleted %d group(s)", count))
     return count
 end

@@ -1,7 +1,6 @@
 -- ModelsBrowser/SpecialTames.lua
 -- Special Tames panel — shows taming requirements with status indicators and filtering
 
-local addonName = "PetStableManagement"
 _G.PSM = _G.PSM or {}
 local PSM = _G.PSM
 PSM.SpecialTames = PSM.SpecialTames or {}
@@ -16,10 +15,7 @@ local CFG = {
     PANEL_WIDTH    = 800,
     PANEL_HEIGHT   = 600,
     ROW_HEIGHT     = 22,
-    CHECKBOX_SIZE  = 16,
     STATUS_SIZE    = 16,
-    BUTTON_HEIGHT  = 25,
-    BUTTON_WIDTH   = 100,
     PADDING        = 10,
     CARD_PADDING   = 8,
     HEADER_H       = 22,
@@ -64,20 +60,16 @@ local RepopulateRows
 -- ─────────────────────────────────────────────
 
 local function CreateStatusIcon(parent, status)
-    local icon = CreateFrame("Frame", nil, parent)
-    icon:SetSize(CFG.STATUS_SIZE, CFG.STATUS_SIZE)
+    local Widgets = PSM.Widgets
 
-    local texture = icon:CreateTexture(nil, "ARTWORK")
-    texture:SetAllPoints()
-    texture:SetTexture("Interface\\RAIDFRAME\\ReadyCheck")
+    local icon = Widgets.Frame(parent, { size = { CFG.STATUS_SIZE, CFG.STATUS_SIZE } })
 
-    if status == "met" then
-        texture:SetTexCoord(0, 0.5, 0, 0.5)
-    else
-        texture:SetTexCoord(0.5, 1, 0.5, 1)
-    end
+    icon.texture = Widgets.Texture(icon, {
+        allPoints = true,
+        texture   = "Interface\\RAIDFRAME\\ReadyCheck",
+        texCoord  = (status == "met") and { 0, 0.5, 0, 0.5 } or { 0.5, 1, 0.5, 1 },
+    })
 
-    icon.texture = texture
     return icon
 end
 
@@ -93,49 +85,58 @@ local function UpdateCardHeaderVisual(card)
     end
 
     if allSel then
-        card.catLabel:SetTextColor(0, 1, 0)
+        card.catLabel:SetTextColor(unpack(PSM.Theme.COLOR.GREEN))
         if card.headerInvIcon then card.headerInvIcon:Hide() end
     elseif allInv then
-        card.catLabel:SetTextColor(1, 0, 0)
+        card.catLabel:SetTextColor(unpack(PSM.Theme.COLOR.RED))
         if not card.headerInvIcon then
-            card.headerInvIcon = card.header:CreateTexture(nil, "OVERLAY")
-            card.headerInvIcon:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
-            card.headerInvIcon:SetSize(14, 14)
-            card.headerInvIcon:SetPoint("LEFT", card.catLabel, "RIGHT", 5, 0)
+            card.headerInvIcon = PSM.Widgets.Texture(card.header, {
+                layer   = "OVERLAY",
+                texture = "Interface\\Buttons\\UI-GroupLoot-Pass-Up",
+                size    = { 14, 14 },
+                point   = { "LEFT", card.catLabel, "RIGHT", 5, 0 },
+            })
         end
         card.headerInvIcon:Show()
     elseif anyAct then
-        card.catLabel:SetTextColor(1, 1, 1)
+        card.catLabel:SetTextColor(unpack(PSM.Theme.COLOR.WHITE))
         if card.headerInvIcon then card.headerInvIcon:Hide() end
     else
-        card.catLabel:SetTextColor(0.6, 0.6, 0.6)
+        card.catLabel:SetTextColor(unpack(PSM.Theme.COLOR.GREY))
         if card.headerInvIcon then card.headerInvIcon:Hide() end
     end
 end
 
 local function CreateCategoryCard(parent, groupName, cardW)
-    local card = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    card:SetWidth(cardW)
-    card:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
+    local Widgets = PSM.Widgets
+
+    local card = Widgets.Frame(parent, {
+        width       = cardW,
+        backdrop    = "SOLID_BORDERED",
+        color       = { 0.05, 0.05, 0.05, 0.9 },
+        borderColor = { 0.2,  0.2,  0.2,  1   },
     })
-    card:SetBackdropColor(0.05, 0.05, 0.05, 0.9)
-    card:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
 
-    local header = CreateFrame("Button", nil, card)
-    header:SetPoint("TOPLEFT",  card, "TOPLEFT",  0, 0)
-    header:SetPoint("TOPRIGHT", card, "TOPRIGHT", 0, 0)
-    header:SetHeight(CFG.HEADER_H)
+    local header = Widgets.Frame(card, {
+        frameType = "Button",
+        height    = CFG.HEADER_H,
+        point     = {
+            { "TOPLEFT",  card, "TOPLEFT",  0, 0 },
+            { "TOPRIGHT", card, "TOPRIGHT", 0, 0 },
+        },
+    })
 
-    local hbg = header:CreateTexture(nil, "BACKGROUND")
-    hbg:SetAllPoints()
-    hbg:SetColorTexture(0.12, 0.12, 0.12, 1)
+    Widgets.Texture(header, {
+        layer     = "BACKGROUND",
+        allPoints = true,
+        color     = { 0.12, 0.12, 0.12, 1 },
+    })
 
-    local catLabel = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    catLabel:SetPoint("LEFT", header, "LEFT", CFG.CARD_PADDING, 0)
-    catLabel:SetText(groupName)
+    local catLabel = Widgets.Label(header, {
+        fontObject = "GameFontNormalSmall",
+        point      = { "LEFT", header, "LEFT", CFG.CARD_PADDING, 0 },
+        text       = groupName,
+    })
 
     card.header    = header
     card.catLabel  = catLabel
@@ -146,18 +147,16 @@ local function CreateCategoryCard(parent, groupName, cardW)
     return card
 end
 
-local function CreateRuleRow(parent, ruleKey, ruleData, yOffset)
-    local row = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    row:SetSize(CFG.PANEL_WIDTH - 2 * CFG.PADDING - 50, CFG.ROW_HEIGHT + CFG.CARD_PADDING * 2)
-    row:EnableMouse(true)
+local function CreateRuleRow(parent, ruleKey, ruleData)
+    local Widgets = PSM.Widgets
 
-    row:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
+    local row = Widgets.Frame(parent, {
+        size        = { CFG.PANEL_WIDTH - 2 * CFG.PADDING - 50, CFG.ROW_HEIGHT + CFG.CARD_PADDING * 2 },
+        backdrop    = "SOLID_BORDERED",
+        color       = { 0.08, 0.08, 0.08, 0.85 },
+        borderColor = { 0.25, 0.25, 0.25, 1    },
     })
-    row:SetBackdropColor(0.08, 0.08, 0.08, 0.85)
-    row:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
+    row:EnableMouse(true)
 
     local P = CFG.CARD_PADDING
 
@@ -165,9 +164,9 @@ local function CreateRuleRow(parent, ruleKey, ruleData, yOffset)
     local statusIcon = CreateStatusIcon(row, status)
     statusIcon:SetPoint("LEFT", row, "LEFT", P, 0)
 
-    local checkbox = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
-    checkbox:SetSize(CFG.CHECKBOX_SIZE, CFG.CHECKBOX_SIZE)
-    checkbox:SetPoint("LEFT", statusIcon, "RIGHT", 10, 0)
+    local checkbox = Widgets.CheckBox(row, {
+        point = { "LEFT", statusIcon, "RIGHT", 10, 0 },
+    })
 
     row.UpdateVisual = function()
         local state = selectedRules[ruleKey]
@@ -184,10 +183,12 @@ local function CreateRuleRow(parent, ruleKey, ruleData, yOffset)
             checkbox:SetChecked(true)
             check:SetAlpha(0)
             if not checkbox.invertedTexture then
-                checkbox.invertedTexture = checkbox:CreateTexture(nil, "OVERLAY")
-                checkbox.invertedTexture:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
-                checkbox.invertedTexture:SetSize(CFG.CHECKBOX_SIZE, CFG.CHECKBOX_SIZE)
-                checkbox.invertedTexture:SetPoint("CENTER", checkbox, "CENTER", 0, 0)
+                checkbox.invertedTexture = PSM.Widgets.Texture(checkbox, {
+                    layer   = "OVERLAY",
+                    texture = "Interface\\Buttons\\UI-GroupLoot-Pass-Up",
+                    size    = { PSM.Theme.CONTROL.CHECKBOX_MARK, PSM.Theme.CONTROL.CHECKBOX_MARK },
+                    point   = { "CENTER", checkbox, "CENTER", 0, 0 },
+                })
             end
             checkbox.invertedTexture:Show()
         end
@@ -220,19 +221,19 @@ local function CreateRuleRow(parent, ruleKey, ruleData, yOffset)
             local suffixPart = nil
 
             if ruleData.hint.autoRace then
-                mainParts[#mainParts + 1] = ruleData.hint.autoRace .. " (auto)"
+                mainParts[#mainParts + 1] = PSM.L("%s (auto)", ruleData.hint.autoRace)
             end
             if ruleData.hint.itemID then
                 mainParts[#mainParts + 1] = string.format(
                     "|cff0070dd|Hpsmtaming:%s|h%s|h|r",
                     ruleKey,
-                    ruleData.hint.itemName or ("Item #" .. ruleData.hint.itemID))
+                    ruleData.hint.itemName or PSM.L("Item #%s", ruleData.hint.itemID))
             end
             if ruleData.hint.questID then
                 mainParts[#mainParts + 1] = string.format(
                     "|cff0070dd|Hpsmtaming:%s|h%s|h|r",
                     ruleKey,
-                    ruleData.hint.questName or ("Quest #" .. ruleData.hint.questID))
+                    ruleData.hint.questName or PSM.L("Quest #%s", ruleData.hint.questID))
             end
 
             if ruleData.hint.suffix then
@@ -256,31 +257,35 @@ local function CreateRuleRow(parent, ruleKey, ruleData, yOffset)
     parts[1] = color .. parts[1] .. "|r"
     local fullText = table.concat(parts, "")
 
-    local label = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    label:SetPoint("LEFT",  checkbox, "RIGHT",  10, 0)
-    label:SetPoint("RIGHT", row,      "RIGHT",  -P, 0)
-    label:SetJustifyH("LEFT")
-    label:SetText(fullText)
-    label:SetWordWrap(false)
+    local label = Widgets.Label(row, {
+        fontObject = "GameFontNormal",
+        justify    = "LEFT",
+        wordWrap   = false,
+        text       = fullText,
+        point      = {
+            { "LEFT",  checkbox, "RIGHT", 10, 0 },
+            { "RIGHT", row,      "RIGHT", -P, 0 },
+        },
+    })
 
     row:SetHyperlinksEnabled(true)
     row:SetScript("OnHyperlinkEnter", function(self, link)
         local rk   = link:match("psmtaming:(.+)")
         if not rk then return end
         local rule = PSM.TamingRules and PSM.TamingRules[rk]
-        if rule and rule.hint then
-            if rule.hint.itemID then
-                GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
-                GameTooltip:SetHyperlink("item:" .. rule.hint.itemID)
-                GameTooltip:Show()
-            elseif rule.hint.questID then
-                GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
-                GameTooltip:SetHyperlink("quest:" .. rule.hint.questID)
-                GameTooltip:Show()
-            end
+        if not (rule and rule.hint) then return end
+
+        local hyperlink
+        if rule.hint.itemID then
+            hyperlink = "item:" .. rule.hint.itemID
+        elseif rule.hint.questID then
+            hyperlink = "quest:" .. rule.hint.questID
+        end
+        if hyperlink then
+            PSM.Tooltip.Show(self, { anchor = "ANCHOR_CURSOR", hyperlink = hyperlink })
         end
     end)
-    row:SetScript("OnHyperlinkLeave", function() GameTooltip:Hide() end)
+    row:SetScript("OnHyperlinkLeave", PSM.Tooltip.Hide)
     row:SetScript("OnHyperlinkClick", function(self, link, text, button)
         local rk   = link:match("psmtaming:(.+)")
         if not rk then return end
@@ -294,17 +299,14 @@ local function CreateRuleRow(parent, ruleKey, ruleData, yOffset)
         end
     end)
 
-    row:SetScript("OnEnter", function(self)
-        self:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(ruleData.label, 1, 1, 1)
-        GameTooltip:AddLine(ruleData.desc, nil, nil, nil, true)
-        GameTooltip:Show()
-    end)
-    row:SetScript("OnLeave", function(self)
-        self:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
-        GameTooltip:Hide()
-    end)
+    PSM.Tooltip.Attach(row, {
+        title      = ruleData.label,
+        titleColor = PSM.Theme.COLOR.WHITE,
+        lines      = { { text = ruleData.desc, wrap = true } },
+    }, {
+        onEnter = function(self) self:SetBackdropBorderColor(0.5,  0.5,  0.5,  1) end,
+        onLeave = function(self) self:SetBackdropBorderColor(0.25, 0.25, 0.25, 1) end,
+    })
     row:SetScript("OnMouseUp", function(self, button)
         if button == "LeftButton" and self.checkbox then
             self.checkbox:Click()
@@ -319,19 +321,25 @@ local function CreateRuleRow(parent, ruleKey, ruleData, yOffset)
 end
 
 local function CreateConditionRow(parent, conditionName, width, card)
-    local row = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    row:SetSize(width, CFG.ROW_HEIGHT)
-    row:EnableMouse(true)
+    local Widgets = PSM.Widgets
 
-    row:SetBackdrop({ bgFile = nil, edgeFile = nil })
-    row:SetBackdropColor(0.08, 0.08, 0.08, 0.85)
-    row:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
+    -- Backdrop NONE, exactly as before: this row has no bgFile and no edgeFile, so the
+    -- colour calls below (and the hover recolour further down) have nothing to tint and
+    -- are inert. Preserved verbatim rather than cleaned up -- this migration is meant to
+    -- be behaviour-neutral, and the dead styling is A13's call, not this task's.
+    local row = Widgets.Frame(parent, {
+        size        = { width, CFG.ROW_HEIGHT },
+        backdrop    = "NONE",
+        color       = { 0.08, 0.08, 0.08, 0.85 },
+        borderColor = { 0.25, 0.25, 0.25, 1    },
+    })
+    row:EnableMouse(true)
 
     local P = CFG.CARD_PADDING
 
-    local checkbox = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
-    checkbox:SetSize(CFG.CHECKBOX_SIZE, CFG.CHECKBOX_SIZE)
-    checkbox:SetPoint("LEFT", row, "LEFT", P, 0)
+    local checkbox = Widgets.CheckBox(row, {
+        point = { "LEFT", row, "LEFT", P, 0 },
+    })
 
     row.UpdateVisual = function()
         local state = selectedConditions[conditionName]
@@ -348,10 +356,12 @@ local function CreateConditionRow(parent, conditionName, width, card)
             checkbox:SetChecked(true)
             check:SetAlpha(0)
             if not checkbox.invertedTexture then
-                checkbox.invertedTexture = checkbox:CreateTexture(nil, "OVERLAY")
-                checkbox.invertedTexture:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
-                checkbox.invertedTexture:SetSize(CFG.CHECKBOX_SIZE, CFG.CHECKBOX_SIZE)
-                checkbox.invertedTexture:SetPoint("CENTER", checkbox, "CENTER", 0, 0)
+                checkbox.invertedTexture = PSM.Widgets.Texture(checkbox, {
+                    layer   = "OVERLAY",
+                    texture = "Interface\\Buttons\\UI-GroupLoot-Pass-Up",
+                    size    = { PSM.Theme.CONTROL.CHECKBOX_MARK, PSM.Theme.CONTROL.CHECKBOX_MARK },
+                    point   = { "CENTER", checkbox, "CENTER", 0, 0 },
+                })
             end
             checkbox.invertedTexture:Show()
         end
@@ -378,12 +388,16 @@ local function CreateConditionRow(parent, conditionName, width, card)
         end
     end)
 
-    local label = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    label:SetPoint("LEFT",  checkbox, "RIGHT",  10, 0)
-    label:SetPoint("RIGHT", row,      "RIGHT",  -P, 0)
-    label:SetJustifyH("LEFT")
-    label:SetText("|cffffffff" .. conditionName .. "|r")
-    label:SetWordWrap(false)
+    Widgets.Label(row, {
+        fontObject = "GameFontNormal",
+        justify    = "LEFT",
+        wordWrap   = false,
+        text       = "|cffffffff" .. conditionName .. "|r",
+        point      = {
+            { "LEFT",  checkbox, "RIGHT", 10, 0 },
+            { "RIGHT", row,      "RIGHT", -P, 0 },
+        },
+    })
 
     row:SetScript("OnEnter", function(self)
         self:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
@@ -453,13 +467,13 @@ UpdateSelectAllButton = function(panel)
         else                         hasIgnored  = true end
     end
 
-    local btnText = "Select All"
+    local btnText = PSM.L("Select All")
     if hasIgnored then
-        btnText = "Select All"
+        btnText = PSM.L("Select All")
     elseif hasActive then
-        btnText = "Invert All"
+        btnText = PSM.L("Invert All")
     elseif hasInverted then
-        btnText = "Unselect All"
+        btnText = PSM.L("Unselect All")
     end
 
     panel.selectAllBtn:SetText(btnText)
@@ -478,7 +492,7 @@ function ST:ReflowCards(panel, cardList, scrollW, cardW, gap, cols)
         colY[c] = -gap
     end
 
-    for idx, card in ipairs(cardList) do
+    for _, card in ipairs(cardList) do
         -- Find the column whose cursor is closest to the top (least negative)
         local col = 1
         for c = 2, cols do
@@ -586,26 +600,30 @@ RepopulateRows = function(panel, query, activeTag)
                 end
 
                 -- "and X more" / "Show less" button
-                local moreBtn = CreateFrame("Button", nil, card)
-                moreBtn:SetSize(colWidth - 2 * CFG.CARD_PADDING, CFG.MORE_H)
-                moreBtn:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", CFG.CARD_PADDING, CFG.CARD_PADDING)
+                local moreBtn = PSM.Widgets.Frame(card, {
+                    frameType = "Button",
+                    size      = { colWidth - 2 * CFG.CARD_PADDING, CFG.MORE_H },
+                    point     = { "BOTTOMLEFT", card, "BOTTOMLEFT", CFG.CARD_PADDING, CFG.CARD_PADDING },
+                })
                 card.moreBtn = moreBtn
 
-                local moreLabel = moreBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-                moreLabel:SetPoint("CENTER")
-                moreLabel:SetTextColor(unpack(PSM.Config.COLORS.PRIMARY))
+                local moreLabel = PSM.Widgets.Label(moreBtn, {
+                    fontObject = "GameFontNormalSmall",
+                    color      = PSM.Config.COLORS.PRIMARY,
+                    point      = { "CENTER" },
+                })
                 moreBtn.label = moreLabel
 
                 if #matches > CFG.PARTIAL_ROWS then
                     moreBtn:Show()
-                    moreLabel:SetText("and " .. (#matches - CFG.PARTIAL_ROWS) .. " more...")
+                    moreLabel:SetText(PSM.L("and %d more...", #matches - CFG.PARTIAL_ROWS))
                     moreBtn:SetScript("OnClick", function()
                         card.isExpanded = not card.isExpanded
                         card:SetHeight(card.isExpanded and card.expandedHeight or card.partialHeight)
                         moreLabel:SetText(
                             card.isExpanded
-                            and "Show less"
-                            or  ("and " .. (#matches - CFG.PARTIAL_ROWS) .. " more...")
+                            and PSM.L("Show less")
+                            or  PSM.L("and %d more...", #matches - CFG.PARTIAL_ROWS)
                         )
                         for idx2, row in ipairs(card.rows) do
                             row:SetShown(card.isExpanded or idx2 <= CFG.PARTIAL_ROWS)
@@ -660,14 +678,13 @@ RepopulateRows = function(panel, query, activeTag)
 
         ST:ReflowCards(panel, cardList, scrollW, colWidth, colSpacing, numCols)
 
-        ruleCount = #panel.ruleRows
     else
         for ruleKey, ruleData in pairs(PSM.TamingRules) do
             if ruleKey ~= "Sliver of N'Zoth" then
                 if RowMatchesQuery(ruleKey, ruleData, query) and RowMatchesTag(ruleKey, activeTag) then
                     ruleCount = ruleCount + 1
                     local rowH = CFG.ROW_HEIGHT + CFG.CARD_PADDING * 2
-                    local row  = CreateRuleRow(scrollChild, ruleKey, ruleData, yOffset)
+                    local row  = CreateRuleRow(scrollChild, ruleKey, ruleData)
                     row.ruleKey = ruleKey
                     row:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -yOffset)
                     panel.ruleRows[ruleCount] = row
@@ -684,7 +701,8 @@ RepopulateRows = function(panel, query, activeTag)
         local n = 0
         for _, state in pairs(selectedRules)      do if state ~= nil then n = n + 1 end end
         for _, state in pairs(selectedConditions) do if state ~= nil then n = n + 1 end end
-        panel.selectionNote:SetText(n .. " " .. (n == 1 and "item" or "items") .. " selected")
+        panel.selectionNote:SetText(n == 1 and PSM.L("%d item selected", n)
+                                    or PSM.L("%d items selected", n))
     end
     UpdateSelectAllButton(panel)
 end
@@ -695,76 +713,13 @@ end
 
 local PILL_TAGS = { "All Skills", "Unlocked Skills", "Locked Skills", "Conditions" }
 
+-- Was a hand-rolled copy of the exact same frame Ability Browser also built
+-- independently; see PanelManager:CreatePillBar (A13).
 local function CreatePillBar(panel)
-    local pillBar = CreateFrame("Frame", nil, panel)
-    pillBar:SetHeight(24)
-    pillBar:SetPoint("TOPLEFT",  panel, "TOPLEFT",  20, -90)
-    pillBar:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -20, -90)
-
-    local pills = {}
-    local xOff  = 0
-
-    local function SetActive(activeIdx)
-        for i, pill in ipairs(pills) do
-            local active = (i == activeIdx)
-            pill.tex:SetColorTexture(unpack(active and PSM.Config.TAB.ACTIVE_BG or PSM.Config.TAB.INACTIVE_BG))
-            pill.label:SetTextColor(unpack(active and PSM.Config.TAB.ACTIVE_TEXT or PSM.Config.TAB.INACTIVE_TEXT))
-            if pill.topLine    then pill.topLine:SetShown(active)    end
-            if pill.bottomLine then pill.bottomLine:SetShown(active) end
-        end
-    end
-
-    for idx, tagName in ipairs(PILL_TAGS) do
-        local pill   = CreateFrame("Button", nil, pillBar)
-        local labelW = #tagName * 7 + 16
-        pill:SetSize(labelW, 20)
-        pill:SetPoint("LEFT", pillBar, "LEFT", xOff, 0)
-
-        local tex = pill:CreateTexture(nil, "BACKGROUND")
-        tex:SetAllPoints()
-        tex:SetColorTexture(unpack(PSM.Config.TAB.INACTIVE_BG))
-        pill.tex = tex
-
-        local label = pill:CreateFontString(nil, "OVERLAY")
-        label:SetFont("Fonts\\FRIZQT__.TTF", PSM.Config.FONT_SIZES.ABILITY_PILL)
-        label:SetPoint("CENTER")
-        label:SetText(tagName)
-        label:SetTextColor(unpack(PSM.Config.TAB.INACTIVE_TEXT))
-        pill.label = label
-
-        local topLine = pill:CreateTexture(nil, "BORDER")
-        topLine:SetPoint("TOPLEFT",  pill, "TOPLEFT",  2, 0)
-        topLine:SetPoint("TOPRIGHT", pill, "TOPRIGHT", -2, 0)
-        topLine:SetHeight(1)
-        topLine:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BORDER))
-        topLine:Hide()
-        pill.topLine = topLine
-
-        local bottomLine = pill:CreateTexture(nil, "BORDER")
-        bottomLine:SetPoint("BOTTOMLEFT",  pill, "BOTTOMLEFT",  2, 0)
-        bottomLine:SetPoint("BOTTOMRIGHT", pill, "BOTTOMRIGHT", -2, 0)
-        bottomLine:SetHeight(1)
-        bottomLine:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BORDER))
-        bottomLine:Hide()
-        pill.bottomLine = bottomLine
-
-        do
-            local currentTag = tagName
-            local currentIdx = idx
-            pill:SetScript("OnClick", function()
-                SetActive(currentIdx)
-                panel.activeTag = currentTag
-                RepopulateRows(panel, panel.searchBox:GetText(), currentTag)
-            end)
-        end
-
-        xOff = xOff + labelW + 6
-        pills[idx] = pill
-    end
-
-    SetActive(1)
-    panel.pills = pills
-    return pillBar
+    return PSM.PanelManager:CreatePillBar(panel, PILL_TAGS, function(tagName)
+        panel.activeTag = tagName
+        RepopulateRows(panel, panel.searchBox:GetSearchText(), tagName)
+    end)
 end
 
 -- ─────────────────────────────────────────────
@@ -793,7 +748,8 @@ UpdateSelectionNote = function(panel)
     local n = 0
     for _, state in pairs(selectedRules)      do if state ~= nil then n = n + 1 end end
     for _, state in pairs(selectedConditions) do if state ~= nil then n = n + 1 end end
-    panel.selectionNote:SetText(n .. " " .. (n == 1 and "item" or "items") .. " selected")
+    panel.selectionNote:SetText(n == 1 and PSM.L("%d item selected", n)
+                                    or PSM.L("%d items selected", n))
 end
 
 -- ─────────────────────────────────────────────
@@ -853,94 +809,26 @@ function ST:ComputeMatchingFamilies(selectedRuleMap, selectedConditionNames)
             for _, displayData in ipairs(familyData.displayIds) do
                 local match = false
 
-                local passRules = not hasRules
-                if hasRules then
-                    local tamingSet = {}
-                    if displayData.taming then
-                        for _, r in ipairs(displayData.taming) do tamingSet[r] = true end
-                    end
-
-                    local hasActiveRules, matchActive = false, false
-                    local forbiddenMatch = false
-                    for rKey, state in pairs(selectedRuleMap) do
-                        if state == true then
-                            hasActiveRules = true
-
-                            local isMatch = tamingSet[rKey]
-
-                            if not isMatch and rKey == "Sliver of N'Zoth" and displayData.npcs then
-                                for _, npc in ipairs(displayData.npcs) do
-                                    local npcID   = modelsData and tonumber(modelsData.NpcId[npc])
-                                    local condList = PSM.ConditionsData and PSM.ConditionsData.Get(npcID)
-                                    if condList then
-                                        for _, cName in ipairs(condList) do
-                                            if cName == "Sliver of N'Zoth" then
-                                                isMatch = true; break
-                                            end
-                                        end
-                                    end
-                                    if isMatch then break end
-                                end
-                            end
-
-                            if isMatch then
-                                local fSel = selectedRuleMap["Florafaun"] == true
-                                local dSel = selectedRuleMap["Direhorn"]  == true
-                                if not (tamingSet["Florafaun"] and tamingSet["Direhorn"]
-                                        and ((fSel and not dSel) or (dSel and not fSel))) then
-                                    matchActive = true
-                                end
-                            end
-                        elseif state == "inverted" then
-                            local isForbidden = tamingSet[rKey]
-
-                            if not isForbidden and rKey == "Sliver of N'Zoth" and displayData.npcs then
-                                for _, npc in ipairs(displayData.npcs) do
-                                    local npcID   = modelsData and tonumber(modelsData.NpcId[npc])
-                                    local condList = PSM.ConditionsData and PSM.ConditionsData.Get(npcID)
-                                    if condList then
-                                        for _, cName in ipairs(condList) do
-                                            if cName == "Sliver of N'Zoth" then
-                                                isForbidden = true; break
-                                            end
-                                        end
-                                    end
-                                    if isForbidden then break end
-                                end
-                            end
-                            if isForbidden then forbiddenMatch = true; break end
-                        end
-                    end
-                    passRules = (not hasActiveRules or matchActive) and not forbiddenMatch
+                -- Rules and conditions are combined with OR here, unlike the AND in
+                -- DisplayPassesFilters. Deliberate and unchanged: this seeds a family
+                -- selection, so it wants breadth -- a family is relevant if it holds a
+                -- display matching *either* criterion. The predicates themselves are now
+                -- the shared ones, so only the combination differs between the two.
+                if hasRules and PSM.PetModels.TamingSetPasses(
+                        PSM.PetModels.TamingSet(displayData.taming), selectedRuleMap) then
+                    match = true
                 end
-                if passRules and hasRules then match = true end
 
-                if not match and hasConds and displayData.npcs then
-                    local userHasActiveConds = false
-                    for _, state in pairs(selectedConditionNames) do
-                        if state == true then userHasActiveConds = true; break end
-                    end
-
-                    local atLeastOneNpcPasses = false
-                    for _, npc in ipairs(displayData.npcs) do
-                        local npcID   = modelsData and tonumber(modelsData.NpcId[npc])
-                        local condList = PSM.ConditionsData and PSM.ConditionsData.Get(npcID)
-                        local npcDisqualified  = false
-                        local npcMatchedActive = false
-
-                        if condList then
-                            for _, cName in ipairs(condList) do
-                                local state = selectedConditionNames[cName]
-                                if state == "inverted" then npcDisqualified  = true; break end
-                                if state == true       then npcMatchedActive = true  end
-                            end
-                        end
-                        if not npcDisqualified and (not userHasActiveConds or npcMatchedActive) then
-                            atLeastOneNpcPasses = true
+                if not match and hasConds then
+                    local userHasActiveConds = PSM.PetModels.ConditionsHaveActive(selectedConditionNames)
+                    for _, npc in ipairs(displayData.npcs or {}) do
+                        if PSM.PetModels.NpcPassesConditions(
+                                modelsData and modelsData.NpcId[npc],
+                                selectedConditionNames, userHasActiveConds) then
+                            match = true
                             break
                         end
                     end
-                    if atLeastOneNpcPasses then match = true end
                 end
 
                 if match then
@@ -959,13 +847,13 @@ local function OnApplyClick(panel)
     for ruleKey, state in pairs(selectedRules) do
         if state ~= nil then selectedRuleMap[ruleKey] = state end
     end
-    PSM.state.selectedTamingRules = selectedRuleMap
+    PSM.Selections:Replace("tamingRules", selectedRuleMap)
 
     local selectedConditionNames = {}
     for cond, state in pairs(selectedConditions) do
         if state ~= nil then selectedConditionNames[cond] = state end
     end
-    PSM.state.selectedConditions = selectedConditionNames
+    PSM.Selections:Replace("conditions", selectedConditionNames)
 
     PetStableManagementDB = PetStableManagementDB or {}
     PetStableManagementDB.filters = PetStableManagementDB.filters or {}
@@ -992,10 +880,10 @@ local function OnApplyClick(panel)
         if rCount == 1 then
             local rule  = PSM.TamingRules and PSM.TamingRules[lastRuleKey]
             local lbl   = rule and rule.label or lastRuleKey
-            if lastRuleState == "inverted" then lbl = "Not " .. lbl end
+            if lastRuleState == "inverted" then lbl = PSM.L("Not %s", lbl) end
             table.insert(stParts, lbl)
         else
-            table.insert(stParts, "Multiple Multiple Skills")
+            table.insert(stParts, PSM.L("Multiple Skills"))
         end
     end
 
@@ -1008,18 +896,15 @@ local function OnApplyClick(panel)
         end
         if cCount == 1 then
             local lbl = lastCondKey
-            if lastCondState == "inverted" then lbl = "Not " .. lbl end
+            if lastCondState == "inverted" then lbl = PSM.L("Not %s", lbl) end
             table.insert(stParts, lbl)
         else
-            table.insert(stParts, "Multiple Multiple Conditions")
+            table.insert(stParts, PSM.L("Multiple Conditions"))
         end
     end
 
-    local filterDesc = #stParts > 0 and table.concat(stParts, "; ") or "None"
-    print(PSM.Utils:FormatColorText(
-        "PetStableManagement: Special Tames filter applied (" .. filterDesc .. ").",
-        PSM.Config.COLORS.SUCCESS
-    ))
+    local filterDesc = #stParts > 0 and table.concat(stParts, "; ") or PSM.L("None")
+    PSM.Utils:Msg("SUCCESS", PSM.L("Special Tames filter applied (%s).", filterDesc))
 
     panel:Hide()
 end
@@ -1028,41 +913,34 @@ end
 -- Footer
 -- ─────────────────────────────────────────────
 
+-- Bare label, no border/hairline -- the one footer contract every panel uses (A13).
+-- Was a bordered frame with its own hairline, independently duplicated in Ability
+-- Browser; see PanelManager:CreateFooterLabel.
 local function CreateFooter(panel)
-    local footer = CreateFrame("Frame", nil, panel)
-    footer:SetHeight(36)
-    footer:SetPoint("BOTTOMLEFT",  panel, "BOTTOMLEFT",  20, 10)
-    footer:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -20, 10)
+    local Widgets = PSM.Widgets
 
-    local sep = footer:CreateTexture(nil, "BACKGROUND")
-    sep:SetHeight(1)
-    sep:SetPoint("TOPLEFT",  footer, "TOPLEFT",  0, 0)
-    sep:SetPoint("TOPRIGHT", footer, "TOPRIGHT", 0, 0)
-    sep:SetColorTexture(1, 1, 1, 0.08)
+    panel.selectionNote = PSM.PanelManager:CreateFooterLabel(panel, {
+        fontSize = PSM.Config.FONT_SIZES.STATS,
+        color    = PSM.Config.COLORS.ABILITY_SELECTION_NOTE,
+        point    = { "BOTTOMLEFT", panel, "BOTTOMLEFT", 20, PSM.Theme.CHROME.FOOTER_Y },
+        text     = PSM.L("%d items selected", 0),
+    })
 
-    local note = footer:CreateFontString(nil, "OVERLAY")
-    note:SetFont("Fonts\\FRIZQT__.TTF", PSM.Config.FONT_SIZES.STATS)
-    note:SetTextColor(unpack(PSM.Config.COLORS.ABILITY_SELECTION_NOTE))
-    note:SetPoint("LEFT", footer, "LEFT", 0, -8)
-    note:SetText("0 items selected")
-    panel.selectionNote = note
+    local applyButton = Widgets.Button(panel, {
+        width      = PSM.Theme.CONTROL.BUTTON_W.M,
+        point      = { "BOTTOMRIGHT", panel, "BOTTOMRIGHT", -20, PSM.Theme.CHROME.FOOTER_Y },
+        text       = PSM.L("Apply Filters"),
+        fontObject = "GameFontNormalSmall",
+        onClick    = function() OnApplyClick(panel) end,
+    })
 
-    local applyButton = CreateFrame("Button", nil, footer, "UIPanelButtonTemplate")
-    applyButton:SetSize(PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT)
-    applyButton:SetPoint("RIGHT", footer, "RIGHT", 0, -8)
-    applyButton:SetText("Apply Filters")
-    applyButton:SetNormalFontObject("GameFontNormalSmall")
-    applyButton:SetScript("OnClick", function() OnApplyClick(panel) end)
-    PSM.UI:ApplyElvUISkin(applyButton, "button")
-
-    local selectAllButton = CreateFrame("Button", nil, footer, "UIPanelButtonTemplate")
-    selectAllButton:SetSize(PSM.Config.BUTTON_WIDTH, PSM.Config.BUTTON_HEIGHT)
-    selectAllButton:SetPoint("RIGHT", applyButton, "LEFT", -8, 0)
-    selectAllButton:SetText("Select All")
-    selectAllButton:SetNormalFontObject("GameFontNormalSmall")
-    selectAllButton:SetScript("OnClick", function() OnSelectAllClick(panel) end)
-    PSM.UI:ApplyElvUISkin(selectAllButton, "button")
-    panel.selectAllBtn = selectAllButton
+    panel.selectAllBtn = Widgets.Button(panel, {
+        width      = PSM.Theme.CONTROL.BUTTON_W.M,
+        point      = { "RIGHT", applyButton, "LEFT", -8, 0 },
+        text       = PSM.L("Select All"),
+        fontObject = "GameFontNormalSmall",
+        onClick    = function() OnSelectAllClick(panel) end,
+    })
 end
 
 -- ─────────────────────────────────────────────
@@ -1075,7 +953,11 @@ function ST:ResetInternalState()
 
     local panel = PSM.state.specialTames
     if panel then
-        if panel.searchBox then panel.searchBox:SetText("") end
+        -- ClearSearch, not SetText(""): the latter empties the box but leaves it blank,
+        -- because the placeholder is only restored on focus loss. So Reset All Filters
+        -- left "Search tames..." missing until the user clicked into the box and out
+        -- again. Same fix ModelsFilters:ResetAllFilters already carries.
+        if panel.searchBox then panel.searchBox:ClearSearch() end
         RepopulateRows(panel, "", panel.activeTag or "All")
     end
 end
@@ -1089,26 +971,16 @@ end
 -- RepopulateRows reads for checkbox state) -- without the latter, reopening this panel
 -- after a reload showed everything unticked even though the filter was still active.
 local function LoadSavedFilters()
-    PSM.state.selectedTamingRules = PSM.state.selectedTamingRules or {}
-    local savedRules = PetStableManagementDB
-        and PetStableManagementDB.filters
-        and PetStableManagementDB.filters.selectedTamingRules
-    if savedRules then
-        for ruleKey, val in pairs(savedRules) do
-            PSM.state.selectedTamingRules[ruleKey] = val
-            selectedRules[ruleKey] = val
-        end
+    local saved = PetStableManagementDB and PetStableManagementDB.filters
+
+    for ruleKey, val in pairs(saved and saved.selectedTamingRules or {}) do
+        PSM.Selections:Set("tamingRules", ruleKey, val)
+        selectedRules[ruleKey] = val
     end
 
-    PSM.state.selectedConditions = PSM.state.selectedConditions or {}
-    local savedConditions = PetStableManagementDB
-        and PetStableManagementDB.filters
-        and PetStableManagementDB.filters.selectedConditions
-    if savedConditions then
-        for cond, val in pairs(savedConditions) do
-            PSM.state.selectedConditions[cond] = val
-            selectedConditions[cond] = val
-        end
+    for cond, val in pairs(saved and saved.selectedConditions or {}) do
+        PSM.Selections:Set("conditions", cond, val)
+        selectedConditions[cond] = val
     end
 end
 
@@ -1117,11 +989,7 @@ end
 -- ─────────────────────────────────────────────
 
 function ST:Toggle()
-    if UnitAffectingCombat("player") then
-        print("|cFFFF0000Special Tames: Cannot open during combat.|r")
-        return
-    end
-    PSM.PanelManager:TogglePanel("specialTames", function() self:CreateSpecialTamesPanel() end)
+    PSM.PanelManager:TogglePanel("specialTames", function() self:CreateSpecialTamesPanel() end, PSM.L("Special Tames"))
 end
 
 function ST:CreateSpecialTamesPanel()
@@ -1131,8 +999,7 @@ function ST:CreateSpecialTamesPanel()
     local panel = PSM.PanelManager:CreateBasePanel("specialTames", {
         width              = CFG.PANEL_WIDTH,
         height             = CFG.PANEL_HEIGHT,
-        title              = "Special Tames",
-        escKeyframe        = "PetStableManagementSpecialTames",
+        title              = PSM.L("Special Tames"),
         resizable          = true,
         showResizeHandle   = true,
         showMaximizeButton = false,
@@ -1142,30 +1009,33 @@ function ST:CreateSpecialTamesPanel()
         end,
     })
 
-    local searchBox = CreateFrame("EditBox", nil, panel, "InputBoxTemplate")
-    searchBox:SetPoint("TOP", panel.title, "BOTTOM", 0, -10)
-    searchBox:SetSize(150, 20)
-    searchBox:SetAutoFocus(false)
-    searchBox:SetText("")
-    searchBox:SetScript("OnTextChanged", function(self)
-        RepopulateRows(panel, self:GetText(), panel.activeTag)
-    end)
-    searchBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
-    searchBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-    PSM.UI:ApplyElvUISkin(searchBox, "editbox")
-    panel.searchBox = searchBox
+    local Widgets = PSM.Widgets
+
+    -- Shared search box: see the note in AbilityBrowser. Both panels used to build
+    -- their own, without a placeholder and without debouncing.
+    PSM.PanelManager:CreateSearchBox(panel, function(text)
+        RepopulateRows(panel, text, panel.activeTag)
+    end, {
+        placeholder = PSM.L("Search tames..."),
+    })
 
     panel.activeTag = "All Skills"
     panel.pillBar   = CreatePillBar(panel)
 
-    local scrollFrame = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT",     panel, "TOPLEFT",     20, -120)
-    scrollFrame:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30,  56)
-    PSM.UI:ApplyElvUISkin(scrollFrame, "scrollframe")
-    PSM.UI:ApplyElvUISkin(scrollFrame.ScrollBar, "scrollbar")
+    local scrollFrame = Widgets.Frame(panel, {
+        frameType = "ScrollFrame",
+        template  = "UIPanelScrollFrameTemplate",
+        skin      = "scrollframe",
+        point     = {
+            { "TOPLEFT",     panel, "TOPLEFT",      20, -120 },
+            { "BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30,   56 },
+        },
+    })
+    PSM.Skin.Apply(scrollFrame.ScrollBar, "scrollbar")
 
-    local scrollChild = CreateFrame("Frame", nil, scrollFrame)
-    scrollChild:SetSize(CFG.PANEL_WIDTH - 50, 400)
+    local scrollChild = Widgets.Frame(scrollFrame, {
+        size = { CFG.PANEL_WIDTH - 50, 400 },
+    })
     scrollFrame:SetScrollChild(scrollChild)
 
     panel.scrollFrame = scrollFrame

@@ -2,21 +2,29 @@
 -- Unified row creation and management for PetStableManagement
 -- Provides a common foundation for both OwnedPets and ModelsBrowser
 
-local addonName = "PetStableManagement"
+local _, ns = ...
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
+ns.RowManager = {}
 
-PSM.RowManager = {}
+-- What the mouse can do to a 3D model. Every view that shows one repeats this, so it
+-- lives with the code that installs the handlers it describes -- if the interaction
+-- changes, the text sitting next to it is hard to miss.
+ns.RowManager.MODEL_HINTS =
+    ns.L("Left-click and drag to rotate") .. "\n" ..
+    ns.L("Right-click and drag to move (left/right, up/down)") .. "\n" ..
+    ns.L("Scroll to zoom")
 
 -- ─── Shared update frames ────────────────────────────────────────────────────
 
+-- An invisible, parentless ticker: nothing to draw, so not a widget. ns.CreateFrame
+-- is Core.lua's alias, which is what the headless tests can stub. The memo is keyed on
+-- the namespace with bracket syntax, so a dot-syntax grep for `ns.` will not find it.
 local function EnsureUpdateFrame(key, onUpdate)
-    if PSM[key] then return PSM[key] end
-    local f = CreateFrame("Frame")
+    if ns[key] then return ns[key] end
+    local f = ns.CreateFrame("Frame")
     f.activeModels = {}
     f:SetScript("OnUpdate", onUpdate)
-    PSM[key] = f
+    ns[key] = f
     return f
 end
 
@@ -46,6 +54,22 @@ local MovementFrame = EnsureUpdateFrame("MovementFrame", function(self)
     end
 end)
 
+-- Stop both tickers from following a model. Call before a model is hidden, pooled,
+-- rebound to another pet, or otherwise stops being the thing the cursor is dragging.
+--
+-- Clearing only RotationFrame leaves a model released mid-right-drag in
+-- MovementFrame.activeModels for the rest of the session, iterated on every OnUpdate and
+-- never collected -- which is why both are cleared here rather than at each call site.
+--
+-- Public because the Models Browser needs it, as a service rather than exposing
+-- RotationFrame.activeModels on the cross-addon surface.
+function ns.RowManager:ReleaseModel(model)
+    if not model then return end
+    model.isRotating, model.isMoving = false, false
+    RotationFrame.activeModels[model] = nil
+    MovementFrame.activeModels[model] = nil
+end
+
 -- ─── Helpers ─────────────────────────────────────────────────────────────────
 
 local function GetSettings()
@@ -53,7 +77,7 @@ local function GetSettings()
 end
 
 local function GetGlobalZoom()
-    return GetSettings().modelZoom or PSM.Config.DEFAULT_MODEL_ZOOM
+    return GetSettings().modelZoom or ns.Config.DEFAULT_MODEL_ZOOM
 end
 
 local function SetCamDistanceScaleIfChanged(model, scale)
@@ -72,17 +96,17 @@ local function ViewKey(model)
 end
 
 local function SaveViewSettings(model)
-    if model.displayId and PSM.Data and PSM.Data.SaveSettings then
-        PSM.Data:SaveSettings()
+    if model.displayId and ns.Data and ns.Data.SaveSettings then
+        ns.Data:SaveSettings()
     end
 end
 
 local function PersistView(model, patch)
     if not model.displayId then return end
     local vk = ViewKey(model)
-    PSM.state.modelViews[vk] = PSM.state.modelViews[vk] or {}
+    ns.state.modelViews[vk] = ns.state.modelViews[vk] or {}
     for k, v in pairs(patch) do
-        PSM.state.modelViews[vk][k] = v
+        ns.state.modelViews[vk][k] = v
     end
     SaveViewSettings(model)
 end
@@ -96,8 +120,8 @@ local function SetupModelInteraction(model)
     model:SetScript("OnMouseDown", function(self, button)
         if button == "LeftButton" then
             if (IsShiftKeyDown() or IsControlKeyDown())
-                and PSM.DragDrop and PSM.DragDrop.StartDrag then
-                PSM.DragDrop:StartDrag(self.petData, self)
+                and ns.DragDrop and ns.DragDrop.StartDrag then
+                ns.DragDrop:StartDrag(self.petData, self)
                 return
             end
             self.isRotating = true
@@ -115,8 +139,8 @@ local function SetupModelInteraction(model)
     end)
 
     model:SetScript("OnMouseUp", function(self, button)
-        if PSM.DragDrop and PSM.DragDrop.dragging then
-            PSM.DragDrop:EndDrag()
+        if ns.DragDrop and ns.DragDrop.dragging then
+            ns.DragDrop:EndDrag()
             return
         end
         if button == "LeftButton" then
@@ -136,64 +160,71 @@ local function SetupModelInteraction(model)
         PersistView(self, { zoom = self.zoom })
     end)
 
-    -- Buttons to toggle on hover (populated later)
-    local function refreshButtons(self, show)
-        for _, b in ipairs(self.hoverButtons or {}) do
-            -- Team buttons only show for player-owned pets
-            if b == self.addToTeamButton or b == self.removeFromTeamButton then
-                if self.isOwnedByPlayer then
-                    if show then b:Show() else b:Hide() end
-                end
-            else
-                if show then b:Show() else b:Hide() end
+    -- A function spec: the reorder hint depends on whether the stable is open and
+    -- whether this model is a slotted pet, both of which change while the row lives.
+    ns.Tooltip.Attach(model,
+        function(self)
+            local tip = ns.RowManager.MODEL_HINTS
+            if ns.state and ns.state.isStableOpen
+                and self.petData and self.petData.slotID then
+                tip = tip .. "\n" .. ns.L("Shift/Ctrl + drag to reorder slot")
             end
-        end
+            return { title = tip }
+        end,
+        {
+            onEnter = function(self) ns.RowManager:ShowHoverButtons(self) end,
+            onLeave = function(self) ns.RowManager:HideHoverButtons(self) end,
+        }
+    )
+end
+
+-- ─── Hover buttons ───────────────────────────────────────────────────────────
+--
+-- The overlay buttons fade in together on hover. Views that want their own model
+-- tooltip have to re-attach OnEnter/OnLeave, which drops the pair installed above,
+-- so both halves are public: a view supplies the tooltip and reuses these rather than
+-- hardcoding the button list, which would leave a new overlay button out of some views.
+
+function ns.RowManager:ShowHoverButtons(model)
+    for _, b in ipairs(model.hoverButtons or {}) do
+        -- Team buttons only show for player-owned pets.
+        local teamButton = b == model.addToTeamButton or b == model.removeFromTeamButton
+        if not teamButton or model.isOwnedByPlayer then b:Show() end
     end
+end
 
-    model:SetScript("OnEnter", function(self)
-        refreshButtons(self, true)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        local tip = "Left-click and drag to rotate\nRight-click and drag to move (left/right, up/down)\nScroll to zoom"
-        if PSM.state and PSM.state.isStableOpen
-            and self.petData and self.petData.slotID then
-            tip = tip .. "\nShift/Ctrl + drag to reorder slot"
-        end
-        GameTooltip:SetText(tip)
-        GameTooltip:Show()
-    end)
-
-    model:SetScript("OnLeave", function(self)
-        -- Keep button visible if mouse moved directly onto it
-        for _, b in ipairs(self.hoverButtons or {}) do
-            if not b:IsMouseOver() then b:Hide() end
-        end
-        GameTooltip:Hide()
-    end)
+-- Keep a button visible if the mouse moved directly onto it from the model.
+function ns.RowManager:HideHoverButtons(model)
+    for _, b in ipairs(model.hoverButtons or {}) do
+        if not b:IsMouseOver() then b:Hide() end
+    end
 end
 
 -- ─── Button factory ───────────────────────────────────────────────────────────
 
-local function MakeOverlayButton(parent, model, size, anchorPoint, anchorRelPoint, offX, offY, normal, highlight, pushed)
-    local btn = CreateFrame("Button", nil, parent)
-    btn:SetSize(size, size)
-    btn:SetPoint(anchorPoint, model, anchorRelPoint, offX, offY)
-    btn:SetFrameLevel(model:GetFrameLevel() + 2)
-    btn:SetNormalTexture(normal)
-    btn:SetAlpha(0.7)
-    if highlight then btn:SetHighlightTexture(highlight) end
-    if pushed   then btn:SetPushedTexture(pushed) end
-    btn:Hide()
+-- The small affordances that fade in over a model on hover: reset view, magnify,
+-- add/remove from team. Deliberately not skinned -- ElvUI's HandleButton strips
+-- exactly the textures these are made of.
+local OVERLAY_ALPHA, OVERLAY_ALPHA_HOVER = 0.7, 1.0
 
-    btn:SetScript("OnEnter", function(self)
-        self:SetAlpha(1.0)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(self.tooltipText or "")
-        GameTooltip:Show()
-    end)
-    btn:SetScript("OnLeave", function(self)
-        self:SetAlpha(0.7)
-        GameTooltip:Hide()
-    end)
+local function MakeOverlayButton(parent, model, opts)
+    local btn = ns.Widgets.IconButton(parent, {
+        size      = { opts.size, opts.size },
+        point     = { opts.point, model, opts.relPoint, opts.x, opts.y },
+        level     = model:GetFrameLevel() + 2,
+        texture   = opts.texture,
+        highlight = opts.highlight,
+        pushed    = opts.pushed,
+        alpha     = OVERLAY_ALPHA,
+        hidden    = true,
+    })
+
+    -- The brighten and the tooltip are one hover behaviour, so they are attached
+    -- together -- two separate OnEnter handlers would mean the last one wins.
+    ns.Tooltip.Attach(btn, opts.tooltip, {
+        onEnter = function(self) self:SetAlpha(OVERLAY_ALPHA_HOVER) end,
+        onLeave = function(self) self:SetAlpha(OVERLAY_ALPHA)       end,
+    })
     return btn
 end
 
@@ -203,30 +234,30 @@ local function RegisterHoverButton(model, btn)
 end
 
 local function CreateResetButton(parent, model)
-    local btn = MakeOverlayButton(parent, model, 16,
-        "TOPRIGHT", "TOPRIGHT", -2, -2,
-        "Interface\\Buttons\\UI-RefreshButton",
-        "Interface\\Buttons\\UI-RefreshButton")
-    btn.tooltipText = "Reset View"
+    local btn = MakeOverlayButton(parent, model, {
+        size      = 16,
+        point     = "TOPRIGHT", relPoint = "TOPRIGHT", x = -2, y = -2,
+        texture   = "Interface\\Buttons\\UI-RefreshButton",
+        highlight = "Interface\\Buttons\\UI-RefreshButton",
+        tooltip   = ns.L("Reset View"),
+    })
 
     btn:SetScript("OnClick", function()
         local s = GetSettings()
-        local gz   = s.modelZoom             or PSM.Config.DEFAULT_MODEL_ZOOM
-        local va   = s.modelViewAngle        or PSM.Config.DEFAULT_MODEL_VIEW_ANGLE
-        local vp   = s.modelVerticalPosition or PSM.Config.DEFAULT_MODEL_VERTICAL_POSITION
-        local hp   = s.modelHorizontalPosition or PSM.Config.DEFAULT_MODEL_HORIZONTAL_POSITION
+        local gz   = s.modelZoom             or ns.Config.DEFAULT_MODEL_ZOOM
+        local va   = s.modelViewAngle        or ns.Config.DEFAULT_MODEL_VIEW_ANGLE
+        local vp   = s.modelVerticalPosition or ns.Config.DEFAULT_MODEL_VERTICAL_POSITION
+        local hp   = s.modelHorizontalPosition or ns.Config.DEFAULT_MODEL_HORIZONTAL_POSITION
 
         model.rotation = math.rad(va)
         model.zoom     = 1.0
         model:SetRotation(model.rotation)
         model:SetPosition(0, hp * 2.0, vp * 2.0)
         SetCamDistanceScaleIfChanged(model, 1.0 / gz)
-        model.isRotating, model.isMoving = false, false
-        RotationFrame.activeModels[model] = nil
-        MovementFrame.activeModels[model] = nil
+        ns.RowManager:ReleaseModel(model)
 
         if model.displayId then
-            PSM.state.modelViews[ViewKey(model)] = {
+            ns.state.modelViews[ViewKey(model)] = {
                 rotation = model.rotation,
                 zoom     = model.zoom,
                 position = { 0, hp * 2.0, vp * 2.0 },
@@ -241,14 +272,16 @@ local function CreateResetButton(parent, model)
 end
 
 local function CreateMagnifyButton(parent, model)
-    local btn = MakeOverlayButton(parent, model, 16,
-        "TOPRIGHT", "TOPRIGHT", -20, -2,
-        "Interface\\Icons\\INV_Misc_Spyglass_02")
-    btn.tooltipText = "Magnify Model"
+    local btn = MakeOverlayButton(parent, model, {
+        size    = 16,
+        point   = "TOPRIGHT", relPoint = "TOPRIGHT", x = -20, y = -2,
+        texture = "Interface\\Icons\\INV_Misc_Spyglass_02",
+        tooltip = ns.L("Magnify Model"),
+    })
 
     btn:SetScript("OnClick", function()
-        if PSM.PopUpManager and PSM.PopUpManager.ShowMagnificationPopup then
-            PSM.PopUpManager:ShowMagnificationPopup(model.displayId, model.petData)
+        if ns.PopUpManager and ns.PopUpManager.ShowMagnificationPopup then
+            ns.PopUpManager:ShowMagnificationPopup(model.displayId, model.petData)
         end
     end)
 
@@ -258,15 +291,17 @@ local function CreateMagnifyButton(parent, model)
 end
 
 local function CreateAddToTeamButton(parent, model)
-    local btn = MakeOverlayButton(parent, model, 16,
-        "BOTTOMRIGHT", "BOTTOMRIGHT", -2, 2,
-        "Interface\\Buttons\\UI-PlusButton-UP",
-        "Interface\\Buttons\\UI-PlusButton-Highlight",
-        "Interface\\Buttons\\UI-PlusButton-Down")
-    btn.tooltipText = "Add to Team"
+    local btn = MakeOverlayButton(parent, model, {
+        size      = 16,
+        point     = "BOTTOMRIGHT", relPoint = "BOTTOMRIGHT", x = -2, y = 2,
+        texture   = "Interface\\Buttons\\UI-PlusButton-UP",
+        highlight = "Interface\\Buttons\\UI-PlusButton-Highlight",
+        pushed    = "Interface\\Buttons\\UI-PlusButton-Down",
+        tooltip   = ns.L("Add to Team"),
+    })
 
     btn:SetScript("OnClick", function()
-        if model.petData then PSM.TeamDialogs:ShowAddToTeamDialog(model.petData) end
+        if model.petData then ns.Dialogs:ShowAddToTeamDialog(model.petData) end
     end)
 
     model.addToTeamButton = btn
@@ -275,15 +310,17 @@ local function CreateAddToTeamButton(parent, model)
 end
 
 local function CreateRemoveFromTeamButton(parent, model)
-    local btn = MakeOverlayButton(parent, model, 16,
-        "BOTTOMRIGHT", "BOTTOMRIGHT", -20, 2,
-        "Interface\\Buttons\\UI-MinusButton-UP",
-        "Interface\\Buttons\\UI-MinusButton-Highlight",
-        "Interface\\Buttons\\UI-MinusButton-Down")
-    btn.tooltipText = "Remove from Team"
+    local btn = MakeOverlayButton(parent, model, {
+        size      = 16,
+        point     = "BOTTOMRIGHT", relPoint = "BOTTOMRIGHT", x = -20, y = 2,
+        texture   = "Interface\\Buttons\\UI-MinusButton-UP",
+        highlight = "Interface\\Buttons\\UI-MinusButton-Highlight",
+        pushed    = "Interface\\Buttons\\UI-MinusButton-Down",
+        tooltip   = ns.L("Remove from Team"),
+    })
 
     btn:SetScript("OnClick", function()
-        if model.petData then PSM.TeamDialogs:ShowRemoveFromTeamDialog(model.petData) end
+        if model.petData then ns.Dialogs:ShowRemoveFromTeamDialog(model.petData) end
     end)
 
     model.removeFromTeamButton = btn
@@ -293,62 +330,77 @@ end
 
 -- ─── Row construction ─────────────────────────────────────────────────────────
 
+-- The row's own hairline rule and border tint, distinct from PSM.Theme.FILL.SEPARATOR
+-- (which is bluer and opaque). Kept as-is so this pass does not restyle rows.
+local ROW_RULE = { 0.3, 0.3, 0.3, 0.5 }
+
+-- Applied both at construction and again by UpdateBackgroundColor, which restores it
+-- after a spec-atlas background is cleared. One definition for both.
+local function ApplyRowBackdrop(row)
+    ns.Widgets.Backdrop(row, "TOOLTIP", {
+        color       = ns.Config.COLORS.BACKGROUND,
+        borderColor = ROW_RULE,
+    })
+end
+
 local function CreateSeparator(row)
-    local sep = row:CreateTexture(nil, "BORDER")
-    sep:SetHeight(1)
-    sep:SetPoint("BOTTOMLEFT",  row, "BOTTOMLEFT",  0, 0)
-    sep:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
-    sep:SetColorTexture(0.3, 0.3, 0.3, 0.5)
-    return sep
+    return ns.Widgets.Line(row, {
+        layer = "BORDER",
+        color = ROW_RULE,
+        point = {
+            { "BOTTOMLEFT",  row, "BOTTOMLEFT",  0, 0 },
+            { "BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0 },
+        },
+    })
 end
 
 local function CreateBackground(row, useBackdrop)
-    if useBackdrop then
-        row:SetBackdrop({
-            bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-            tile = true, tileSize = 16, edgeSize = 16,
-            insets = { left = 4, right = 4, top = 4, bottom = 4 },
-        })
-        row:SetBackdropColor(unpack(PSM.Config.COLORS.BACKGROUND))
-        row:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.5)
-    end
+    if useBackdrop then ApplyRowBackdrop(row) end
 
     -- Clip children to row bounds
     row:SetClipsChildren(true)
 
     -- Spec atlas background
-    row.specBg = row:CreateTexture(nil, "BACKGROUND", nil, -1)
-    row.specBg:SetAllPoints(row)
-    row.specBg:Hide()
+    row.specBg = ns.Widgets.Texture(row, {
+        layer     = "BACKGROUND",
+        sublayer  = -1,
+        allPoints = true,
+        hidden    = true,
+    })
 end
 
-function PSM.RowManager:CreateBaseRow(parent, config)
+function ns.RowManager:CreateBaseRow(parent, config)
     config = config or {}
     local useBackdrop   = config.useBackdropTemplate or false
     local showMagnify   = config.showMagnifyButton ~= false
     local showTeamBtns  = config.showTeamButtons or false
 
-    local row = CreateFrame("Frame", nil, parent, useBackdrop and "BackdropTemplate" or nil)
-    row:SetSize(config.width or PSM.Config.DEFAULT_ROW_WIDTH,
-                config.height or PSM.Config.ROW_HEIGHT)
+    local Widgets = ns.Widgets
+
+    local row = Widgets.Frame(parent, {
+        template = useBackdrop and "BackdropTemplate" or nil,
+        size     = {
+            config.width  or ns.Config.DEFAULT_ROW_WIDTH,
+            config.height or ns.Config.ROW_HEIGHT,
+        },
+    })
 
     CreateBackground(row, useBackdrop)
     CreateSeparator(row)
 
     -- Model
-    local modelSize = config.modelSize or PSM.Config.MODEL_SIZE
-    row.model = CreateFrame("PlayerModel", nil, row)
-    row.model:SetSize(modelSize, modelSize)
-    row.model:SetPoint("LEFT", row, "LEFT", 2, 0)
-    row.model.rotation   = math.pi * 2
-    row.model.zoom       = 1.0
-    row.model.lastCamDistanceScale = 1.0 / GetGlobalZoom()
-    row.model:SetRotation(row.model.rotation)
-    SetCamDistanceScaleIfChanged(row.model, row.model.lastCamDistanceScale)
+    local modelSize = config.modelSize or ns.Config.MODEL_SIZE
+    row.model = Widgets.Frame(row, {
+        frameType = "PlayerModel",
+        size      = { modelSize, modelSize },
+        point     = { "LEFT", row, "LEFT", 2, 0 },
+    })
     row.model.rotation   = math.pi * 2
     row.model.zoom       = 1.0
     row.model.isRotating = false
+    row.model.lastCamDistanceScale = 1.0 / GetGlobalZoom()
+    row.model:SetRotation(row.model.rotation)
+    SetCamDistanceScaleIfChanged(row.model, row.model.lastCamDistanceScale)
 
     SetupModelInteraction(row.model)
     CreateResetButton(row, row.model)
@@ -359,13 +411,15 @@ function PSM.RowManager:CreateBaseRow(parent, config)
     end
 
     -- Favorite button
-    local favBtn = CreateFrame("Button", nil, row)
-    favBtn:SetSize(16, 16)
-    favBtn:SetPoint("TOPLEFT", row.model, "TOPLEFT", 0, -2)
-    favBtn:SetFrameLevel(row.model:GetFrameLevel() + 2)
-    favBtn:SetNormalTexture("Interface\\Common\\ReputationStar")
-    favBtn:SetHighlightTexture("Interface\\Common\\ReputationStar")
-    favBtn:Hide()
+    local favBtn = Widgets.IconButton(row, {
+        size      = { 16, 16 },
+        point     = { "TOPLEFT", row.model, "TOPLEFT", 0, -2 },
+        level     = row.model:GetFrameLevel() + 2,
+        texture   = "Interface\\Common\\ReputationStar",
+        highlight = "Interface\\Common\\ReputationStar",
+        hidden    = true,
+        tooltip   = ns.L("Favorite/Unfavorite"),
+    })
 
     local function SetFavTexCoords(isFav)
         local u = isFav and 0 or 0.5
@@ -375,38 +429,48 @@ function PSM.RowManager:CreateBaseRow(parent, config)
 
     favBtn:SetScript("OnClick", function()
         if not row.displayId then return end
-        local isFav = not PSM.state.favoriteModels[row.displayId]
-        PSM.state.favoriteModels[row.displayId] = isFav
+        local isFav = not ns.state.favoriteModels[row.displayId]
+        ns.state.favoriteModels[row.displayId] = isFav
         SetFavTexCoords(isFav)
-        if PSM.Data and PSM.Data.SaveSettings then PSM.Data:SaveSettings() end
-        local panel = PSM.state.modelsPanel
-        if panel and panel.showFavorites then
-            PSM.ModelsDataLoader:LoadModelsForSelectedFamilies()
+        if ns.Data and ns.Data.SaveSettings then ns.Data:SaveSettings() end
+        -- Favorite is a model-level concept: every pet sharing this displayId
+        -- stays in lockstep, so this pushes the SAME new value onto every live
+        -- pet the current character owns of it -- unconditionally, both
+        -- directions. There is deliberately no per-pet favorite distinct from
+        -- this shared flag.
+        if ns.Data and ns.Data.PushFavoriteToOwnedPets then
+            ns.Data:PushFavoriteToOwnedPets(row.displayId, isFav)
+        end
+        -- Redraws every currently-visible row on both panels, not just this
+        -- one -- a sibling pet sharing this displayId (Owned Pets) or an
+        -- already-open Browser row for this model is showing a now-stale
+        -- texture otherwise, since favoriteModels changed but nothing
+        -- repainted the button that was already built.
+        if ns.Data and ns.Data.RefreshFavoriteDisplays then ns.Data:RefreshFavoriteDisplays() end
+        local panel = ns.state.modelsPanel
+        if panel and ns.FilterState:Get("showFavorites") then
+            ns.Browser.ModelsDataLoader:LoadModelsForSelectedFamilies()
         end
     end)
-    favBtn:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText("Favorite/Unfavorite")
-        GameTooltip:Show()
-    end)
-    favBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
-
     row.favoriteButton  = favBtn
     row._setFavTexCoords = SetFavTexCoords  -- expose for UpdateFavoriteButton
 
     -- Icon fallback
-    row.icon = row:CreateTexture(nil, "ARTWORK")
-    row.icon:SetSize(PSM.Config.ICON_SIZE, PSM.Config.ICON_SIZE)
-    row.icon:SetPoint("LEFT", row, "LEFT", 2, 0)
-    row.icon:Hide()
+    row.icon = Widgets.Texture(row, {
+        layer  = "ARTWORK",
+        size   = { ns.Config.ICON_SIZE, ns.Config.ICON_SIZE },
+        point  = { "LEFT", row, "LEFT", 2, 0 },
+        hidden = true,
+    })
 
     -- Label
-    row.text = row:CreateFontString(nil, "OVERLAY")
-    row.text:SetFont("Fonts\\FRIZQT__.TTF", 10)
-    row.text:SetPoint("LEFT", row.model, "RIGHT", 6, 0)
-    row.text:SetJustifyH("LEFT")
-    row.text:SetJustifyV("MIDDLE")
-    row.text:SetWidth(PSM.Config.TEXT_WIDTH)
+    row.text = Widgets.Label(row, {
+        fontSize = ns.Theme.SIZE.SMALL,
+        justify  = "LEFT",
+        justifyV = "MIDDLE",
+        width    = ns.Config.TEXT_WIDTH,
+        point    = { "LEFT", row.model, "RIGHT", 6, 0 },
+    })
 
     row.config = config
     return row
@@ -414,7 +478,7 @@ end
 
 -- ─── Public update helpers ────────────────────────────────────────────────────
 
-function PSM.RowManager:UpdateModelDisplay(row, displayID, icon, petData)
+function ns.RowManager:UpdateModelDisplay(row, displayID, icon, petData)
     if displayID and displayID > 0 then
         row.model:SetDisplayInfo(displayID)
         row.model.displayId = displayID
@@ -422,7 +486,7 @@ function PSM.RowManager:UpdateModelDisplay(row, displayID, icon, petData)
         row.model:Show()
         row.icon:Hide()
 
-        local currentCharKey = PSM.GetCharacterKey()
+        local currentCharKey = ns.GetCharacterKey()
         row.model.isOwnedByPlayer = petData and petData.tamer == currentCharKey
 
         if GetSettings().stopAnimation then
@@ -433,12 +497,12 @@ function PSM.RowManager:UpdateModelDisplay(row, displayID, icon, petData)
         row.model:SetCamera(0)
 
     local vk   = ViewKey(row.model)
-    local view = PSM.state.modelViews and PSM.state.modelViews[vk]
+    local view = ns.state.modelViews and ns.state.modelViews[vk]
     local gz   = GetGlobalZoom()
     local s    = GetSettings()
-    local vp   = s.modelVerticalPosition    or PSM.Config.DEFAULT_MODEL_VERTICAL_POSITION
-    local hp   = s.modelHorizontalPosition  or PSM.Config.DEFAULT_MODEL_HORIZONTAL_POSITION
-    local va   = s.modelViewAngle           or PSM.Config.DEFAULT_MODEL_VIEW_ANGLE
+    local vp   = s.modelVerticalPosition    or ns.Config.DEFAULT_MODEL_VERTICAL_POSITION
+    local hp   = s.modelHorizontalPosition  or ns.Config.DEFAULT_MODEL_HORIZONTAL_POSITION
+    local va   = s.modelViewAngle           or ns.Config.DEFAULT_MODEL_VIEW_ANGLE
 
     if view then
         row.model.rotation = view.rotation or math.rad(va)
@@ -462,8 +526,8 @@ function PSM.RowManager:UpdateModelDisplay(row, displayID, icon, petData)
     end
 end
 
-function PSM.RowManager:UpdateBackgroundColor(row, isSameCharDup, isCrossCharDup, isOwned, specialization, backgroundType)
-    backgroundType = backgroundType or GetSettings().backgroundType or PSM.Config.DEFAULT_BACKGROUND_TYPE
+function ns.RowManager:UpdateBackgroundColor(row, isSameCharDup, isCrossCharDup, isOwned, specialization, backgroundType)
+    backgroundType = backgroundType or GetSettings().backgroundType or ns.Config.DEFAULT_BACKGROUND_TYPE
 
     -- Clear any color overlay
     if row.bg then
@@ -475,27 +539,18 @@ function PSM.RowManager:UpdateBackgroundColor(row, isSameCharDup, isCrossCharDup
     -- Background handling
     if row.specBg then
         if backgroundType == "stablemaster" and specialization then
-            row.specBg:SetAtlas(PSM.Config.SPEC_BACKGROUND_ATLAS[specialization] or PSM.Config.SPEC_BACKGROUND_ATLAS.Ferocity)
+            row.specBg:SetAtlas(ns.Config.SPEC_BACKGROUND_ATLAS[specialization] or ns.Config.SPEC_BACKGROUND_ATLAS.Ferocity)
             row.specBg:SetVertexColor(1, 1, 1, 1)  -- Reset vertex color
             row.specBg:Show()
             if row.SetBackdrop then row:SetBackdrop(nil) end  -- Hide backdrop for spec bg
         elseif backgroundType == "custom" and specialization then
-            row.specBg:SetTexture(PSM.Config.SPEC_BACKGROUND_CUSTOM[specialization] or PSM.Config.SPEC_BACKGROUND_CUSTOM.Ferocity)
+            row.specBg:SetTexture(ns.Config.SPEC_BACKGROUND_CUSTOM[specialization] or ns.Config.SPEC_BACKGROUND_CUSTOM.Ferocity)
             row.specBg:SetVertexColor(1, 1, 1, 1)  -- Reset vertex color
             row.specBg:Show()
             if row.SetBackdrop then row:SetBackdrop(nil) end  -- Hide backdrop for spec bg
         elseif backgroundType == "simple" then
             row.specBg:Hide()
-            if row.SetBackdrop then  -- Restore backdrop for simple
-                row:SetBackdrop({
-                    bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-                    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-                    tile = true, tileSize = 16, edgeSize = 16,
-                    insets = { left = 4, right = 4, top = 4, bottom = 4 },
-                })
-                row:SetBackdropColor(unpack(PSM.Config.COLORS.BACKGROUND))
-                row:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.5)
-            end
+            if row.SetBackdrop then ApplyRowBackdrop(row) end  -- restore what "simple" means
         else
             row.specBg:Hide()
             if row.SetBackdrop then row:SetBackdrop(nil) end
@@ -504,86 +559,46 @@ function PSM.RowManager:UpdateBackgroundColor(row, isSameCharDup, isCrossCharDup
 
     -- Duplicate border indicator
     if not row.dupBorder then
-        row.dupBorder = CreateFrame("Frame", nil, row, "BackdropTemplate")
-        row.dupBorder:SetAllPoints()
-        row.dupBorder:SetFrameLevel(row:GetFrameLevel() + 2)
-        row.dupBorder:SetBackdrop({
-            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-            edgeSize = 16,
-            insets   = { left = 4, right = 4, top = 4, bottom = 4 },
+        -- Border with no fill, so the row's own background stays visible through it.
+        row.dupBorder = ns.Widgets.Frame(row, {
+            backdrop  = "BORDER_ONLY",
+            allPoints = true,
+            level     = row:GetFrameLevel() + 2,
         })
     end
 
     if isSameCharDup then
-        row.dupBorder:SetBackdropBorderColor(unpack(PSM.Config.COLORS.BORDER_DUPLICATE))
+        row.dupBorder:SetBackdropBorderColor(unpack(ns.Config.COLORS.BORDER_DUPLICATE))
         row.dupBorder:Show()
     elseif isCrossCharDup then
-        row.dupBorder:SetBackdropBorderColor(unpack(PSM.Config.COLORS.BORDER_DUPLICATE_CROSS_CHAR))
+        row.dupBorder:SetBackdropBorderColor(unpack(ns.Config.COLORS.BORDER_DUPLICATE_CROSS_CHAR))
         row.dupBorder:Show()
     elseif isOwned then
-        row.dupBorder:SetBackdropBorderColor(unpack(PSM.Config.COLORS.BORDER_OWNED_SINGLE))
+        row.dupBorder:SetBackdropBorderColor(unpack(ns.Config.COLORS.BORDER_OWNED_SINGLE))
         row.dupBorder:Show()
     else
         row.dupBorder:Hide()
     end
 end
 
-function PSM.RowManager:HideRow(row)
-    if not row then return end
-    row:Hide()
-    if row.model then
-        row.model:SetDisplayInfo(0)
-        row.model:Hide()
-        row.model.isRotating = false
-        RotationFrame.activeModels[row.model] = nil
-    end
-    for _, key in ipairs({ "icon", "abilitiesHeader", "abilitiesList", "separator" }) do
-        if row[key] then
-            if key == "icon" or key == "separator" then row[key]:Hide()
-            elseif row[key].SetText then row[key]:Hide(); row[key]:SetText("")
-            else row[key]:Hide()
-            end
-        end
-    end
-    if row.text then row.text:SetText("") end
-    if row.nameText then row.nameText:SetText("") end
-    if row.infoText then row.infoText:SetText("") end
-    if row.npcNamesText then row.npcNamesText:SetText("") end
-    if row.customElements then
-        for _, el in pairs(row.customElements) do
-            if el.Hide then el:Hide() end
-        end
-    end
-    -- Hide drag drop indicator
-    if row._dropIndicator then
-        row._dropIndicator:Hide()
-        row._dropIndicator:ClearAllPoints()
-        row._dropIndicator = nil
-    end
-end
-
-function PSM.RowManager:EnsureRow(i, parent, config)
+function ns.RowManager:EnsureRow(i, parent, config)
     if not i or i < 1 then return nil end
-    PSM.state.rows = PSM.state.rows or {}
-    if PSM.state.rows[i] then return PSM.state.rows[i] end
+    ns.state.rows = ns.state.rows or {}
+    if ns.state.rows[i] then return ns.state.rows[i] end
     if not parent then
-        print(PSM.Config.MESSAGES.PANEL_SHOW_FAILED)
+        ns.Utils:Msg("ERROR", ns.L("Panel creation failed!"))
         return nil
     end
     local row = self:CreateBaseRow(parent, config)
-    PSM.state.rows[i] = row
+    ns.state.rows[i] = row
     return row
 end
 
-function PSM.RowManager:UpdateFavoriteButton(row, displayId)
+function ns.RowManager:UpdateFavoriteButton(row, displayId)
     if not row or not row.favoriteButton then return end
     row.displayId = displayId
     row.favoriteButton:Show()
-    row._setFavTexCoords(PSM.state.favoriteModels[displayId])
-end
-
-function PSM.RowManager:HideFavoriteButton(row)
-    if row and row.favoriteButton then row.favoriteButton:Hide() end
+    row._setFavTexCoords(ns.state.favoriteModels[displayId])
 end
 
 -- Account-wide, independent of who is currently logged in: a pet is a
@@ -592,8 +607,8 @@ end
 -- different character. Previously this compared against the logged-in
 -- character instead of the row's own owner, so duplicates only ever showed up
 -- while playing a character that itself owned copies.
-function PSM.RowManager:CheckDuplicates(pet, allGroups)
-    local key = PSM.Utils:GetPetDuplicateKey(pet)
+function ns.RowManager:CheckDuplicates(pet, allGroups)
+    local key = ns.Utils:GetPetDuplicateKey(pet)
     local group = allGroups and allGroups[key]
     if not group or #group <= 1 then return false, false end
 

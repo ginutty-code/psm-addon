@@ -14,18 +14,8 @@ local PetRoulette = PSM.PetRoulette
 local function GetDB() return PetStableManagementDB.settings end
 
 local function PrintRoulette(pet)
-    print(string.format("|cFF00FF00Pet Roulette: %s (Display ID: %d)|r",
+    PSM.Utils:Msg("SUCCESS", PSM.L("Pet Roulette: %s (Display ID: %d)",
         pet.familyName or "Unknown", pet.displayId))
-end
-
-local function EnableMenuButton(btn)
-    if not btn then return end
-    btn:Enable()
-    btn:SetAlpha(1)
-    if btn.tooltipOverlay then
-        btn.tooltipOverlay:Hide()
-        btn.tooltipOverlay:EnableMouse(false)
-    end
 end
 
 -- ============================================================
@@ -50,6 +40,40 @@ function PetRoulette:_GetAllAvailableModels()
         end
     end
     return allModels
+end
+
+-- NPC view populates panel.allNPCs, not panel.allModels -- build the same
+-- {displayId, npcs, familyName} shape from the NPCs the current filters left
+-- in view, via GetFamilyModels, so ShowPetRoulettePopup's ResolveNpcRecords
+-- call still works unchanged.
+function PetRoulette:_GetModelsFromNPCList(npcItems)
+    local models = {}
+    if not npcItems or #npcItems == 0 then return models end
+
+    local wantedDisplayIds, families = {}, {}
+    for _, npc in ipairs(npcItems) do
+        families[npc.family] = true
+        for _, displayId in ipairs(npc.displayIds) do
+            wantedDisplayIds[displayId] = true
+        end
+    end
+
+    for familyName in pairs(families) do
+        local familyData = PSM.PetModels:GetFamilyModels(familyName)
+        if familyData and familyData.displayIds then
+            for _, d in ipairs(familyData.displayIds) do
+                if wantedDisplayIds[d.displayId] and not PSM.Config.EXCLUDED_DISPLAY_IDS[d.displayId] then
+                    models[#models + 1] = {
+                        displayId  = d.displayId,
+                        npcs       = d.npcs,
+                        familyName = familyName,
+                        itemType   = "display_with_npcs",
+                    }
+                end
+            end
+        end
+    end
+    return models
 end
 
 function PetRoulette:_SelectRandomPet(modelsList)
@@ -77,13 +101,15 @@ end
 
 function PetRoulette:SelectPetRoulette()
     local panel = PSM.state.modelsPanel
-    if not panel or not panel.allModels or #panel.allModels == 0 then
-        print("|cFFFFAA00No pets available for Pet Roulette.|r")
+    local modelsList = panel and
+        (panel.modelsViewMode == "npc" and self:_GetModelsFromNPCList(panel.allNPCs) or panel.allModels)
+
+    if not modelsList or #modelsList == 0 then
+        PSM.Utils:Msg("WARNING", PSM.L("No pets available for Pet Roulette."))
         return
     end
-    local pet = self:_SelectRandomPet(panel.allModels)
-    self:ShowPetRoulettePopup(pet)
-    PrintRoulette(pet)
+    local pet = self:_SelectRandomPet(modelsList)
+    if self:ShowPetRoulettePopup(pet) then PrintRoulette(pet) end
 end
 
 function PetRoulette:SelectPetRouletteFromCommand()
@@ -97,25 +123,17 @@ function PetRoulette:SelectPetRouletteFromCommand()
 
     local allModels = self:_GetAllAvailableModels()
     if #allModels == 0 then
-        print("|cFFFFAA00No pet models available for Pet Roulette.|r")
+        PSM.Utils:Msg("WARNING", PSM.L("No pet models available for Pet Roulette."))
         return
     end
 
     local pet = self:_SelectRandomPet(allModels)
-    self:ShowPetRoulettePopup(pet)
-    PrintRoulette(pet)
+    if self:ShowPetRoulettePopup(pet) then PrintRoulette(pet) end
 end
 
 -- ============================================================
 -- Cleanup
 -- ============================================================
-
-local function ClearGlobalCaches()
-    PSM._modelsRenderCache  = nil
-    PSM._modelsDebounceTimer = nil
-    PSM._npcRenderCache     = nil
-    PSM._npcDebounceTimer   = nil
-end
 
 function PetRoulette:CleanupPetRoulette()
     PSM.PetModels:ClearCache()
@@ -127,29 +145,14 @@ function PetRoulette:CleanupPetRoulette()
             mf:SetDisplayInfo(0)
             mf:Hide()
             mf.isRotating = false
-            if PSM.RotationFrame then PSM.RotationFrame.activeModels[mf] = nil end
+            PSM.RowManager:ReleaseModel(mf)
         end
         if popup.infoText then popup.infoText:SetText("") end
         if popup.npcsText  then popup.npcsText:SetText("") end
         popup.currentPetData = nil
     end
 
-    ClearGlobalCaches()
-    collectgarbage("collect")
-end
-
--- Preserves the visible model and text (e.g. after AFK)
-function PetRoulette:CleanupPetRouletteWithoutModel()
-    PSM.PetModels:ClearCache()
-
-    local popup = PSM.state.petRoulettePopup
-    if popup then
-        popup.currentPetData   = nil
-        popup.currentDisplayId = nil
-    end
-
-    ClearGlobalCaches()
-    collectgarbage("collect")
+    PSM.ModelsPanel:ReleaseCaches()
 end
 
 -- ============================================================
@@ -182,10 +185,14 @@ local function ApplyModelView(popup, petData)
     mf:Show()
 end
 
+-- Returns true when the popup actually opened, false when combat blocked it -- the
+-- caller uses this to decide whether the "you rolled X" chat line still applies.
 function PetRoulette:ShowPetRoulettePopup(petData)
+    if PSM.PanelManager:CombatBlocked(PSM.L("Pet Roulette")) then return false end
+
     if not PSM.state.petRoulettePopup then
         PSM.state.petRoulettePopup = PSM.PopUpManager:CreateModelPopup({
-            title               = "Pet Roulette",
+            title               = PSM.L("Pet Roulette"),
             width               = 500,
             height              = 560,
             modelSize           = 300,
@@ -197,7 +204,8 @@ function PetRoulette:ShowPetRoulettePopup(petData)
             onTryAgain          = function()
                 PetRoulette:CleanupPetRoulette()
                 local panel = PSM.state.modelsPanel
-                if panel and panel.allModels and #panel.allModels > 0 then
+                if panel and ((panel.allModels and #panel.allModels > 0)
+                    or (panel.allNPCs and #panel.allNPCs > 0)) then
                     PetRoulette:SelectPetRoulette()
                 else
                     PetRoulette:SelectPetRouletteFromCommand()
@@ -221,7 +229,7 @@ function PetRoulette:ShowPetRoulettePopup(petData)
     PSM.PopUpManager:UpdatePopupBackground(popup, petData.displayId, petData)
 
     -- Model (deferred)
-    PSM.C_Timer.After(0.1, function() ApplyModelView(popup, petData) end)
+    C_Timer.After(0.1, function() ApplyModelView(popup, petData) end)
 
     -- Favourites button
     popup.SetFavTexCoord(popup.favoritesButton, PSM.state.favoriteModels[petData.displayId])
@@ -231,15 +239,8 @@ function PetRoulette:ShowPetRoulettePopup(petData)
 
     popup:Show()
     popup:Raise()
+    return true
 end
 
--- ============================================================
--- Module load: enable menu buttons
--- ============================================================
-
-C_Timer.After(0.1, function()
-    local menu = PSM.state and PSM.state.menu
-    if not menu then return end
-    EnableMenuButton(menu.modelsButton)
-    EnableMenuButton(menu.rouletteButton)
-end)
+-- Nothing here reaches back into core's menu on load: its browser buttons stay enabled and
+-- re-read availability on hover, so there is no cached decision for this module to undo.

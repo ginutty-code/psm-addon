@@ -17,6 +17,7 @@ local RACE_IDS = {
     PandarenHorde    = 26,
     ZandalariTroll   = 31,
     Mechagnome       = 37,
+    Haranir          = 86,
 }
 
 -- ---------------------------------------------------------------------------
@@ -69,13 +70,14 @@ PSM.TamingRules = {
 
     ["Florafaun"] = {
         label       = "Florafaun Taming",
-        desc        = "Learned from Trials of the Florafaun Hunter (Harandar florafaun rares). Requires level 80. Account-wide.",
-        hint        = { itemID = 264895, itemName = "Trials of the Florafaun Hunter" },
+        desc        = "Haranir hunters know this automatically. Others learn from Trials of the Florafaun Hunter (Harandar florafaun rares). Requires level 80. Account-wide.",
+        hint        = { autoRace = "Haranir", itemID = 264895, itemName = "Trials of the Florafaun Hunter" },
         itemID      = 264895,
         accountWide = true,
         check = {
-            spellID = 1272785,
-            questID = 87421,
+            autoRaces = { RACE_IDS.Haranir },
+            spellID   = 1272785,
+            questID   = 87421,
         },
     },
 
@@ -265,23 +267,3 @@ function PSM.TamingChecker.GetRuleStatus(ruleKey)
     return status
 end
 
--- Returns an array of {label, desc, itemID, status} for all taming requirements
--- on a model record. Pass the model's data record (expected to have .taming = {...}).
--- Returns an empty table if the model has no special taming requirements.
--- @param modelData table : record with optional modelData.taming = { "Direhorn", ... }
--- @return table          : array of { label, desc, itemID, status }
-function PSM.TamingChecker.GetModelStatus(modelData)
-    local result = {}
-    if not modelData or not modelData.taming then return result end
-    for _, ruleKey in ipairs(modelData.taming) do
-        local rule   = PSM.TamingRules[ruleKey]
-        local status = PSM.TamingChecker.GetRuleStatus(ruleKey)
-        result[#result + 1] = {
-            label  = rule and rule.label  or ruleKey,
-            desc   = rule and rule.desc   or "",
-            itemID = rule and rule.itemID or nil,
-            status = status,
-        }
-    end
-    return result
-end

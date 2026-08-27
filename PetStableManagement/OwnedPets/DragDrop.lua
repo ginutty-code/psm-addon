@@ -1,13 +1,10 @@
 -- OwnedPets/DragDrop.lua
 -- Drag and drop functionality for reordering pets in the Owned Pets panel
 
-local addonName = "PetStableManagement"
+local _, ns = ...
+ns.DragDrop = ns.DragDrop or {}
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
-PSM.DragDrop = PSM.DragDrop or {}
-
-local DD = PSM.DragDrop
+local DD = ns.DragDrop
 
 -- Colors
 local COLOR = {
@@ -17,6 +14,11 @@ local COLOR = {
 }
 
 local ICON_SIZE = 55
+
+-- The drag frame's ring and its slot caption are deliberately the same yellow -- they
+-- read as one object being carried. Not Theme.COLOR.GOLD, which is dimmer (1, 0.82, 0)
+-- and is the addon's *text* accent; this is a full-intensity highlight.
+local DRAG_HIGHLIGHT = { 1, 1, 0, 1 }
 
 DD.state = {
     isDragging             = false,
@@ -43,10 +45,25 @@ DD.teamState = {
 -- HELPERS
 ------------------------------------------------
 
+-- Remember a row's own colours before a highlight overwrites them, so they can be put
+-- back exactly. Headers restore from this too, rather than from colour literals.
+local function SaveRowColors(row)
+    if not row or not row.GetBackdropColor or row._savedBackdrop then return end
+    row._savedBackdrop = { row:GetBackdropColor() }
+    if row.GetBackdropBorderColor then
+        row._savedBorder = { row:GetBackdropBorderColor() }
+    end
+end
+
 local function SetRowColor(row, color)
     if not row or not row.SetBackdropColor then return end
     if row.isGroupHeader then
-        row:SetBackdropBorderColor(color[1], color[2], color[3], color[4] or 1)
+        -- A header means "this whole group", so the whole header lights up. It used to
+        -- tint only the border, at the fill's 0.4 alpha -- a translucent wash over an
+        -- 8px edge, which read as nothing happening at all. The fill carries the tint
+        -- now and the border takes it at full opacity to outline the target.
+        row:SetBackdropColor(color[1], color[2], color[3], color[4] or 1)
+        row:SetBackdropBorderColor(color[1], color[2], color[3], 1)
     else
         row:SetBackdropColor(unpack(color))
     end
@@ -54,26 +71,36 @@ end
 
 local function ResetRowColor(row, savedBackdrop)
     if not row or not row.SetBackdropColor then return end
-    if row.isGroupHeader then
-        row:SetBackdropColor(0.15, 0.15, 0.15, 1)
-        row:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
-    elseif savedBackdrop then
-        row:SetBackdropColor(unpack(savedBackdrop))
-    end
+    savedBackdrop = savedBackdrop or row._savedBackdrop
+    if savedBackdrop then row:SetBackdropColor(unpack(savedBackdrop)) end
+    if row._savedBorder then row:SetBackdropBorderColor(unpack(row._savedBorder)) end
+end
+
+-- Put a row back the way it was and forget it. One helper because the three cleanup
+-- sites each used to restore and clear by hand, and adding the border to the saved set
+-- meant finding all three again.
+local function RestoreRowColors(row, savedBackdrop)
+    if not row then return end
+    ResetRowColor(row, savedBackdrop)
+    row._savedBackdrop = nil
+    row._savedBorder   = nil
 end
 
 local function SetDropIndicator(row, show)
     -- Only show drop indicator in grouped view (where allowOutsideStable is true)
-    if PSM.state.panelViewMode ~= "grouped" then return end
+    if ns.state.panelViewMode ~= "grouped" then return end
     if not row then return end
     if show then
         if not row._dropIndicator then
-            local t = row:CreateTexture(nil, "OVERLAY")
-            t:SetWidth(3)
-            t:SetPoint("TOPLEFT",    row, "TOPLEFT",    0, 0)
-            t:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
-            t:SetColorTexture(0.2, 1.0, 0.2, 1)
-            row._dropIndicator = t
+            row._dropIndicator = ns.Widgets.Texture(row, {
+                layer = "OVERLAY",
+                width = 3,
+                color = { 0.2, 1.0, 0.2, 1 },
+                point = {
+                    { "TOPLEFT",    row, "TOPLEFT",    0, 0 },
+                    { "BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0 },
+                },
+            })
         end
         row._dropIndicator:Show()
     else
@@ -88,27 +115,33 @@ end
 local function GetDragFrame()
     if DD.state.dragFrame then return DD.state.dragFrame end
 
-    local f = CreateFrame("Frame", "PSMDragFrame", UIParent, "BackdropTemplate")
-    f:SetSize(80, 80)
-    f:SetFrameStrata("TOOLTIP")
-    f:SetFrameLevel(100)
-    f:Hide()
+    local Widgets = ns.Widgets
 
-    f.model = CreateFrame("PlayerModel", nil, f)
-    f.model:SetAllPoints()
+    -- BORDER_ONLY with a 12px edge: a ring around whatever is being dragged, with the
+    -- model or icon showing through. The preset's insets are inert here because there
+    -- is no bgFile to inset.
+    local f = Widgets.Frame(UIParent, {
+        name              = "PSMDragFrame",
+        size              = { 80, 80 },
+        strata            = "TOOLTIP",
+        level             = 100,
+        hidden            = true,
+        backdrop          = "BORDER_ONLY",
+        backdropOverrides = { edgeSize = 12 },
+        borderColor       = DRAG_HIGHLIGHT,
+    })
+
+    f.model = Widgets.Frame(f, { frameType = "PlayerModel", allPoints = true })
     f.model:SetRotation(math.pi * 2)
 
-    f.icon = f:CreateTexture(nil, "ARTWORK")
-    f.icon:SetAllPoints()
-    f.icon:Hide()
+    f.icon = Widgets.Texture(f, { layer = "ARTWORK", allPoints = true, hidden = true })
 
-    f:SetBackdrop({ edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 12 })
-    f:SetBackdropBorderColor(1, 1, 0, 1)
-
-    f.slotText = f:CreateFontString(nil, "OVERLAY")
-    f.slotText:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
-    f.slotText:SetPoint("BOTTOM", f, "BOTTOM", 0, 2)
-    f.slotText:SetTextColor(1, 1, 0)
+    f.slotText = Widgets.Label(f, {
+        fontSize = ns.Theme.SIZE.LABEL,
+        outline  = true,
+        color    = DRAG_HIGHLIGHT,
+        point    = { "BOTTOM", f, "BOTTOM", 0, 2 },
+    })
 
     DD.state.dragFrame = f
     return f
@@ -117,32 +150,37 @@ end
 local function GetTeamDragFrame()
     if DD.teamState.dragFrame then return DD.teamState.dragFrame end
 
-    local f = CreateFrame("Frame", nil, UIParent)
-    f:SetSize(ICON_SIZE + 45, ICON_SIZE + 45)
-    f:SetFrameStrata("HIGH")
-    f:SetFrameLevel(1000)
-    f:Hide()
+    local Widgets = ns.Widgets
+
+    local f = Widgets.Frame(UIParent, {
+        size   = { ICON_SIZE + 45, ICON_SIZE + 45 },
+        strata = "HIGH",
+        level  = 1000,
+        hidden = true,
+    })
     f:EnableMouse(true)
     f:SetMovable(true)
     f:SetClampedToScreen(true)
 
-    local portrait = f:CreateTexture(nil, "BACKGROUND", nil, 1)
-    portrait:SetSize(ICON_SIZE, ICON_SIZE)
-    portrait:SetPoint("CENTER", f, "CENTER", 0, 0)
-    f.portrait = portrait
+    f.portrait = Widgets.Texture(f, {
+        layer    = "BACKGROUND",
+        sublayer = 1,
+        size     = { ICON_SIZE, ICON_SIZE },
+        point    = { "CENTER", f, "CENTER", 0, 0 },
+    })
 
-    local mask = f:CreateMaskTexture()
-    mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask",
-        "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-    mask:SetSize(ICON_SIZE, ICON_SIZE)
-    mask:SetPoint("CENTER", f, "CENTER", 0, 0)
-    portrait:AddMaskTexture(mask)
-    f.mask = mask
+    f.mask = Widgets.MaskTexture(f, {
+        texture = "Interface\\CharacterFrame\\TempPortraitAlphaMask",
+        size    = { ICON_SIZE, ICON_SIZE },
+        point   = { "CENTER", f, "CENTER", 0, 0 },
+    })
+    f.portrait:AddMaskTexture(f.mask)
 
-    local border = f:CreateTexture(nil, "BORDER")
-    border:SetAtlas("footer_inactive-ring")
-    border:SetAllPoints(f)
-    f.border = border
+    f.border = Widgets.Texture(f, {
+        layer     = "BORDER",
+        atlas     = "footer_inactive-ring",
+        allPoints = true,
+    })
 
     DD.teamState.dragFrame = f
     return f
@@ -154,8 +192,8 @@ end
 
 function DD:StartDrag(row, pet, allowOutsideStable)
     if not row or not pet then return end
-    if not PSM.state.isStableOpen and not allowOutsideStable then
-        print("|cFFFF0000Must be at stable master to reorder pets|r")
+    if not ns.state.isStableOpen and not allowOutsideStable then
+        ns.Utils:Msg("ERROR", ns.L("Must be at stable master to reorder pets"))
         return false
     end
 
@@ -167,8 +205,8 @@ function DD:StartDrag(row, pet, allowOutsideStable)
     s.sourceGroupId            = row.groupId
 
     -- Capture the source group's pet order at drag start for position fallback
-    if row.groupId and PSM.PetGroups then
-        local group = PSM.PetGroups:GetGroupById(row.groupId)
+    if row.groupId and ns.PetGroups then
+        local group = ns.PetGroups:GetGroupById(row.groupId)
         if group and group.pets then
             s.sourceGroupPetOrder = {}
             for _, guid in ipairs(group.pets) do
@@ -190,12 +228,9 @@ function DD:StartDrag(row, pet, allowOutsideStable)
         df.icon:SetTexture(pet.icon)
         df.icon:Show(); df.model:Hide()
     end
-    df.slotText:SetText("Slot " .. (pet.slotID or "?"))
+    df.slotText:SetText(ns.L("Slot %s", pet.slotID or "?"))
     df:Show()
     self:UpdateDragFramePosition()
-
-    local interceptor = self:GetDragInterceptor()
-    if interceptor then interceptor:Show() end
 
     return true
 end
@@ -214,10 +249,7 @@ function DD:OnEnterTarget(row, pet)
     s.targetRow = row
     s.targetPet = pet
 
-    -- Save this row's own color before overwriting it (only if not already saved)
-    if row.GetBackdropColor and not row.isGroupHeader and not row._savedBackdrop then
-        row._savedBackdrop = {row:GetBackdropColor()}
-    end
+    SaveRowColors(row)
 
     local isValid
     if s.sourceAllowOutsideStable then
@@ -225,7 +257,7 @@ function DD:OnEnterTarget(row, pet)
         local sameGroup = tgtGroup and (tgtGroup == s.sourceGroupId)
         isValid = tgtGroup ~= nil or row.isGroupHeader == true or sameGroup
     else
-        isValid = PSM.state.isStableOpen and pet and pet.slotID
+        isValid = ns.state.isStableOpen and pet and pet.slotID
     end
 
     SetRowColor(row, isValid and COLOR.TARGET or COLOR.INVALID)
@@ -235,20 +267,18 @@ end
 function DD:OnLeaveTarget(row)
     local s = DD.state
     if not s.isDragging or not row then return end
-    ResetRowColor(row, row._savedBackdrop)
+    RestoreRowColors(row)
     SetDropIndicator(row, false)
-    row._savedBackdrop = nil
     if s.targetRow == row then s.targetRow = nil end
 end
 
 function DD:EndDrag()
     local s = DD.state
     if s.dragFrame then s.dragFrame:Hide() end
-    ResetRowColor(s.sourceRow, s.originalBackdrop)
+    RestoreRowColors(s.sourceRow, s.originalBackdrop)
     if s.targetRow then
-        ResetRowColor(s.targetRow, s.targetRow._savedBackdrop)
+        RestoreRowColors(s.targetRow)
         SetDropIndicator(s.targetRow, false)
-        s.targetRow._savedBackdrop = nil
     end
 
     s.isDragging               = false
@@ -261,8 +291,48 @@ function DD:EndDrag()
     s.targetPet                = nil
     s.originalBackdrop         = nil
     s.lastFocus                = nil
+end
 
-    if self._interceptor then self._interceptor:Hide() end
+-- A group's stored pet order, with any visible-but-untracked pets seeded in first.
+--
+-- Only "ungrouped" needs the seeding: a pet is implicitly ungrouped until something
+-- explicitly files it, so the stored list can be missing pets that are plainly on
+-- screen -- and an insertion index computed against a partial list lands in the wrong
+-- place. Named groups always track their own members, so the seed pass finds nothing
+-- and costs a loop.
+local function StoredOrderForGroup(groupId)
+    local petGroups  = ns.PetGroups
+    local group      = petGroups:GetGroupById(groupId)
+    local storedPets = group and group.pets or {}
+
+    local tracked = {}
+    for _, guid in ipairs(storedPets) do tracked[guid] = true end
+
+    if ns.state.groupedViewRows then
+        local toSeed = {}
+        for _, r in ipairs(ns.state.groupedViewRows) do
+            if r:IsShown() and r.groupId == groupId
+                    and r.dragDropPet and r.dragDropPet.guid
+                    and not tracked[r.dragDropPet.guid] then
+                table.insert(toSeed, r.dragDropPet.guid)
+            end
+        end
+        if #toSeed > 0 then
+            -- One batched call rather than one Save() per pet.
+            petGroups:SeedUngroupedPets(toSeed)
+            group      = petGroups:GetGroupById(groupId)
+            storedPets = group and group.pets or {}
+        end
+    end
+
+    return storedPets
+end
+
+-- Index of `guid` in `list`, or nil.
+local function IndexOf(list, guid)
+    for i, entry in ipairs(list) do
+        if entry == guid then return i end
+    end
 end
 
 function DD:CompleteDrop(targetRow, targetPet)
@@ -279,82 +349,56 @@ function DD:CompleteDrop(targetRow, targetPet)
 
         if not srcGUID or not tgtGroup then self:EndDrag(); return false end
 
-        local petGroups = PSM.PetGroups
+        local petGroups = ns.PetGroups
+
+        local storedPets = StoredOrderForGroup(tgtGroup)
+
+        -- Where the drop indicator was pointing. nil when the drop landed on a group
+        -- header rather than a pet, which means "append to this group".
+        local tgtGUID = s.targetPet and s.targetPet.guid
+        local tgtPos  = tgtGUID and IndexOf(storedPets, tgtGUID) or nil
 
         if sameGroup then
-            local tgtGUID = s.targetPet and s.targetPet.guid
-            if not tgtGUID then self:EndDrag(); return false end
+            -- Bails on an unknown target rather than on a missing one: the old guard
+            -- checked only that a target pet existed, so a pet that was somehow not in
+            -- storage produced tgtPos = nil and then compared a number against nil.
+            if not tgtPos then self:EndDrag(); return false end
 
-            -- Get current storage for this group
-            local group = petGroups:GetGroupById(tgtGroup)
-            local storedPets = group and group.pets or {}
-
-            -- Build a lookup of what's already tracked
-            local tracked = {}
-            for _, guid in ipairs(storedPets) do tracked[guid] = true end
-
-            -- Seed only untracked visible pets in one batch (avoids per-pet Save() calls)
-            if PSM.state.groupedViewRows then
-                local toSeed = {}
-                for _, r in ipairs(PSM.state.groupedViewRows) do
-                    if r:IsShown() and r.groupId == tgtGroup
-                            and r.dragDropPet and r.dragDropPet.guid
-                            and not tracked[r.dragDropPet.guid] then
-                        table.insert(toSeed, r.dragDropPet.guid)
-                    end
-                end
-                if #toSeed > 0 then
-                    petGroups:SeedUngroupedPets(toSeed)
-                    -- Refresh after seeding
-                    group = petGroups:GetGroupById(tgtGroup)
-                    storedPets = group and group.pets or {}
-                    for _, guid in ipairs(storedPets) do tracked[guid] = true end
-                end
-            end
-
-            -- Find target position in (now seeded) storage
-            local tgtPos = nil
-            for i, guid in ipairs(storedPets) do
-                if guid == tgtGUID then tgtPos = i; break end
-            end
-
-            -- Find source position to calculate adjustment
-            local srcPos = nil
-            for i, guid in ipairs(storedPets) do
-                if guid == srcGUID then srcPos = i; break end
-            end
-
-            -- tgtPos was found before source removal; if source is before target,
-            -- removal shifts target left by one, so adjust to land before target.
+            -- tgtPos was measured before the source is removed; if the source sits
+            -- before the target, that removal shifts the target left by one, so
+            -- subtract to land *before* the target rather than after it.
+            local srcPos = IndexOf(storedPets, srcGUID)
             local adjPos = tgtPos
             if srcPos and srcPos < tgtPos then adjPos = tgtPos - 1 end
             if adjPos < 1 then adjPos = 1 end
 
             petGroups:ReorderPetInGroup(tgtGroup, srcGUID, adjPos)
         else
-            petGroups:MovePetToGroup(srcGUID, tgtGroup, nil)
+            -- Insert where the indicator promised, instead of appending. No index
+            -- adjustment here: the source is leaving a *different* group, so removing
+            -- it does not shift this group's positions.
+            petGroups:MovePetToGroup(srcGUID, tgtGroup, tgtPos)
         end
 
         self:EndDrag()
-        PSM._renderCache = nil
 
-        local scrollFrame = PSM.state.scrollFrame
+        local scrollFrame = ns.state.scrollFrame
         local scrollBar   = scrollFrame and scrollFrame.ScrollBar
-        local content     = PSM.state.content
+        local content     = ns.state.content
         local pct         = 0
         if scrollBar and content then
             local maxScroll = math.max(0, content:GetHeight() - scrollFrame:GetHeight())
             if maxScroll > 0 then pct = scrollBar:GetValue() / maxScroll end
         end
 
-        PSM.C_Timer.After(0.1, function()
-            if PSM.UI.RenderPanel then
-                PSM.UI:RenderPanel(true)
-            elseif PSM.UI._RenderPanelImmediate then
-                PSM.UI:_RenderPanelImmediate(true)
+        ns.C_Timer.After(0.1, function()
+            if ns.UI.RenderPanel then
+                ns.UI:RenderPanel(true)
+            elseif ns.UI._RenderPanelImmediate then
+                ns.UI:_RenderPanelImmediate(true)
             end
             if scrollBar and content and scrollFrame then
-                PSM.C_Timer.After(0.05, function()
+                ns.C_Timer.After(0.05, function()
                     local maxScroll = math.max(0, content:GetHeight() - scrollFrame:GetHeight())
                     if maxScroll > 0 then scrollBar:SetValue(maxScroll * pct) end
                 end)
@@ -368,27 +412,34 @@ function DD:CompleteDrop(targetRow, targetPet)
         self:EndDrag(); return false
     end
 
-    local success = PSM.Reorder:SwapPetSlots(s.sourcePet.slotID, targetPet.slotID, true)
+    local success = ns.Reorder:SwapPetSlots(s.sourcePet.slotID, targetPet.slotID, true)
     self:EndDrag()
 
-    PSM._scrollLockCount = (PSM._scrollLockCount or 0) + 1
-    PSM._scrollLock = true
+    ns._scrollLockCount = (ns._scrollLockCount or 0) + 1
+    ns._scrollLock = true
 
-    PSM.C_Timer.After(0.35, function()
-        if PSM.state.isStableOpen then PSM.Data:CollectStablePets() end
-        PSM._renderCache = nil
-        if PSM._renderDebounceTimer then
-            PSM._renderDebounceTimer:Cancel()
-            PSM._renderDebounceTimer = nil
+    -- Collect *then* render, and both here rather than in SwapPetSlots, because this path
+    -- passed `skipUpdate` to own the timing. SetPetSlot is asynchronous, which is what the
+    -- delay is for -- collecting immediately would read the pre-swap order.
+    --
+    -- The same pair lives in Reorder:SwapPetSlots for the arrow buttons. Two copies, kept
+    -- deliberately: merging them means splitting collection and render across two timers
+    -- whose ordering would then have to be maintained by hand -- trading a duplicate for a
+    -- pair of constants that must agree, which is the worse of the two problems.
+    ns.C_Timer.After(0.35, function()
+        if ns.state.isStableOpen then ns.Data:CollectStablePets() end
+        if ns._renderDebounceTimer then
+            ns._renderDebounceTimer:Cancel()
+            ns._renderDebounceTimer = nil
         end
-        if PSM.UI and PSM.UI._RenderPanelImmediate then
-            PSM.UI:_RenderPanelImmediate(true)
+        if ns.UI and ns.UI._RenderPanelImmediate then
+            ns.UI:_RenderPanelImmediate(true)
         end
-        PSM.C_Timer.After(2.0, function()
-            PSM._scrollLockCount = PSM._scrollLockCount - 1
-            if PSM._scrollLockCount <= 0 then
-                PSM._scrollLockCount = 0
-                PSM._scrollLock = false
+        ns.C_Timer.After(2.0, function()
+            ns._scrollLockCount = ns._scrollLockCount - 1
+            if ns._scrollLockCount <= 0 then
+                ns._scrollLockCount = 0
+                ns._scrollLock = false
             end
         end)
     end)
@@ -409,40 +460,41 @@ function DD:SetupRowDragDrop(row, pet, allowOutsideStable)
     row:SetScript("OnMouseDown", function(self, button)
         if button ~= "LeftButton" then return end
         local allowOutside = self.__allowDragOutsideStable
-        if not PSM.state.isStableOpen and not allowOutside then return end
+        if not ns.state.isStableOpen and not allowOutside then return end
         if not IsShiftKeyDown() and not IsControlKeyDown() then return end
-        local focus = GetMouseFocus and GetMouseFocus()
+        local focus = GetMouseFoci and GetMouseFoci() or GetMouseFocus and GetMouseFocus()
+        if type(focus) == "table" then focus = focus[1] end
         if focus and focus ~= self and focus:GetParent() == self
                 and focus:GetObjectType() == "Button" then return end
-        PSM.DragDrop:StartDrag(self, self.dragDropPet, allowOutside)
+        ns.DragDrop:StartDrag(self, self.dragDropPet, allowOutside)
     end)
 
     row:SetScript("OnMouseUp", function(self, button)
         if button ~= "LeftButton" then return end
-        if PSM.DragDrop.state.isDragging then
-            if PSM.DragDrop.state.sourceAllowOutsideStable then
-                local tgt    = PSM.DragDrop.state.targetRow
+        if ns.DragDrop.state.isDragging then
+            if ns.DragDrop.state.sourceAllowOutsideStable then
+                local tgt    = ns.DragDrop.state.targetRow
                 local tgtPet = tgt and tgt.dragDropPet or nil
-                PSM.DragDrop:CompleteDrop(tgt, tgtPet)
+                ns.DragDrop:CompleteDrop(tgt, tgtPet)
             else
-                if PSM.DragDrop.state.targetRow and PSM.DragDrop.state.targetRow.dragDropPet then
-                    PSM.DragDrop:CompleteDrop(PSM.DragDrop.state.targetRow, PSM.DragDrop.state.targetRow.dragDropPet)
+                if ns.DragDrop.state.targetRow and ns.DragDrop.state.targetRow.dragDropPet then
+                    ns.DragDrop:CompleteDrop(ns.DragDrop.state.targetRow, ns.DragDrop.state.targetRow.dragDropPet)
                 else
-                    PSM.DragDrop:EndDrag()
+                    ns.DragDrop:EndDrag()
                 end
             end
         end
     end)
 
     row:SetScript("OnEnter", function(self)
-        if PSM.DragDrop.state.isDragging then
-            PSM.DragDrop:OnEnterTarget(self, self.dragDropPet)
+        if ns.DragDrop.state.isDragging then
+            ns.DragDrop:OnEnterTarget(self, self.dragDropPet)
         end
     end)
 
     row:SetScript("OnLeave", function(self)
-        if PSM.DragDrop.state.isDragging then
-            PSM.DragDrop:OnLeaveTarget(self)
+        if ns.DragDrop.state.isDragging then
+            ns.DragDrop:OnLeaveTarget(self)
         end
     end)
 end
@@ -458,6 +510,11 @@ function DD:SetupModelDragDrop(model, pet, parentRow, allowOutsideStable)
         model.__allowDragOutsideStable = allowOutsideStable
     end
 
+    -- Wire once: the handlers below read pet/parent live off `self`, so re-wrapping
+    -- GetScript()'s current handler on every render just grew the chain forever.
+    if model.__dragDropWired then return end
+    model.__dragDropWired = true
+
     local orig = {
         OnMouseDown = model:GetScript("OnMouseDown"),
         OnMouseUp   = model:GetScript("OnMouseUp"),
@@ -467,9 +524,9 @@ function DD:SetupModelDragDrop(model, pet, parentRow, allowOutsideStable)
 
     model:SetScript("OnMouseDown", function(self, button)
         local allowOutside = self.__allowDragOutsideStable
-        if button == "LeftButton" and (PSM.state.isStableOpen or allowOutside)
+        if button == "LeftButton" and (ns.state.isStableOpen or allowOutside)
                 and (IsShiftKeyDown() or IsControlKeyDown()) and self.dragDropPet then
-            if PSM.DragDrop:StartDrag(self.dragDropParentRow or self:GetParent(),
+            if ns.DragDrop:StartDrag(self.dragDropParentRow or self:GetParent(),
                     self.dragDropPet, allowOutside) then
                 return
             end
@@ -478,16 +535,16 @@ function DD:SetupModelDragDrop(model, pet, parentRow, allowOutsideStable)
     end)
 
     model:SetScript("OnMouseUp", function(self, button)
-        if button == "LeftButton" and PSM.DragDrop.state.isDragging then
-            if PSM.DragDrop.state.sourceAllowOutsideStable then
-                local tgt    = PSM.DragDrop.state.targetRow
+        if button == "LeftButton" and ns.DragDrop.state.isDragging then
+            if ns.DragDrop.state.sourceAllowOutsideStable then
+                local tgt    = ns.DragDrop.state.targetRow
                 local tgtPet = tgt and tgt.dragDropPet or nil
-                PSM.DragDrop:CompleteDrop(tgt, tgtPet)
+                ns.DragDrop:CompleteDrop(tgt, tgtPet)
             else
-                if PSM.DragDrop.state.targetRow and PSM.DragDrop.state.targetRow.dragDropPet then
-                    PSM.DragDrop:CompleteDrop(PSM.DragDrop.state.targetRow, PSM.DragDrop.state.targetRow.dragDropPet)
+                if ns.DragDrop.state.targetRow and ns.DragDrop.state.targetRow.dragDropPet then
+                    ns.DragDrop:CompleteDrop(ns.DragDrop.state.targetRow, ns.DragDrop.state.targetRow.dragDropPet)
                 else
-                    PSM.DragDrop:EndDrag()
+                    ns.DragDrop:EndDrag()
                 end
             end
             return
@@ -496,22 +553,24 @@ function DD:SetupModelDragDrop(model, pet, parentRow, allowOutsideStable)
     end)
 
     model:SetScript("OnEnter", function(self)
-        if PSM.DragDrop.state.isDragging then
-            PSM.DragDrop:OnEnterTarget(self.dragDropParentRow or self:GetParent(), self.dragDropPet)
+        if ns.DragDrop.state.isDragging then
+            ns.DragDrop:OnEnterTarget(self.dragDropParentRow or self:GetParent(), self.dragDropPet)
         end
         if orig.OnEnter then orig.OnEnter(self) end
     end)
 
     model:SetScript("OnLeave", function(self)
-        if PSM.DragDrop.state.isDragging then
-            PSM.DragDrop:OnLeaveTarget(self.dragDropParentRow or self:GetParent())
+        if ns.DragDrop.state.isDragging then
+            ns.DragDrop:OnLeaveTarget(self.dragDropParentRow or self:GetParent())
         end
         if orig.OnLeave then orig.OnLeave(self) end
     end)
 end
 
--- Per-frame position update & mouse-release detection
-local updateFrame = CreateFrame("Frame")
+-- Per-frame position update & mouse-release detection. Parentless and invisible: a
+-- handler holder, not a widget, so it stays out of the kit. PSM.CreateFrame is Core's
+-- alias, which the headless tests can stub.
+local updateFrame = ns.CreateFrame("Frame")
 updateFrame:SetScript("OnUpdate", function()
     if not DD.state.isDragging then return end
 
@@ -524,9 +583,8 @@ updateFrame:SetScript("OnUpdate", function()
         -- Clean up previous target before switching to new one
         local prevTarget = DD.state.targetRow
         if prevTarget then
-            ResetRowColor(prevTarget, prevTarget._savedBackdrop)
+            RestoreRowColors(prevTarget)
             SetDropIndicator(prevTarget, false)
-            prevTarget._savedBackdrop = nil
         end
 
         local targetRow = nil
@@ -547,9 +605,7 @@ updateFrame:SetScript("OnUpdate", function()
             if DD.state.sourceAllowOutsideStable then
                 local tgtGroup  = targetRow.groupId
                 local sameGroup = tgtGroup and (tgtGroup == DD.state.sourceGroupId)
-                if targetRow.GetBackdropColor and not targetRow.isGroupHeader and not targetRow._savedBackdrop then
-                    targetRow._savedBackdrop = {targetRow:GetBackdropColor()}
-                end
+                SaveRowColors(targetRow)
                 local isValid   = tgtGroup ~= nil or targetRow.isGroupHeader == true or sameGroup
                 SetRowColor(targetRow, isValid and COLOR.TARGET or COLOR.INVALID)
                 if isValid and not targetRow.isGroupHeader then SetDropIndicator(targetRow, true) end
@@ -568,17 +624,6 @@ updateFrame:SetScript("OnUpdate", function()
         DD:CompleteDrop(tgt, tgtPet)
     end
 end)
-
-function DD:GetDragInterceptor()
-    if self._interceptor then return self._interceptor end
-    local f = CreateFrame("Frame", "PSMDragInterceptor", UIParent)
-    f:SetAllPoints(UIParent)
-    f:EnableMouse(false)
-    f:SetFrameStrata("BACKGROUND")
-    f:Hide()
-    self._interceptor = f
-    return f
-end
 
 ------------------------------------------------
 -- TEAM SLOT DRAG & DROP
@@ -632,13 +677,13 @@ function DD:HighlightTeamDropTargets(teamId, excludeSlot)
     if not row then return end
     for slot = 1, 6 do
         if slot ~= excludeSlot and row.petBorders[slot] then
-            row.petBorders[slot]:SetVertexColor(unpack(PSM.Config.COLORS.DROP_TARGET_BORDER))
+            row.petBorders[slot]:SetVertexColor(unpack(ns.Config.COLORS.DROP_TARGET_BORDER))
         end
     end
 end
 
 function DD:ClearTeamDropTargetHighlights()
-    local panel = PSM.state.teamsPanel
+    local panel = ns.state.teamsPanel
     if not panel or not panel.teamRows then return end
     for _, row in ipairs(panel.teamRows) do
         if row and row:IsShown() and row.petBorders then
@@ -690,18 +735,18 @@ end
 
 function DD:SwapTeamSlots(teamId, slot1, slot2)
     if not teamId or not slot1 or not slot2 or slot1 == slot2 then return false end
-    local team = PSM.Teams:GetTeamById(teamId)
+    local team = ns.Teams:GetTeamById(teamId)
     if not team then return false end
     team.slots[slot1], team.slots[slot2] = team.slots[slot2], team.slots[slot1]
     team.modifiedAt = time()
-    PSM.TeamsPanel:RefreshTeamsList()
+    ns.TeamsPanel:RefreshTeamsList()
     return true
 end
 
 function DD:_GetTeamRow(teamId)
-    local panel = PSM.state.teamsPanel
+    local panel = ns.state.teamsPanel
     if not panel or not panel.teamRows then return nil end
-    local teams = PSM.Teams:GetTeams()
+    local teams = ns.Teams:GetTeams()
     for i, team in ipairs(teams) do
         if team.id == teamId then return panel.teamRows[i] end
     end

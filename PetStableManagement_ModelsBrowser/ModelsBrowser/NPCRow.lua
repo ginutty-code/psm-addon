@@ -3,34 +3,64 @@
 -- Browser: a sortable, column-toggleable text table. No PlayerModel widgets
 -- are created here on purpose -- that's the cost this view exists to avoid.
 
-local addonName = "PetStableManagement"
 _G.PSM = _G.PSM or {}
 local PSM = _G.PSM
 PSM.NPCRow = PSM.NPCRow or {}
 
 local ROW_HEIGHT    = 36
-local HEADER_HEIGHT = 22
+-- The band is a Widgets.SectionHeader, so its height is the kit's. Read rather than
+-- repeated: this value also positions every row below it (UpdateNPCPanelLayout) and
+-- feeds the rows-per-page calculation, so a second copy that drifted from the theme
+-- token would misplace the whole table rather than just look wrong.
+local HEADER_HEIGHT = PSM.Theme.CONTROL.SECTION_HEADER
 local ID_LINE_HEIGHT = 14 -- display-id pills wrap onto a second line at this height before "+N" kicks in
+
+-- How far the whole table -- header bar *and* every row -- sits inside petsFrame,
+-- which draws the silver TOOLTIP border on its own edges. 5px is not a new guess:
+-- it is the same inset the Tools and Show Only boxes already give their
+-- SectionHeaders inside an identical TOOLTIP-backdrop frame (ModelsPanel.lua).
+--
+-- Header and rows must share this: column x positions come from one
+-- RecomputeColumnLayout, but the header's buttons anchor to the header frame while cells
+-- anchor to their row frame, so an inset applied to one and not the other drifts every
+-- column out of step with the column under it.
+local TABLE_INSET = 5
+
+-- This view packs a lot of columns into a row, so its text runs half a point
+-- smaller than PSM.Theme.SIZE.TINY. Local rather than a theme token: nothing
+-- outside this table wants it, and a token used once is a token nobody can place.
+local CELL_FONT_SIZE = 9.5
 
 PSM.NPCRow.ROW_HEIGHT    = ROW_HEIGHT
 PSM.NPCRow.HEADER_HEIGHT = HEADER_HEIGHT
+PSM.NPCRow.TABLE_INSET   = TABLE_INSET
 
 --------------------------------------------------------------------------------
 -- COLUMN DEFINITIONS
 --------------------------------------------------------------------------------
 
+-- `width` is a *default*, overridden per character once a column is dragged
+-- (npcViewColumnWidths). displayIds is the flex column -- its `width` is only a
+-- placeholder, since RecomputeColumnLayout gives it whatever the others leave.
+--
+-- These have to add up: the panel is a fixed 1100 wide and not resizable, so the table's
+-- usable width is a known 815 and the widths below are sized against it rather than picked
+-- per column. As set, Display IDs keeps 106px with every column shown and 204px at the
+-- default set, and the longest real values still fit.
 PSM.NPCRow.COLUMNS = {
-    { key = "npcId",          label = "ID",           width = 42,  optional = true,  default = true  },
-    { key = "name",           label = "Name",         width = 150, optional = false, default = true  },
-    { key = "family",         label = "Family",       width = 90,  optional = true,  default = true  },
-    { key = "classification", label = "Class",        width = 70,  optional = true,  default = true  },
-    { key = "nameKeeper",     label = "NK",            width = 30,  optional = true,  default = true  },
-    { key = "zone",           label = "Zone",         width = 130, optional = true,  default = true  },
-    { key = "continent",      label = "Continent",    width = 110, optional = true,  default = false },
-    { key = "expansion",      label = "Expansion",    width = 90,  optional = true,  default = true  },
-    { key = "faction",        label = "A/H",           width = 40,  optional = true,  default = true  },
-    { key = "note",           label = "Note",         width = 28,  optional = true,  default = true  },
-    { key = "displayIds",     label = "Display IDs",  width = 120, optional = false, default = true  },
+    { key = "npcId",          label = PSM.L("ID"),           width = 40,  optional = true,  default = true  },
+    { key = "name",           label = PSM.L("Name"),         width = 120, optional = false, default = true  },
+    { key = "family",         label = PSM.L("Family"),       width = 72,  optional = true,  default = true  },
+    { key = "classification", label = PSM.L("Class"),        width = 55,  optional = true,  default = true  },
+    { key = "nameKeeper",     label = PSM.L("NK"),            width = 30,  optional = true,  default = true  },
+    { key = "zone",           label = PSM.L("Zone"),         width = 100, optional = true,  default = true  },
+    { key = "continent",      label = PSM.L("Continent"),    width = 92,  optional = true,  default = false },
+    { key = "expansion",      label = PSM.L("Expansion"),    width = 80,  optional = true,  default = true  },
+    { key = "faction",        label = PSM.L("A/H"),           width = 30,  optional = true,  default = true  },
+    -- 30, not 28: MIN_COLUMN_WIDTH would raise it to 30 at layout time anyway, and a
+    -- declared default that never renders is a number nobody can trust.
+    { key = "note",           label = PSM.L("Note"),         width = 30,  optional = true,  default = true  },
+    { key = "displayIds",     label = PSM.L("Display IDs"),  width = 120, optional = false, default = true  },
 }
 
 PSM.NPCRow.COLUMNS_BY_KEY = {}
@@ -127,37 +157,105 @@ end
 -- COLUMN LAYOUT
 --------------------------------------------------------------------------------
 
-function PSM.NPCRow:RecomputeColumnLayout(panel)
-    if not panel or not panel.petsFrame then return {} end
+-- Padding inside the header/row frames before the first column and after the last.
+local CELL_PAD         = 10
+local COLUMN_GAP       = 6   -- horizontal gap between two columns
+local MIN_COLUMN_WIDTH = 30
+local FLEX_COLUMN      = "displayIds"
 
-    local totalWidth = panel.petsFrame:GetWidth() - 20
+-- The flex column gets its own, larger floor. It is not a label like the others: it
+-- holds a comma-separated list of 6-digit ids, so 30px shows part of one number and
+-- nothing else, whereas 30px on "NK" or "A/H" is a perfectly readable column.
+-- Raising the shared MIN_COLUMN_WIDTH instead would have forced ID, NK, A/H and Note
+-- -- all 28-42 by default -- up to 60 each, spending ~100px to make the column this
+-- floor exists to protect *smaller*.
+--
+-- 90 is set by the *header*, not the data: "Display IDs" runs ~65px at Theme.SIZE.BODY
+-- and UpdateHeaderRow appends a " ^"/" v" sort marker to whichever column is sorted,
+-- which the 4px label inset pushes to ~81px. Below that the marker is the first thing
+-- clipped -- so the one column you cannot widen loses the indicator telling you it is
+-- the sorted one.
+local MIN_FLEX_WIDTH   = 90
+
+-- Width available to the columns themselves. Header and rows are both TABLE_INSET
+-- narrower than petsFrame on each side and carry CELL_PAD of their own padding
+-- inside that, so the columns get what is left after both. Derived rather than a
+-- literal: this is what keeps the flex column inside the frame when the inset moves.
+local function TableWidth(panel)
+    return panel.petsFrame:GetWidth() - (TABLE_INSET * 2) - (CELL_PAD * 2)
+end
+
+local function VisibleColumns(self, panel)
     local visible = {}
     for _, col in ipairs(self.COLUMNS) do
         if not col.optional or (panel.npcVisibleColumns and panel.npcVisibleColumns[col.key]) then
             table.insert(visible, col)
         end
     end
+    return visible
+end
 
+local function StoredWidth(panel, col)
     local widths = panel.npcColumnWidths or {}
-    local MIN_COLUMN_WIDTH = 30
+    return math.max(MIN_COLUMN_WIDTH, widths[col.key] or col.width)
+end
+
+function PSM.NPCRow:RecomputeColumnLayout(panel)
+    if not panel or not panel.petsFrame then return {} end
+
+    local totalWidth = TableWidth(panel)
+    local visible    = VisibleColumns(self, panel)
 
     local layout = {}
-    local x = 10
+    local x = CELL_PAD
     for _, col in ipairs(visible) do
         local width
-        if col.key == "displayIds" then
-            -- Flex column: always absorbs whatever's left, which is what keeps
-            -- the overall table width constant while other columns resize.
-            width = math.max(80, totalWidth - (x - 10))
+        if col.key == FLEX_COLUMN then
+            -- Flex column: absorbs whatever the fixed columns leave, which is what
+            -- keeps the overall table width constant while they resize. Its floor is
+            -- only ever reached when the fixed columns have taken everything, which
+            -- MaxWidthForColumn now prevents a drag from doing.
+            width = math.max(MIN_FLEX_WIDTH, totalWidth - (x - CELL_PAD))
         else
-            width = math.max(MIN_COLUMN_WIDTH, widths[col.key] or col.width)
+            width = StoredWidth(panel, col)
         end
         table.insert(layout, { key = col.key, x = x, width = width })
-        x = x + width + 6
+        x = x + width + COLUMN_GAP
     end
 
     panel.npcColumnLayout = layout
     return layout
+end
+
+-- How wide `key` may be dragged before the flex column would be squeezed past its
+-- minimum -- i.e. before the table would run off its own right edge.
+--
+-- This has to live here, not in the drag handler: because Display IDs absorbs the
+-- remainder, "how wide may this column be?" is a question about every *other* visible
+-- column, and the handler knows only the one under the cursor.
+--
+-- Returns nil when there is no cap to apply (the flex column itself, or a layout with
+-- no flex column visible -- Display IDs is `optional = false`, so that is defensive).
+function PSM.NPCRow:MaxWidthForColumn(panel, key)
+    if not panel or not panel.petsFrame then return nil end
+    if key == FLEX_COLUMN then return nil end
+
+    local visible  = VisibleColumns(self, panel)
+    local hasFlex  = false
+    local claimed  = 0          -- what the other fixed columns already take
+    for _, col in ipairs(visible) do
+        if col.key == FLEX_COLUMN then
+            hasFlex = true
+        elseif col.key ~= key then
+            claimed = claimed + StoredWidth(panel, col)
+        end
+    end
+    if not hasFlex then return nil end
+
+    -- Laying out n columns spends COLUMN_GAP between each adjacent pair: n-1 gaps.
+    -- What is reserved at the end is the *flex* column's floor, not a fixed column's.
+    local budget = TableWidth(panel) - (COLUMN_GAP * (#visible - 1)) - MIN_FLEX_WIDTH
+    return math.max(MIN_COLUMN_WIDTH, budget - claimed)
 end
 
 --------------------------------------------------------------------------------
@@ -165,12 +263,21 @@ end
 --------------------------------------------------------------------------------
 
 -- Shared OnUpdate driver for column-boundary dragging (same pattern as the
--- model rotate/move drivers in RowManager.lua).
+-- model rotate/move drivers in RowManager.lua). Raw CreateFrame on purpose: this
+-- is an invisible ticker with no parent and nothing to draw, not a widget.
 local ResizeDriver = CreateFrame("Frame")
+
+-- The handle's rule is always gold and varies only in opacity: invisible at rest,
+-- half-lit on hover, solid while dragging. One place to say that, instead of four
+-- copies of SetColorTexture(1, 0.82, 0, x).
+local function SetHandleAlpha(handle, alpha)
+    local c = PSM.Theme.COLOR.GOLD
+    handle.tex:SetColorTexture(c[1], c[2], c[3], alpha)
+end
 
 local function StopResize(handle)
     ResizeDriver.active = nil
-    if handle.tex then handle.tex:SetColorTexture(1, 0.82, 0, 0) end
+    if handle.tex then SetHandleAlpha(handle, 0) end
     local panel = PSM.state.modelsPanel
     if panel and panel.npcColumnWidths then
         PetStableManagementDB.settings.npcViewColumnWidths = PSM.Utils.DeepCopy(panel.npcColumnWidths)
@@ -198,36 +305,57 @@ ResizeDriver:SetScript("OnUpdate", function(self)
             panel.npcColumnWidths = panel.npcColumnWidths or {}
             local col = PSM.NPCRow.COLUMNS_BY_KEY[handle.columnKey]
             local current = panel.npcColumnWidths[handle.columnKey] or col.width
-            panel.npcColumnWidths[handle.columnKey] = math.max(30, current + delta)
+            local wanted  = math.max(MIN_COLUMN_WIDTH, current + delta)
+
+            -- Upper bound as well as lower: past this the Display IDs column has no
+            -- room left to give up and the table would be drawn off its right edge.
+            --
+            -- The cap never pulls a column below where it already is. A layout can start
+            -- out over budget without anyone dragging (toggle Continent on), and a bare
+            -- math.min would then snap the grabbed column to the cap on the first pixel of
+            -- movement. Bounding by `current` keeps dragging *smaller* available, which is
+            -- the way out of that state.
+            local maxWidth = PSM.NPCRow:MaxWidthForColumn(panel, handle.columnKey)
+            if maxWidth then wanted = math.min(wanted, math.max(maxWidth, current)) end
+
+            panel.npcColumnWidths[handle.columnKey] = wanted
             PSM.NPCRow:ReflowVisibleRows(panel)
         end
+        -- Always the raw cursor, including while clamped. Each frame re-reads the
+        -- *stored* width and applies only that frame's delta, so a clamped drag
+        -- accumulates no debt: push past the cap and the column simply stops, and
+        -- the first pixel back the other way shrinks it again.
         handle.lastX = x
     end
 end)
 
 local function CreateResizeHandle(header, columnKey)
-    local handle = CreateFrame("Frame", nil, header)
-    handle:SetWidth(6)
+    local Widgets = PSM.Widgets
+
+    local handle = Widgets.Frame(header, { width = 6 })
     handle:EnableMouse(true)
     handle.columnKey = columnKey
 
-    local tex = handle:CreateTexture(nil, "OVERLAY")
-    tex:SetPoint("TOP", handle, "TOP", 0, 0)
-    tex:SetPoint("BOTTOM", handle, "BOTTOM", 0, 0)
-    tex:SetWidth(2)
-    tex:SetColorTexture(1, 0.82, 0, 0)
-    handle.tex = tex
+    handle.tex = Widgets.Texture(handle, {
+        layer = "OVERLAY",
+        width = 2,
+        point = {
+            { "TOP",    handle, "TOP",    0, 0 },
+            { "BOTTOM", handle, "BOTTOM", 0, 0 },
+        },
+    })
+    SetHandleAlpha(handle, 0)
 
-    handle:SetScript("OnEnter", function() tex:SetColorTexture(1, 0.82, 0, 0.6) end)
-    handle:SetScript("OnLeave", function()
-        if ResizeDriver.active ~= handle then tex:SetColorTexture(1, 0.82, 0, 0) end
+    handle:SetScript("OnEnter", function(self) SetHandleAlpha(self, 0.6) end)
+    handle:SetScript("OnLeave", function(self)
+        if ResizeDriver.active ~= self then SetHandleAlpha(self, 0) end
     end)
     handle:SetScript("OnMouseDown", function(self, button)
         if button ~= "LeftButton" then return end
         local scale = UIParent:GetEffectiveScale()
         self.lastX = GetCursorPosition() / scale
         ResizeDriver.active = self
-        tex:SetColorTexture(1, 0.82, 0, 1)
+        SetHandleAlpha(self, 1)
     end)
     handle:SetScript("OnMouseUp", function(self)
         if ResizeDriver.active == self then StopResize(self) end
@@ -241,38 +369,34 @@ end
 --------------------------------------------------------------------------------
 
 function PSM.NPCRow:CreateHeaderRow(parent)
-    local header = CreateFrame("Frame", nil, parent)
-    header:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
-    header:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
-    header:SetHeight(HEADER_HEIGHT)
+    local Widgets = PSM.Widgets
+
+    -- The same gold-on-dark bar as the "Show Only" filter group header. `inset = 0`
+    -- because this one spans the full width of the table; no `text`, because the columns
+    -- below fill it themselves.
+    --
+    -- Positioned in by TABLE_INSET on three sides so the gold band clears petsFrame's
+    -- silver border rather than being drawn on top of it, while keeping its full
+    -- HEADER_HEIGHT. UpdateNPCPanelLayout insets the rows by the same amount.
+    local header = Widgets.SectionHeader(parent, {
+        inset  = 0,
+        point  = {
+            { "TOPLEFT",  parent, "TOPLEFT",   TABLE_INSET, -TABLE_INSET },
+            { "TOPRIGHT", parent, "TOPRIGHT", -TABLE_INSET, -TABLE_INSET },
+        },
+    })
     header:SetClipsChildren(true)
     header.labelButtons = {}
     header.resizeHandles = {}
 
-    -- Golden/dark pill styling, matching the "Show Only" filter group header.
-    local bg = header:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BG))
-    local topLine = header:CreateTexture(nil, "BORDER")
-    topLine:SetPoint("TOPLEFT", header, "TOPLEFT", 0, 0)
-    topLine:SetPoint("TOPRIGHT", header, "TOPRIGHT", 0, 0)
-    topLine:SetHeight(1)
-    topLine:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BORDER))
-    local bottomLine = header:CreateTexture(nil, "BORDER")
-    bottomLine:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", 0, 0)
-    bottomLine:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", 0, 0)
-    bottomLine:SetHeight(1)
-    bottomLine:SetColorTexture(unpack(PSM.Config.TAB.ACTIVE_BORDER))
-
     for _, col in ipairs(self.COLUMNS) do
-        local btn = CreateFrame("Button", nil, header)
-        btn:SetHeight(HEADER_HEIGHT - 2)
-        local fs = btn:CreateFontString(nil, "OVERLAY")
-        fs:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
-        fs:SetPoint("LEFT", 4, 0)
-        fs:SetJustifyH("LEFT")
-        fs:SetTextColor(1, 0.82, 0)
-        btn.text = fs
+        local btn = Widgets.Frame(header, {
+            frameType = "Button",
+            height    = HEADER_HEIGHT - 2,
+        })
+        btn.text = Widgets.SectionHeaderLabel(btn, {
+            point = { "LEFT", 4, 0 },
+        })
         btn.columnKey = col.key
 
         btn:SetScript("OnClick", function()
@@ -343,52 +467,61 @@ function PSM.NPCRow:CreateColumnsPicker(panel, anchorTo)
         if col.optional then table.insert(optionalCols, col) end
     end
 
-    local btn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    btn:SetPoint("TOPRIGHT", anchorTo, "TOPLEFT", -5, 0)
-    btn:SetSize(PSM.Config.PANEL_BUTTON_WIDTH, PSM.Config.PANEL_BUTTON_HEIGHT)
-    btn:SetText("Columns")
-    btn:SetNormalFontObject("GameFontNormalSmall")
-    PSM.UI:ApplyElvUISkin(btn, "button")
+    local Widgets = PSM.Widgets
 
-    local popout = CreateFrame("Frame", nil, panel, "BackdropTemplate")
-    popout:SetSize(140, 10 + 18 * #optionalCols)
-    popout:SetPoint("TOPRIGHT", btn, "BOTTOMRIGHT", 0, -2)
-    popout:SetFrameStrata("DIALOG")
-    popout:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 16,
-        insets = {left=4, right=4, top=4, bottom=4},
+    local btn = Widgets.Button(panel, {
+        width      = PSM.Theme.CONTROL.BUTTON_W.S,
+        point      = { "TOPRIGHT", anchorTo, "TOPLEFT", -5, 0 },
+        text       = PSM.L("Columns"),
+        fontObject = "GameFontNormalSmall",
     })
-    popout:SetBackdropColor(unpack(PSM.Config.COLORS.BACKGROUND))
-    popout:SetBackdropBorderColor(0.75, 0.75, 0.75, 1)
-    popout:Hide()
+
+    local POPOUT_WIDTH = 140
+
+    local popout = Widgets.Frame(panel, {
+        size        = { POPOUT_WIDTH, 10 + PSM.Theme.CONTROL.CHECKBOX_ROW * #optionalCols },
+        point       = { "TOPRIGHT", btn, "BOTTOMRIGHT", 0, -2 },
+        strata      = "DIALOG",
+        backdrop    = "TOOLTIP",
+        color       = PSM.Config.COLORS.BACKGROUND,
+        borderColor = PSM.Theme.COLOR.SILVER,
+        hidden      = true,
+    })
+
+    local CHECKBOX_X = 6
+    -- Extend each checkbox's clickable area rightward across its label (a negative
+    -- inset expands the hit rect) so clicking the column name toggles it too. Derived
+    -- from the box's right edge to the popout's inner edge rather than hard-coded, so
+    -- it stays correct now that the box is 20px rather than 16.
+    local hitExtend = -(POPOUT_WIDTH - CHECKBOX_X - PSM.Theme.CONTROL.CHECKBOX - CHECKBOX_X)
 
     local y = -6
     for _, col in ipairs(optionalCols) do
-        local cb = CreateFrame("CheckButton", nil, popout, "UICheckButtonTemplate")
-        cb:SetSize(16, 16)
-        cb:SetPoint("TOPLEFT", 6, y)
-        local label = cb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        label:SetPoint("LEFT", cb, "RIGHT", 2, 0)
-        label:SetText(col.label)
-        -- Extend the checkbox's clickable area rightward over the label text
-        -- (negative inset expands the hit rect) so clicking the name also toggles it.
-        cb:SetHitRectInsets(0, -114, 0, 0)
-        cb:SetChecked(panel.npcVisibleColumns and panel.npcVisibleColumns[col.key])
-        cb:SetScript("OnClick", function(self)
-            panel.npcVisibleColumns[col.key] = self:GetChecked() and true or false
-            PetStableManagementDB.settings.npcViewColumns = PSM.Utils.DeepCopy(panel.npcVisibleColumns)
-            PSM.NPCRow:UpdateHeaderRow(panel)
-            PSM.ModelsPanel:UpdateVisibleRows()
-        end)
-        PSM.UI:ApplyElvUISkin(cb, "checkbox")
-        y = y - 18
+        Widgets.CheckBox(popout, {
+            point           = { "TOPLEFT", CHECKBOX_X, y },
+            label           = col.label,
+            labelFontObject = "GameFontHighlightSmall",
+            checked         = panel.npcVisibleColumns and panel.npcVisibleColumns[col.key],
+            onClick         = function(self)
+                panel.npcVisibleColumns[col.key] = self:GetChecked() and true or false
+                PetStableManagementDB.settings.npcViewColumns = PSM.Utils.DeepCopy(panel.npcVisibleColumns)
+                PSM.NPCRow:UpdateHeaderRow(panel)
+                PSM.ModelsPanel:UpdateVisibleRows()
+            end,
+        }):SetHitRectInsets(0, hitExtend, 0, 0)
+        y = y - PSM.Theme.CONTROL.CHECKBOX_ROW
     end
 
     btn:SetScript("OnClick", function()
         if popout:IsShown() then popout:Hide() else popout:Show() end
     end)
+
+    -- A transient popout must not outlive its owner being hidden. Hiding the panel
+    -- (Escape, or the close button) hides the popout as a child, but leaves its own
+    -- shown state set -- so it came back on screen the next time the browser opened,
+    -- still holding a click the user had long since moved on from. Same shape as the
+    -- context menu that survived Escape on the Grouped View header.
+    panel:HookScript("OnHide", function() popout:Hide() end)
 
     -- Close on click-away. OnUpdate only ticks while popout is shown, so this
     -- is a no-op cost otherwise; non-modal (doesn't swallow clicks) so a click
@@ -425,16 +558,51 @@ local ID_LINK_OWNED_HOVER  = {0.6,  1,    0.6}
 local CLICKABLE_CELL_COLUMNS = { name = true, zone = true }
 local CELL_NEUTRAL_COLOR = {0.79, 0.79, 0.76}
 
+-- GameTooltip has no maximum width -- it sizes itself to its widest line. An NPC with
+-- forty display IDs put them all on one line, which made the tooltip wider than the
+-- screen and still clipped the end. Breaking the list into bounded lines lets it grow
+-- downward instead, which is the direction a tooltip has room in.
+--
+-- Bounded by character count rather than pixels on purpose: a font string's width is
+-- only measurable once it is realised, and these are digits and commas, where the two
+-- measures track closely enough that a pixel-exact answer would buy nothing.
+local ID_LIST_MAX_CHARS = 56
+
+-- Joins `parts` into lines no longer than maxChars. `prefix` starts the first line and
+-- shares its budget, so a short list still fits on one line with its label.
+local function WrapJoin(prefix, parts, separator, maxChars)
+    local lines   = {}
+    local current = prefix or ""
+
+    for i, part in ipairs(parts) do
+        local piece = part .. (i < #parts and separator or "")
+        if current ~= "" and #current + #piece > maxChars then
+            lines[#lines + 1] = current
+            current = piece
+        else
+            current = current .. piece
+        end
+    end
+
+    if current ~= "" then lines[#lines + 1] = current end
+    return lines
+end
+
 function PSM.NPCRow:GetOrCreateIdLink(row, index)
     if row.idLinks[index] then return row.idLinks[index] end
 
-    local link = CreateFrame("Button", nil, row.idContainer)
-    link:SetHeight(ID_LINE_HEIGHT)
-    local fs = link:CreateFontString(nil, "OVERLAY")
-    fs:SetFont("Fonts\\FRIZQT__.TTF", 9.5)
-    fs:SetPoint("LEFT", 0, 0)
-    fs:SetJustifyH("LEFT")
-    fs:SetTextColor(unpack(ID_LINK_COLOR))
+    local Widgets = PSM.Widgets
+
+    local link = Widgets.Frame(row.idContainer, {
+        frameType = "Button",
+        height    = ID_LINE_HEIGHT,
+    })
+    local fs = Widgets.Label(link, {
+        fontSize = CELL_FONT_SIZE,
+        color    = ID_LINK_COLOR,
+        justify  = "LEFT",
+        point    = { "LEFT", 0, 0 },
+    })
     link.text = fs
     link.baseColor, link.hoverColor = ID_LINK_COLOR, ID_LINK_HOVER
 
@@ -449,54 +617,66 @@ function PSM.NPCRow:GetOrCreateIdLink(row, index)
 end
 
 function PSM.NPCRow:CreateNPCRow(parent)
-    local row = CreateFrame("Frame", nil, parent)
-    row:SetHeight(ROW_HEIGHT)
-    row:SetPoint("LEFT", parent, "LEFT", 0, 0)
-    row:SetPoint("RIGHT", parent, "RIGHT", 0, 0)
+    local Widgets = PSM.Widgets
+
+    local row = Widgets.Frame(parent, {
+        height = ROW_HEIGHT,
+        point  = {
+            { "LEFT",  parent, "LEFT",  0, 0 },
+            { "RIGHT", parent, "RIGHT", 0, 0 },
+        },
+    })
     -- Clip anything (long text, many display-id links) that would otherwise
     -- bleed past the row/panel edge instead of wrapping it to a second line.
     row:SetClipsChildren(true)
 
-    row.bg = row:CreateTexture(nil, "BACKGROUND")
-    row.bg:SetAllPoints()
-    row.bg:SetColorTexture(1, 1, 1, 0)
+    row.bg = Widgets.Texture(row, {
+        layer     = "BACKGROUND",
+        allPoints = true,
+        color     = { 1, 1, 1, 0 },  -- alpha set per row in UpdateItemRow for striping
+    })
+
+    -- A full-height, column-wide button behind a cell, so the whole cell is the
+    -- click target rather than just its glyphs.
+    local function CellButton()
+        return Widgets.Frame(row, { frameType = "Button", height = ROW_HEIGHT })
+    end
 
     row.cellTexts = {}
     row.clickableCells = {}
     for _, col in ipairs(self.COLUMNS) do
         if col.key == "note" then
-            local btn = CreateFrame("Button", nil, row)
-            btn:SetHeight(ROW_HEIGHT)
-            local icon = btn:CreateTexture(nil, "OVERLAY")
-            icon:SetSize(14, 14)
-            icon:SetPoint("LEFT", btn, "LEFT", 2, 0)
-            btn.icon = icon
+            local btn = CellButton()
+            btn.icon = Widgets.Texture(btn, {
+                layer = "OVERLAY",
+                size  = { 14, 14 },
+                point = { "LEFT", btn, "LEFT", 2, 0 },
+            })
             row.clickableCells.note = btn
         elseif col.key ~= "displayIds" then
             local fsParent = row
             if CLICKABLE_CELL_COLUMNS[col.key] then
-                local btn = CreateFrame("Button", nil, row)
-                btn:SetHeight(ROW_HEIGHT)
+                local btn = CellButton()
                 row.clickableCells[col.key] = btn
                 fsParent = btn
             end
-            local fs = fsParent:CreateFontString(nil, "OVERLAY")
-            fs:SetFont("Fonts\\FRIZQT__.TTF", 9.5)
-            fs:SetJustifyH("LEFT")
-            fs:SetWordWrap(false)
-            row.cellTexts[col.key] = fs
+            row.cellTexts[col.key] = Widgets.Label(fsParent, {
+                fontSize = CELL_FONT_SIZE,
+                justify  = "LEFT",
+                wordWrap = false,
+            })
         end
     end
 
-    row.idContainer = CreateFrame("Frame", nil, row)
-    row.idContainer:SetHeight(ID_LINE_HEIGHT * 2)
+    row.idContainer = Widgets.Frame(row, { height = ID_LINE_HEIGHT * 2 })
     row.idLinks = {}
 
-    row.idMoreText = row:CreateFontString(nil, "OVERLAY")
-    row.idMoreText:SetFont("Fonts\\FRIZQT__.TTF", 9.5)
-    row.idMoreText:SetJustifyH("LEFT")
-    row.idMoreText:SetTextColor(0.55, 0.55, 0.5)
-    row.idMoreText:Hide()
+    row.idMoreText = Widgets.Label(row, {
+        fontSize = CELL_FONT_SIZE,
+        color    = { 0.55, 0.55, 0.5 },
+        justify  = "LEFT",
+        hidden   = true,
+    })
 
     row:Hide()
     return row
@@ -539,20 +719,14 @@ function PSM.NPCRow:UpdateItemRow(row, item, index)
                     PSM.ModelsPanel:UpdateVisibleRows()
                 end)
             end)
-            btn:SetScript("OnEnter", function(self)
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                if hasUser then
-                    GameTooltip:SetText("Your note:")
-                    GameTooltip:AddLine(userNote, 1, 1, 1, true)
-                elseif seedNote then
-                    GameTooltip:SetText("Info note:")
-                    GameTooltip:AddLine(seedNote, 1, 1, 1, true)
-                else
-                    GameTooltip:SetText("Click to add a note")
-                end
-                GameTooltip:Show()
-            end)
-            btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            local noteText = hasUser and userNote or seedNote
+            PSM.Tooltip.Attach(btn, {
+                title = noteText and (hasUser and PSM.L("Your note:") or PSM.L("Info note:"))
+                                  or PSM.L("Click to add a note"),
+                lines = noteText
+                    and { { text = noteText, color = PSM.Theme.COLOR.WHITE, wrap = true } }
+                    or nil,
+            })
             btn:Show()
         elseif key == "displayIds" then
             row.idContainer:ClearAllPoints()
@@ -632,7 +806,7 @@ function PSM.NPCRow:UpdateItemRow(row, item, index)
 
                 if key == "npcId" then
                     fs:SetText("#" .. tostring(item.npcId))
-                    fs:SetTextColor(0.5, 0.5, 0.47)
+                    fs:SetTextColor(unpack(PSM.Theme.COLOR.SLATE))
                 elseif key == "name" then
                     fs:SetText(item.name)
                     -- Always a valid link: an npcId is always available to build the Wowhead URL from.
@@ -652,7 +826,7 @@ function PSM.NPCRow:UpdateItemRow(row, item, index)
                     if c then fs:SetTextColor(c[1], c[2], c[3]) end
                 elseif key == "nameKeeper" then
                     fs:SetText(item.nameKeeper and "Yes" or "")
-                    fs:SetTextColor(1, 0.82, 0)
+                    fs:SetTextColor(unpack(PSM.Theme.COLOR.GOLD))
                 elseif key == "zone" then
                     fs:SetText(item.uiMapName or "")
                     -- Only some NPCs have stored TomTom coordinate data; only
@@ -686,23 +860,29 @@ function PSM.NPCRow:UpdateItemRow(row, item, index)
         end
     end
 
-    row:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(item.name)
-        GameTooltip:AddLine("NPC ID: " .. tostring(item.npcId), 0.7, 0.7, 0.7)
-        GameTooltip:AddLine(string.format("%s - %s, %s",
-            item.family or "Unknown", item.uiMapName or "Unknown", item.expansion or "Unknown"), 0.7, 0.7, 0.7)
+    -- Resolved per hover rather than per render: ownedDisplayIdSet is rebuilt once
+    -- per render pass, and a row outlives several of those.
+    PSM.Tooltip.Attach(row, function()
+        local lines = {
+            { text = PSM.L("NPC ID: %s", tostring(item.npcId)), color = PSM.Theme.COLOR.DIM },
+            { text = PSM.L("%s - %s, %s",
+                item.family or PSM.L("Unknown"), item.uiMapName or PSM.L("Unknown"),
+                item.expansion or PSM.L("Unknown")), color = PSM.Theme.COLOR.DIM },
+        }
+
         if item.displayIds and #item.displayIds > 0 then
-            local ownedSet = panel and panel.ownedDisplayIdSet
+            local ownedSet = PSM.state.modelsPanel and PSM.state.modelsPanel.ownedDisplayIdSet
             local parts = {}
             for _, id in ipairs(item.displayIds) do
-                table.insert(parts, tostring(id) .. ((ownedSet and ownedSet[id]) and " (owned)" or ""))
+                table.insert(parts, tostring(id) .. ((ownedSet and ownedSet[id]) and PSM.L(" (owned)") or ""))
             end
-            GameTooltip:AddLine("Display IDs: " .. table.concat(parts, ", "), 0.55, 0.75, 0.95)
+            for _, text in ipairs(WrapJoin(PSM.L("Display IDs: "), parts, ", ", ID_LIST_MAX_CHARS)) do
+                lines[#lines + 1] = { text = text, color = ID_LINK_HOVER }
+            end
         end
-        GameTooltip:Show()
+
+        return { title = item.name, lines = lines }
     end)
-    row:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
     row:Show()
 end

@@ -1,38 +1,65 @@
 -- ModelsBrowser/ModelRow.lua
 -- Model row creation and management for Pet Models Browser
 
-local addonName = "PetStableManagement"
 _G.PSM = _G.PSM or {}
 local PSM = _G.PSM
 PSM.ModelRow = PSM.ModelRow or {}
 
-local cfg = PSM.Config
-local mgr = PSM.RowManager
+-- Deliberately NOT captured at file scope. PSM.Config and PSM.RowManager belong to
+-- the *core* addon, and this file is in the browser addon, so a file-scope capture
+-- reads whatever happens to exist at parse time and fails much later with a
+-- misleading stack. That is the exact shape of the ModelRow.lua bug from the
+-- LoadOnDemand work. Read them inside the function that needs them.
 
 -- Returns the current scaling factor based on petsPerColumn setting
 local function scalingFactor()
-    local ppc = PetStableManagementDB.settings.petsPerColumn or cfg.DEFAULT_PETS_PER_COLUMN
+    local ppc = PetStableManagementDB.settings.petsPerColumn or PSM.Config.DEFAULT_PETS_PER_COLUMN
     return 5 / ppc
-end
-
--- Creates and returns a font string anchored relative to an anchor frame
-local function addFontString(parent, size, color, w)
-    local fs = parent:CreateFontString(nil, "OVERLAY")
-    fs:SetFont("Fonts\\FRIZQT__.TTF", size)
-    fs:SetJustifyH("LEFT")
-    if color then fs:SetTextColor(unpack(color)) end
-    if w then fs:SetWidth(w) end
-    return fs
 end
 
 --------------------------------------------------------------------------------
 
-function PSM.ModelRow:CreateModelRow(parent)
-    local sf = scalingFactor()
-    local mcfg = PSM.ModelsPanel.MODELS_CONFIG
-    local textW = cfg.TEXT_WIDTH / sf
+-- Everything the row tooltip says. Reads `row.tooltipData`, which UpdateItemRow refreshes,
+-- so the tooltip is attached once at creation rather than reinstalled as a fresh closure
+-- on every render. Returning nil for an unfilled row suppresses the tooltip.
+local function RowTooltipSpec(row)
+    local d = row.tooltipData
+    if not d then return nil end
 
-    local row = mgr:CreateBaseRow(parent, {
+    local lines = {}
+    local function Add(text, color, wrap)
+        lines[#lines + 1] = { text = text, color = color, wrap = wrap }
+    end
+
+    Add(PSM.L("Family: %s", d.familyName or PSM.L("Unknown")))
+
+    if #d.npcs > 0 then
+        Add(" ")
+        Add(PSM.L("NPCs:"))
+        local descriptions = _G.PSM._modelsDescriptionCache
+        for _, npc in ipairs(d.npcs) do
+            local npcId = _G.ModelsData.NpcId[npc]
+            local line  = "  " .. ((descriptions and descriptions[npc]) or "")
+            if npcId and PSM_UserNotes and PSM_UserNotes[npcId] and PSM_UserNotes[npcId] ~= "" then
+                line = line .. " |cff00ff00\226\151\143|r"
+            end
+            Add(line, PSM.Theme.COLOR.MUTED, true)
+        end
+    end
+
+    Add(" ")
+    Add(PSM.L("Click magnifier button for further details."), PSM.Theme.COLOR.GREY)
+
+    return { title = d.title, lines = lines }
+end
+
+function PSM.ModelRow:CreateModelRow(parent)
+    local Widgets = PSM.Widgets
+    local sf    = scalingFactor()
+    local mcfg  = PSM.ModelsPanel.MODELS_CONFIG
+    local textW = PSM.Config.TEXT_WIDTH / sf
+
+    local row = PSM.RowManager:CreateBaseRow(parent, {
         useBackdropTemplate = true,
         width  = 432,
         height = mcfg.ROW_HEIGHT,
@@ -46,44 +73,49 @@ function PSM.ModelRow:CreateModelRow(parent)
 
     row.customElements = {}
 
-    row.nameText = addFontString(row, 10, nil, textW)
-    row.nameText:SetPoint("LEFT", row.model, "RIGHT", 15, 15)
-    row.nameText:SetWordWrap(true)
+    row.nameText = Widgets.Label(row, {
+        fontSize = 10,
+        justify  = "LEFT",
+        wordWrap = true,
+        width    = textW,
+        point    = { "LEFT", row.model, "RIGHT", 15, 15 },
+    })
 
-    row.infoText = addFontString(row, 8, {0.7, 0.7, 0.7})
-    row.infoText:SetPoint("LEFT", row.nameText, "RIGHT", 10, 0)
+    row.infoText = Widgets.Label(row, {
+        fontSize = 8,
+        justify  = "LEFT",
+        color    = PSM.Theme.COLOR.DIM,
+        point    = { "LEFT", row.nameText, "RIGHT", 10, 0 },
+    })
 
     -- Note indicator (small dot next to name)
-    row.noteIndicator = row:CreateTexture(nil, "OVERLAY")
-    row.noteIndicator:SetSize(8, 8)
-    row.noteIndicator:SetPoint("LEFT", row.nameText, "RIGHT", 5, 2)
-    row.noteIndicator:SetTexture("Interface\\Common\\Icon-NoTick")
-    row.noteIndicator:SetVertexColor(0.5, 1, 0.5)
-    row.noteIndicator:Hide()
+    row.noteIndicator = Widgets.Texture(row, {
+        layer       = "OVERLAY",
+        size        = { 8, 8 },
+        point       = { "LEFT", row.nameText, "RIGHT", 5, 2 },
+        texture     = "Interface\\Common\\Icon-NoTick",
+        vertexColor = { 0.5, 1, 0.5 },
+        hidden      = true,
+    })
 
     row.npcTexts = {}
     for i = 1, 4 do
-        local npc = addFontString(row, 9, {0.8, 0.8, 0.8}, textW)
-        npc:SetWordWrap(true)
-        npc:SetPoint("LEFT", row.model, "RIGHT", 15, 10 - i * 12 * sf)
-        npc:Hide()
+        local npc = Widgets.Label(row, {
+            fontSize = 9,
+            justify  = "LEFT",
+            color    = PSM.Theme.COLOR.MUTED,
+            wordWrap = true,
+            width    = textW,
+            point    = { "LEFT", row.model, "RIGHT", 15, 10 - i * 12 * sf },
+            hidden   = true,
+        })
         table.insert(row.customElements, npc)
         table.insert(row.npcTexts, npc)
     end
 
     table.insert(row.customElements, row.favoriteButton)
 
-    row:SetScript("OnEnter", function(self)
-        if not self.displayId then return end
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText("Display ID: " .. self.displayId)
-        if self.familyName then
-            GameTooltip:AddLine("Family: " .. self.familyName)
-        end
-        GameTooltip:Show()
-    end)
-
-    row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    PSM.Tooltip.Attach(row, RowTooltipSpec)
 
     return row
 end
@@ -97,7 +129,7 @@ local function buildOwnershipData(displayId)
 
     for _, pet in ipairs(PSM.state.stablePets) do
         if tonumber(pet.displayID) == displayId then
-            local tamer  = pet.tamer or "Unknown"
+            local tamer  = pet.tamer or PSM.L("Unknown")
             local petKey = (pet.petNumber and pet.petNumber ~= 0)
                 and tostring(pet.petNumber)
                 or  (pet.name or "") .. "_" .. (pet.slotID or "") .. "_" .. (pet.displayID or "")
@@ -113,7 +145,7 @@ local function buildOwnershipData(displayId)
     local total, parts = 0, {}
     for tamer, count in pairs(counts) do
         total = total + count
-        table.insert(parts, string.format("%d owned by %s", count, tamer))
+        table.insert(parts, PSM.L("%d owned by %s", count, tamer))
     end
 
     return total, table.concat(parts, "; ")
@@ -142,10 +174,10 @@ function PSM.ModelRow:UpdateItemRow(row, item, index, scale)
     local totalOwned, ownershipStr = buildOwnershipData(displayId)
     local npcs        = item.npcs or {}
 
-    mgr:UpdateModelDisplay(row, displayId, nil)
+    PSM.RowManager:UpdateModelDisplay(row, displayId, nil)
     local specName = item.familyName and PSM.Config.FAMILY_TO_SPEC[item.familyName]
-    mgr:UpdateBackgroundColor(row, false, false, totalOwned > 0, specName)
-    mgr:UpdateFavoriteButton(row, displayId)
+    PSM.RowManager:UpdateBackgroundColor(row, false, false, totalOwned > 0, specName)
+    PSM.RowManager:UpdateFavoriteButton(row, displayId)
 
     -- Check if any NPCs for this display have user notes
     local hasUserNote = false
@@ -165,13 +197,13 @@ function PSM.ModelRow:UpdateItemRow(row, item, index, scale)
     end
 
     -- Name text
-    local nameStr = string.format("Display ID: %d", displayId)
+    local nameStr = PSM.L("Display ID: %d", displayId)
     if totalOwned > 0 then
         nameStr = nameStr .. string.format(" (%s)", ownershipStr)
     end
-    row.nameText:SetWidth(cfg.TEXT_WIDTH / scale)
+    row.nameText:SetWidth(PSM.Config.TEXT_WIDTH / scale)
     row.nameText:SetText(nameStr)
-    row.nameText:SetTextColor(totalOwned > 0 and 0 or 1, totalOwned > 0 and 1 or 1, totalOwned > 0 and 0 or 1)
+    row.nameText:SetTextColor(unpack(totalOwned > 0 and PSM.Theme.COLOR.GREEN or PSM.Theme.COLOR.WHITE))
     row.nameText:Show()
 
     if row.infoText then
@@ -192,7 +224,7 @@ function PSM.ModelRow:UpdateItemRow(row, item, index, scale)
 
         if totalNpcs > 1 then
             local more = row.npcTexts[2]
-            more:SetText(string.format("and %d more...", totalNpcs - 1))
+            more:SetText(PSM.L("and %d more...", totalNpcs - 1))
             more:ClearAllPoints()
             more:SetPoint("TOPLEFT", first, "BOTTOMLEFT", 0, -5)
             more:Show()
@@ -201,58 +233,15 @@ function PSM.ModelRow:UpdateItemRow(row, item, index, scale)
 
     if row.npcText then row.npcText:Hide() end  -- legacy cleanup
 
-    -- Tooltip
-    row.displayId = displayId
-    row:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(nameStr)
-        GameTooltip:AddLine("Family: " .. (item.familyName or "Unknown"))
-        if totalNpcs > 0 then
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("NPCs:")
-            for _, npc in ipairs(npcs) do
-                local npcId = _G.ModelsData.NpcId[npc]
-                local desc = _G.PSM._modelsDescriptionCache and _G.PSM._modelsDescriptionCache[npc]
-                local npcLine = "  " .. (desc or "")
-                if npcId and PSM_UserNotes and PSM_UserNotes[npcId] and PSM_UserNotes[npcId] ~= "" then
-                    npcLine = npcLine .. " |cff00ff00\226\151\143|r"
-                end
-                GameTooltip:AddLine(npcLine, 0.8, 0.8, 0.8, true)
-            end
-        end
-        GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("|cff00ff00Click magnifier button for further details.|r", 0.6, 0.6, 0.6)
-        GameTooltip:Show()
-    end)
+    -- Tooltip: refresh the data the attached spec reads. The handler itself was wired
+    -- once, in CreateModelRow.
+    row.displayId   = displayId
+    row.tooltipData = {
+        title      = nameStr,
+        familyName = item.familyName,
+        npcs       = npcs,
+    }
 
     row:Show()
 end
 
--- Right-click to edit notes for a display ID
-function PSM.ModelRow:SetupNoteEditing(row, item)
-    if not row or not item then return end
-    
-    row:EnableMouseWheel(true)
-    row:SetScript("OnMouseDown", function(self, button)
-        if button == "RightButton" then
-            if item.displayId then
-                local npcs = item.npcs or {}
-                local familyName = item.familyName or "Unknown"
-                local currentNote = PSM.NPCNotes and PSM.NPCNotes.GetUserNote(item.displayId) or ""
-                if PSM.PopUpManager and PSM.PopUpManager.CreateNoteEditor then
-                    PSM.PopUpManager:CreateNoteEditor(nil, function(text)
-                        if PSM.NPCNotes then PSM.NPCNotes.SetUserNote(item.displayId, text) end
-                        local hasNote = PSM.NPCNotes and PSM.NPCNotes.GetUserNote(item.displayId)
-                        if row.noteIndicator then
-                            if hasNote and hasNote ~= "" then
-                                row.noteIndicator:Show()
-                            else
-                                row.noteIndicator:Hide()
-                            end
-                        end
-                    end, currentNote, item.displayId, familyName, npcs)
-                end
-            end
-        end
-    end)
-end

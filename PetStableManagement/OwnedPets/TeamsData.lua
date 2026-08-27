@@ -2,11 +2,8 @@
 -- Pet Teams data management for PetStableManagement
 -- Handles CRUD operations for pet team configurations
 
-local addonName = "PetStableManagement"
-
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
-PSM.Teams = PSM.Teams or {}
+local _, ns = ...
+ns.Teams = ns.Teams or {}
 
 -- Apply retry constants
 local APPLY_RETRY_MAX_ATTEMPTS = 3
@@ -64,28 +61,58 @@ local function InsertTeam(name, slots)
         name       = name,
         createdAt  = now,
         modifiedAt = now,
-        slots      = PSM.Utils.DeepCopy(slots),
+        slots      = ns.Utils.DeepCopy(slots),
     }
     table.insert(TeamsArray(), team)
     SortTeamsAlphabetically()
     return team
 end
 
--- Shared: print a colour-formatted addon message
-local function Msg(colour, text)
-    print(("|c%sPetStableManagement: %s|r"):format(colour, text))
-end
-local function MsgOK(text)  Msg("FF00FF00", text) end
-local function MsgWarn(text) Msg("FFFF8800", text) end
-local function MsgErr(text)  Msg("FFFF0000", text) end
+-- Thin aliases over the shared chat-message factory (ns.Utils:Msg), kept local so
+-- every call site below reads as a verb instead of ns.Utils:Msg("SUCCESS", ...).
+local function MsgOK(text)   ns.Utils:Msg("SUCCESS", text) end
+local function MsgWarn(text) ns.Utils:Msg("WARNING", text) end
+local function MsgErr(text)  ns.Utils:Msg("ERROR", text) end
 
 ----------------------------------------------------------------------------------------------------------------
 -- SLOT CAPTURE AND COMPARISON
 ----------------------------------------------------------------------------------------------------------------
 
-function PSM.Teams:GetCurrentSlots()
-    if not PSM.state.isStableOpen then
-        return nil, "Stable must be open to capture pet slots"
+-- The one definition of what a team slot stores.
+--
+-- A slot is a *snapshot*, not a reference: teams are saved independently of the live
+-- stable, so a pet can sit in a team while stabled on another character, or while gone
+-- entirely. That is why the fields are copied out rather than looked up on display.
+--
+-- There were three hand-written copies of this list -- one building from Blizzard's raw
+-- record, two copying from an already-processed pet -- and all three had settled on the
+-- same nine fields, omitting `level` and `tamer`. The two copying from a processed pet
+-- were discarding values they already had. The teams tooltip then looked thinner than
+-- the owned-pets one for no reason a reader could see.
+--
+-- Accepts either shape: a live `C_StableInfo` record or a processed PSM pet.
+function ns.Teams:SlotRecord(pet)
+    if not pet or not pet.name then return nil end
+    return {
+        petNumber  = pet.petNumber,
+        name       = pet.name,
+        displayID  = pet.displayID or 0,
+        icon       = pet.icon,
+        level      = pet.level or 0,
+        familyName = pet.familyName or (pet.family and pet.family.name),
+        specName   = pet.specName or pet.specialization,
+        specID     = pet.specID or pet.specId,
+        isExotic   = pet.isExotic or false,
+        -- Only the current character can capture their own slots, so an absent tamer
+        -- means "captured now" rather than "unknown".
+        tamer      = pet.tamer or ns.GetCharacterKey(),
+        abilities  = pet.abilities or ns.Data:ExtractPetAbilities(pet),
+    }
+end
+
+function ns.Teams:GetCurrentSlots()
+    if not ns.state.isStableOpen then
+        return nil, ns.L("Stable must be open to capture pet slots")
     end
     if not (C_StableInfo and C_StableInfo.GetStablePetInfo) then
         return nil, "C_StableInfo API not available"
@@ -94,24 +121,12 @@ function PSM.Teams:GetCurrentSlots()
     local slots = {}
     for slot = 1, 6 do
         local info = C_StableInfo.GetStablePetInfo(slot)
-        if info and info.name then
-            slots[slot] = {
-                petNumber  = info.petNumber,
-                name       = info.name,
-                displayID  = info.displayID or 0,
-                icon       = info.icon,
-                familyName = info.familyName or (info.family and info.family.name),
-                specName   = info.specName or info.specialization,
-                specID     = info.specID or info.specId,
-                isExotic   = info.isExotic or false,
-                abilities  = PSM.Data:ExtractPetAbilities(info),
-            }
-        end
+        slots[slot] = self:SlotRecord(info)
     end
     return slots, nil
 end
 
-function PSM.Teams:CompareWithTeam(teamId)
+function ns.Teams:CompareWithTeam(teamId)
     local _, team = FindTeam(teamId)
     if not team then return false, "Team not found" end
 
@@ -129,27 +144,39 @@ function PSM.Teams:CompareWithTeam(teamId)
     return true, nil
 end
 
-function PSM.Teams:FindMatchingTeam()
-    for _, team in ipairs(TeamsArray()) do
-        if self:CompareWithTeam(team.id) then return team.id end
-    end
-    return nil
-end
-
 ----------------------------------------------------------------------------------------------------------------
 -- CRUD OPERATIONS
 ----------------------------------------------------------------------------------------------------------------
 
-function PSM.Teams:GetTeams()      return TeamsArray()       end
-function PSM.Teams:GetTeamCount()  return #TeamsArray()      end
+function ns.Teams:GetTeams()      return TeamsArray()       end
+function ns.Teams:GetTeamCount()  return #TeamsArray()      end
 
-function PSM.Teams:GetTeamById(teamId)
+-- The tooltip every "open the teams panel" button shows. A function spec, so the count
+-- is read at hover time -- these buttons outlive any particular number of saved teams.
+--
+-- One definition because there are three such buttons (the Owned Pets panel, the
+-- floating menu, the stable frame), and the count line has already been got wrong once
+-- by a caller that passed it as a fixed string built when the panel was created.
+function ns.Teams:ButtonTooltipSpec()
+    return function()
+        return {
+            anchor = "ANCHOR_BOTTOM",
+            title  = ns.L("View and manage saved pet teams"),
+            lines  = {{
+                text  = ns.L("You have %d saved team(s)", ns.Teams:GetTeamCount() or 0),
+                color = ns.Theme.COLOR.WHITE,
+            }},
+        }
+    end
+end
+
+function ns.Teams:GetTeamById(teamId)
     local _, team = FindTeam(teamId)
     return team
 end
 
-function PSM.Teams:SaveTeam(name, slots)
-    if not name or name == "" then return nil, "Team name is required" end
+function ns.Teams:SaveTeam(name, slots)
+    if not name or name == "" then return nil, ns.L("Team name is required") end
 
     if not slots then
         local err
@@ -161,17 +188,17 @@ function PSM.Teams:SaveTeam(name, slots)
     for slot = 1, 6 do
         if slots[slot] then hasPet = true; break end
     end
-    if not hasPet then return nil, "Cannot save empty team - at least one pet required" end
+    if not hasPet then return nil, ns.L("Cannot save empty team - at least one pet required") end
 
     local team    = InsertTeam(name, slots)
     local charData = CharData()
     charData.activeTeamId = team.id
 
-    MsgOK("Team '" .. name .. "' saved successfully.")
+    MsgOK(ns.L("Team '%s' saved successfully.", name))
     return team.id, nil
 end
 
-function PSM.Teams:UpdateTeam(teamId, slots)
+function ns.Teams:UpdateTeam(teamId, slots)
     if not teamId then return false, "Team ID is required" end
 
     local index, team = FindTeam(teamId)
@@ -184,14 +211,14 @@ function PSM.Teams:UpdateTeam(teamId, slots)
     end
 
     local teams = TeamsArray()
-    teams[index].slots      = PSM.Utils.DeepCopy(slots)
+    teams[index].slots      = ns.Utils.DeepCopy(slots)
     teams[index].modifiedAt = time()
 
-    MsgOK("Team '" .. team.name .. "' updated.")
+    MsgOK(ns.L("Team '%s' updated.", team.name))
     return true, nil
 end
 
-function PSM.Teams:DeleteTeam(teamId)
+function ns.Teams:DeleteTeam(teamId)
     if not teamId then return false, "Team ID is required" end
 
     local index, team = FindTeam(teamId)
@@ -202,13 +229,13 @@ function PSM.Teams:DeleteTeam(teamId)
     local charData = CharData()
     if charData.activeTeamId == teamId then charData.activeTeamId = nil end
 
-    MsgOK("Team '" .. team.name .. "' deleted.")
+    MsgOK(ns.L("Team '%s' deleted.", team.name))
     return true, nil
 end
 
-function PSM.Teams:RenameTeam(teamId, newName)
+function ns.Teams:RenameTeam(teamId, newName)
     if not teamId              then return false, "Team ID is required"  end
-    if not newName or newName == "" then return false, "New name is required" end
+    if not newName or newName == "" then return false, ns.L("New name is required") end
 
     local index, team = FindTeam(teamId)
     if not index then return false, "Team not found" end
@@ -219,20 +246,20 @@ function PSM.Teams:RenameTeam(teamId, newName)
     teams[index].modifiedAt = time()
     SortTeamsAlphabetically()
 
-    MsgOK("Team renamed from '" .. oldName .. "' to '" .. newName .. "'.")
+    MsgOK(ns.L("Team renamed from '%s' to '%s'.", oldName, newName))
     return true, nil
 end
 
-function PSM.Teams:DuplicateTeam(teamId, newName)
+function ns.Teams:DuplicateTeam(teamId, newName)
     if not teamId then return nil, "Team ID is required" end
 
     local _, source = FindTeam(teamId)
     if not source then return nil, "Source team not found" end
 
-    newName = (newName and newName ~= "") and newName or (source.name .. " (Copy)")
+    newName = (newName and newName ~= "") and newName or ns.L("%s (Copy)", source.name)
     local team = InsertTeam(newName, source.slots)
 
-    MsgOK("Team '" .. source.name .. "' duplicated as '" .. newName .. "'.")
+    MsgOK(ns.L("Team '%s' duplicated as '%s'.", source.name, newName))
     return team.id, nil
 end
 
@@ -240,11 +267,11 @@ end
 -- APPLY TEAM
 ----------------------------------------------------------------------------------------------------------------
 
-function PSM.Teams:ApplyTeam(teamId, retryCount)
+function ns.Teams:ApplyTeam(teamId, retryCount)
     retryCount = retryCount or 0
 
-    if not PSM.state.isStableOpen then
-        return false, "Stable must be open to apply a team"
+    if not ns.state.isStableOpen then
+        return false, ns.L("Stable must be open to apply a team")
     end
     if not (C_StableInfo and C_StableInfo.SetPetSlot) then
         return false, "C_StableInfo.SetPetSlot not available"
@@ -258,7 +285,7 @@ function PSM.Teams:ApplyTeam(teamId, retryCount)
 
     -- Build petNumber -> current slotID map
     local petLocationMap = {}
-    for _, pet in ipairs(PSM.state.stablePets) do
+    for _, pet in ipairs(ns.state.stablePets) do
         if pet.petNumber then petLocationMap[pet.petNumber] = pet.slotID end
     end
 
@@ -278,7 +305,7 @@ function PSM.Teams:ApplyTeam(teamId, retryCount)
         elseif teamPet and teamPet.petNumber then
             local loc = petLocationMap[teamPet.petNumber]
             if not loc then
-                MsgWarn("Pet '" .. (teamPet.name or "Unknown") .. "' not found in stable")
+                MsgWarn(ns.L("Pet '%s' not found in stable", teamPet.name or ns.L("Unknown")))
             elseif loc ~= targetSlot then
                 table.insert(moveOps, {
                     petNumber = teamPet.petNumber,
@@ -303,13 +330,13 @@ function PSM.Teams:ApplyTeam(teamId, retryCount)
     return true, nil
 end
 
-function PSM.Teams:ValidateAndRetryApply(teamId, retryCount)
+function ns.Teams:ValidateAndRetryApply(teamId, retryCount)
     local _, team = FindTeam(teamId)
     if not team then return end
 
-    PSM.C_Timer.After(APPLY_RETRY_DELAY, function()
-        if PSM.Data and PSM.Data.CollectStablePets then
-            PSM.Data:CollectStablePets()
+    ns.C_Timer.After(APPLY_RETRY_DELAY, function()
+        if ns.Data and ns.Data.CollectStablePets then
+            ns.Data:CollectStablePets()
         end
 
         local currentSlots = self:GetCurrentSlots()
@@ -339,7 +366,7 @@ function PSM.Teams:ValidateAndRetryApply(teamId, retryCount)
     end)
 end
 
-function PSM.Teams:OnTeamApplied(teamId)
+function ns.Teams:OnTeamApplied(teamId)
     local _, team = FindTeam(teamId)
     if not team then return end
 
@@ -358,29 +385,29 @@ function PSM.Teams:OnTeamApplied(teamId)
             if teamPet and teamPet.specName then
                 local info = C_StableInfo.GetStablePetInfo(slot)
                 if info and info.name then
-                    local currentSpec = info.specName or info.specialization or "Unknown"
+                    local currentSpec = info.specialization or "Unknown"
                     if currentSpec ~= teamPet.specName then allMatch = false; break end
                 end
             end
         end
 
         if allMatch or attempt >= MAX_VERIFY then
-            MsgOK("Team '" .. team.name .. "' applied successfully.")
-            if PSM.TeamsPanel and PSM.TeamsPanel.RefreshTeamsList then
-                PSM.TeamsPanel:RefreshTeamsList()
+            MsgOK(ns.L("Team '%s' applied successfully.", team.name))
+            if ns.TeamsPanel and ns.TeamsPanel.RefreshTeamsList then
+                ns.TeamsPanel:RefreshTeamsList()
             end
-            if PSM.UI and PSM.UI.UpdatePanel then
-                PSM.UI:UpdatePanel()
+            if ns.UI and ns.UI.UpdatePanel then
+                ns.UI:UpdatePanel()
             end
         else
-            PSM.C_Timer.After(VERIFY_DELAY, function() verifyAndFinalize(attempt + 1) end)
+            ns.C_Timer.After(VERIFY_DELAY, function() verifyAndFinalize(attempt + 1) end)
         end
     end
 
-    PSM.C_Timer.After(0.5, function() verifyAndFinalize(1) end)
+    ns.C_Timer.After(0.5, function() verifyAndFinalize(1) end)
 end
 
-function PSM.Teams:RestorePetSpecializations(team)
+function ns.Teams:RestorePetSpecializations(team)
     if not (team and team.slots)                              then return end
     if not (C_StableInfo and C_StableInfo.GetStablePetInfo)  then return end
 
@@ -400,14 +427,14 @@ function PSM.Teams:RestorePetSpecializations(team)
         if teamPet and teamPet.specName then
             local info = C_StableInfo.GetStablePetInfo(slot)
             if info and info.name then
-                local currentSpec = info.specName or info.specialization or "Unknown"
+                local currentSpec = info.specialization or "Unknown"
                 if currentSpec ~= teamPet.specName then
                     local specIndex = specNameToIndex[teamPet.specName]
                     if specIndex and C_SpecializationInfo and C_SpecializationInfo.SetPetSpecialization then
                         local ok = pcall(C_SpecializationInfo.SetPetSpecialization, specIndex, info.petNumber)
                         if ok then
-                            MsgOK("Changed '" .. (teamPet.name or "Unknown") ..
-                                  "' spec from " .. currentSpec .. " to " .. teamPet.specName .. ".")
+                            MsgOK(ns.L("Changed '%s' spec from %s to %s.",
+                                  teamPet.name or ns.L("Unknown"), currentSpec, teamPet.specName))
                         else
                             table.insert(remaining, { slot = slot, petName = teamPet.name,
                                                       oldSpec = currentSpec, newSpec = teamPet.specName })
@@ -422,12 +449,12 @@ function PSM.Teams:RestorePetSpecializations(team)
     end
 
     if #remaining > 0 then
-        MsgWarn("The following pets need spec changes to match the saved team:")
+        MsgWarn(ns.L("The following pets need spec changes to match the saved team:"))
         for _, c in ipairs(remaining) do
-            MsgWarn("  - '" .. (c.petName or "Unknown") ..
-                    "' (slot " .. c.slot .. "): " .. c.oldSpec .. " -> " .. c.newSpec)
+            MsgWarn(ns.L("  - '%s' (slot %s): %s -> %s",
+                    c.petName or ns.L("Unknown"), c.slot, c.oldSpec, c.newSpec))
         end
-        MsgWarn("Summon the pet(s) that need spec change and click Apply again.")
+        MsgWarn(ns.L("Summon the pet(s) that need spec change and click Apply again."))
     end
 end
 
@@ -435,7 +462,7 @@ end
 -- SLOT OPERATION EXECUTION
 ----------------------------------------------------------------------------------------------------------------
 
-function PSM.Teams:ExecuteClearOperations(operations, index, callback, usedSlots)
+function ns.Teams:ExecuteClearOperations(operations, index, callback, usedSlots)
     if index > #operations then if callback then callback() end; return end
 
     usedSlots = usedSlots or {}
@@ -445,16 +472,16 @@ function PSM.Teams:ExecuteClearOperations(operations, index, callback, usedSlots
     if stableSlot then
         usedSlots[stableSlot] = true
         C_StableInfo.SetPetSlot(op.fromSlot, stableSlot)
-        PSM.C_Timer.After(0.25, function()
+        ns.C_Timer.After(0.25, function()
             self:ExecuteClearOperations(operations, index + 1, callback, usedSlots)
         end)
     else
-        MsgErr("No available stable slot to move pet '" .. (op.petName or "Unknown") .. "'!")
+        MsgErr(ns.L("No available stable slot to move pet '%s'!", op.petName or ns.L("Unknown")))
         self:ExecuteClearOperations(operations, index + 1, callback, usedSlots)
     end
 end
 
-function PSM.Teams:FindEmptyStableSlotExcluding(usedSlots)
+function ns.Teams:FindEmptyStableSlotExcluding(usedSlots)
     if not (C_StableInfo and C_StableInfo.GetStablePetInfo) then return nil end
     usedSlots = usedSlots or {}
     for slot = 7, 205 do
@@ -466,7 +493,7 @@ function PSM.Teams:FindEmptyStableSlotExcluding(usedSlots)
     return nil
 end
 
-function PSM.Teams:ExecuteSlotOperations(operations, index, callback)
+function ns.Teams:ExecuteSlotOperations(operations, index, callback)
     if index > #operations then if callback then callback() end; return end
 
     local op = operations[index]
@@ -487,19 +514,19 @@ function PSM.Teams:ExecuteSlotOperations(operations, index, callback)
                     operations[i].fromSlot = tempSlot; break
                 end
             end
-            PSM.C_Timer.After(0.2, function()
+            ns.C_Timer.After(0.2, function()
                 C_StableInfo.SetPetSlot(op.fromSlot, op.toSlot)
-                PSM.C_Timer.After(0.2, function()
+                ns.C_Timer.After(0.2, function()
                     self:ExecuteSlotOperations(operations, index + 1, callback)
                 end)
             end)
         else
-            MsgErr("No available slot for pet swap!")
+            MsgErr(ns.L("No available slot for pet swap!"))
             self:ExecuteSlotOperations(operations, index + 1, callback)
         end
     else
         C_StableInfo.SetPetSlot(op.fromSlot, op.toSlot)
-        PSM.C_Timer.After(0.2, function()
+        ns.C_Timer.After(0.2, function()
             self:ExecuteSlotOperations(operations, index + 1, callback)
         end)
     end
@@ -509,11 +536,9 @@ end
 -- ACTIVE TEAM TRACKING
 ----------------------------------------------------------------------------------------------------------------
 
-function PSM.Teams:GetActiveTeamId()   return CharData().activeTeamId     end
-function PSM.Teams:SetActiveTeamId(id) CharData().activeTeamId = id       end
-function PSM.Teams:ClearActiveTeam()   CharData().activeTeamId = nil      end
+function ns.Teams:GetActiveTeamId()   return CharData().activeTeamId     end
 
-function PSM.Teams:HasActiveTeamChanged()
+function ns.Teams:HasActiveTeamChanged()
     local id = self:GetActiveTeamId()
     if not id then return false, "No active team" end
     return not self:CompareWithTeam(id), nil
@@ -523,26 +548,7 @@ end
 -- UTILITY
 ----------------------------------------------------------------------------------------------------------------
 
-function PSM.Teams:GetTeamSummary(teamId)
-    local _, team = FindTeam(teamId)
-    if not team then return "Unknown" end
-    local count = 0
-    for slot = 1, 6 do if team.slots[slot] then count = count + 1 end end
-    return count .. "/6 pets"
+function ns.Teams:FormatTimestamp(ts)
+    return ts and date("%Y-%m-%d %H:%M", ts) or ns.L("Unknown")
 end
 
-function PSM.Teams:FormatTimestamp(ts)
-    return ts and date("%Y-%m-%d %H:%M", ts) or "Unknown"
-end
-
-function PSM.Teams:ValidateTeam(teamId)
-    local _, team = FindTeam(teamId)
-    if not team                                   then return false, "Team not found"        end
-    if not (team.id and team.name and team.slots) then return false, "Team data is corrupted" end
-    return true, nil
-end
-
-function PSM.Teams:ExportTeamData(teamId)
-    local _, team = FindTeam(teamId)
-    return team and PSM.Utils.DeepCopy(team) or nil
-end

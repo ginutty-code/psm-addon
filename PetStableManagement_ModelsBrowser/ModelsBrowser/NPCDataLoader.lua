@@ -4,7 +4,6 @@
 -- index), so this is a plain text pipeline (no model/display data joins) --
 -- deliberately lighter than ModelsDataLoader's display-ID pipeline.
 
-local addonName = "PetStableManagement"
 
 _G.PSM = _G.PSM or {}
 local PSM = _G.PSM
@@ -15,46 +14,21 @@ PSM.NPCDataLoader = PSM.NPCDataLoader or {}
 -- CACHE
 --------------------------------------------------------------------------------
 
-function PSM.NPCDataLoader:CreateRenderCache()
-    PSM._npcRenderCache   = nil
+-- The NPC view's inputs. A slice belongs here only once the compute reads it -- declaring a
+-- dependency it ignores buys cache misses for nothing. Enforced by `loaderinputs_spec`.
+local NPC_RESULT_SLICES = {
+    "families", "expansions", "locations", "tamingRules", "conditions",
+    "toggles", "favorites", "pets", "zone", "search", "panel",
+}
+
+local npcResults   -- the selector; built on first use, dropped by ReleaseCache
+
+-- The NPC half of the pair; see ModelsDataLoader:ReleaseCache for why this cancels
+-- rather than only clearing.
+function PSM.NPCDataLoader:ReleaseCache()
+    if PSM._npcDebounceTimer then PSM._npcDebounceTimer:Cancel() end
     PSM._npcDebounceTimer = nil
-end
-
--- Build a canonical string from a selected-values table (key=name, value=bool),
--- mirroring ModelsDataLoader's SelectedMapKey.
-local function SelectedMapKey(map)
-    if not map or not next(map) then return "none," end
-    local parts = {}
-    for k, v in pairs(map) do if v then table.insert(parts, k) end end
-    table.sort(parts)
-    return table.concat(parts, ",") .. ","
-end
-
-function PSM.NPCDataLoader:GenerateCacheKey()
-    local panel = PSM.state.modelsPanel
-    if not panel then return "" end
-
-    local searchText  = panel.searchBox and panel.searchBox:GetText() or ""
-    local searchLower = searchText ~= "" and searchText:lower() or ""
-
-    local zoneKey = ""
-    if panel.showPetsInMyZone and panel.currentPlayerZone then
-        zoneKey = panel.currentPlayerZone .. (panel.showPetsInMyZone == "inverted" and "_inv," or ",")
-    end
-
-    return string.format("%s_%s_%s_%s_%s_%s_%s_%s_%s_%s_%d",
-        searchLower,
-        SelectedMapKey(PSM.state.selectedModelsFamilies),
-        SelectedMapKey(PSM.state.selectedExpansions),
-        SelectedMapKey(PSM.state.selectedLocations),
-        zoneKey,
-        tostring(panel.showRares or "none"),
-        tostring(panel.showNameKeepers or "none"),
-        tostring(panel.showFavorites or "none"),
-        tostring(panel.showHideOwned or "none"),
-        SelectedMapKey(PSM.state.favoriteModels),
-        #PSM.state.stablePets
-    )
+    npcResults = nil
 end
 
 --------------------------------------------------------------------------------
@@ -76,7 +50,59 @@ local function IsAnyDisplayIdFavorite(displayIds)
     return false
 end
 
--- ownedSet is built once per pass (below), not once per NPC -- 
+-- Every display ID the player has tamed, for the Hide Owned filter pass. Cheap -- the
+-- stable holds a couple of hundred pets at most -- but it must be built once per pass
+-- rather than once per NPC, which is the O(displayIds x stablePets) trap this file already
+-- fell into once. Named rather than inlined for that reason, and because it is the mirror
+-- of ShownDisplayIdSet below: what is in the stable, against what is on screen.
+local function OwnedDisplayIdSet()
+    local owned = {}
+    for _, pet in ipairs(PSM.state.stablePets) do
+        if pet.displayID then owned[tonumber(pet.displayID)] = true end
+    end
+    return owned
+end
+
+-- The set of display IDs any NPC in this list uses. The inverse direction to
+-- OwnedDisplayIdSet: what is on screen, rather than what is in the stable.
+local function ShownDisplayIdSet(items)
+    local shown = {}
+    for _, item in ipairs(items) do
+        for _, id in ipairs(item.displayIds or {}) do shown[id] = true end
+    end
+    return shown
+end
+
+-- The player's pets represented in this list, counted two ways: `unique` collapses pets
+-- that share a model, `total` counts every pet record.
+--
+-- Ownership is only knowable per display ID: Blizzard's stable API does not report the
+-- creature a pet was tamed from, so "do I own this NPC" has no answer.
+--
+-- Both numbers walk the stable, not the NPC list -- walking the NPC list counts one pet
+-- once per NPC sharing its model, which turns a stable of 207 into 414 owned. `unique`
+-- answers "how many different pets is that"; `total` is the one that reconciles with the
+-- Owned Pets panel's own count.
+--
+-- A pet whose display ID is in no NPC record is in neither figure, so an unfiltered list
+-- can read slightly under the stable total. That is honest, not an off-by-one.
+local function OwnedPetCounts(items)
+    local shown = ShownDisplayIdSet(items)
+    local seen, unique, total = {}, 0, 0
+    for _, pet in ipairs(PSM.state.stablePets) do
+        local id = pet.displayID and tonumber(pet.displayID)
+        if id and shown[id] then
+            total = total + 1
+            if not seen[id] then
+                seen[id] = true
+                unique = unique + 1
+            end
+        end
+    end
+    return unique, total
+end
+
+-- ownedSet is built once per pass (below), not once per NPC --
 local function IsAnyDisplayIdOwned(displayIds, ownedSet)
     if not displayIds or not ownedSet then return false end
     for _, id in ipairs(displayIds) do
@@ -85,31 +111,23 @@ local function IsAnyDisplayIdOwned(displayIds, ownedSet)
     return false
 end
 
--- Tristate-aware single-zone match, mirroring ModelsDataLoader:_IsLocationSelected
-local function IsLocationSelected(uiMapName, selectedLocations)
-    if not selectedLocations or not next(selectedLocations) then return true end
-
-    local userHasActive = false
-    for _, state in pairs(selectedLocations) do
-        if state == true then userHasActive = true; break end
-    end
-
-    if not uiMapName then return not userHasActive end
-
-    local state = selectedLocations[uiMapName]
-    if state == "inverted" then return false end
-    if userHasActive then return state == true end
-    return true
-end
+-- Locations and expansions are `PetModels.SelectionAllows*` now. These were two local
+-- copies, and their "absent vs empty" bug is the one that reached players: both returned
+-- true for an empty selection, so "None" on the Locations or Expansions tab emptied the
+-- Models view and left the NPC list untouched.
 
 --------------------------------------------------------------------------------
 -- LOADING PIPELINE
 --------------------------------------------------------------------------------
 
+-- The same delay as the models loader, from the same constant. Switching into the NPC view
+-- paints last load's list synchronously, so a longer window here means visibly stale rows.
+-- Nothing is left for one to absorb: `PSM.Store`'s flush coalesces bursts upstream and the
+-- search box debounces separately (`SEARCH_DELAY`).
 function PSM.NPCDataLoader:LoadNPCsForSelectedFamilies()
     if not PSM.state.modelsPanel then return end
     if PSM._npcDebounceTimer then PSM._npcDebounceTimer:Cancel() end
-    PSM._npcDebounceTimer = PSM.C_Timer.NewTimer(0.15, function()
+    PSM._npcDebounceTimer = C_Timer.NewTimer(PSM.Config.RENDER_DELAY, function()
         PSM.NPCDataLoader:_LoadNPCsImmediate()
     end)
 end
@@ -118,17 +136,13 @@ function PSM.NPCDataLoader:_LoadNPCsImmediate()
     local panel = PSM.state.modelsPanel
     if not panel then return end
 
-    -- Reuse the last computed item list for 0.2s if nothing filter-relevant
-    -- changed, mirroring ModelsDataLoader's render cache (ModelsDataLoader.lua:415-421).
-    local cacheKey = self:GenerateCacheKey()
-    if PSM._npcRenderCache and PSM._npcRenderCache.key == cacheKey
-       and GetTime() - PSM._npcRenderCache.timestamp < 0.2 then
-        self:_ApplyNPCData(PSM._npcRenderCache.data)
-    else
-        local items = self:_CalculateNPCData()
-        PSM._npcRenderCache = { key = cacheKey, timestamp = GetTime(), data = items }
-        self:_ApplyNPCData(items)
-    end
+    -- Reuse is the selector's job now, and it is exact rather than time-bounded -- see
+    -- ModelsDataLoader:_LoadModelsImmediate for why the 0.2s expiry went with the key.
+    npcResults = npcResults or PSM.Store:Selector(NPC_RESULT_SLICES, function()
+        return PSM.NPCDataLoader:_CalculateNPCData()
+    end)
+
+    self:_ApplyNPCData(npcResults())
 
     if PSM.ModelsFilters then
         if PSM.ModelsFilters.UpdateFilterSummary  then PSM.ModelsFilters:UpdateFilterSummary()  end
@@ -150,17 +164,26 @@ function PSM.NPCDataLoader:_CalculateNPCData()
     local selectedFamilies = PSM.state.selectedModelsFamilies
     if not selectedFamilies or not next(selectedFamilies) then return {} end
 
-    local searchText  = panel.searchBox and panel.searchBox:GetText() or ""
+    local searchText  = panel.searchBox and panel.searchBox:GetSearchText() or ""
     local searchLower = searchText ~= "" and searchText:lower() or ""
 
     -- Built once per reload, only when the Hide Owned filter is active.
-    local ownedSet = nil
-    if panel.showHideOwned then
-        ownedSet = {}
-        for _, pet in ipairs(PSM.state.stablePets) do
-            if pet.displayID then ownedSet[tonumber(pet.displayID)] = true end
-        end
-    end
+    local ownedSet = PSM.FilterState:Get("showHideOwned") and OwnedDisplayIdSet() or nil
+
+    -- Special Tames, hoisted out of the row loop: `next()` and the active-conditions scan
+    -- are constant per pass, and this loop runs over thousands of rows.
+    local selRules  = PSM.state.selectedTamingRules
+    local selConds  = PSM.state.selectedConditions
+    local hasRules  = selRules and next(selRules) ~= nil
+    local hasConds  = selConds and next(selConds) ~= nil
+    local condsHaveActive = hasConds and PSM.PetModels.ConditionsHaveActive(selConds)
+
+    -- Same reason: resolving the selection mode is a scan of the selection table, and this
+    -- loop runs over every NPC of every selected family.
+    local selExpansions = PSM.state.selectedExpansions
+    local selLocations  = PSM.state.selectedLocations
+    local expansionMode = PSM.PetModels.SelectionMode(selExpansions)
+    local locationMode  = PSM.PetModels.SelectionMode(selLocations)
 
     -- Iterate only selected families via the shared family index instead of
     -- scanning all ~7700 ModelsData entries and rejecting non-matches.
@@ -202,27 +225,35 @@ function PSM.NPCDataLoader:_CalculateNPCData()
 
                 local isRare = classification == "Rare" or classification == "Rare Elite"
 
-                if matchesSearch
-                   and TristateMatch(panel.showRares, isRare)
-                   and TristateMatch(panel.showNameKeepers, nameKeeper or false)
-                   and TristateMatch(panel.showFavorites, IsAnyDisplayIdFavorite(displayIds))
-                   and TristateMatch(panel.showHideOwned, not IsAnyDisplayIdOwned(displayIds, ownedSet))
-                   and (not PSM.state.selectedExpansions or not next(PSM.state.selectedExpansions)
-                        or PSM.state.selectedExpansions[expansion])
-                   and IsLocationSelected(uiMapName, PSM.state.selectedLocations)
+                -- Taming skills are a display-level fact recorded per NPC, and no display
+                -- has two NPCs that disagree, so this NPC's own column equals the display
+                -- aggregate the Models view builds. Conditions are per NPC, so no "does any
+                -- NPC of this display qualify" loop is needed here.
+                local tamingOk = not hasRules
+                    or PetModels.TamingSetPasses(PetModels.TamingSet(modelsData.Taming[i]), selRules)
+                local condsOk = not hasConds
+                    or PetModels.NpcPassesConditions(npcId, selConds, condsHaveActive)
+
+                if matchesSearch and tamingOk and condsOk
+                   and TristateMatch(PSM.FilterState:Get("showRares"), isRare)
+                   and TristateMatch(PSM.FilterState:Get("showNameKeepers"), nameKeeper or false)
+                   and TristateMatch(PSM.FilterState:Get("showFavorites"), IsAnyDisplayIdFavorite(displayIds))
+                   and TristateMatch(PSM.FilterState:Get("showHideOwned"), not IsAnyDisplayIdOwned(displayIds, ownedSet))
+                   and PetModels.SelectionAllows(selExpansions, expansion, expansionMode)
+                   and PetModels.SelectionAllows(selLocations, uiMapName, locationMode)
                 then
                     local zoneOk = true
-                    if panel.showPetsInMyZone and panel.currentPlayerZone then
+                    if PSM.FilterState:Get("showPetsInMyZone") and panel.currentPlayerZone then
                         -- _IsZoneMatch reads columns via a denseIndex directly -- no need
                         -- to build a temporary {uiMapId=, npcId=, uiMapName=} shim.
                         local zoneMatch = PSM.ModelsDataLoader:_IsZoneMatch(i, panel.currentPlayerZone)
-                        zoneOk = TristateMatch(panel.showPetsInMyZone, zoneMatch)
+                        zoneOk = TristateMatch(PSM.FilterState:Get("showPetsInMyZone"), zoneMatch)
                     end
 
                     if zoneOk then
                         table.insert(items, {
                             npcId          = npcId,
-                            name           = name or ("NPC " .. tostring(npcId)),
+                            name           = name or PSM.L("NPC %s", tostring(npcId)),
                             family         = family,
                             classification = classification or "Normal",
                             nameKeeper     = nameKeeper or false,
@@ -247,37 +278,30 @@ function PSM.NPCDataLoader:_ApplyNPCData(items)
     local panel = PSM.state.modelsPanel
     if not panel then return end
 
+    -- This hands the selector's cached table to the panel, and `UpdateNPCPanelLayout` sorts
+    -- it in place -- a deliberate exception to Store's read-only rule, because a reorder
+    -- cannot change which NPCs matched. It is also what makes `_npcSortCache`'s identity
+    -- check work: the selector returns the same table until a dependency moves, so copying
+    -- here would re-sort ~7000 entries on every reload.
     panel.allNPCs = items
 
     if #items == 0 then
-        if panel.infoText then panel.infoText:SetText("No matching NPCs | 0 pages") end
-        if panel.pageText then panel.pageText:SetText("Page 0 of 0") end
+        if panel.infoText then panel.infoText:SetText(PSM.L("No matching NPCs | 0 pages")) end
+        if panel.pageText then panel.pageText:SetText(PSM.L("Page %d of %d", 0, 0)) end
         PSM.ModelsPanel:UpdateVisibleRows()
         return
     end
 
     if panel.infoText then
-        -- "Show only owned" (showHideOwned == "inverted") matches an NPC if ANY
-        -- of its display IDs is owned, so a single owned display ID shared by
-        -- many NPCs inflates the NPC count well past what was actually tamed.
-        -- Report the distinct owned-display-ID count alongside it in that case.
-        if panel.showHideOwned == "inverted" then
-            local ownedIds = {}
-            for _, pet in ipairs(PSM.state.stablePets) do
-                if pet.displayID then ownedIds[tonumber(pet.displayID)] = true end
-            end
-            local relevantOwned, distinctCount = {}, 0
-            for _, item in ipairs(items) do
-                for _, id in ipairs(item.displayIds or {}) do
-                    if ownedIds[id] and not relevantOwned[id] then
-                        relevantOwned[id] = true
-                        distinctCount = distinctCount + 1
-                    end
-                end
-            end
-            panel.infoText:SetText(string.format("%d Display IDs owned, corresponding to %d NPCs", distinctCount, #items))
+        -- One caption in every filter state, matching the Models view's
+        -- "N display IDs | M owned". The bracket appears only when there are duplicates
+        -- to note: no bracket means every owned pet here is a different model.
+        local unique, total = OwnedPetCounts(items)
+        if total > unique then
+            panel.infoText:SetText(PSM.L("%d NPCs found | %d owned (%d including duplicates)",
+                #items, unique, total))
         else
-            panel.infoText:SetText(string.format("%d NPCs found", #items))
+            panel.infoText:SetText(PSM.L("%d NPCs found | %d owned", #items, unique))
         end
     end
 

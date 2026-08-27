@@ -1,15 +1,12 @@
 -- OwnedPets/GroupedView.lua
 -- Grouped view for Owned Pets panel - lightweight, GridView-based grouping
 
-local addonName = "PetStableManagement"
+local _, ns = ...
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
+ns.UI.GroupedView = {}
 
-PSM.UI.GroupedView = {}
-
-PSM.UI.GroupedView.GRID_VIEW_ROW_HEIGHT = PSM.Config.GRID_ROW_HEIGHT
-PSM.UI.GroupedView.GRID_VIEW_MODEL_SIZE = PSM.Config.GRID_MODEL_SIZE
+ns.UI.GroupedView.GRID_VIEW_ROW_HEIGHT = ns.Config.GRID_ROW_HEIGHT
+ns.UI.GroupedView.GRID_VIEW_MODEL_SIZE = ns.Config.GRID_MODEL_SIZE
 
 local HEADER_HEIGHT  = 30
 local HEADER_SPACING = 8
@@ -43,11 +40,10 @@ end
 
 -- Collapse/expand every group at once
 local function SetAllGroupsCollapsed(collapsed)
-    for _, group in ipairs(PSM.PetGroups:GetGroups()) do
+    for _, group in ipairs(ns.PetGroups:GetGroups()) do
         SetGroupCollapsed(group.id, collapsed)
     end
-    PSM._renderCache = nil
-    if PSM.UI and PSM.UI.RenderPanel then PSM.UI:RenderPanel(true) end
+    if ns.UI and ns.UI.RenderPanel then ns.UI:RenderPanel(true) end
 end
 
 --------------------------------------------------------------------------------
@@ -55,16 +51,42 @@ end
 --------------------------------------------------------------------------------
 
 local function RefreshUI()
-    PSM._renderCache = nil
-    if PSM.UI and PSM.UI.RenderPanel then PSM.UI:RenderPanel(true) end
+    if ns.UI and ns.UI.RenderPanel then ns.UI:RenderPanel(true) end
+end
+
+--------------------------------------------------------------------------------
+-- PET TOOLTIP
+--------------------------------------------------------------------------------
+
+-- Grouped view is the only place a pet can be reordered or moved between groups, so
+-- it has the most to explain -- and the explanation depends on the active sort, which
+-- disables reordering entirely.
+local function GroupedHints(pet)
+    local hints = ns.RowManager.MODEL_HINTS
+    if ns.state.sortBy then
+        hints = hints .. "\n" .. ns.L("Reordering disabled while sorting is active.")
+            .. "\n" .. ns.L("Set Sort by to Unsorted to re-enable.")
+    else
+        hints = hints .. "\n" .. ns.L("Shift/Ctrl + drag to reorder within group (works outside stable)")
+    end
+    hints = hints .. "\n" .. ns.L("Shift/Ctrl + Right-click to move to a specific group")
+    if ns.state and ns.state.isStableOpen and pet.slotID then
+        hints = hints .. "\n" .. ns.L("Shift/Ctrl + drag to swap stable slots")
+    end
+    return hints
+end
+
+local function PetTooltipSpec(pet)
+    if not pet then return nil end
+    return ns.PetTooltip.Spec(pet, { hints = GroupedHints(pet) })
 end
 
 --------------------------------------------------------------------------------
 -- ROW CREATION / UPDATE
 --------------------------------------------------------------------------------
 
-function PSM.UI.GroupedView:CreateModelRow(parent)
-    local row = PSM.RowManager:CreateBaseRow(parent, {
+function ns.UI.GroupedView:CreateModelRow(parent)
+    local row = ns.RowManager:CreateBaseRow(parent, {
         useBackdropTemplate = true,
         height              = self.GRID_VIEW_ROW_HEIGHT,
         modelSize           = self.GRID_VIEW_MODEL_SIZE,
@@ -85,123 +107,53 @@ function PSM.UI.GroupedView:CreateModelRow(parent)
     row.viewType = "grouped"
     row.petData  = nil
 
-    local function showButtons(self)
-        if self.resetButton   then self.resetButton:Show() end
-        if self.magnifyButton then self.magnifyButton:Show() end
-        if self.addToTeamButton    and self.isOwnedByPlayer then self.addToTeamButton:Show() end
-        if self.removeFromTeamButton and self.isOwnedByPlayer then self.removeFromTeamButton:Show() end
-        if row.petData then PSM.UI.GroupedView:ShowPetTooltip(row, row.petData) end
-    end
-    local function hideButtons(self)
-        if self.resetButton          and not self.resetButton:IsMouseOver()          then self.resetButton:Hide() end
-        if self.magnifyButton        and not self.magnifyButton:IsMouseOver()        then self.magnifyButton:Hide() end
-        if self.addToTeamButton      and not self.addToTeamButton:IsMouseOver()      then self.addToTeamButton:Hide() end
-        if self.removeFromTeamButton and not self.removeFromTeamButton:IsMouseOver() then self.removeFromTeamButton:Hide() end
-        GameTooltip:Hide()
-    end
+    -- The model and the row show the same tooltip, each anchored to itself, so it
+    -- lands beside whichever the mouse actually entered. Attaching to the model
+    -- deliberately replaces RowManager's rotate/zoom tooltip -- those hints are
+    -- already this tooltip's last section -- and that is why the hover buttons have
+    -- to come along: re-attaching OnEnter/OnLeave drops RowManager's pair with it.
+    local function TooltipForRow() return PetTooltipSpec(row.petData) end
 
-    row.model:SetScript("OnEnter", showButtons)
-    row.model:SetScript("OnLeave", hideButtons)
-    row:SetScript("OnEnter", function() if row.petData then PSM.UI.GroupedView:ShowPetTooltip(row, row.petData) end end)
-    row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    ns.Tooltip.Attach(row.model, TooltipForRow, {
+        onEnter = function(self) ns.RowManager:ShowHoverButtons(self) end,
+        onLeave = function(self) ns.RowManager:HideHoverButtons(self) end,
+    })
+    ns.Tooltip.Attach(row, TooltipForRow)
 
     return row
 end
 
-function PSM.UI.GroupedView:UpdateRow(row, pet)
+function ns.UI.GroupedView:UpdateRow(row, pet)
     if not row or not pet then return end
     row.petData = pet
     if row.model and pet.displayID then
-        PSM.RowManager:UpdateModelDisplay(row, pet.displayID, pet.icon, pet)
+        ns.RowManager:UpdateModelDisplay(row, pet.displayID, pet.icon, pet)
     end
-    local isSame, isCross = PSM.RowManager:CheckDuplicates(pet, PSM.state.allGroups)
-    PSM.RowManager:UpdateBackgroundColor(row, isSame, isCross, false, pet.specName)
-    PSM.RowManager:HideFavoriteButton(row)
-    if PSM.DragDrop then
-        PSM.DragDrop:SetupRowDragDrop(row, pet, true)
-        PSM.DragDrop:SetupModelDragDrop(row.model, pet, row, true)
+    local isSame, isCross = ns.RowManager:CheckDuplicates(pet, ns.state.allGroups)
+    ns.RowManager:UpdateBackgroundColor(row, isSame, isCross, false, pet.specName)
+    ns.RowManager:UpdateFavoriteButton(row, pet.displayID)
+    if ns.DragDrop then
+        ns.DragDrop:SetupRowDragDrop(row, pet, true)
+        ns.DragDrop:SetupModelDragDrop(row.model, pet, row, true)
     end
 
     row.contextMenuPet       = pet
     row.model.contextMenuPet = pet
 
-    local origOnMouseDown = row.model:GetScript("OnMouseDown")
-    row.model:SetScript("OnMouseDown", function(self, button)
-        if button == "RightButton" and (IsShiftKeyDown() or IsControlKeyDown()) then
-            PSM.UI.GroupedView:ShowPetGroupContextMenu(self.contextMenuPet)
-            return
-        end
-        if origOnMouseDown then origOnMouseDown(self, button) end
-    end)
+    -- Wire once, same reasoning as DragDrop.lua's __dragDropWired guard.
+    if not row.model.__groupContextMenuWired then
+        row.model.__groupContextMenuWired = true
+        local origOnMouseDown = row.model:GetScript("OnMouseDown")
+        row.model:SetScript("OnMouseDown", function(self, button)
+            if button == "RightButton" and (IsShiftKeyDown() or IsControlKeyDown()) then
+                ns.UI.GroupedView:ShowPetGroupContextMenu(self.contextMenuPet)
+                return
+            end
+            if origOnMouseDown then origOnMouseDown(self, button) end
+        end)
+    end
 
     row:Show()
-end
-
---------------------------------------------------------------------------------
--- PET TOOLTIP
---------------------------------------------------------------------------------
-
-function PSM.UI.GroupedView:ShowPetTooltip(row, pet)
-    if not pet then return end
-
-    GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
-
-    local exoticLabel = pet.isExotic and " |cffff8800[Exotic]|r" or ""
-    GameTooltip:SetText(string.format("Slot %d: %s%s", pet.slotID or 0, pet.name or "?", exoticLabel), 1, 1, 1)
-    GameTooltip:AddLine(string.format("DisplayID: %d", pet.displayID or 0), 0.8, 0.8, 0.8)
-    if pet.familyName then GameTooltip:AddLine(string.format("Family: %s", pet.familyName), 1, 1, 1) end
-    if pet.specName   then GameTooltip:AddLine(string.format("Spec: %s",   pet.specName),   0.8, 0.8, 0.8) end
-    if pet.tamer      then GameTooltip:AddLine(string.format("Owned by: %s", pet.tamer),    0.7, 0.7, 0.7) end
-
-    if pet.level and pet.level > 0 then
-        local levelColor = pet.level >= 25 and " |cFF00FF00" or (pet.level >= 1 and " |cFFFFFF00" or " |cFF888888")
-        GameTooltip:AddLine(string.format("Level: %d%s", pet.level, levelColor), 1, 1, 1)
-    end
-
-    local abilities  = type(pet.abilities) == "table" and pet.abilities or {}
-    local hasAbilities = false
-
-    if abilities.family or abilities.spec or abilities.pet or abilities.unknown then
-        GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("|cFFFFD700Abilities:|r", 1, 1, 1)
-        local function addAbilities(list, prefix, r, g, b)
-            if list and #list > 0 then
-                for _, ability in ipairs(list) do
-                    GameTooltip:AddLine(string.format("  %s %s", prefix, ability), r, g, b)
-                end
-                hasAbilities = true
-            end
-        end
-        addAbilities(abilities.spec,    "|cFFFFD700[Spec]|r",   1,   1,   1)
-        addAbilities(abilities.family,  "|cFF40FF40[Family]|r", 0.8, 1,   0.8)
-        addAbilities(abilities.pet,     "|cFF40FFFF[Pet]|r",    0.8, 1,   1)
-        addAbilities(abilities.unknown, "|cFFAAAAAA[Other]|r",  0.7, 0.7, 0.7)
-    else
-        for _, ability in ipairs(abilities) do
-            GameTooltip:AddLine(string.format("  • %s", type(ability) == "table" and ability.name or tostring(ability)), 1, 1, 1)
-            hasAbilities = true
-        end
-    end
-
-    if not hasAbilities then
-        GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("|cFFAAAAAA(No abilities available)", 0.7, 0.7, 0.7)
-    end
-
-    local hints = "Left-click and drag to rotate\nRight-click and drag to move (left/right, up/down)\nScroll to zoom"
-    if PSM.state.sortBy then
-        hints = hints .. "\n|cFFFF8800Reordering disabled while sorting is active.|r"
-            .. "\n|cFFFF8800Set Sort by to Unsorted to re-enable.|r"
-    else
-        hints = hints .. "\nShift/Ctrl + drag to reorder within group (works outside stable)"
-    end
-    hints = hints .. "\nShift/Ctrl + Right-click to move to a specific group"
-    if PSM.state and PSM.state.isStableOpen and pet and pet.slotID then
-        hints = hints .. "\nShift/Ctrl + drag to swap stable slots"
-    end
-    GameTooltip:AddLine(" ")
-    GameTooltip:AddLine(hints, 0.7, 0.7, 0.7)
-    GameTooltip:Show()
 end
 
 --------------------------------------------------------------------------------
@@ -212,43 +164,25 @@ end
 local function AppendBulkGroupMenuItems(menuList)
     table.insert(menuList, { text = " ", isTitle = true, notCheckable = true })
     table.insert(menuList, {
-        text = "Expand All Groups", notCheckable = true,
+        text = ns.L("Expand All Groups"), notCheckable = true,
         func = function() SetAllGroupsCollapsed(false) end,
     })
     table.insert(menuList, {
-        text = "Collapse All Groups", notCheckable = true,
+        text = ns.L("Collapse All Groups"), notCheckable = true,
         func = function() SetAllGroupsCollapsed(true) end,
     })
     table.insert(menuList, { text = " ", isTitle = true, notCheckable = true })
     table.insert(menuList, {
-        text = "Delete All Groups", notCheckable = true,
-        func = function() PSM.UI.GroupedView:ConfirmDeleteAllGroups() end,
+        text = ns.L("Delete All Groups"), notCheckable = true,
+        func = function() ns.UI.GroupedView:ConfirmDeleteAllGroups() end,
     })
 end
 
-local function ShowContextMenu(menuList)
-    if not PSM.state.contextDropDown then
-        PSM.state.contextDropDown = CreateFrame("Frame", "PSMContextMenuDropDown", UIParent, "UIDropDownMenuTemplate")
-        PSM.state.contextDropDown:Hide()
-    end
-    UIDropDownMenu_Initialize(PSM.state.contextDropDown, function(self, level)
-        for _, item in ipairs(menuList) do
-            local info = UIDropDownMenu_CreateInfo()
-            info.text         = item.text
-            info.notCheckable = item.notCheckable or true
-            info.isTitle      = item.isTitle or false
-            info.func         = item.func
-            UIDropDownMenu_AddButton(info, level)
-        end
-    end, "MENU")
-    ToggleDropDownMenu(1, nil, PSM.state.contextDropDown, "cursor", 0, 0)
-end
-
 -- Ctrl/Shift + right-click on a pet model
-function PSM.UI.GroupedView:ShowPetGroupContextMenu(pet)
+function ns.UI.GroupedView:ShowPetGroupContextMenu(pet)
     if not pet or not pet.guid then return end
 
-    local groups = PSM.PetGroups:GetGroups()
+    local groups = ns.PetGroups:GetGroups()
 
     -- Find pet's current group
     local currentGroupId = nil
@@ -264,15 +198,15 @@ function PSM.UI.GroupedView:ShowPetGroupContextMenu(pet)
     -- currentGroupId == nil means the pet is currently ungrouped
 
     local menuList = {
-        { text = "Move pet to group:", isTitle = true, notCheckable = true },
+        { text = ns.L("Move pet to group:"), isTitle = true, notCheckable = true },
     }
 
     -- "Ungrouped" option — only shown when the pet is NOT already ungrouped
     if currentGroupId ~= nil then
         table.insert(menuList, {
-            text = "Ungrouped", notCheckable = true,
+            text = ns.L("Ungrouped"), notCheckable = true,
             func = function()
-                PSM.PetGroups:MovePetToGroup(pet.guid, "ungrouped")
+                ns.PetGroups:MovePetToGroup(pet.guid, "ungrouped")
                 RefreshUI()
             end,
         })
@@ -292,7 +226,7 @@ function PSM.UI.GroupedView:ShowPetGroupContextMenu(pet)
             table.insert(menuList, {
                 text = group.name, notCheckable = true,
                 func = function()
-                    PSM.PetGroups:MovePetToGroup(pet.guid, group.id)
+                    ns.PetGroups:MovePetToGroup(pet.guid, group.id)
                     RefreshUI()
                 end,
             })
@@ -301,161 +235,180 @@ function PSM.UI.GroupedView:ShowPetGroupContextMenu(pet)
 
     table.insert(menuList, { text = " ", isTitle = true, notCheckable = true })
     table.insert(menuList, {
-        text = "Create New Group...", notCheckable = true,
-        func = function() PSM.UI.GroupedView:ShowCreateGroupForPetDialog(pet) end,
+        text = ns.L("Create New Group..."), notCheckable = true,
+        func = function() ns.UI.GroupedView:ShowCreateGroupForPetDialog(pet) end,
     })
 
-    ShowContextMenu(menuList)
+    ns.Utils:ShowContextMenu(menuList)
 end
 
 -- Right-click on a named group header
-function PSM.UI.GroupedView:ShowGroupContextMenu(groupId, groupName)
+function ns.UI.GroupedView:ShowGroupContextMenu(groupId, groupName)
     if not groupId or groupId == "ungrouped" then return end
 
     local menuList = {
-        { text = groupName or "Group", isTitle = true, notCheckable = true },
+        { text = groupName or ns.L("Group"), isTitle = true, notCheckable = true },
         {
-            text = "Rename Group", notCheckable = true,
-            func = function() PSM.UI.GroupedView:ShowRenameDialog(groupId, groupName) end,
+            text = ns.L("Rename Group"), notCheckable = true,
+            func = function() ns.UI.GroupedView:ShowRenameDialog(groupId, groupName) end,
         },
         {
-            text = "Delete Group", notCheckable = true,
-            func = function() PSM.UI.GroupedView:ConfirmDeleteGroup(groupId, groupName) end,
+            text = ns.L("Delete Group"), notCheckable = true,
+            func = function() ns.UI.GroupedView:ConfirmDeleteGroup(groupId, groupName) end,
         },
     }
     AppendBulkGroupMenuItems(menuList)
-    ShowContextMenu(menuList)
+    ns.Utils:ShowContextMenu(menuList)
 end
 
 -- Right-click on the "Ungrouped" header
-function PSM.UI.GroupedView:ShowAutoGroupContextMenu(pets)
+function ns.UI.GroupedView:ShowAutoGroupContextMenu(pets)
     if not pets or #pets == 0 then return end
 
     local function autoGroup(criteria)
-        PSM.PetGroups:AutoGroupPets(pets, criteria)
+        ns.PetGroups:AutoGroupPets(pets, criteria)
         RefreshUI()
     end
 
     local menuList = {
-        { text = "Auto-create groups by:", isTitle = true, notCheckable = true },
-        { text = "Family",       notCheckable = true, func = function() autoGroup("familyName") end },
-        { text = "Spec",         notCheckable = true, func = function() autoGroup("specName")   end },
-        { text = "Exotic",       notCheckable = true, func = function() autoGroup("isExotic")   end },
-        { text = "Owner (Tamer)",notCheckable = true, func = function() autoGroup("tamer")      end },
+        { text = ns.L("Auto-create groups by:"), isTitle = true, notCheckable = true },
+        { text = ns.L("Family"),       notCheckable = true, func = function() autoGroup("familyName") end },
+        { text = ns.L("Spec"),         notCheckable = true, func = function() autoGroup("specName")   end },
+        { text = ns.L("Exotic"),       notCheckable = true, func = function() autoGroup("isExotic")   end },
+        { text = ns.L("Owner (Tamer)"),notCheckable = true, func = function() autoGroup("tamer")      end },
     }
     AppendBulkGroupMenuItems(menuList)
-    ShowContextMenu(menuList)
+    ns.Utils:ShowContextMenu(menuList)
 end
 
 --------------------------------------------------------------------------------
 -- GROUP CRUD DIALOGS
 --------------------------------------------------------------------------------
 
-function PSM.UI.GroupedView:ShowCreateGroupForPetDialog(pet)
+-- A rejection reported only in chat is missed with a maximized panel open, which is
+-- exactly how "A group with this name already exists" looked like the pet silently
+-- failing to move. UIErrorsFrame is where the client puts "you cannot do that", so it
+-- lands in front of the eyes already on the screen. Chat keeps the record.
+local function ReportGroupFailure(message)
+    if UIErrorsFrame then UIErrorsFrame:AddMessage(message, 1, 0.2, 0.2) end
+    ns.Utils:Msg("ERROR", message)
+end
+
+function ns.UI.GroupedView:ShowCreateGroupForPetDialog(pet)
     if not pet then return end
-    PSM.TeamDialogs:ShowCreateGroupDialog({
-        suggestedName = pet.familyName or pet.name or "New Group",
+    ns.Dialogs:ShowCreateGroupDialog({
+        suggestedName = pet.familyName or pet.name or ns.L("New Group"),
         onConfirm = function(groupName)
-            local groupId, err = PSM.PetGroups:CreateGroup(groupName)
+            local groupId, err = ns.PetGroups:CreateGroup(groupName)
             if groupId then
-                PSM.PetGroups:MovePetToGroup(pet.guid, groupId)
-                PSM._renderCache = nil
-                PSM.C_Timer.After(0.05, function()
-                    if PSM.UI and PSM.UI.RenderPanel then PSM.UI:RenderPanel(true) end
+                -- The move was already intended here and its result was discarded, so a
+                -- failure left the new group empty with nothing said. CreateGroup's error
+                -- is reported two lines down; this one was not.
+                local moved, moveErr = ns.PetGroups:MovePetToGroup(pet.guid, groupId)
+                if not moved then
+                    ns.Utils:Msg("ERROR", moveErr or ns.L("Failed to move pet to group"))
+                end
+                ns.C_Timer.After(0.05, function()
+                    if ns.UI and ns.UI.RenderPanel then ns.UI:RenderPanel(true) end
                 end)
             else
-                print("|cFFFF0000PetStableManagement: " .. (err or "Failed to create group") .. "|r")
+                ReportGroupFailure(err or ns.L("Failed to create group"))
             end
         end,
     })
 end
 
-function PSM.UI.GroupedView:ShowRenameDialog(groupId, currentName)
+function ns.UI.GroupedView:ShowRenameDialog(groupId, currentName)
     if not groupId then return end
-    PSM.TeamDialogs:ShowRenameGroupDialog({
+    ns.Dialogs:ShowRenameGroupDialog({
         currentName = currentName,
         onConfirm = function(newName)
-            local ok, err = PSM.PetGroups:RenameGroup(groupId, newName)
+            local ok, err = ns.PetGroups:RenameGroup(groupId, newName)
             if ok then RefreshUI()
-            else print("|cFFFF0000PetStableManagement: " .. (err or "Failed to rename group") .. "|r") end
+            else ReportGroupFailure(err or ns.L("Failed to rename group")) end
         end,
     })
 end
 
-function PSM.UI.GroupedView:ConfirmDeleteGroup(groupId, groupName)
+function ns.UI.GroupedView:ConfirmDeleteGroup(groupId, groupName)
     if not groupId then return end
-    PSM.TeamDialogs:ShowDeleteGroupConfirmDialog(groupName, function()
-        local ok, err = PSM.PetGroups:DeleteGroup(groupId)
+    ns.Dialogs:ShowDeleteGroupConfirmDialog(groupName, function()
+        local ok, err = ns.PetGroups:DeleteGroup(groupId)
         if ok then RefreshUI()
-        else print("|cFFFF0000PetStableManagement: " .. (err or "Failed to delete group") .. "|r") end
+        else ns.Utils:Msg("ERROR", err or ns.L("Failed to delete group")) end
     end)
 end
 
-function PSM.UI.GroupedView:ConfirmDeleteAllGroups()
-    PSM.TeamDialogs:ShowDeleteAllGroupsConfirmDialog(function()
-        PSM.PetGroups:DeleteAllGroups()
+function ns.UI.GroupedView:ConfirmDeleteAllGroups()
+    ns.Dialogs:ShowDeleteAllGroupsConfirmDialog(function()
+        ns.PetGroups:DeleteAllGroups()
         RefreshUI()
     end)
-end
-
--- Kept for any external callers; now just delegate to SetAllGroupsCollapsed
-function PSM.UI.GroupedView:ExpandAllGroups()  SetAllGroupsCollapsed(false) end
-function PSM.UI.GroupedView:CollapseAllGroups() SetAllGroupsCollapsed(true)  end
-
-function PSM.UI.GroupedView:AutoCreateGroupsByCriteria(pets, criteria)
-    if not pets or #pets == 0 then return end
-    PSM.PetGroups:AutoGroupPets(pets, criteria)
-    RefreshUI()
 end
 
 --------------------------------------------------------------------------------
 -- GROUP HEADER WIDGET
 --------------------------------------------------------------------------------
 
-function PSM.UI.GroupedView:CreateGroupHeader(parent, groupName, petCount)
-    local header = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    header:SetHeight(HEADER_HEIGHT)
-    header:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile=true, tileSize=16, edgeSize=8,
-        insets={left=2, right=2, top=2, bottom=2},
+-- "(3 pets)" / "(1 pet)"
+local function PetCountLabel(petCount)
+    petCount = petCount or 0
+    -- Two whole sentences rather than stitching an "s" on: plural is not a suffix
+    -- in every language.
+    if petCount == 1 then return ns.L("(%d pet)", petCount) end
+    return ns.L("(%d pets)", petCount)
+end
+
+local EXPAND_BUTTON_ANCHOR = { "LEFT", 4, 0 }
+
+function ns.UI.GroupedView:CreateGroupHeader(parent, groupName, petCount)
+    local Widgets = ns.Widgets
+
+    local header = Widgets.Frame(parent, {
+        height      = HEADER_HEIGHT,
+        backdrop    = "TOOLTIP_ROW",
+        color       = { 0.15, 0.15, 0.15 },
+        borderColor = { 0.5,  0.5,  0.5  },
     })
-    header:SetBackdropColor(0.15, 0.15, 0.15)
-    header:SetBackdropBorderColor(0.5, 0.5, 0.5)
 
-    local expandButton = CreateFrame("Button", nil, header)
-    expandButton:SetSize(16, 16)
-    expandButton:SetPoint("LEFT", header, "LEFT", 4, 0)
+    local expandButton = Widgets.IconButton(header, {
+        size  = { 16, 16 },
+        point = { EXPAND_BUTTON_ANCHOR[1], header, EXPAND_BUTTON_ANCHOR[1],
+                  EXPAND_BUTTON_ANCHOR[2], EXPAND_BUTTON_ANCHOR[3] },
+        skin  = "collapsebutton",
+    })
 
-    if PSM.UI and PSM.UI.ApplyElvUISkin then
-        PSM.UI:ApplyElvUISkin(expandButton, "collapsebutton")
-    end
-    expandButton:SetNormalTexture(PSM.UI.ElvUITexture("MinusButton"))
-    expandButton:SetPushedTexture(PSM.UI.ElvUITexture("MinusButton"))
+    -- Textures and geometry are applied *after* skinning, not before: ElvUI's
+    -- HandleButton strips textures and resets size/point, so anything set first is
+    -- discarded. The original re-stated size and point here for exactly this reason;
+    -- IconButton applies `skin` last, so this ordering still holds.
+    local minus = ns.Skin.Texture("MinusButton")
+    expandButton:SetNormalTexture(minus)
+    expandButton:SetPushedTexture(minus)
     expandButton:SetHighlightTexture("Interface\\Buttons\\UI-PlusButton-Hilight", "ADD")
     expandButton:SetSize(16, 16)
     expandButton:ClearAllPoints()
-    expandButton:SetPoint("LEFT", header, "LEFT", 4, 0)
+    expandButton:SetPoint(EXPAND_BUTTON_ANCHOR[1], header, EXPAND_BUTTON_ANCHOR[1],
+                          EXPAND_BUTTON_ANCHOR[2], EXPAND_BUTTON_ANCHOR[3])
     -- OnClick is set in UpdateVisibleRows so it has access to the current section
     header.expandButton = expandButton
 
-    local nameText  = header:CreateFontString(nil, "OVERLAY")
-    nameText:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
-    nameText:SetPoint("LEFT", expandButton, "RIGHT", 4, 0)
-    nameText:SetTextColor(1, 0.82, 0)
-    nameText:SetText(groupName or "Group")
+    header.nameText = Widgets.Label(header, {
+        fontSize = ns.Theme.SIZE.LABEL,
+        outline  = true,
+        color    = ns.Theme.COLOR.GOLD,
+        point    = { "LEFT", expandButton, "RIGHT", 4, 0 },
+        text     = groupName or ns.L("Group"),
+    })
 
-    local countText = header:CreateFontString(nil, "OVERLAY")
-    countText:SetFont("Fonts\\FRIZQT__.TTF", 10)
-    countText:SetPoint("LEFT", nameText, "RIGHT", 8, 0)
-    countText:SetTextColor(0.7, 0.7, 0.7)
-    countText:SetText("(" .. (petCount or 0) .. " pet" .. ((petCount or 0) ~= 1 and "s" or "") .. ")")
+    header.countText = Widgets.Label(header, {
+        fontSize = ns.Theme.SIZE.SMALL,
+        color    = ns.Theme.COLOR.DIM,
+        point    = { "LEFT", header.nameText, "RIGHT", 8, 0 },
+        text     = PetCountLabel(petCount),
+    })
 
-    header.nameText  = nameText
-    header.countText = countText
     header:EnableMouse(true)
-
     return header
 end
 
@@ -463,20 +416,20 @@ end
 -- LAYOUT
 --------------------------------------------------------------------------------
 
-function PSM.UI.GroupedView:BuildGroupedLayout(renderData, contentWidth)
+function ns.UI.GroupedView:BuildGroupedLayout(renderData, contentWidth)
     groupedLayout.sections      = {}
     groupedLayout.contentHeight = 0
     if not renderData or not renderData.filteredPets then return end
 
     local modelSize = self.GRID_VIEW_MODEL_SIZE
-    local pad       = PSM.Config.COLUMN_SPACING or 8
+    local pad       = ns.Config.COLUMN_SPACING or 8
     local colWidth  = modelSize + 2 * pad
     local colCount  = math.max(1, math.floor(contentWidth / colWidth))
 
     groupedLayout.colCount = colCount
     groupedLayout.colWidth = colWidth
 
-    local petGroups     = PSM.PetGroups
+    local petGroups     = ns.PetGroups
     local groups        = petGroups:GetGroups()
     local petToGroup    = {}
     local groupNameMap  = {}
@@ -501,11 +454,11 @@ function PSM.UI.GroupedView:BuildGroupedLayout(renderData, contentWidth)
     end
 
     for gid, petList in pairs(byGroup) do
-        if PSM.state.sortBy == "model" then
+        if ns.state.sortBy == "model" then
             table.sort(petList, function(a,b) return (a.displayID or 0) < (b.displayID or 0) end)
-        elseif PSM.state.sortBy == "slot" then
+        elseif ns.state.sortBy == "slot" then
             table.sort(petList, function(a,b) return (a.slotID or 0) < (b.slotID or 0) end)
-        elseif PSM.state.sortBy == "family" then
+        elseif ns.state.sortBy == "family" then
             table.sort(petList, function(a,b)
                 local af = a.familyName or ""
                 local bf = b.familyName or ""
@@ -514,7 +467,7 @@ function PSM.UI.GroupedView:BuildGroupedLayout(renderData, contentWidth)
                 end
                 return af < bf
             end)
-        elseif PSM.state.sortBy == "spec" then
+        elseif ns.state.sortBy == "spec" then
             table.sort(petList, function(a,b)
                 local as = a.specName or ""
                 local bs = b.specName or ""
@@ -523,7 +476,7 @@ function PSM.UI.GroupedView:BuildGroupedLayout(renderData, contentWidth)
                 end
                 return as < bs
             end)
-        elseif PSM.state.sortBy == "tamer" then
+        elseif ns.state.sortBy == "tamer" then
             table.sort(petList, function(a,b)
                 local at = a.tamer or ""
                 local bt = b.tamer or ""
@@ -560,7 +513,7 @@ function PSM.UI.GroupedView:BuildGroupedLayout(renderData, contentWidth)
             if not isCollapsed then
                 sectionH = sectionH + rows * self.GRID_VIEW_ROW_HEIGHT
             end
-            local groupName = gid == "ungrouped" and "Ungrouped" or (groupNameMap[gid] or gid)
+            local groupName = gid == "ungrouped" and ns.L("Ungrouped") or (groupNameMap[gid] or gid)
             table.insert(groupedLayout.sections, {
                 gid       = gid,
                 name      = groupName,
@@ -579,39 +532,42 @@ end
 -- RENDER
 --------------------------------------------------------------------------------
 
-function PSM.UI.GroupedView:UpdateVisibleRows()
-    local renderData = PSM.state.currentRenderData
-    if not renderData or not PSM.state.panel then return end
-    local content = PSM.state.content
+function ns.UI.GroupedView:UpdateVisibleRows()
+    local renderData = ns.state.currentRenderData
+    if not renderData or not ns.state.panel then return end
+    local content = ns.state.content
     if not content then return end
 
-    if not PSM.state.groupedViewRows then
-        PSM.state.groupedViewRows = {}
-        PSM.state.groupedViewHeaders = {}
-        for i = 1, 50 do
-            local r = PSM.UI.GroupedView:CreateModelRow(content); r:Hide()
-            table.insert(PSM.state.groupedViewRows, r)
+    if not ns.state.groupedViewRows then
+        ns.state.groupedViewRows = {}
+        ns.state.groupedViewHeaders = {}
+        for _ = 1, 50 do
+            local r = ns.UI.GroupedView:CreateModelRow(content); r:Hide()
+            table.insert(ns.state.groupedViewRows, r)
         end
     end
 
     if renderData.filteredCount == 0 then
-        for _, r in ipairs(PSM.state.groupedViewRows) do r:Hide() end
-        for _, h in ipairs(PSM.state.groupedViewHeaders or {}) do h:Hide() end
+        for _, r in ipairs(ns.state.groupedViewRows) do r:Hide() end
+        for _, h in ipairs(ns.state.groupedViewHeaders or {}) do h:Hide() end
         return
     end
 
     local contentWidth = content:GetWidth() or 500
     self:BuildGroupedLayout(renderData, contentWidth)
     content:SetHeight(math.max(groupedLayout.contentHeight, 100))
-    if PSM.state.scrollFrame.UpdateScrollChildRect then PSM.state.scrollFrame:UpdateScrollChildRect() end
+    if ns.state.scrollFrame.UpdateScrollChildRect then ns.state.scrollFrame:UpdateScrollChildRect() end
+    -- Before reading the scroll below: this view's visibility test is purely geometric,
+    -- so a scroll past the end of the content silently matches no section at all.
+    ns.UI:ClampScrollIntoRange(ns.state.scrollFrame, content)
 
-    local scrollH = PSM.state.scrollFrame:GetHeight() or 500
-    local scrollV = PSM.state.scrollFrame:GetVerticalScroll() or 0
+    local scrollH = ns.state.scrollFrame:GetHeight() or 500
+    local scrollV = ns.state.scrollFrame:GetVerticalScroll() or 0
     local visibleTop = scrollV
     local visibleBottom = scrollV + scrollH
 
-    for _, r in ipairs(PSM.state.groupedViewRows) do r:Hide() end
-    for _, h in ipairs(PSM.state.groupedViewHeaders or {}) do h:Hide() end
+    for _, r in ipairs(ns.state.groupedViewRows) do r:Hide() end
+    for _, h in ipairs(ns.state.groupedViewHeaders or {}) do h:Hide() end
 
     local colCount = groupedLayout.colCount
     local colWidth = groupedLayout.colWidth
@@ -623,10 +579,10 @@ function PSM.UI.GroupedView:UpdateVisibleRows()
             rowsNeeded = rowsNeeded + math.ceil(#section.pets / colCount)
         end
     end
-    if rowsNeeded > #PSM.state.groupedViewRows then
-        for i = 1, rowsNeeded - #PSM.state.groupedViewRows do
-            local r = PSM.UI.GroupedView:CreateModelRow(content); r:Hide()
-            table.insert(PSM.state.groupedViewRows, r)
+    if rowsNeeded > #ns.state.groupedViewRows then
+        for _ = 1, rowsNeeded - #ns.state.groupedViewRows do
+            local r = ns.UI.GroupedView:CreateModelRow(content); r:Hide()
+            table.insert(ns.state.groupedViewRows, r)
         end
     end
 
@@ -636,47 +592,46 @@ function PSM.UI.GroupedView:UpdateVisibleRows()
             visibleSectionCount = visibleSectionCount + 1
         end
     end
-    if visibleSectionCount > #PSM.state.groupedViewHeaders then
-        for i = #PSM.state.groupedViewHeaders + 1, visibleSectionCount do
-            local h = PSM.UI.GroupedView:CreateGroupHeader(content, "", 0); h:Hide()
-            table.insert(PSM.state.groupedViewHeaders, h)
+    if visibleSectionCount > #ns.state.groupedViewHeaders then
+        for _ = #ns.state.groupedViewHeaders + 1, visibleSectionCount do
+            local h = ns.UI.GroupedView:CreateGroupHeader(content, "", 0); h:Hide()
+            table.insert(ns.state.groupedViewHeaders, h)
         end
     end
 
     local rowPoolIndex = 1
     for _, section in ipairs(groupedLayout.sections) do
         if section.y + section.h >= visibleTop and section.y <= visibleBottom then
-            local header = table.remove(PSM.state.groupedViewHeaders, 1)
-                        or PSM.UI.GroupedView:CreateGroupHeader(content, section.name, #section.pets)
+            local header = table.remove(ns.state.groupedViewHeaders, 1)
+                        or ns.UI.GroupedView:CreateGroupHeader(content, section.name, #section.pets)
             header:ClearAllPoints()
             header:SetWidth(contentWidth - 10)
             header:SetPoint("TOPLEFT", content, "TOPLEFT", 5, -section.y)
             header.groupId = section.gid
             header.isGroupHeader = true
-            if header.nameText then header.nameText:SetText(section.name or "Group") end
-            if header.countText then header.countText:SetText("(" .. (#section.pets) .. " pet" .. (#section.pets ~= 1 and "s" or "") .. ")") end
+            if header.nameText then header.nameText:SetText(section.name or ns.L("Group")) end
+            if header.countText then header.countText:SetText(PetCountLabel(#section.pets)) end
             if header.expandButton then
-                local tex = section.collapsed and PSM.UI.ElvUITexture("PlusButton") or PSM.UI.ElvUITexture("MinusButton")
+                local tex = ns.Skin.Texture(section.collapsed and "PlusButton" or "MinusButton")
                 header.expandButton:SetNormalTexture(tex)
                 header.expandButton:SetPushedTexture(tex)
                 header.expandButton:SetScript("OnClick", function(self, button)
                     if button == "LeftButton" and header.groupId then
                         ToggleGroupCollapsed(header.groupId)
-                        PSM._renderCache = nil
-                        if PSM.UI and PSM.UI.RenderPanel then PSM.UI:RenderPanel(true) end
+                        if ns.UI and ns.UI.RenderPanel then ns.UI:RenderPanel(true) end
                     end
                 end)
             end
             header:Show()
             header:EnableMouse(true)
             header:SetScript("OnEnter", function(self)
-                if PSM.DragDrop and PSM.DragDrop.state.isDragging then
-                    PSM.DragDrop:OnEnterTarget(self, nil)
+                if ns.DragDrop and ns.DragDrop.state.isDragging then
+                    ns.DragDrop:OnEnterTarget(self, nil)
                 end
             end)
             header:SetScript("OnLeave", function(self)
-                if PSM.DragDrop and PSM.DragDrop.state.isDragging then
-                    PSM.DragDrop:OnLeaveTarget(self)
+                if ns.DragDrop and ns.DragDrop.state.isDragging then
+                    ns.DragDrop:OnLeaveTarget(self)
                 end
             end)
             -- Store section name for context menu (must be before OnMouseDown)
@@ -685,35 +640,34 @@ function PSM.UI.GroupedView:UpdateVisibleRows()
             header:SetScript("OnMouseDown", function(self, button)
                 if button == "LeftButton" and header.groupId then
                     ToggleGroupCollapsed(header.groupId)
-                    PSM._renderCache = nil
-                    if PSM.UI and PSM.UI.RenderPanel then PSM.UI:RenderPanel(true) end
+                    if ns.UI and ns.UI.RenderPanel then ns.UI:RenderPanel(true) end
                 elseif button == "RightButton" then
                     if header.groupId == "ungrouped" then
-                        PSM.UI.GroupedView:ShowAutoGroupContextMenu(section.pets)
+                        ns.UI.GroupedView:ShowAutoGroupContextMenu(section.pets)
                     elseif header.groupId then
-                        PSM.UI.GroupedView:ShowGroupContextMenu(header.groupId, header.groupName)
+                        ns.UI.GroupedView:ShowGroupContextMenu(header.groupId, header.groupName)
                     end
                 end
             end)
-            table.insert(PSM.state.groupedViewHeaders, header)
+            table.insert(ns.state.groupedViewHeaders, header)
 
             if not section.collapsed then
                 for i, pet in ipairs(section.pets) do
                     local col  = (i-1) % colCount
                     local rIdx = math.floor((i-1) / colCount)
-                    local rowY = section.y + HEADER_HEIGHT + HEADER_SPACING + rIdx * PSM.UI.GroupedView.GRID_VIEW_ROW_HEIGHT
-                    local rowBottomY = rowY + PSM.UI.GroupedView.GRID_VIEW_ROW_HEIGHT
+                    local rowY = section.y + HEADER_HEIGHT + HEADER_SPACING + rIdx * ns.UI.GroupedView.GRID_VIEW_ROW_HEIGHT
+                    local rowBottomY = rowY + ns.UI.GroupedView.GRID_VIEW_ROW_HEIGHT
                     if rowBottomY >= visibleTop and rowY <= visibleBottom then
-                        if rowPoolIndex > #PSM.state.groupedViewRows then break end
-                        local row = PSM.state.groupedViewRows[rowPoolIndex]
+                        if rowPoolIndex > #ns.state.groupedViewRows then break end
+                        local row = ns.state.groupedViewRows[rowPoolIndex]
                         row:ClearAllPoints()
                         row:SetPoint("TOPLEFT", content, "TOPLEFT", margin + col * colWidth, -rowY)
                         row:SetWidth(colWidth)
-                        row:SetHeight(PSM.UI.GroupedView.GRID_VIEW_ROW_HEIGHT)
-                        PSM.state.allGroups = renderData.allGroups
+                        row:SetHeight(ns.UI.GroupedView.GRID_VIEW_ROW_HEIGHT)
+                        ns.state.allGroups = renderData.allGroups
                         row.groupId         = section.gid
                         row.groupIndex      = i
-                        PSM.UI.GroupedView:UpdateRow(row, pet)
+                        ns.UI.GroupedView:UpdateRow(row, pet)
                         row:Show()
                         rowPoolIndex = rowPoolIndex + 1
                     end
@@ -727,23 +681,22 @@ end
 -- ENABLE / DISABLE / TOGGLE
 --------------------------------------------------------------------------------
 
-function PSM.UI.GroupedView:Enable()
-    PSM.state.panelViewMode = "grouped"
-    PSM.state.panel.scrollOffset = 0
-    if PSM.state.panel.scrollFrame then PSM.state.panel.scrollFrame:SetVerticalScroll(0) end
-    if PSM.state.rows           then for _, r in ipairs(PSM.state.rows)           do if r then r:Hide() end end end
-    if PSM.state.modelViewRows  then for _, r in ipairs(PSM.state.modelViewRows)  do if r then r:Hide() end end end
-    PSM._renderCache = nil
-    PSM.C_Timer.After(0.01, function() if PSM.UI and PSM.UI.RenderPanel then PSM.UI:RenderPanel() end end)
+function ns.UI.GroupedView:Enable()
+    ns.state.panelViewMode = "grouped"
+    ns.state.panel.scrollOffset = 0
+    if ns.state.panel.scrollFrame then ns.state.panel.scrollFrame:SetVerticalScroll(0) end
+    if ns.state.rows           then for _, r in ipairs(ns.state.rows)           do if r then r:Hide() end end end
+    if ns.state.modelViewRows  then for _, r in ipairs(ns.state.modelViewRows)  do if r then r:Hide() end end end
+    ns.C_Timer.After(0.01, function() if ns.UI and ns.UI.RenderPanel then ns.UI:RenderPanel() end end)
 end
 
-function PSM.UI.GroupedView:Disable()
-    PSM.state.panelViewMode = "list"
-    PSM.state.panel.scrollOffset = 0
-    if PSM.state.panel.scrollFrame then PSM.state.panel.scrollFrame:SetVerticalScroll(0) end
+function ns.UI.GroupedView:Disable()
+    ns.state.panelViewMode = "list"
+    ns.state.panel.scrollOffset = 0
+    if ns.state.panel.scrollFrame then ns.state.panel.scrollFrame:SetVerticalScroll(0) end
 
-    if PSM.state.groupedViewRows then
-        for _, r in ipairs(PSM.state.groupedViewRows) do
+    if ns.state.groupedViewRows then
+        for _, r in ipairs(ns.state.groupedViewRows) do
             if r then
                 r:Hide()
                 r.petData = nil; r.groupId = nil; r.groupIndex = nil; r.contextMenuPet = nil
@@ -751,16 +704,14 @@ function PSM.UI.GroupedView:Disable()
                     r.model:Hide(); r.model:ClearModel()
                     r.model.contextMenuPet = nil
                     r.model.isRotating = false
-                    if PSM.RotationFrame and PSM.RotationFrame.activeModels then
-                        PSM.RotationFrame.activeModels[r.model] = nil
-                    end
+                    ns.RowManager:ReleaseModel(r.model)
                 end
             end
         end
     end
 
-    if PSM.state.groupedViewHeaders then
-        for _, h in ipairs(PSM.state.groupedViewHeaders) do
+    if ns.state.groupedViewHeaders then
+        for _, h in ipairs(ns.state.groupedViewHeaders) do
             if h then
                 h:Hide(); h.groupId = nil; h.groupName = nil
                 h:SetScript("OnEnter", nil); h:SetScript("OnLeave", nil); h:SetScript("OnMouseDown", nil)
@@ -769,19 +720,10 @@ function PSM.UI.GroupedView:Disable()
     end
 
     self:ClearLayout()
-    PSM._renderCache = nil
-    PSM.C_Timer.After(0.01, function() if PSM.UI and PSM.UI.RenderPanel then PSM.UI:RenderPanel() end end)
+    ns.C_Timer.After(0.01, function() if ns.UI and ns.UI.RenderPanel then ns.UI:RenderPanel() end end)
 end
 
-function PSM.UI.GroupedView:ClearLayout()
+function ns.UI.GroupedView:ClearLayout()
     groupedLayout.sections      = {}
     groupedLayout.contentHeight = 0
-end
-
-function PSM.UI.GroupedView:Toggle()
-    if PSM.state.panelViewMode == "grouped" then self:Disable() else self:Enable() end
-end
-
-function PSM.UI.GroupedView:IsEnabled()
-    return PSM.state.panelViewMode == "grouped"
 end

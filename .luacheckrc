@@ -2,6 +2,22 @@
 std = "lua51"
 max_line_length = false
 
+-- Tests/ runs in a real Lua 5.1 interpreter, not the WoW client, so it legitimately
+-- uses dofile/loadfile/os/io (absent or sandboxed in-game) and installs its own
+-- stand-ins for client globals. Scoping those here rather than widening the
+-- addon-wide lists keeps warning 113 doing its real job -- catching WoW API typos
+-- in addon code. This per-path form is the mechanism ARCHITECTURE_PLAN.md's A3
+-- generalises, to confine WoW API access to Core/Compat.lua.
+files["Tests/"] = {
+    globals = {
+        "PSM",           -- specs reset the namespace to prove modules self-create it
+        "ModelsData",    -- loaded by dofile from the data addon
+        "PSM_DataSchemaVersion", -- set directly by schema_spec to test Schema.lua
+        -- installed by Tests/wow/stubs.lua
+        "strtrim", "strsplit", "GetTime", "date", "time",
+    },
+}
+
 -- 212/self, 432/self: WoW's `frame:SetScript("OnClick", function(self) ... end)`
 -- idiom means "self" goes unused or gets shadowed constantly and isn't a bug.
 -- 611/612: whitespace-only warnings, purely cosmetic, no behavioral signal.
@@ -16,6 +32,7 @@ globals = {
     "CoordsData",
     "AbilitiesData",
     "ModelsData",
+    "PSM_DataSchemaVersion",
     "SLASH_PETSTABLE1",
     "SLASH_PETSTABLE2",
     "SLASH_PETSWAP1",
@@ -26,7 +43,7 @@ globals = {
 -- variable" warning (see AGENT_INSTRUCTIONS.md / CLAUDE.md for the command) --
 -- add to this list, don't disable W113, when a new Blizzard API is used.
 read_globals = {
-    "CHECKBOX_INDENT_X",
+    "C_AddOns",
     "C_Map",
     "C_PetJournal",
     "C_QuestLog",
@@ -51,9 +68,11 @@ read_globals = {
     "GetSpecializationInfo",
     "GetSpellInfo",
     "GetTime",
+    "HideUIPanel",
     "InterfaceOptionsFrame",
     "InterfaceOptionsFrame_OpenToCategory",
     "InterfaceOptions_AddCategory",
+    "InCombatLockdown",
     "IsControlKeyDown",
     "IsMouseButtonDown",
     "IsPlayerSpell",
@@ -64,16 +83,19 @@ read_globals = {
     "PlayerHasToy",
     "SetPortraitTextureFromCreatureDisplayID",
     "Settings",
+    "CloseDropDownMenus",
     "SettingsPanel",
     "SlashCmdList",
     "StableFrame",
     "ToggleDropDownMenu",
     "TooltipDataProcessor",
+    "UIDROPDOWNMENU_MENU_VALUE",
     "UIDropDownMenu_AddButton",
     "UIDropDownMenu_CreateInfo",
     "UIDropDownMenu_Initialize",
     "UIDropDownMenu_SetText",
     "UIDropDownMenu_SetWidth",
+    "UIErrorsFrame",
     "UIParent",
     "UISpecialFrames",
     "UiMapPoint",

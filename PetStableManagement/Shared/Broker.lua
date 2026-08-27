@@ -1,13 +1,10 @@
 -- Shared/Broker.lua
 -- Broker integration and panel toggle API for PetStableManagement
 
-local addonName = "PetStableManagement"
+local _, ns = ...
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
-
-PSM.Broker = PSM.Broker or {}
-local broker = PSM.Broker
+ns.Broker = ns.Broker or {}
+local broker = ns.Broker
 
 --------------------------------------------------------------------------------
 -- PANEL TOGGLE API
@@ -15,80 +12,89 @@ local broker = PSM.Broker
 --------------------------------------------------------------------------------
 
 function broker:ToggleOwnedPetsPanel()
-    if PSM.state and PSM.state.panel then
-        if PSM.state.panel:IsVisible() then
-            PSM.state.panel:Hide()
+    if ns.state and ns.state.panel then
+        if ns.state.panel:IsVisible() then
+            ns.state.panel:Hide()
             return
         end
     end
-    if PSM.UI and PSM.UI.UpdatePanel then
-        PSM.UI:UpdatePanel(true)
+    if ns.UI and ns.UI.UpdatePanel then
+        ns.UI:UpdatePanel(true)
     end
 end
 
+-- PSM.Loader pulls the LoadOnDemand browser in on first use and reports a precise
+-- reason if it can't, so these no longer print a "module not loaded" message.
 function broker:ToggleModelsBrowserPanel()
-    if PSM.ModelsPanel and PSM.ModelsPanel.Toggle then
-        PSM.ModelsPanel:Toggle()
-    else
-        print("|cFFFF8800PetStableManagement: Models Browser module is not loaded. Enable 'Pet Stable Management: Models Browser' in your addon list.|r")
+    if ns.Loader:EnsureBrowser() and ns.Browser.ModelsPanel then
+        ns.Browser.ModelsPanel:Toggle()
     end
 end
 
 function broker:TogglePetRoulette()
-    if PSM.PetRoulette and PSM.PetRoulette.SelectPetRouletteFromCommand then
-        local popup = PSM.state and PSM.state.petRoulettePopup
-        if popup and popup:IsVisible() then
-            popup:Hide()
-        else
-            PSM.PetRoulette:SelectPetRouletteFromCommand()
-        end
-    else
-        print("|cFFFF8800PetStableManagement: Models Browser module is not loaded. Enable 'Pet Stable Management: Models Browser' in your addon list.|r")
+    -- Hiding an open popup must not force a load, so check that before ensuring.
+    local popup = ns.state and ns.state.petRoulettePopup
+    if popup and popup:IsVisible() then
+        popup:Hide()
+        return
+    end
+    if ns.Loader:EnsureBrowser() and ns.Browser.PetRoulette then
+        ns.Browser.PetRoulette:SelectPetRouletteFromCommand()
     end
 end
 
 function broker:TogglePetTeamsPanel()
-    PSM.TeamsPanel:Toggle()
+    ns.TeamsPanel:Toggle()
 end
 
 function broker:ToggleOptionsPanel()
-    if not (PSM.state and PSM.state.optionsPanel) then return end
+    if not (ns.state and ns.state.optionsPanel) then return end
 
     -- Close if already open (check both legacy and modern UI)
     if InterfaceOptionsFrame and InterfaceOptionsFrame:IsVisible() then
-        InterfaceOptionsFrame:Hide()
+        HideUIPanel(InterfaceOptionsFrame)
         return
     end
     if SettingsPanel and SettingsPanel:IsVisible() then
-        SettingsPanel:Hide()
+        HideUIPanel(SettingsPanel)
         return
     end
 
     -- Open
+    if ns.PanelManager:CombatBlocked(ns.L("Options")) then return end
     if InterfaceOptionsFrame_OpenToCategory then
-        InterfaceOptionsFrame_OpenToCategory(PSM.state.optionsPanel)
-        InterfaceOptionsFrame_OpenToCategory(PSM.state.optionsPanel)  -- called twice intentionally (Blizzard bug workaround)
-    elseif PSM.state.optionsCategoryId then
-        Settings.OpenToCategory(PSM.state.optionsCategoryId)
+        InterfaceOptionsFrame_OpenToCategory(ns.state.optionsPanel)
+        InterfaceOptionsFrame_OpenToCategory(ns.state.optionsPanel)  -- called twice intentionally (Blizzard bug workaround)
+    elseif ns.state.optionsCategoryId then
+        Settings.OpenToCategory(ns.state.optionsCategoryId)
     end
 end
 
 function broker:CloseAllPanels()
     local function safeHide(obj) if obj then obj:Hide() end end
 
-    safeHide(PSM.state.panel)
-    safeHide(PSM.state.modelsPanel)
-    safeHide(PSM.state.petRoulettePopup)
-    safeHide(PSM.state.teamsPanel)
-    safeHide(PSM.state.modelMagnificationPopup)
-    safeHide(PSM.state.exportFrame)
+    safeHide(ns.state.panel)
+    safeHide(ns.state.modelsPanel)
+    safeHide(ns.state.abilityBrowser)
+    safeHide(ns.state.specialTames)
+    safeHide(ns.state.petRoulettePopup)
+    safeHide(ns.state.teamsPanel)
+    safeHide(ns.state.modelMagnificationPopup)
+    safeHide(ns.state.exportFrame)
 
+    -- The settings window counts as one of our panels: our options live inside it as a
+    -- category, so "Close All Panels" leaving it open reads as the button not working.
+    --
+    -- It must be closed through HideUIPanel, never a raw :Hide(). SettingsPanel is
+    -- registered with Blizzard's UIPanel system, which tracks which of its slots are
+    -- occupied; hiding the frame behind the system's back leaves a slot marked in use
+    -- forever, which breaks ESC and NPC gossip until a /reload.
     if InterfaceOptionsFrame and InterfaceOptionsFrame:IsVisible() then
-        InterfaceOptionsFrame:Hide()
+        HideUIPanel(InterfaceOptionsFrame)
     end
-
-    -- NOTE: Do NOT hide SettingsPanel here — calling SettingsPanel:Hide()
-    -- programmatically breaks ESC and NPC interactions until /reload.
+    if SettingsPanel and SettingsPanel:IsVisible() then
+        HideUIPanel(SettingsPanel)
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -96,13 +102,13 @@ end
 --------------------------------------------------------------------------------
 
 function broker:Initialize()
-    PSM.state = PSM.state or {}
+    ns.state = ns.state or {}
 
     if not LibStub then return end
     local LDB = LibStub:GetLibrary("LibDataBroker-1.1", true)
     if not LDB then return end
 
-    PSM.Broker.dataobj = LDB:NewDataObject("PetStableManagement", {
+    ns.Broker.dataobj = LDB:NewDataObject("PetStableManagement", {
         type = "launcher",
         text = "PSM",
         icon = "Interface\\Icons\\Ability_Mount_Raptor",
@@ -110,33 +116,28 @@ function broker:Initialize()
         OnClick = function(self, button)
             if IsShiftKeyDown() then
                 if button == "LeftButton" then
-                    PSM.Menu:Toggle()
+                    ns.Menu:Toggle()
                 elseif button == "RightButton" then
-                    PSM.Broker:ToggleOptionsPanel()
+                    ns.Broker:ToggleOptionsPanel()
                 end
             else
                 if button == "LeftButton" then
-                    PSM.Broker:ToggleOwnedPetsPanel()
+                    ns.Broker:ToggleOwnedPetsPanel()
                 elseif button == "RightButton" then
-                    PSM.Broker:ToggleModelsBrowserPanel()
+                    ns.Broker:ToggleModelsBrowserPanel()
                 end
             end
         end,
 
+        -- Same tooltip as the minimap icon, from one definition in Minimap.lua --
+        -- LibDBIcon builds that icon from this very data object, so listing different
+        -- clicks in the two would be a contradiction.
         OnEnter = function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_NONE")
-            GameTooltip:SetPoint("TOPLEFT", self, "BOTTOMLEFT")
-            GameTooltip:ClearLines()
-            GameTooltip:AddLine("Pet Stable Management")
-            GameTooltip:AddLine("Left-click: Toggle Owned Pets Panel",       0.7, 0.7, 1)
-            GameTooltip:AddLine("Right-click: Toggle Pet Models Browser",     0.7, 0.7, 1)
-            GameTooltip:AddLine("Shift+Left-click: Toggle Menu",              0.7, 0.7, 1)
-            GameTooltip:AddLine("Shift+Right-click: Toggle Options Panel",    0.7, 0.7, 1)
-            GameTooltip:Show()
+            ns.Tooltip.Show(self, ns.Minimap.TooltipSpec)
         end,
 
-        OnLeave = function(self)
-            GameTooltip:Hide()
+        OnLeave = function()
+            ns.Tooltip.Hide()
         end,
     })
 end

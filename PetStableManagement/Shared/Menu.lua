@@ -1,103 +1,125 @@
 -- Shared/Menu.lua
 -- Floating menu window for PetStableManagement
 
-local addonName = "PetStableManagement"
+local _, ns = ...
 
-_G.PSM = _G.PSM or {}
-local PSM = _G.PSM
-
-PSM.Menu = PSM.Menu or {}
-local menu = PSM.Menu
+ns.Menu = ns.Menu or {}
+local menu = ns.Menu
 
 --------------------------------------------------------------------------------
 -- WINDOW CREATION
 --------------------------------------------------------------------------------
 
 function menu:Create()
-    if PSM.state.menu then return PSM.state.menu end
+    if ns.state.menu then return ns.state.menu end
 
-    local window = CreateFrame("Frame", "PSMMenu", UIParent)
-    window:SetSize(200, 300)
+    local Widgets = ns.Widgets
+    local pos     = PetStableManagementDB.settings.menuPosition
 
-    local xOffset = PetStableManagementDB.settings.menuPosition and PetStableManagementDB.settings.menuPosition.x or 0
-    local yOffset = PetStableManagementDB.settings.menuPosition and PetStableManagementDB.settings.menuPosition.y or 0
-    window:SetPoint("CENTER", UIParent, "CENTER", xOffset, yOffset)
-
-    window:SetFrameStrata("HIGH")
-    window:SetFrameLevel(100)
+    local window = Widgets.MovableFrame(UIParent, {
+        name   = "PSMMenu",
+        size   = { 200, 300 },
+        strata = "HIGH",
+        level  = 100,
+        skin   = "frame",
+        point  = { "CENTER", UIParent, "CENTER", pos and pos.x or 0, pos and pos.y or 0 },
+    })
     window:SetToplevel(true)
     window:SetClampedToScreen(true)
-    window:SetMovable(true)
-    window:EnableMouse(true)
-    window:RegisterForDrag("LeftButton")
-    window:SetScript("OnDragStart", function(self) self:StartMoving() end)
+
+    -- MovableFrame's own OnDragStop only stops the drag; this one also persists where
+    -- the user left it.
     window:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
         local _, _, _, x, y = self:GetPoint()
         PetStableManagementDB.settings.menuPosition = { x = x, y = y }
     end)
 
-    -- Background and border
-    window.border = CreateFrame("Frame", nil, window, "BackdropTemplate")
-    window.border:SetAllPoints()
-    window.border:SetBackdrop({
-        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 30, edgeSize = 5,
-        insets = { left=4, right=4, top=4, bottom=4 }
+    -- Background and border. Same shape as PanelManager's panel.border: the hairline
+    -- preset, the shared background colour, one level below its owner.
+    window.border = Widgets.Frame(window, {
+        allPoints = true,
+        backdrop  = "TOOLTIP_HAIRLINE",
+        color     = ns.Config.COLORS.BACKGROUND,
+        level     = window:GetFrameLevel() - 1,
     })
-    window.border:SetBackdropColor(unpack(PSM.Config.COLORS.BACKGROUND))
-    window.border:SetFrameLevel(window:GetFrameLevel() - 1)
 
-    -- Title
-    window.title = window.border:CreateFontString(nil, "OVERLAY")
-    window.title:SetFont("Fonts\\FRIZQT__.TTF", 14, "OUTLINE")
-    window.title:SetPoint("TOP", 0, -10)
-    window.title:SetText("PSM Menu")
-    window.title:SetTextColor(1, 0.82, 0)
+    window.title = Widgets.Label(window.border, {
+        fontSize = ns.Theme.SIZE.HEADING,
+        outline  = true,
+        color    = ns.Theme.COLOR.GOLD,
+        text     = ns.L("PSM Menu"),
+        point    = { "TOP", 0, -10 },
+    })
 
-    -- Close button
-    window.closeButton = CreateFrame("Button", nil, window, "UIPanelCloseButton")
-    window.closeButton:SetPoint("TOPRIGHT", -5, -5)
-    window.closeButton:SetSize(20, 20)
-    window.closeButton:SetScript("OnClick", function()
-        window:Hide()
-        PetStableManagementDB.settings.showFloatingMenu = false
-    end)
+    window.closeButton = Widgets.CloseButton(window, {
+        size    = { 20, 20 },
+        onClick = function()
+            window:Hide()
+            PetStableManagementDB.settings.showFloatingMenu = false
+        end,
+    })
 
-    -- Buttons
-    local buttonWidth, buttonHeight, buttonSpacing = 160, 30, 10
+    -- Buttons. XL because the longest label is "Toggle Models Browser"; the menu window
+    -- is 200 wide, so 180 still leaves a margin either side.
+    local buttonWidth, buttonSpacing = ns.Theme.CONTROL.BUTTON_W.XL, 10
 
-    local function AddButton(name, parent, anchorTo, label, onClick, disabledModule, disabledHint)
-        local btn = CreateFrame("Button", nil, window, "UIPanelButtonTemplate")
-        btn:SetSize(buttonWidth, buttonHeight)
-        if anchorTo then
-            btn:SetPoint("TOP", anchorTo, "BOTTOM", 0, -buttonSpacing)
-        else
-            btn:SetPoint("TOP", parent.title, "BOTTOM", 0, -20)
-        end
-        btn:SetText(label)
-        btn:SetScript("OnClick", onClick)
-        if disabledModule and not _G.PSM[disabledModule] then
-            btn:Disable()
-            btn:SetAlpha(0.5)
-            PSM.Utils:CreateButtonTooltipOverlay(btn, disabledModule, disabledHint)
-        end
-        PSM.UI:ApplyElvUISkin(btn, "button")
+    -- Browser-dependent buttons are never disabled, and that is deliberate: a disabled
+    -- Blizzard button does not fire OnEnter, so it cannot carry a tooltip. Left enabled,
+    -- the tooltip re-reads availability on every hover and nothing persistent has to be
+    -- kept in sync. Clicking while unavailable is already handled -- Broker routes
+    -- through Loader:EnsureBrowser, which explains itself in chat.
+    local gatedButtons = {}
+
+    -- Evaluated per hover. Returning nil suppresses the tooltip entirely, so a working
+    -- button says nothing, and the dimming is corrected on the way past.
+    local function BrowserGateTooltip(self)
+        local why = ns.Loader:UnavailableReason()
+        self:SetAlpha(why and 0.5 or 1)
+        if not why then return nil end
+        return {
+            anchor = "ANCHOR_BOTTOM",
+            title  = ns.L("Models Browser not available"),
+            lines  = {{ text = why, color = ns.Theme.COLOR.WHITE, wrap = true }},
+        }
+    end
+
+    local function AddButton(anchorTo, label, onClick, requiresBrowser, tooltip)
+        local btn = Widgets.Button(window, {
+            width   = buttonWidth,
+            text    = label,
+            onClick = onClick,
+            tooltip = tooltip or (requiresBrowser and BrowserGateTooltip) or nil,
+            point   = anchorTo
+                and { "TOP", anchorTo,     "BOTTOM", 0, -buttonSpacing }
+                 or { "TOP", window.title, "BOTTOM", 0, -20 },
+        })
+        if requiresBrowser then table.insert(gatedButtons, btn) end
         return btn
     end
 
-    window.ownedButton   = AddButton("owned",    window, nil,                   "Toggle Owned Pets",     function() PSM.Broker:ToggleOwnedPetsPanel() end)
-    window.modelsButton  = AddButton("models",   window, window.ownedButton,    "Toggle Models Browser", function() PSM.Broker:ToggleModelsBrowserPanel() end,  "ModelsPanel",  "Enable 'Pet Stable Management: Models Browser' in your addon list")
-    window.rouletteButton= AddButton("roulette", window, window.modelsButton,   "Toggle Pet Roulette",   function() PSM.Broker:TogglePetRoulette() end,          "PetRoulette",  "Enable 'Pet Stable Management: Models Browser' in your addon list")
-    window.teamsButton   = AddButton("teams",    window, window.rouletteButton, "Toggle Pet Teams",      function() PSM.Broker:TogglePetTeamsPanel() end)
-    window.optionsButton = AddButton("options",  window, window.teamsButton,    "Toggle Options",        function() PSM.Broker:ToggleOptionsPanel() end)
-    window.closeAllButton= AddButton("closeAll", window, window.optionsButton,  "Close All Panels",      function() PSM.Broker:CloseAllPanels() end)
+    window.ownedButton    = AddButton(nil,                   ns.L("Toggle Owned Pets"),     function() ns.Broker:ToggleOwnedPetsPanel() end)
+    window.modelsButton   = AddButton(window.ownedButton,    ns.L("Toggle Models Browser"), function() ns.Broker:ToggleModelsBrowserPanel() end, true)
+    window.rouletteButton = AddButton(window.modelsButton,   ns.L("Toggle Pet Roulette"),   function() ns.Broker:TogglePetRoulette() end,        true)
+    window.teamsButton    = AddButton(window.rouletteButton, ns.L("Toggle Pet Teams"),      function() ns.Broker:TogglePetTeamsPanel() end, false, ns.Teams:ButtonTooltipSpec())
+    window.optionsButton  = AddButton(window.teamsButton,    ns.L("Toggle Options"),        function() ns.Broker:ToggleOptionsPanel() end)
+    window.closeAllButton = AddButton(window.optionsButton,  ns.L("Close All Panels"),      function() ns.Broker:CloseAllPanels() end)
 
-    PSM.UI:ApplyElvUISkin(window, "frame")
-    PSM.UI:ApplyElvUISkin(window.closeButton, "closebutton")
+    -- The dimming is only a hint, and the tooltip corrects it on hover — but reopening
+    -- the menu is the other moment the answer can have changed, so refresh it there too.
+    -- Availability changes without a reload: ticking the module in the AddOns list takes
+    -- effect immediately.
+    local function RefreshDimming()
+        local available = ns.Loader:IsBrowserAvailable()
+        for _, btn in ipairs(gatedButtons) do
+            btn:SetAlpha(available and 1 or 0.5)
+        end
+    end
 
-    PSM.state.menu = window
+    window:SetScript("OnShow", RefreshDimming)
+    RefreshDimming()
+
+    ns.state.menu = window
     window:Hide()
     return window
 end
@@ -107,42 +129,17 @@ end
 --------------------------------------------------------------------------------
 
 function menu:Toggle()
-    if not PSM.state.menu then menu:Create() end
+    if not ns.state.menu then menu:Create() end
 
-    if PSM.state.menu:IsVisible() then
-        PSM.state.menu:Hide()
+    if ns.state.menu:IsVisible() then
+        ns.state.menu:Hide()
         PetStableManagementDB.settings.showFloatingMenu = false
     else
-        PSM.state.menu:Show()
-        PSM.state.menu:Raise()
+        ns.state.menu:Show()
+        ns.state.menu:Raise()
         PetStableManagementDB.settings.showFloatingMenu = true
     end
 end
 
---------------------------------------------------------------------------------
--- INIT
---------------------------------------------------------------------------------
-
-function menu:Initialize()
-    PSM.state = PSM.state or {}
-
-    -- Click catcher to dismiss any open context menus on outside click
-    local clickCatcher = CreateFrame("Frame")
-    clickCatcher:SetFrameStrata("FULLSCREEN")
-    clickCatcher:SetFrameLevel(199)
-    clickCatcher:SetAllPoints(UIParent)
-    clickCatcher:EnableMouse(true)
-    clickCatcher:Hide()
-    clickCatcher:SetScript("OnMouseUp", function(self, button)
-        if button == "LeftButton" or button == "RightButton" then
-            for _, ctxMenu in ipairs(PSM.state.contextMenus or {}) do
-                if ctxMenu and ctxMenu.Hide then ctxMenu:Hide() end
-            end
-            PSM.state.contextMenus = {}
-            self:Hide()
-        end
-    end)
-    PSM.state.menuClickCatcher = clickCatcher
-end
-
-menu:Initialize()
+-- No click catcher here: context menus are built by `PSM.Utils:ShowContextMenu` and
+-- dismissed by `CloseDropDownMenus()` in PanelManager's OnHide.
