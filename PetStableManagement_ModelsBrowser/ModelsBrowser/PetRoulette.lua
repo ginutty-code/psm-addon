@@ -242,13 +242,5 @@ function PetRoulette:ShowPetRoulettePopup(petData)
     return true
 end
 
--- A "module load: enable menu buttons" block used to sit here, reaching back into
--- PSM.state.menu to re-enable the core menu's browser buttons and tear down the tooltip
--- overlay pinned over them. That was the visible "wake up" when the browser finally
--- loaded -- and it was only needed because the menu disabled those buttons in the first
--- place, on an availability answer it had cached at construction.
---
--- The menu no longer disables them: they stay enabled and re-read availability on hover.
--- Nothing downstream has to reach up and undo a decision that was never sound. A module
--- patching its parent's widgets on load is a sign the parent is storing state it should
--- be deriving.
+-- Nothing here reaches back into core's menu on load: its browser buttons stay enabled and
+-- re-read availability on hover, so there is no cached decision for this module to undo.

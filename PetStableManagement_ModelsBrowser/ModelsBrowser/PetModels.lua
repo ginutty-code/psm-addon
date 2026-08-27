@@ -14,19 +14,11 @@ _G.PSM.PetModels = M
 -- it allocates a new table and does several lookup-table joins per call.
 
 -- ─── Selection filters (locations, expansions) ────────────────────────────
--- **Locations and expansions are the same shape, and the rule is one function.** They look
--- different only because location matching used to split on "|": that dates from free-text
--- locations, before the move to `UiMapId`. An NPC now carries a single map id, so
--- `NpcLocation` resolves exactly one name -- checked across the data, no `UiMapNames` value
--- contains a pipe and no row has a table-valued `UiMapId`. The splitting had nothing to
--- split.
+-- Locations and expansions are the same shape, so the rule is one function -- both views
+-- and both tabs must answer it identically. An NPC carries a single `UiMapId`, so
+-- `NpcLocation` resolves exactly one name and there is nothing to split on "|".
 --
--- One rule, previously six hand-written copies: `_IsLocationSelected`,
--- `_IsExpansionSelected`, the two inline blocks in `_CalculateModelsData`, and
--- NPCDataLoader's pair. They disagreed, and one of the disagreements shipped -- "None" on
--- the Locations tab emptied the Models view and did nothing at all to the NPC view.
---
--- **The three answers are distinct and conflating any two is the bug.**
+-- The three answers are distinct, and conflating any two is the bug:
 --
 --   nil table   -- the filter was never initialised. Nothing is being asked; everything
 --                  passes.
@@ -35,10 +27,9 @@ _G.PSM.PetModels = M
 --                  expansion selection.
 --   otherwise   -- the value must be actively selected.
 --
--- **`false` counts as absent, and that is load-bearing rather than defensive.** The two
--- slices store differently: expansions go through `checkbox:GetChecked()`, which writes
--- `false` on uncheck, while locations write `nil`. So "every box unticked" is an all-false
--- table for one and an empty table for the other, and they must mean the same thing.
+-- `false` counts as absent, and that is load-bearing: expansions go through
+-- `checkbox:GetChecked()`, which writes `false` on uncheck, while locations write `nil`.
+-- "Every box unticked" must mean the same thing for both.
 --
 -- `mode` is optional and exists for the hot loops: callers filtering thousands of rows
 -- resolve it once with `SelectionMode` rather than rescanning the selection per row.
@@ -59,14 +50,12 @@ function M.SelectionAllows(selection, value, mode)
 end
 
 -- ─── Special Tames predicates ─────────────────────────────────────────────
--- The taming-rule and condition tests, in one place because they had drifted into two
--- and were about to become three. Both views and SpecialTames' own family computation
--- now answer these questions the same way by construction.
+-- The taming-rule and condition tests, in one place so both views and SpecialTames' own
+-- family computation answer them identically by construction.
 --
--- **The granularities are not interchangeable, and mixing them up is the bug this
--- prevents.** Taming skills attach to a *display*; conditions attach to an *NPC*. A
--- family is neither -- `ComputeMatchingFamilies` returns families with at least one
--- matching display, which is a seeding aid, never a filter.
+-- The granularities are not interchangeable: taming skills attach to a *display*,
+-- conditions attach to an *NPC*. A family is neither -- `ComputeMatchingFamilies` returns
+-- families with at least one matching display, which is a seeding aid, never a filter.
 
 -- Does a display's set of required taming skills satisfy the current selection?
 -- `tamingSet` is a set of rule names; `selRules` is the tristate selection map.
@@ -189,11 +178,8 @@ function M:GetModelsRecord(npcId)
     }
 end
 
--- Resolves an array of denseIndex values (the shape GetFamilyModels/
--- GetModelInfo's .npcs arrays store) to an array of full records, via
--- GetModelsRecord. Shared by every consumer that hands a family's .npcs
--- list to UI code expecting object-style npc.name/npc.classification access
--- (PopUpManager's magnify popups, Pet Roulette).
+-- Resolves an array of denseIndex values (the shape GetFamilyModels' .npcs arrays store)
+-- to full records, for UI code expecting object-style npc.name/npc.classification access.
 function M:ResolveNpcRecords(npcs)
     local resolved = {}
     local modelsData = _G.ModelsData

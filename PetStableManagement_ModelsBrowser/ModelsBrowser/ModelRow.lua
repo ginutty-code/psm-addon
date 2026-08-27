@@ -19,13 +19,9 @@ end
 
 --------------------------------------------------------------------------------
 
--- Everything the row tooltip says. Reads `row.tooltipData`, which UpdateItemRow
--- refreshes, so the tooltip is attached once at creation instead of rebuilt per row on
--- every render -- the old version installed a fresh closure capturing the item, its
--- NPC list and its name string each time a row was updated.
---
--- Returning nil for a row that has not been filled in yet suppresses the tooltip,
--- which is what the placeholder handler in CreateModelRow used to do by hand.
+-- Everything the row tooltip says. Reads `row.tooltipData`, which UpdateItemRow refreshes,
+-- so the tooltip is attached once at creation rather than reinstalled as a fresh closure
+-- on every render. Returning nil for an unfilled row suppresses the tooltip.
 local function RowTooltipSpec(row)
     local d = row.tooltipData
     if not d then return nil end

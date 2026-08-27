@@ -269,14 +269,6 @@ function ns.Minimap:Hide()
     PetStableManagementDB.settings.minimapButton.hide = true
 end
 
--- There is deliberately no minimap context menu. `PSM.Minimap:ShowContextMenu` used to
--- live here with **no callers**: OnClick spends all four combinations on panels
--- (left/right, shift+left/right), so nothing could ever open it. Every entry it offered
--- is reachable anyway -- Load Pet Model Browser is right-click and `/psm models`, Pet
--- Roulette is `/psm roulette`, Hide Minimap Button is `/psm hide`.
---
--- It survived an earlier cleanup that removed two other copies of the context-menu
--- machinery, because it *looked* different: it built its own dropdown frame instead of
--- repeating the initialiser, and rebuilt that frame under a fixed global name on every
--- call. Worth remembering that unreachable code is not found by grepping for
--- duplication -- it has to be found by asking who calls it.
+-- There is deliberately no minimap context menu: OnClick spends all four combinations
+-- on panels (left/right, shift+left/right), so nothing could open one. Everything such
+-- a menu would offer has a slash command -- `/psm models`, `/psm roulette`, `/psm hide`.

@@ -1,25 +1,21 @@
 -- State/Store.lua
 -- Slice versions, and pull-based selectors that recompute only when a dependency moved.
 --
--- The win this exists for is *leave-one-out*: the dynamic filter lists deliberately exclude
--- their own dimension -- `availableFamilies` answers "what families are still reachable given
--- the **other** filters" -- so ticking one family cannot change it. A single cache key
--- recomputed it anyway. Splitting the dependency set is the point.
+-- This exists for *leave-one-out*: the dynamic filter lists deliberately exclude their own
+-- dimension -- `availableFamilies` answers "what families are reachable given the *other*
+-- filters" -- so ticking one family cannot change it. Splitting the dependency set is the
+-- point; a single cache key recomputes it anyway.
 --
--- **Two kinds of slice, and the difference is evidence, not taste.**
+-- Two kinds of slice:
 --
---   * *Counted* -- every write goes through a funnel, so a counter is trustworthy. Only
---     claimed where a spec enforces the funnel: `selections_spec` for the five selection
+--   * *Counted* -- every write goes through a funnel, so a counter is trustworthy. Claim
+--     this only where a spec enforces the funnel: `selections_spec` for the five selection
 --     sets, `filterstate_spec` for the toggles.
 --   * *Fingerprinted* -- writes are not funnelled, so change is derived from the value.
 --     Costs a pass over the data per read, and cannot go stale.
 --
--- A counter is claimed only where "did we catch every write?" has a machine-checked answer;
--- everything else fingerprints until it earns one. A stale counter is a wrong answer, an
--- extra fingerprint pass is only slow.
---
--- **An unknown slice is always dirty**, so an unregistered dependency costs speed, never
--- correctness.
+-- A stale counter is a wrong answer; an extra fingerprint pass is only slow. An unknown
+-- slice is always dirty, so an unregistered dependency costs speed, never correctness.
 
 local _, ns = ...
 
@@ -64,16 +60,14 @@ end
 
 -- A memoised, pull-based read. `deps` is the slice list; `compute` returns the value.
 --
--- **`compute` takes no arguments, on purpose.** An argument would be part of the answer but
--- not part of the cache key, which is the classic way a memo starts returning one caller's
--- result to another. Selectors read shared state, and shared state is what slices describe.
+-- `compute` takes no arguments, on purpose: an argument would be part of the answer but
+-- not part of the cache key, which is how a memo starts returning one caller's result to
+-- another. Selectors read shared state, and shared state is what slices describe.
 --
 -- The value is returned by reference and callers must treat it as read-only -- it is the
--- same table until a dependency moves. The one consumer today (`PopulateUnifiedFilterCheckboxes`)
--- only iterates it.
--- One string for a whole dependency set, or **nil when any slice is unknown** -- the
--- caller's cue to treat the set as permanently dirty rather than cache against a partial
--- key, which would be exactly the staleness this design avoids.
+-- same table until a dependency moves.
+-- One string for a whole dependency set, or nil when any slice is unknown -- the caller's
+-- cue to treat the set as permanently dirty rather than cache against a partial key.
 local function CompositeKey(deps)
     local parts = {}
     for i = 1, #deps do
@@ -102,33 +96,23 @@ end
 -- WATCHERS
 --------------------------------------------------------------------------------
 
--- **A5.1 step 4: the same comparison, run for effect instead of for a value.** A selector
--- answers "has this changed?" when someone asks; a watcher asks on the caller's behalf and
--- runs a callback when the answer is yes. That is the whole difference, and it is why this
--- reuses `CompositeKey` rather than introducing a second notion of change -- a push channel
+-- The same comparison as a selector, run for effect instead of for a value: a watcher asks
+-- "has this changed?" on the caller's behalf and runs a callback when it has. It reuses
+-- `CompositeKey` rather than introducing a second notion of change, since a push channel
 -- that could disagree with the pull channel would be worse than no push channel at all.
+-- A watcher refreshes because state moved, not because a call site remembered to.
 --
--- It exists to delete the eleven hand-written `ReloadAndSummarise()` +
--- `UpdateDynamicFilters()` pairs in ModelsFilters. Those refresh because a *call site*
--- remembered to, so a twelfth filter write that forgets one goes silently stale. A watcher
--- refreshes because state moved.
---
--- **Known gap, stated rather than papered over: only a `Bump` wakes this.** Fingerprinted
--- slices (`pets`, `favorites`, `zone`) change without one, so a watcher will not notice a
--- pet being tamed on its own -- it notices at the next flush, which the next bump triggers.
--- Those slices already have their own refresh paths (the stable events, the favourite
--- click), so nothing regresses; it is simply not automated here. Making it so means either
--- polling the fingerprints every frame -- `pets` sorts the whole stable, so no -- or
--- funnelling their writes, which is the standing optional item that would turn `pets` into
--- a counter.
+-- Known gap: only a `Bump` wakes this. Fingerprinted slices (`pets`, `favorites`, `zone`)
+-- change without one, so a watcher notices a newly tamed pet only at the next flush. Those
+-- slices have their own refresh paths, so nothing regresses -- it is simply not automated.
 local watchers    = {}
 local schedule                     -- how the host spells "soon"
 local flushQueued = false
 
--- **Core cannot pick this itself.** `C_Timer.After` is the client's, and the headless suite
--- has no frames -- a Store that scheduled its own flush would be untestable at exactly the
--- point the coalescing lives. Installed with the client's timer at the bottom of this file
--- when one exists; the specs install a drainable queue instead.
+-- Injected rather than chosen here: `C_Timer.After` is the client's, and the headless
+-- suite has no frames, so a Store that scheduled its own flush would be untestable at
+-- exactly the point the coalescing lives. The client's timer is installed at the bottom
+-- of this file when one exists; the specs install a drainable queue instead.
 function Store:SetScheduler(fn)
     schedule = fn
 end
@@ -159,17 +143,12 @@ NotifyWatchers = function()
     schedule(function() Store:Flush() end)
 end
 
--- **The manual wake, for change a fingerprint can see but no funnel can announce.**
+-- The manual wake, for change a fingerprint can see but no funnel can announce: only
+-- `Bump` schedules a flush, so something that changes `search` or `zone` has to say so.
 --
--- Only `Bump` schedules a flush, and fingerprinted slices have no funnel to bump from --
--- so something that changes `search` or `zone` has to say so. `Touch` is that, and it is
--- deliberately argument-free: it does not claim *what* changed, it only asks the watchers
--- to re-read their dependencies. A caller that named a slice could name the wrong one and
--- be believed; a caller that names nothing cannot be wrong, because every version is
--- recomputed from the data either way.
---
--- Cheap for the same reason: a Touch with nothing behind it costs one composite-key
--- comparison per watcher on the next frame and fires nothing.
+-- Deliberately argument-free -- it asks watchers to re-read their dependencies rather
+-- than claiming what changed, so it cannot name the wrong slice and be believed. A Touch
+-- with nothing behind it costs one composite-key comparison per watcher and fires nothing.
 function Store:Touch()
     NotifyWatchers()
 end
@@ -198,13 +177,9 @@ Store:Declare("tamingRules")
 Store:Declare("conditions")
 Store:Declare("toggles")
 
--- Ownership, modelled by **content rather than count**.
---
--- This is A5.2, and it is fixed here rather than deferred because the fingerprint had to
--- decide something. `GenerateCacheKey` uses `#PSM.state.stablePets` as its ownership proxy,
--- so releasing one pet and taming another leaves the key identical while the display-ID set
--- changes -- and "Hide Owned" keeps showing the old answer. Narrow (it needs the browser
--- open across a stable transaction) and partly masked by the 0.2s expiry, but real.
+-- Ownership, modelled by content rather than count: `#ns.state.stablePets` leaves the key
+-- identical when one pet is released and another tamed, so "Hide Owned" keeps showing the
+-- old answer.
 Store:Declare("pets", function()
     local ids = {}
     for _, pet in ipairs(ns.state.stablePets or {}) do
@@ -214,19 +189,14 @@ Store:Declare("pets", function()
     return table.concat(ids, ",")
 end)
 
--- **The Owned Pets panel needs a stricter answer than `pets`.** Two differences, both of
--- which `pets` gets deliberately right for the browser and wrong here:
+-- The Owned Pets panel needs a stricter answer than `pets`, which sorts and keys on
+-- displayID because model filtering cannot care about either:
 --
---   * **Order matters.** `pets` sorts before hashing, because model filtering cannot care
---     what order the stable is in. This panel lists individual pets in `stablePets` order
---     when no sort column is chosen, so DragDrop reordering changes the answer.
---   * **Identity, not model.** `petNumber` is unique per pet, so releasing one pet and
---     taming another that shares a model is a real change here.
---
--- **`slotID` is in the fingerprint because array order alone is not enough.** Swapping two
--- occupied slots reorders the list, which a positional hash catches. Moving a pet into an
--- *empty* slot does not -- same pets, same sequence, one different `slotID` -- and the panel
--- displays slot numbers and can sort by them.
+--   * Order matters -- this panel lists pets in `stablePets` order when no sort column is
+--     chosen, so DragDrop reordering changes the answer.
+--   * Identity, not model -- `petNumber` is unique per pet.
+--   * `slotID` too: moving a pet into an *empty* slot leaves the same pets in the same
+--     sequence, and the panel displays slot numbers and can sort by them.
 Store:Declare("ownedPets", function()
     local parts = {}
     for i, pet in ipairs(ns.state.stablePets or {}) do
@@ -248,15 +218,10 @@ end)
 -- The Owned Pets panel's slices
 --------------------------------------------------------------------------------
 
--- **Fingerprinted throughout, and this panel needed no write funnel at all.** The browser
--- funnelled its selections because it wanted *counters* for hot, large sets -- 61 families,
--- 400+ locations, rescanned on every pill click. These sets are small (a handful of specs,
--- tamers, families) and `UI:GenerateCacheKey` already hashed all three on every render, so
--- fingerprinting costs exactly what the old key cost and cannot go stale.
---
--- Together with `ownedPets` above, these are the complete input set of
--- `UI:_CalculateRenderData` -- checked by reading it rather than by trusting the old cache
--- key, which turned out to be missing one (see `panelWidth`).
+-- Fingerprinted rather than funnelled: these sets are small, so a fingerprint costs about
+-- what the old render key cost and cannot go stale. Counters are for the browser's hot,
+-- large sets. Together with `ownedPets` above these are the complete input set of
+-- `UI:_CalculateRenderData`.
 
 Store:Declare("ownedSpecs",     function() return ns.Utils:GetTableHash(ns.state.selectedSpecs) end)
 Store:Declare("ownedFamilies",  function() return ns.Utils:GetTableHash(ns.state.selectedFamilies) end)
@@ -275,15 +240,10 @@ Store:Declare("ownedSearch", function()
     return box and box:GetSearchText() or ""
 end)
 
--- **The input the old cache key never had.** `_CalculateRenderData` derives `colCount`,
--- `colWidth` and `rowTotal` from `ns.state.content:GetWidth()`, so resizing the panel
--- changes the correct answer while leaving the key identical. That is why the resize
--- handler in PanelManager had to invalidate the cache by hand -- state living in a frame is
--- invisible to invalidation, which is the case A5.0 was written about, in the file A5.0 was
--- written about.
---
--- Fingerprinted rather than bumped on resize: the width is readable at any moment, so
--- deriving it is strictly more truthful than trusting one handler to announce every change.
+-- `_CalculateRenderData` derives `colCount`, `colWidth` and `rowTotal` from
+-- `ns.state.content:GetWidth()`, so a resize changes the correct answer. Without this slice
+-- the resize handler has to invalidate by hand -- state living in a frame is invisible to
+-- invalidation. Fingerprinted rather than bumped: the width is readable at any moment.
 Store:Declare("panelWidth", function()
     local content = ns.state.content
     return tostring(content and content.GetWidth and content:GetWidth() or 0)

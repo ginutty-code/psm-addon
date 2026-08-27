@@ -1,23 +1,14 @@
 -- State/Filters.lua
 -- The Models Browser's five tristate filter toggles, and the only way to read or write them.
 --
--- **A5.0: one home.** These used to live in three places at once -- the panel frame, this
--- addon's SavedVariables, and a `PSM.state.show*` mirror -- with every toggle handler
--- writing the same fact to all three by hand. The mirror turned out to be written fifteen
--- times and read never, so it was simply deleted. This file removes the second copy: the
--- frame no longer holds filter state, and SavedVariables is the single home.
+-- SavedVariables is the single home, deliberately -- not a table here and not the panel
+-- frame. It is the copy that has to be correct anyway, so there is no cache to go stale,
+-- no load step to sequence, and no way for a panel rebuild to disagree with what the
+-- player saved.
 --
--- SavedVariables, rather than a table here, on purpose. It is the copy that always had to
--- be correct -- it survives a reload, and every toggle already wrote through to it -- so
--- making it *the* value means there is no cache to go stale, no load step to sequence, and
--- no way for a panel rebuild to disagree with what the player saved. A third table would
--- have been a third thing to keep in sync, which is the problem, not the fix.
---
--- **Why this matters beyond tidiness.** A5's version-counter store can only invalidate
--- what it sees, and it sees writes that go through a setter. State sitting on a frame is
--- invisible to it: a selector would go stale on exactly the interaction the player performs
--- most, and it would look like a caching bug rather than a state-ownership one. `Set` below
--- is the single write funnel that makes the store possible.
+-- `Set` below is the single write funnel, which is what makes the store's version
+-- counters work: state sitting on a frame is invisible to them, so a selector would go
+-- stale on the interaction the player performs most and look like a caching bug.
 --
 -- Filter state stays name-keyed in SavedVariables. No user migration -- an existing saved
 -- layout keeps applying, which is a hard requirement.
@@ -84,14 +75,7 @@ function FilterState:Reset()
     for name in pairs(TOGGLES) do self:Set(name, nil) end
 end
 
--- There is deliberately no `AnyActive()` here. Three sites in ModelsDataLoader build an
--- "are any other filters active" test over these toggles, and it looked like the obvious
--- fourth method -- but all three pair showPetsInMyZone with `panel.currentPlayerZone`,
--- because an active zone filter with no zone resolved matches nothing. A blanket helper
--- would answer true where those sites answer false, and it would be *reused*, which is
--- how a subtly wrong helper does more damage than three honest copies.
---
--- Those three copies are a real duplicate -- they are the dependency set for
--- `availableFamilies` written out by hand three times, which is exactly the shape A5.1
--- turns into a slice. Left for A5.1, where the zone condition can be modelled rather
--- than flattened.
+-- There is deliberately no `AnyActive()` here. The three sites in ModelsDataLoader that
+-- test "are any other filters active" all pair showPetsInMyZone with
+-- `panel.currentPlayerZone`, because an active zone filter with no zone resolved matches
+-- nothing. A blanket helper would answer true where they answer false -- and be reused.

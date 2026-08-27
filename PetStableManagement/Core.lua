@@ -1,36 +1,22 @@
 -- Core.lua
 -- Core initialization and global setup for PetStableManagement
 
--- The client hands every file of an addon its folder name and a table private to
--- that addon. A3 is moving core onto `ns`; `_G.PSM` stays as the bridge to the
--- Models Browser, which is a separate addon and so gets a different `ns`.
 local _, ns = ...
 
--- The shared global. It is no longer core's namespace -- it is the *bridge* between two
--- addons, and holds only what Shared/PublicAPI.lua deliberately publishes plus whatever
--- the Models Browser attaches to it when it loads. Core.lua is first in the .toc, so
--- creating it here means it exists for every later file of either addon.
+-- The bridge between the two addons, not core's namespace: it holds what
+-- Shared/PublicAPI.lua publishes plus whatever the Models Browser attaches. Core.lua is
+-- first in the .toc, so creating it here means it exists for every later file of either.
 _G.PSM = _G.PSM or {}
 
 -- ─── Reaching the Models Browser ─────────────────────────────────────────────
 --
--- The browser is a separate addon, so it gets a different `ns` and there is no way to
--- reach it except the shared global. This names that reach once, instead of restating it
--- at each of the ~47 call sites, and makes it greppable: `ns.Browser.` in a core file
--- means "this crosses into the other addon", and nothing else does.
---
--- **Writes forward too, and that is not decoration.** PanelManager clears four of the
--- browser's caches by hand. Had this table only forwarded reads, those four assignments
--- would have landed in this empty table instead of the global, and the caches would
--- simply have stopped being cleared -- no error, just memory held for the session. Those
--- four writes are a layering violation (core reaching into another addon's internals) and
--- are the next thing to remove, replaced by a service the browser owns. Forwarding them
--- is what keeps 3g a mechanical change rather than a behavioural one.
+-- `ns.Browser.` in a core file means exactly one thing: this crosses into the other
+-- addon. Writes forward as well as reads -- PanelManager clears four browser caches by
+-- hand, and a read-only proxy would swallow those assignments silently.
 --
 -- Reading a name the browser has not loaded yet gives nil, which is what every
 -- `if ns.Browser.ModelsPanel then` gate expects. Reading a *core* name through it raises,
--- via the trap PublicAPI.lua installs -- that would mean a file asking the other addon
--- for something it owns itself.
+-- via the trap PublicAPI.lua installs.
 ns.Browser = setmetatable({}, {
     __index    = function(_, key) return _G.PSM[key] end,
     __newindex = function(_, key, value) _G.PSM[key] = value end,
@@ -84,29 +70,13 @@ PetStableManagementDB = PetStableManagementDB or {
 -- WOW API REFERENCES
 --------------------------------------------------------------------------------
 --
--- These are aliases, and an alias taken at file scope is a **snapshot, not a
--- reference**: whatever the global held when this file loaded is what it holds
--- forever. That is fine for the base API, which is up before any addon runs. It is a
--- bug for anything that can appear later.
---
--- Removed from this block for that reason:
---
---   StableFrame               Blizzard_StableUI is load-on-demand, so this captured
---                             nil on any session where the stable had not been opened,
---                             and CollectStablePets then failed for the whole session.
---                             Resolved in Events.lua:CollectAndRender instead, where
---                             the frame is guaranteed to be up.
---   UIDropDownMenu_*          Blizzard_UIDropDownMenu is a separate addon and need not
---   ToggleDropDownMenu        load before us. Called through the globals now, which is
---   EasyMenu                  what the rest of the addon already did -- three of these
---                             aliases had no callers at all.
---
--- Before adding one: is the global guaranteed to exist when this file runs? If not,
--- call it through the global at the point of use.
+-- An alias taken at file scope is a snapshot, not a reference. That is fine for the base
+-- API, which is up before any addon runs, and a bug for anything that can appear later
+-- (load-on-demand frames, separate Blizzard addons) -- call those through the global at
+-- the point of use instead.
 --
 -- PSM.GetSpellInfo is *expected* to be nil on modern clients -- it is the legacy half
--- of Utils:GetSpellNameCompat, which prefers C_Spell.GetSpellName and falls back only
--- if the old global is there. Nil is the answer, not a missing capture.
+-- of Utils:GetSpellNameCompat. Nil is the answer, not a missing capture.
 
 -- Blizzard's stable frame, looked up on every call rather than aliased. There is no
 -- PSM.StableFrame field on purpose: a field would be a snapshot again, and there are
@@ -194,19 +164,11 @@ end
 
 -- ─── Stable-frame buttons ────────────────────────────────────────────────────
 --
--- These anchor to Blizzard's "Put in Stable" button, which is **not reliably present
--- when PET_STABLE_SHOW fires**. It has been observed missing while our own buttons
--- were already on screen, so it is created lazily or conditionally by Blizzard rather
--- than existing for the life of the frame.
---
--- This used to be a hard requirement guarded by a bare `return`. Losing that race took
--- both buttons away for the rest of the session, logged nothing, and survived a
--- /reload -- because the next show lost the race too. A silent early return in code
--- that runs on an event is indistinguishable from the feature not existing.
---
--- So the anchor is optional now, and position is recomputed on every show rather than
--- fixed at creation: a late-appearing anchor is picked up without the buttons ever
--- having to vanish to wait for it.
+-- These anchor to Blizzard's "Put in Stable" button, which is not reliably present when
+-- PET_STABLE_SHOW fires -- it is created lazily. So the anchor is optional, and position
+-- is recomputed on every show rather than fixed at creation: a late-appearing anchor is
+-- picked up without the buttons ever having to vanish to wait for it. Never gate their
+-- creation on finding it.
 
 local STABLE_BUTTON_SPACING = 5
 
@@ -296,25 +258,15 @@ function ns:CreateSaveTeamButtonOnStable()
     })
     StableFrame.PSM_TeamsListButton = teamsListButton
 
-    -- SAVING A TEAM IS NOT STABLE-ONLY. This button is a convenience for players who
-    -- arrange their pets in Blizzard's own stable UI and want to keep that arrangement,
-    -- so it captures the *live* slot layout -- and that is the only reason it needs the
-    -- stable open. It calls Teams:SaveTeam/UpdateTeam without a `slots` argument, and
-    -- those fall back to Teams:GetCurrentSlots(), which reads C_StableInfo.
+    -- SAVING A TEAM IS NOT STABLE-ONLY. This button captures the *live* slot layout --
+    -- it calls SaveTeam/UpdateTeam without a `slots` argument, so they fall back to
+    -- Teams:GetCurrentSlots() and C_StableInfo, and that is the only reason it needs the
+    -- stable open. Every other route passes `slots` explicitly and works anywhere. Only
+    -- *applying* a team requires a stable visit.
     --
-    -- Every other route passes `slots` explicitly (built by Teams:SlotRecord) and has no
-    -- stable requirement at all: the Teams panel and the dialogs in Shared/Dialogs.lua
-    -- create and edit teams anywhere, any time. Persistence is
-    -- PetStableManagementDB.characters[<char>].teams, reached through CharData() in
-    -- TeamsData.lua and mutated in place -- there is no separate "write" step, which is
-    -- why nothing outside the stable needs a Save button.
-    --
-    -- Only *applying* a team requires a stable visit.
-    --
-    -- Deliberately no disabled state and no "visit a stable master" tooltip: this button
+    -- Deliberately no disabled state and no "visit a stable master" tooltip: the button
     -- is parented to StableFrame and hidden on PET_STABLE_CLOSED, so it is never visible
-    -- while the stable is shut. Both used to exist, and both taught the reader that
-    -- teams can only be saved at a stable, which is false.
+    -- while the stable is shut, and both taught the reader something false.
     local saveButton = Widgets.Button(StableFrame, {
         name       = "PSM_SaveTeamButton",
         text       = ns.L("Save Team"),

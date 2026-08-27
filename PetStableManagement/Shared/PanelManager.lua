@@ -24,27 +24,17 @@ end
 
 -- ─── Combat guard ─────────────────────────────────────────────────────────────
 
--- The one check every PSM window makes before it opens. Previously each panel either
--- hand-rolled its own UnitAffectingCombat check (Ability Browser, Special Tames,
--- Models Browser -- three call sites, three copies) or had none at all (Owned Pets,
--- Teams, Export, Options, Pet Roulette, Model Magnifier all opened straight into
--- combat with no guard, which is what actually produced the protected-call errors
--- this exists to prevent). One function, called from the one real "open" verb per
--- window rather than from every click handler that can reach it -- see Backlog.md.
+-- The one check every PSM window makes before it opens, called from the one real "open"
+-- verb per window rather than from every click handler that can reach it.
 function ns.PanelManager:CombatBlocked(label)
     if not UnitAffectingCombat("player") then return false end
     ns.Utils:Msg("ERROR", ns.L("%s cannot open during combat.", label))
     return true
 end
 
--- Tells the player *why* a panel needed the clamp-inset workaround above, rather than
--- leaving them to guess after finding a panel bigger than their screen. Fires on every
--- show while oversized, not just the first -- a one-time-per-session version missed a
--- player who didn't catch it the first time and had no way to see it again. Same
--- reasoning as `GroupedView.lua`'s `ReportGroupFailure`: a message that only goes to
--- chat is easy to miss with a large panel covering the chat frame, so this uses
--- UIErrorsFrame too -- it renders in front of whatever's on screen, chat keeps the
--- permanent record.
+-- Tells the player *why* a panel is bigger than their screen. Fires on every show while
+-- oversized, not just the first, and goes to UIErrorsFrame as well as chat -- a large
+-- panel covers the chat frame, so chat alone is easy to miss.
 local function WarnIfOversized(panel, title)
     local uw, uh = UIParent:GetWidth(), UIParent:GetHeight()
     local pw, ph = panel:GetWidth(), panel:GetHeight()
@@ -82,43 +72,21 @@ function ns.PanelManager:CreateBasePanel(name, config)
     -- one that doesn't, it pins the oversized frame so the far edge can never be
     -- dragged back into reach.
     --
-    -- SetClampRectInsets widens (or narrows) the clamp rect per edge, and the sign
-    -- convention is NOT symmetric -- confirmed against Wowpedia's own example
-    -- (`SetClampRectInsets(42, -42, -42, 42)`, permitting overhang on every edge):
-    -- left/bottom need *positive* values to permit overhang, right/top need
-    -- *negative* values. Getting this backwards on left/bottom doesn't just fail to
-    -- help -- it actively enforces a *minimum* distance from those edges, which is
-    -- how the first version of this fix pinned a panel with its top permanently
-    -- off-screen and no drag direction that could bring it back.
+    -- SetClampRectInsets widens the clamp rect per edge, and the sign convention is NOT
+    -- symmetric: left/bottom need *positive* values to permit overhang, right/top need
+    -- *negative* ones. Backwards on left/bottom enforces a *minimum* distance from those
+    -- edges instead, pinning the panel's top permanently off-screen.
     --
-    -- Symmetric on all four edges, not pinning top/right on-screen. Pinning them was
-    -- tried and reverted: if the panel's height alone exceeds the screen (the actual
-    -- reported case -- 1099x820 needed, 1307x679 available, width was never the
-    -- problem), a pinned top makes the cut-off bottom *permanently* unreachable by any
-    -- drag, since the top can't move and the height doesn't change. Letting every edge
-    -- move means the player can trade which part is visible by dragging -- not see the
-    -- whole thing at once, but reach every part of it. Dragging works from anywhere on
-    -- the panel's blank area, not just the title bar -- Widgets.MovableFrame enables
-    -- mouse and registers drag on the whole frame, and the border/background child
-    -- doesn't claim its own mouse, so it doesn't block that.
+    -- Symmetric on all four edges, deliberately not pinning top/right: when the panel's
+    -- height alone exceeds the screen, a pinned top makes the cut-off bottom unreachable
+    -- by any drag. Letting every edge move lets the player trade which part is visible.
     panel:SetClampRectInsets(400, -400, -400, 400)
 
-    -- ESC. This looks like it could be left to Blizzard, because every panel used to
-    -- pass an `escKeyframe` for UISpecialFrames -- but those names never resolved. The
-    -- frames are created as "panel", "teamsPanel", "modelsPanel"..., while the strings
-    -- registered were "PetStableManagementPanel", "PSMTeamsPanel" and so on, so
-    -- _G[name] was nil for every one of them and Blizzard's path closed nothing. The
-    -- hand-written handler that used to sit here was the only thing that worked, and
-    -- removing it in favour of the registration broke Escape on all five panels.
-    --
-    -- One owner, and it is the kit's: CloseOnEscape sets propagation *before* hiding,
-    -- where the old hand-written version set it afterwards and only on the following
-    -- keystroke -- which is why the first key pressed after opening a panel used to go
-    -- missing. Non-ESCAPE keys propagate, so keybinds keep working while a panel is up.
-    --
-    -- `config.onEscape` is not wired through: nothing ever passed one. (The onEscape
-    -- options elsewhere in the addon belong to Widgets.EditBox, a different callback on
-    -- a different widget.)
+    -- ESC is the kit's job, not UISpecialFrames': these panels are created as "panel",
+    -- "teamsPanel", "modelsPanel"..., so _G[name] is nil and Blizzard's path closes
+    -- nothing. CloseOnEscape sets propagation *before* hiding -- doing it afterwards
+    -- swallows the first key pressed after a panel opens. Non-ESCAPE keys propagate, so
+    -- keybinds keep working while a panel is up.
     Widgets.CloseOnEscape(panel)
 
     -- Resizable
@@ -212,12 +180,9 @@ function ns.PanelManager:CreateBasePanel(name, config)
         panel.maximizeButton = maxBtn
     end
 
-    -- Title. Always at Theme.CHROME.TITLE_Y -- no per-panel override. This used to
-    -- read `config.title == "Pet Model Browser" and -20 or -35`, then later a
-    -- `config.titleOffset` escape hatch (Models Browser's only user, at -20), which
-    -- silently moved everything anchored off the title (CreateSearchBox always
-    -- anchors to panel.title). A13 removed the escape hatch: a panel that needs more
-    -- room below the toolbar moves *its own* chrome, not the title every panel shares.
+    -- Title. Always at Theme.CHROME.TITLE_Y -- no per-panel override: CreateSearchBox
+    -- anchors to panel.title, so moving it moves everything below it. A panel that needs
+    -- more room below the toolbar moves *its own* chrome.
     if config.title then
         panel.title = Widgets.Label(panel, {
             fontSize = 14,
@@ -300,11 +265,8 @@ function ns.PanelManager:CreateSearchBox(panel, onTextChanged, config)
     end)
 
     -- The query, as opposed to the raw contents: empty while the placeholder is on
-    -- screen. **Read this, never GetText.** The placeholder is decoration; treating it
-    -- as input makes every panel open filtered to a string the user never typed, which
-    -- is exactly what happened once the placeholder started displaying reliably -- nine
-    -- call sites were reading GetText and had only ever worked because the placeholder
-    -- used to erase itself.
+    -- screen. Read this, never GetText -- treating the placeholder as input opens every
+    -- panel filtered to a string the user never typed.
     function searchBox:GetSearchText()
         local text = self:GetText()
         if text == self.placeholderText then return "" end
@@ -313,15 +275,11 @@ function ns.PanelManager:CreateSearchBox(panel, onTextChanged, config)
 
     -- Back to the idle state, placeholder and all. SetText("") alone leaves the box
     -- blank, since the placeholder is otherwise only restored when focus is lost.
-    -- **A programmatic clear still notifies, and that is the whole point of NotifyNow.**
-    -- `ShowPlaceholder` goes through SetText, which fires OnTextChanged with
-    -- `userInput = false` -- correctly ignored by the handler above, since that is how the
-    -- placeholder used to erase itself. The consequence was that clearing the box changed
-    -- what the user sees and told nobody. Every caller papered over it by following
-    -- ClearSearch with an explicit reload, so it never showed; the moment a *store* reads
-    -- the box, an unannounced clear becomes silent staleness on Reset All Filters.
     --
-    -- Guarded on an actual change, so clearing an already-empty box stays quiet.
+    -- A programmatic clear still notifies, which is what NotifyNow is for: ShowPlaceholder
+    -- goes through SetText, whose OnTextChanged carries `userInput = false` and is ignored
+    -- by the handler above, so without this a clear would change the screen and tell no
+    -- one. Guarded on an actual change, so clearing an already-empty box stays quiet.
     function searchBox:ClearSearch()
         local hadText = self:GetSearchText() ~= ""
         self:ClearFocus()
@@ -329,9 +287,8 @@ function ns.PanelManager:CreateSearchBox(panel, onTextChanged, config)
         if hadText then NotifyNow("") end
     end
 
-    -- Retarget the placeholder without disturbing what the user typed. Callers used to
-    -- assign placeholderText and call SetText themselves, which fired the handler above
-    -- and cleared the box.
+    -- Retarget the placeholder without disturbing what the user typed. Assigning
+    -- placeholderText and calling SetText directly fires the handler above and clears it.
     function searchBox:SetPlaceholder(text)
         local showing = self:GetText() == self.placeholderText or self:GetText() == ""
         self.placeholderText = text
@@ -495,11 +452,9 @@ function ns.PanelManager:CleanupPanel(panel)
         ns.UI:CreateRenderCache()
         ns._debounceTimer = nil
 
-        -- The browser's own caches, released by the browser. This used to be four
-        -- assignments into another addon's internals -- which put four names on the
-        -- cross-addon surface, and dropped two live C_Timer handles without cancelling
-        -- them, so a pending render could fire straight afterwards and refill what had
-        -- just been cleared.
+        -- The browser's own caches, released by the browser: reaching in and nil-ing them
+        -- from here would drop its live C_Timer handles without cancelling them, letting
+        -- a pending render refill what was just cleared.
         local browserPanel = ns.Browser.ModelsPanel
         if browserPanel and browserPanel.ReleaseCaches then
             browserPanel:ReleaseCaches()
@@ -579,14 +534,9 @@ function ns.PanelManager:UpdatePanelBackgrounds()
     end
 end
 
--- **No cache invalidation here any more, and no parameter for one.** It used to end with
--- `if invalidateCacheCallback then ... else ns._renderCache = nil end` -- but neither of the
--- two callers ever passed the callback, so the fallback always ran, and for the Teams panel
--- that meant clearing the *Owned Pets* render cache, which is not its cache.
---
--- Unnecessary now regardless: the width this handler changes is `panelWidth`, a store slice,
--- so the render selector sees the resize on its own. The `renderCallback` below is what
--- makes that happen.
+-- No cache invalidation here, and no parameter for one: the width this handler changes is
+-- `panelWidth`, a store slice, so the render selector sees the resize on its own via the
+-- `renderCallback` below.
 function ns.PanelManager:CreateScrollPreservingResizeHandler(panel, scrollFrame, content, renderCallback)
     if not panel or not scrollFrame or not content then return end
 

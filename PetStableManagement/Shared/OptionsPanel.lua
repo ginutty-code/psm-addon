@@ -633,9 +633,7 @@ panel:SetScript("OnShow", function(self)
             end
 
             -- Applying the default opacity is this handler's job precisely because the
-            -- silent SetValue above skipped the slider's own handler. Reset used to
-            -- write the default opacity to the DB and repaint nothing with it, so the
-            -- UI kept the old opacity until something unrelated forced a redraw.
+            -- silent SetValue above skipped the slider's own handler.
             ns.Config:UpdateColors()
             ns.PanelManager:UpdatePanelBackgrounds()
 

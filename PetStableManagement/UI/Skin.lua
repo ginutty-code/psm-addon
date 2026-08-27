@@ -1,9 +1,8 @@
 -- UI/Skin.lua
 -- The one place that knows ElvUI exists.
 --
--- Before this file, 86 call sites each remembered to call ApplyElvUISkin with the
--- right string. That is the failure mode this file exists to remove: PSM.Widgets
--- skins what it builds, so the count of hand-written skin calls only goes down.
+-- PSM.Widgets skins what it builds, so the count of hand-written skin calls only goes
+-- down.
 --
 -- Rules:
 --   * Nothing outside this file may reference the ElvUI global.
@@ -28,13 +27,8 @@ local handlers = {
     collapsebutton = function(S, f) S:HandleButton(f)      end,
     editbox        = function(S, f) S:HandleEditBox(f)     end,
     closebutton    = function(S, f) S:HandleCloseButton(f) end,
-    -- Not S:HandleDropDownBox. That restyles the frame but leaves the arrow button
-    -- and the text where Blizzard put them, which does not match the rest of the
-    -- addon. What follows is the treatment PSM has always shipped, lifted verbatim
-    -- from a local helper in OwnedPets/Filters.lua -- the last place the ElvUI global
-    -- escaped this file, and the reason `dropdown` had a handler here that nothing
-    -- called. Anyone who had written skin = "dropdown" would have got a look no other
-    -- dropdown in the addon has.
+    -- Not S:HandleDropDownBox: it restyles the frame but leaves the arrow button and
+    -- the text where Blizzard put them, which does not match the rest of the addon.
     --
     -- Deferred a tick: ElvUI has not finished with the dropdown at construction time,
     -- so repositioning immediately is overwritten.
@@ -75,20 +69,12 @@ local handlers = {
         if S.HandleSliderFrame then S:HandleSliderFrame(f) end
     end,
 
-    -- The Owned Pets reorder arrows. ElvUI's own next/prev treatment, so they match the
-    -- rest of a skinned UI instead of sitting in it as Blizzard scrollbar art.
-    --
-    -- HandleNextPrevButton rather than rotating ElvUI's ArrowUp media by hand, which is
-    -- what `resizegrip` below does: this is ElvUI's function *for* directional arrow
-    -- buttons, so it handles the normal/pushed/disabled states together and keeps
-    -- working if ElvUI changes its arrow art. Rotating the texture ourselves would only
-    -- restyle the normal state and leave the other two as scrollbar art.
-    --
-    -- Guarded like the dropdown handler above: these are the two ElvUI helpers PSM calls
-    -- that are not part of its long-stable core. Without ElvUI, Skin.Apply returns before
-    -- the handler and the buttons keep their Blizzard arrows -- which is the right
-    -- fallback, and better than rotating Skin.Texture("ArrowUp"), whose non-ElvUI
-    -- fallback is a plus sign that looks identical upside down.
+    -- The Owned Pets reorder arrows. HandleNextPrevButton rather than rotating ElvUI's
+    -- ArrowUp media by hand (what `resizegrip` below does): it is ElvUI's function *for*
+    -- directional arrow buttons, so it handles normal/pushed/disabled together. Guarded
+    -- like the dropdown handler above; without ElvUI the buttons keep their Blizzard
+    -- arrows, which beats rotating Skin.Texture("ArrowUp") -- its non-ElvUI fallback is a
+    -- plus sign that looks identical upside down.
     reorderup = function(S, f)
         if S.HandleNextPrevButton then S:HandleNextPrevButton(f, "up") end
     end,
@@ -103,10 +89,9 @@ local handlers = {
         f:GetNormalTexture():SetRotation(-2.35)
     end,
 
-    -- ElvUI has no HandleScrollFrame: a scroll frame is an invisible viewport, and
-    -- what needs skinning is its ScrollBar child, which callers skin separately.
-    -- This entry exists so the four "scrollframe" call sites read as a decision
-    -- rather than as a typo that silently did nothing for years.
+    -- ElvUI has no HandleScrollFrame: a scroll frame is an invisible viewport, and what
+    -- needs skinning is its ScrollBar child, which callers skin separately. `false` marks
+    -- this as known-and-nothing-to-do, so it is not counted as an unknown skin type.
     scrollframe = false,
 }
 

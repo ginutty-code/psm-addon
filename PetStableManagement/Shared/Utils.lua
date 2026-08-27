@@ -32,13 +32,9 @@ end
 -- CHAT MESSAGES
 --------------------------------------------------------------------------------
 
--- The one place a confirmation, warning, or failure reaches the chat frame. Every
--- print() call site used to build its own colour and its own spelling of the addon's
--- name -- "PetStableManagement:" in one file, "Pet Stable Management:" in another, no
--- prefix at all in most -- and two different oranges for "warning". `kind` is one of
--- Config.COLORS' ERROR / WARNING / SUCCESS keys, so the three message colours and
--- every other semantic use of that same colour (e.g. TeamsPanel's active-team-name
--- text) come from one definition. See Backlog.md.
+-- The one place a confirmation, warning, or failure reaches the chat frame -- never
+-- print() directly. `kind` is one of Config.COLORS' ERROR / WARNING / SUCCESS keys, so
+-- the message colours and every other semantic use of them share one definition.
 local MSG_PREFIX = "Pet Stable Management: "
 
 function ns.Utils:Msg(kind, text)
@@ -151,16 +147,8 @@ end
 -- UI HELPERS
 --------------------------------------------------------------------------------
 
--- `CreateButtonTooltipOverlay` used to live here: an invisible, mouse-enabled frame
--- pinned over a disabled button so it could show a tooltip explaining why. It existed
--- purely because a disabled Blizzard button never fires OnEnter.
---
--- The overlay was the wrong end of the problem. It had to be shown and hidden in step
--- with a state nothing re-evaluated, and when it fell out of step it silently ate clicks
--- on a button that had become usable -- which two other files then worked around by
--- reaching in and tearing the overlay down by hand. Leaving the button *enabled* and
--- giving it an ordinary live tooltip removes the overlay, both workarounds, and the
--- possibility of the state going stale, because no state is stored.
+-- No tooltip overlay for disabled buttons: leave the button *enabled* and give it an
+-- ordinary live tooltip instead. See Menu.lua's gated buttons.
 
 -- Shows a context menu at the cursor using WoW's UIDropDownMenu system.
 -- menuList: array of { text, func, notCheckable, isTitle }

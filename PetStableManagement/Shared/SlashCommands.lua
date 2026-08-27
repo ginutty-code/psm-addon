@@ -100,15 +100,10 @@ end
 
 SLASH_PETSWAP1 = "/petswap"
 
--- Read at call time, not captured at file scope.
---
--- This was `local PETSWAP_MAX_SLOT = PSM.Config and PSM.Config.MAX_STABLE_SLOTS or 205`,
--- which works today only because Config is TOC line 18 and this file is 33. It is the
--- same snapshot-not-reference pattern that `ModelRow.lua` was fixed for, with one extra
--- hazard: the `and`/`or` guard means a load-order change would not error, it would
--- silently freeze the limit at 205 and reject valid slots with a confident message
--- quoting the wrong number. **A guarded capture fails more quietly than an unguarded
--- one, which makes it worse, not safer.**
+-- Read at call time, not captured at file scope. A guarded capture
+-- (`local MAX = ns.Config and ns.Config.MAX_STABLE_SLOTS or 205`) would survive a
+-- load-order change without erroring, silently freezing the limit and rejecting valid
+-- slots with a confident message quoting the wrong number.
 local function MaxStableSlot()
     return (ns.Config and ns.Config.MAX_STABLE_SLOTS) or 205
 end

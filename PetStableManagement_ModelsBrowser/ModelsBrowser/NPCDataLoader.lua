@@ -76,29 +76,16 @@ end
 -- The player's pets represented in this list, counted two ways: `unique` collapses pets
 -- that share a model, `total` counts every pet record.
 --
--- **Ownership is only knowable per display ID.** Blizzard's stable API reports a pet's
--- displayID, petNumber and specID -- but not the creature it was tamed from -- so "do I own
--- this NPC" has no answer available. What the player wants to know has one: how many of
--- *their pets* are represented here.
+-- Ownership is only knowable per display ID: Blizzard's stable API does not report the
+-- creature a pet was tamed from, so "do I own this NPC" has no answer.
 --
--- **Both numbers come from walking the stable, not the NPC list, and that is the design.**
--- Walking the NPC list and asking "is this owned" counts one pet once per NPC sharing its
--- model, which is how a stable of 207 first reported 414 owned. Walking the stable counts
--- each pet exactly once by construction.
---
--- One record is one pet: LoadPersistentDataForDisplay appends each character's snapshot
--- whole and no pet belongs to two characters, so `petNumber` is not needed to tell them
--- apart. It would be if that loader ever merged overlapping snapshots -- and `total` is
--- what would expose that, since an unfiltered list should report the stable's own size.
---
--- Why both: `unique` is the honest answer to "how many different pets is that", and `total`
--- is the one that reconciles with the count in the Owned Pets panel. Reporting only `total`
--- produced "28 NPCs found | 33 owned", which is true and reads as nonsense.
+-- Both numbers walk the stable, not the NPC list -- walking the NPC list counts one pet
+-- once per NPC sharing its model, which turns a stable of 207 into 414 owned. `unique`
+-- answers "how many different pets is that"; `total` is the one that reconciles with the
+-- Owned Pets panel's own count.
 --
 -- A pet whose display ID is in no NPC record is in neither figure, so an unfiltered list
--- can read slightly under the stable total. That is the addon reporting honestly that it
--- has no NPC for that model -- a pet from a removed creature, or one tamed since the last
--- data refresh -- not an off-by-one.
+-- can read slightly under the stable total. That is honest, not an off-by-one.
 local function OwnedPetCounts(items)
     local shown = ShownDisplayIdSet(items)
     local seen, unique, total = {}, 0, 0
@@ -133,16 +120,10 @@ end
 -- LOADING PIPELINE
 --------------------------------------------------------------------------------
 
--- **The same delay as the models loader, read from the same place.** These were 0.01 and
--- 0.15, and the gap was visible: switching into the NPC view paints `panel.allNPCs` --
--- last load's list -- synchronously, so for 150ms the panel showed rows the current filter
--- excludes. The models view has the identical window at 0.01s and nobody can see it.
---
--- The 0.15 was raised from 0.01 in 069c646 to absorb bursts of this call, back when one
--- continent click meant fifteen of them. `PSM.Store`'s flush coalesces those upstream now,
--- and search has always been debounced separately (`SEARCH_DELAY`, in the search box
--- itself), so nothing is left for the longer window to absorb. Two literals that had to
--- agree and silently stopped agreeing is what `Config.RENDER_DELAY` is for.
+-- The same delay as the models loader, from the same constant. Switching into the NPC view
+-- paints last load's list synchronously, so a longer window here means visibly stale rows.
+-- Nothing is left for one to absorb: `PSM.Store`'s flush coalesces bursts upstream and the
+-- search box debounces separately (`SEARCH_DELAY`).
 function PSM.NPCDataLoader:LoadNPCsForSelectedFamilies()
     if not PSM.state.modelsPanel then return end
     if PSM._npcDebounceTimer then PSM._npcDebounceTimer:Cancel() end
@@ -244,12 +225,10 @@ function PSM.NPCDataLoader:_CalculateNPCData()
 
                 local isRare = classification == "Rare" or classification == "Rare Elite"
 
-                -- **Special Tames, at the granularity the data has.** Taming skills are a
-                -- display-level fact recorded per NPC; no display has two NPCs that
-                -- disagree (7031 shared-display comparisons, zero conflicts), so this
-                -- NPC's own column equals the display aggregate the Models view builds.
-                -- Conditions are per NPC, so no "does any NPC of this display qualify"
-                -- loop is needed here.
+                -- Taming skills are a display-level fact recorded per NPC, and no display
+                -- has two NPCs that disagree, so this NPC's own column equals the display
+                -- aggregate the Models view builds. Conditions are per NPC, so no "does any
+                -- NPC of this display qualify" loop is needed here.
                 local tamingOk = not hasRules
                     or PetModels.TamingSetPasses(PetModels.TamingSet(modelsData.Taming[i]), selRules)
                 local condsOk = not hasConds
@@ -299,19 +278,11 @@ function PSM.NPCDataLoader:_ApplyNPCData(items)
     local panel = PSM.state.modelsPanel
     if not panel then return end
 
-    -- **This hands the selector's cached table to the panel, and `UpdateNPCPanelLayout`
-    -- sorts it in place.** A deliberate exception to Store's "treat a selector's value as
-    -- read-only" rule, kept because the mutation is a *reorder of the same elements* -- it
-    -- cannot change which NPCs matched, only the order they are listed in, which is the
-    -- panel's business anyway. Sort field and direction are not slices; sorting is applied
-    -- at render, not at compute.
-    --
-    -- It also makes `_npcSortCache`'s identity check (`sortCache.items ~= items`) sharper
-    -- than before rather than weaker: the selector returns the *same* table until a
-    -- dependency moves, so an unchanged list is recognised as already sorted, and a changed
-    -- one is a new table and re-sorts. Copying here would restore the contract and defeat
-    -- that check, re-sorting ~7000 entries on every reload to avoid a reordering nobody
-    -- can observe.
+    -- This hands the selector's cached table to the panel, and `UpdateNPCPanelLayout` sorts
+    -- it in place -- a deliberate exception to Store's read-only rule, because a reorder
+    -- cannot change which NPCs matched. It is also what makes `_npcSortCache`'s identity
+    -- check work: the selector returns the same table until a dependency moves, so copying
+    -- here would re-sort ~7000 entries on every reload.
     panel.allNPCs = items
 
     if #items == 0 then
@@ -322,15 +293,9 @@ function PSM.NPCDataLoader:_ApplyNPCData(items)
     end
 
     if panel.infoText then
-        -- One caption in every filter state, reading the same as the Models view's
-        -- "N display IDs | M owned" -- with the duplicate note appearing only when there
-        -- are duplicates to note. Silence is the common case and carries information too:
-        -- no bracket means every owned pet here is a different model.
-        --
-        -- "Show only owned" used to get its own sentence -- "N Display IDs owned,
-        -- corresponding to M NPCs" -- because the count beside it was measured in the wrong
-        -- unit and needed explaining. That explanation is now the bracket, and it applies
-        -- in every filter state rather than one.
+        -- One caption in every filter state, matching the Models view's
+        -- "N display IDs | M owned". The bracket appears only when there are duplicates
+        -- to note: no bracket means every owned pet here is a different model.
         local unique, total = OwnedPetCounts(items)
         if total > unique then
             panel.infoText:SetText(PSM.L("%d NPCs found | %d owned (%d including duplicates)",

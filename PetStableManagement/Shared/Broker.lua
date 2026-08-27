@@ -88,10 +88,7 @@ function broker:CloseAllPanels()
     -- It must be closed through HideUIPanel, never a raw :Hide(). SettingsPanel is
     -- registered with Blizzard's UIPanel system, which tracks which of its slots are
     -- occupied; hiding the frame behind the system's back leaves a slot marked in use
-    -- forever, and that is what breaks ESC and NPC gossip until a /reload. The note
-    -- that used to sit here recorded the breakage but blamed closing the panel at all,
-    -- so this stayed open while ToggleOptionsPanel closed it anyway with the very
-    -- :Hide() the note warned about -- one path forbidding what the other did.
+    -- forever, which breaks ESC and NPC gossip until a /reload.
     if InterfaceOptionsFrame and InterfaceOptionsFrame:IsVisible() then
         HideUIPanel(InterfaceOptionsFrame)
     end
@@ -134,9 +131,7 @@ function broker:Initialize()
 
         -- Same tooltip as the minimap icon, from one definition in Minimap.lua --
         -- LibDBIcon builds that icon from this very data object, so listing different
-        -- clicks in the two would be a contradiction. This copy used to advertise the
-        -- Models Browser unconditionally, which the minimap side had already been fixed
-        -- not to do: under LoadOnDemand a disabled or absent module must not be offered.
+        -- clicks in the two would be a contradiction.
         OnEnter = function(self)
             ns.Tooltip.Show(self, ns.Minimap.TooltipSpec)
         end,

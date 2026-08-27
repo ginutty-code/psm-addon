@@ -46,9 +46,7 @@ DD.teamState = {
 ------------------------------------------------
 
 -- Remember a row's own colours before a highlight overwrites them, so they can be put
--- back exactly. Headers restore from this too -- they used to be reset to hard-coded
--- literals that were a copy of GroupedView's header palette, in a different file, with
--- nothing keeping the two in step.
+-- back exactly. Headers restore from this too, rather than from colour literals.
 local function SaveRowColors(row)
     if not row or not row.GetBackdropColor or row._savedBackdrop then return end
     row._savedBackdrop = { row:GetBackdropColor() }
@@ -379,10 +377,6 @@ function DD:CompleteDrop(targetRow, targetPet)
             -- Insert where the indicator promised, instead of appending. No index
             -- adjustment here: the source is leaving a *different* group, so removing
             -- it does not shift this group's positions.
-            --
-            -- MovePetToGroup has always taken a position; this path used to pass an
-            -- explicit nil, so every cross-group drop landed at the end while the
-            -- highlight said otherwise.
             petGroups:MovePetToGroup(srcGUID, tgtGroup, tgtPos)
         end
 
@@ -630,11 +624,6 @@ updateFrame:SetScript("OnUpdate", function()
         DD:CompleteDrop(tgt, tgtPet)
     end
 end)
-
--- `DD:GetDragInterceptor` used to live here: a full-screen frame shown for the duration
--- of a drag and hidden after. It was created with EnableMouse(false), no textures and
--- BACKGROUND strata, so it could intercept nothing and draw nothing -- the name asserted
--- a mechanism the construction ruled out. Removed along with its two call sites.
 
 ------------------------------------------------
 -- TEAM SLOT DRAG & DROP

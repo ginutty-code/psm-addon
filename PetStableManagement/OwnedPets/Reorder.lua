@@ -60,17 +60,13 @@ function ns.Reorder:SwapPetSlots(slot1, slot2, skipUpdate)
     ns.Utils:Msg("WARNING", ns.L("Moving pet from slot %s to slot %s...", slot1, slot2))
     ns.Utils.SafeCall(C_StableInfo.SetPetSlot, slot1, slot2)
 
-    -- **`skipUpdate` means the caller owns the whole post-swap refresh, data included.**
-    -- Two ways to change a stable slot come through here: the arrow buttons (this branch)
-    -- and list/grid drag-and-drop, which passes `skipUpdate` because it has its own
-    -- scroll-lock and render timing.
+    -- `skipUpdate` means the caller owns the whole post-swap refresh, data included --
+    -- drag-and-drop passes it because it has its own scroll-lock and render timing.
     --
-    -- **Re-read from the game before rendering.** `SetPetSlot` changes the client's stable
-    -- order; `EnsurePetData` collects only when the list is *empty*, so `UpdatePanel` does
-    -- not force one.
-    --
-    -- Collecting here is not an exception to the stable-master-only rule: `CanReorderPets`
-    -- already requires `isStableOpen`.
+    -- Re-read from the game before rendering: `SetPetSlot` changes the client's stable
+    -- order, and `EnsurePetData` collects only when the list is *empty*, so `UpdatePanel`
+    -- does not force one. Not an exception to the stable-master-only rule --
+    -- `CanReorderPets` already requires `isStableOpen`.
     if not skipUpdate then
         ns.C_Timer.After(0.3, function()
             ns.Data:CollectStablePets()

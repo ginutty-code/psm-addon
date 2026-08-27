@@ -1,12 +1,9 @@
 -- UI/Tooltip.lua
 -- Declarative GameTooltip helper.
 --
--- Roughly thirty places in this addon spell out the same five lines: SetOwner,
--- SetText, some AddLines, Show, and an OnLeave that hides. The interesting part of
--- a tooltip is its text; everything else is ceremony, and ceremony repeated thirty
--- times is thirty chances to forget the Hide.
---
--- A tooltip is described by a spec table:
+-- The interesting part of a tooltip is its text; SetOwner/SetText/AddLine/Show and the
+-- OnLeave that hides are ceremony, and hand-written ceremony is where the Hide goes
+-- missing. A tooltip is described by a spec table:
 --
 --   {
 --     anchor = "ANCHOR_RIGHT",        -- default ANCHOR_RIGHT

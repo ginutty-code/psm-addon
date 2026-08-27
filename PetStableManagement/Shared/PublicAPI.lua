@@ -1,30 +1,20 @@
 -- Shared/PublicAPI.lua
 -- What the Models Browser addon may consume from core, and the code that publishes it.
 --
--- **Loaded last on purpose.** Publishing has to happen after every core file has attached
--- itself to `ns`, so this file is the final entry in the .toc. Nothing else belongs here;
--- if it needs to run before another core file, it is in the wrong file.
+-- Loaded last on purpose: publishing has to happen after every core file has attached
+-- itself to `ns`, so this is the final entry in the .toc. Nothing else belongs here.
 --
 -- The two addons cannot share a namespace -- `local addonName, ns = ...` gives each
--- *addon* its own private table, and PetStableManagement and its Models Browser are two
--- addons. So `_G.PSM` survives A3 as the bridge between them, and this file decides how
--- narrow that bridge is.
---
--- Core defines ~38 members. These fifteen are the only ones the browser may read;
--- everything else stays private to core. `Tests/spec/boundary_spec.lua` parses this list
--- out of this file and fails the build if a browser file reaches for anything outside it.
---
--- **Derived from measurement, not designed.** Every name was found by scanning what the
--- browser actually references, and that corrected the planned list in both directions:
--- `Loader` was on it and is *not* used by the browser (sensibly -- Loader is what loads
--- the browser), while `C_Timer` and `CreateFrame` *were* being used and should not have
--- been. Those are core's WoW API aliases, kept so the headless tests can stub them; the
--- browser calls the globals directly, as ModelRow.lua was already fixed to do.
+-- *addon* its own private table -- so `_G.PSM` is the bridge between them, and this file
+-- decides how narrow it is. Of core's ~38 members these fifteen are the only ones the
+-- browser may read; `Tests/spec/boundary_spec.lua` parses the list out of this file and
+-- fails the build if a browser file reaches for anything outside it.
 --
 -- Adding a name is a real decision: it is one more thing that can never change without
 -- touching two addons. Prefer giving the browser a *service* over exposing an internal --
--- the UI kit is the model, four names with no back-references, and RowManager:ReleaseModel
--- is what that looks like in practice.
+-- RowManager:ReleaseModel is what that looks like in practice. Core's WoW API aliases
+-- (C_Timer, CreateFrame) stay private: they exist so the headless tests can stub them,
+-- and the browser calls the globals directly.
 
 local _, ns = ...
 
@@ -67,17 +57,10 @@ for name in pairs(ns) do
     if not published[name] then internal[name] = true end
 end
 
--- **An `__index` that errors on every miss would be wrong**, and the reason is the whole
--- shape of this addon: under LoadOnDemand the browser is legitimately absent, so
--- `if PSM.ModelsPanel then` reading nil is not a mistake, it is the mechanism. Erroring
--- there would break exactly the gates that make the module optional.
---
--- So the trap fires on one case only: a name core owns and did not publish. That is never
--- a legitimate read -- it is a file reaching past the boundary -- and it is the failure
--- mode this whole step introduces, since before 3g every such read quietly worked.
---
--- boundary_spec.lua already proves no browser file does this today. The trap is for the
--- edit made a year from now, and it turns a silent nil into a stack trace naming the key.
+-- An `__index` that errored on every miss would be wrong: under LoadOnDemand the browser
+-- is legitimately absent, so `if PSM.ModelsPanel then` reading nil is the mechanism, not
+-- a mistake. The trap fires on one case only -- a name core owns and did not publish --
+-- turning a silent nil into a stack trace naming the key.
 setmetatable(_G.PSM, {
     __index = function(_, key)
         if internal[key] then

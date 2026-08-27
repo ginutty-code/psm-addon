@@ -48,10 +48,8 @@ ns.L = L
 --------------------------------------------------------------------------------
 
 L.Register({
-    -- Keys are the plain sentence, and now so are almost all the values: colour and
-    -- the addon's own name used to be baked into the value here, one escape-code
-    -- spelling per author. Both are applied once now, by ns.Utils:Msg at the print()
-    -- call site, so every value below that reaches chat is plain text. See Backlog.md.
+    -- Keys and values are both the plain sentence: colour and the addon's own name are
+    -- applied by ns.Utils:Msg at the print() call site, never baked in here.
     ["StableFrame not found!"]                        = "StableFrame not found!",
     ["Panel creation failed!"]                        = "Panel creation failed!",
     ["Panel failed to show!"]                         = "Panel failed to show!",

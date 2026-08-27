@@ -17,13 +17,8 @@ ns.RowManager.MODEL_HINTS =
 -- ─── Shared update frames ────────────────────────────────────────────────────
 
 -- An invisible, parentless ticker: nothing to draw, so not a widget. ns.CreateFrame
--- is Core.lua's alias, which is what the headless tests can stub.
---
--- The memo is keyed on the namespace with bracket syntax, which is why the A3 sweep for
--- `PSM.` never saw these two lines: a dot-syntax scan cannot find `PSM[key]`. They kept
--- working only because Core.lua aliases `_G.PSM = ns` during the transition, so both
--- names reached one table -- and would have started building a second, unreferenced
--- ticker the moment 3g separated them.
+-- is Core.lua's alias, which is what the headless tests can stub. The memo is keyed on
+-- the namespace with bracket syntax, so a dot-syntax grep for `ns.` will not find it.
 local function EnsureUpdateFrame(key, onUpdate)
     if ns[key] then return ns[key] end
     local f = ns.CreateFrame("Frame")
@@ -62,15 +57,12 @@ end)
 -- Stop both tickers from following a model. Call before a model is hidden, pooled,
 -- rebound to another pet, or otherwise stops being the thing the cursor is dragging.
 --
--- **This exists because eight call sites wrote it by hand and five of them cleared only
--- RotationFrame.** A model released mid-right-drag stayed in MovementFrame.activeModels
--- for the rest of the session, iterated on every OnUpdate and never collected. The guards
--- had drifted too -- three sites tested `PSM.RotationFrame and PSM.RotationFrame.activeModels`,
--- one tested nothing, and MovementFrame was checked in two of them.
+-- Clearing only RotationFrame leaves a model released mid-right-drag in
+-- MovementFrame.activeModels for the rest of the session, iterated on every OnUpdate and
+-- never collected -- which is why both are cleared here rather than at each call site.
 --
--- Public because the Models Browser needs it: PetRoulette was reaching straight into
--- `PSM.RotationFrame.activeModels`, which is a core internal and not on the published
--- surface. A service is the right answer to that, not a wider surface.
+-- Public because the Models Browser needs it, as a service rather than exposing
+-- RotationFrame.activeModels on the cross-addon surface.
 function ns.RowManager:ReleaseModel(model)
     if not model then return end
     model.isRotating, model.isMoving = false, false
@@ -190,9 +182,8 @@ end
 --
 -- The overlay buttons fade in together on hover. Views that want their own model
 -- tooltip have to re-attach OnEnter/OnLeave, which drops the pair installed above,
--- so both halves are public: a view supplies the tooltip and reuses these. Hand-
--- written copies in the views each hardcoded the four button fields, which meant a
--- fifth overlay button would have appeared in some views and not others.
+-- so both halves are public: a view supplies the tooltip and reuses these rather than
+-- hardcoding the button list, which would leave a new overlay button out of some views.
 
 function ns.RowManager:ShowHoverButtons(model)
     for _, b in ipairs(model.hoverButtons or {}) do
@@ -214,10 +205,6 @@ end
 -- The small affordances that fade in over a model on hover: reset view, magnify,
 -- add/remove from team. Deliberately not skinned -- ElvUI's HandleButton strips
 -- exactly the textures these are made of.
---
--- Was ten positional parameters, four of which were anchor components. Named now:
--- `MakeOverlayButton(parent, model, 16, "TOPRIGHT", "TOPRIGHT", -2, -2, tex, tex)`
--- gives a reader no way to check an argument without counting commas.
 local OVERLAY_ALPHA, OVERLAY_ALPHA_HOVER = 0.7, 1.0
 
 local function MakeOverlayButton(parent, model, opts)

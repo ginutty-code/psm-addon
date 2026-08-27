@@ -64,19 +64,11 @@ function menu:Create()
     -- is 200 wide, so 180 still leaves a margin either side.
     local buttonWidth, buttonSpacing = ns.Theme.CONTROL.BUTTON_W.XL, 10
 
-    -- Browser-dependent buttons are never disabled, and that is deliberate.
-    --
-    -- A disabled Blizzard button does not fire OnEnter, so it cannot carry a tooltip --
-    -- which is the whole reason a transparent mouse-catching overlay used to be pinned
-    -- over these two. That overlay then had to be shown and hidden in step with a state
-    -- nothing reliably re-evaluated, and when it fell out of step it silently ate the
-    -- click on a button that had become perfectly usable.
-    --
-    -- Leaving the button enabled removes the entire problem: OnEnter fires, so the
-    -- tooltip re-reads availability on every hover, exactly as the minimap does. Nothing
-    -- persistent has to be kept in sync, because nothing persistent encodes the state.
-    -- Clicking while unavailable is already handled -- Broker routes through
-    -- Loader:EnsureBrowser, which prints the same explanation to chat.
+    -- Browser-dependent buttons are never disabled, and that is deliberate: a disabled
+    -- Blizzard button does not fire OnEnter, so it cannot carry a tooltip. Left enabled,
+    -- the tooltip re-reads availability on every hover and nothing persistent has to be
+    -- kept in sync. Clicking while unavailable is already handled -- Broker routes
+    -- through Loader:EnsureBrowser, which explains itself in chat.
     local gatedButtons = {}
 
     -- Evaluated per hover. Returning nil suppresses the tooltip entirely, so a working
@@ -149,12 +141,5 @@ function menu:Toggle()
     end
 end
 
--- `menu:Initialize()` used to live here, building a full-screen click catcher that
--- dismissed "any open context menus on outside click". It never ran: the frame was
--- created hidden and nothing anywhere showed it, `PSM.state.menuClickCatcher` was
--- written and never read, and the `PSM.state.contextMenus` list its handler iterated is
--- never populated in either addon — so even if shown it would have closed nothing.
---
--- Context menus are dismissed by `CloseDropDownMenus()` in PanelManager's OnHide, and
--- they are built by the single `PSM.Utils:ShowContextMenu`. This was a second,
--- vestigial mechanism for a job already owned elsewhere. Removed.
+-- No click catcher here: context menus are built by `PSM.Utils:ShowContextMenu` and
+-- dismissed by `CloseDropDownMenus()` in PanelManager's OnHide.

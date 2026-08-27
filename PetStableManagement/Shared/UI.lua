@@ -14,11 +14,9 @@ ns.UI = ns.UI or {}
 -- STATE
 --------------------------------------------------------------------------------
 
--- Core.lua (loaded first) already builds the authoritative PSM.state with the full field
--- set. This used to unconditionally create its own narrower table and reassign PSM.state
--- to it, silently dropping fields Core.lua had that this list didn't (e.g.
--- selectedExpansions/selectedLocations ended up nil, crashing BuildUnifiedFilterSystem on
--- a fresh character). Only fall back to this literal if PSM.state doesn't exist yet.
+-- Core.lua (loaded first) already builds the authoritative ns.state with the full field
+-- set. Only fall back to this narrower literal if it does not exist yet -- reassigning
+-- unconditionally drops whatever fields Core.lua has and this list does not.
 ns.state = ns.state or {
     panel = nil, scrollFrame = nil, content = nil,
     rows = {}, stablePets = {}, stablePetsSnapshot = {},
@@ -231,11 +229,9 @@ local renderResults   -- the selector; built on first use, dropped by CreateRend
 
 -- Drops the computed render data and stops any pending render.
 --
--- **`:Cancel()` is the point, not `= nil`** -- the same defect `ModelsDataLoader:ReleaseCache`
--- was fixed for, in core rather than the browser. A C_Timer handle belongs to the timer
--- system, so clearing the field drops the reference and the timer still fires: closing the
--- panel inside the debounce window left a render scheduled into the panel just torn down,
--- recomputing and repopulating the cache the teardown had just cleared.
+-- `:Cancel()` is the point, not `= nil`. A C_Timer handle belongs to the timer system, so
+-- clearing the field drops the reference and the timer still fires -- scheduling a render
+-- into a panel that has just been torn down, refilling the cache the teardown cleared.
 function ns.UI:CreateRenderCache()
     if ns._renderDebounceTimer then ns._renderDebounceTimer:Cancel() end
     ns._renderDebounceTimer = nil
@@ -260,15 +256,10 @@ end
 function ns.UI:_RenderPanelImmediate(preserveScroll)
     if not ns.state.panel or not ns.state.content then return end
 
-    -- **The 0.1s expiry goes with the key, and the plan's corollary is why it could.** It
-    -- bounded staleness from inputs the key did not model; `panelWidth` was the last of
-    -- those, so there is nothing left for a timeout to catch.
-    --
-    -- `_ApplyCachedRender` runs on every call, hit or miss. That matters: view mode, pet
-    -- groups and collapse state are read *there* and in UpdateVisibleRows, never in
-    -- `_CalculateRenderData` -- which is why the eight hand-written `_renderCache = nil`
-    -- calls in GroupedView and GridView were never necessary. They forced a recompute of
-    -- data that could not have changed.
+    -- No expiry: the key models every input, so there is nothing left for a timeout to
+    -- catch. `_ApplyCachedRender` runs on every call, hit or miss, which is what makes
+    -- that safe -- view mode, pet groups and collapse state are read *there* and in
+    -- UpdateVisibleRows, never in `_CalculateRenderData`, so they need no invalidation.
     renderResults = renderResults or ns.Store:Selector(RENDER_SLICES, function()
         return ns.UI:_CalculateRenderData()
     end)
@@ -490,21 +481,13 @@ end
 -- Keep the scroll frame inside the range its content can actually fill.
 --
 -- Content height shrinks on almost every resize, because the column count is derived
--- from panel width and fewer rows are needed to hold the same pets. A frame left
--- scrolled past the new end then displays the region *below* the last row: every row
--- renders, in the right place, and not one of them is in view. The panel looks
--- completely empty.
+-- from panel width. A frame left scrolled past the new end then displays the region
+-- *below* the last row: every row renders, in the right place, and the panel looks
+-- completely empty. This is one scroll frame shared by all three views, so it is not a
+-- per-view indexing bug and cannot be fixed in one.
 --
--- This is the resize blind spot, and it is why it survives in all three views. It is not
--- a per-view indexing bug — GroupedView shares none of the other views' offset
--- bookkeeping and blanks identically. It is the one scroll frame they share being left
--- outside its own range.
---
--- The resize handler restored the scrollbar only `if maxScroll > 0`, which is backwards:
--- `maxScroll == 0` means the content now fits, and that is exactly the case that must
--- force the scroll back to the top. Nothing else corrects it, which is why the panel
--- stayed blank until scrolled by hand — and why it only ever happened away from the top,
--- the one position that is already in range.
+-- `maxScroll == 0` is the case that most needs correcting -- the content now fits, so
+-- the scroll must go back to the top -- so do not guard this on `maxScroll > 0`.
 --
 -- Call this after any content:SetHeight. Returns the (possibly corrected) scroll.
 function ns.UI:ClampScrollIntoRange(scrollFrame, content)
@@ -527,24 +510,13 @@ end
 -- *actually* scrolled to, then clamped to a list that may just have got shorter.
 --
 -- `panel.scrollOffset` and `panel.gridScrollOffset` are caches, written only by the
--- scrollbar's OnValueChanged hook. A resize can leave either one describing a scroll
--- position the frame no longer has: the column count is derived from panel width, so
--- content height changes under it, and the resize handler restores the scrollbar only
--- when `maxScroll > 0`. Two distinct failures follow, and the resize blind spot has
--- been both of them at different times:
+-- scrollbar's OnValueChanged hook, and a resize can leave either describing a scroll
+-- position the frame no longer has. Either the offset runs past a shortened list, so the
+-- render loop never executes, or it merely disagrees with the frame, so rows render at
+-- content coordinates outside the displayed window -- both look like a blank panel.
 --
---   * offset past the end of a shortened list -> startIndex > endIndex, the render loop
---     never executes, every row stays hidden;
---   * offset merely *disagreeing* with the frame -> rows render for the cached window
---     and are positioned at absolute content coordinates outside the displayed one. The
---     loop reports drawing them and the panel looks completely empty.
---
--- The second is why clamping alone was not enough, and why the top of the list is
--- immune either way: at offset 0 the cached and displayed windows always agree.
---
--- GroupedView has always read GetVerticalScroll() directly and is the one view never
--- reported blank. This makes list and grid agree with it: the displayed position is the
--- single source of truth, and the cached field is a consequence of it, not an input.
+-- So the displayed position is the single source of truth here and the cached field is a
+-- consequence of it, never an input. Clamping alone is not enough for the second case.
 --
 -- Floor, not round, in both views: this answers "which row is at the top of the window",
 -- and grid's own snap-to-row logic settles the scrollbar on an exact multiple anyway.

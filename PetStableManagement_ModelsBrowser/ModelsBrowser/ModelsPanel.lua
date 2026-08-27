@@ -23,12 +23,8 @@ PSM.ModelsPanel.MODELS_CONFIG = MODELS_CONFIG
 
 -- Release both render caches and cancel both pending renders.
 --
--- **The browser's answer to core reaching into its internals.** Core's PanelManager tears
--- down on last-panel-close and used to do that by assigning nil to four of this addon's
--- fields by hand, which meant four names on the cross-addon surface and one more copy of
--- a clear that four places were writing out longhand -- three of them wrongly, because
--- none cancelled the timers. One service replaces all of it, and the four underscore
--- names stop being anyone's business but this addon's.
+-- The service core's PanelManager calls on last-panel-close, so the underscore cache
+-- fields stay this addon's business and the timers are actually cancelled.
 --
 -- Safe to call when the loaders have not loaded: this file is what core reaches through,
 -- and it must not assume its siblings parsed first.
@@ -561,23 +557,17 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
         viewToggleButton:SetText(panel.modelsViewMode == "npc" and PSM.L("Models view") or PSM.L("NPC view"))
     end
 
-    -- Swaps the search box placeholder. PanelManager owns the rules for when the
-    -- visible text may be replaced; this used to reimplement them by assigning
-    -- placeholderText and calling SetText directly, which fired the box's own
-    -- OnTextChanged and blanked it.
+    -- PanelManager owns the rules for when the visible text may be replaced -- assigning
+    -- placeholderText and calling SetText directly fires OnTextChanged and blanks the box.
     local function SetSearchPlaceholder(newPlaceholder)
         local box = panel.searchBox
         if box then box:SetPlaceholder(newPlaceholder) end
     end
 
     -- What a view mode *looks* like: which frames are up, and what the search box says.
-    -- Separate from the rest of ApplyModelsViewMode because the panel's initial build
-    -- needs exactly this and none of the page reset or data loading.
-    --
-    -- It used to carry its own copy of the branch, and the copy had drifted: it showed
-    -- and hid the same two frames but never set the placeholder and never hid the columns
-    -- popout. So a panel restored into NPC view opened reading "Search models..." and
-    -- stayed wrong until the user toggled the mode by hand.
+    -- Separate from the rest of ApplyModelsViewMode because the panel's initial build needs
+    -- exactly this and none of the page reset or data loading -- and one copy, so a panel
+    -- restored into NPC view cannot open with the models placeholder.
     local function ApplyViewModePresentation(mode)
         RefreshViewToggleButtonText()
         if mode == "npc" then

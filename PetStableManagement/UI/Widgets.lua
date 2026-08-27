@@ -219,10 +219,8 @@ local TAB_LABEL_PADDING = 0
 -- inside its frame instead of drawn past it. WoW does not clip child regions, so an
 -- unconstrained FontString simply spills over whatever sits next to it.
 --
--- **This is what makes a fixed width tier safe.** Two things about the text cannot be known
--- when the widget is built: a later `SetText` may be longer (Maximize/Restore, Select
--- All/Unselect All), and ElvUI restyles the font after we are finished. Neither can overflow
--- a clipped label, so neither has to be predicted.
+-- This is what makes Theme's fixed width tiers safe: a later `SetText` may be longer, and
+-- ElvUI restyles the font after we are finished. Neither can overflow a clipped label.
 local function ClampFontString(frame, fs, text, padding)
     if not fs then return end
     local avail = (frame:GetWidth() or 0) - padding
@@ -549,22 +547,12 @@ end
 -- The flat gold-on-dark bar that sits above a group of controls.
 --
 -- Visually this is an active Widgets.Tab, but it is not a tab: nothing selects it and
--- it has no inactive state, so it gets its own factory rather than a Tab locked to
--- active. The Models Browser's "Show Only" group and the NPC view's column header are
--- both this shape -- the latter's comment says outright that it was written to match
--- the former, which is the clearest possible sign it wanted to be shared.
+-- it has no inactive state, so it gets its own factory rather than a Tab locked to active.
 --
--- **Everything visual here is a default, not a parameter.** The three call sites had
--- drifted to two heights (20 and 22), two label fonts (GameFontHighlightSmall vs a
--- raw BODY size) and two text colours -- the same failure mode CHECKBOX's 16-vs-20
--- split had, relocated from CreateFrame blocks into options tables. Height, font,
--- colour and insets now come from Theme/the palette; a call site says only *where*
--- the bar goes and *what* it says.
---
--- The label is `palette.ACTIVE_TEXT` (white), not gold. That is what makes this
--- match an active Tab, which is what the paragraph above claims it is -- the old
--- gold default quietly contradicted it, so a header and a selected tab sitting on
--- the same panel never read as the same component.
+-- Everything visual here is a default, not a parameter -- height, font, colour and insets
+-- come from Theme; a call site says only *where* the bar goes and *what* it says. The
+-- label is `palette.ACTIVE_TEXT` (white), not gold, so a header and a selected tab on the
+-- same panel read as the same component.
 --
 -- `text` adds a left-aligned label, returned as `.label`. Omit it when the caller
 -- fills the bar itself, as the NPC column header does with its sort buttons -- those
@@ -718,10 +706,8 @@ end
 -- A Blizzard slider with its three captions: `lowLabel` and `highLabel` at the ends,
 -- and a live value caption in the middle driven by `format(value)`.
 --
--- The kit owns the value caption because the caller kept forgetting it. Each of the
--- five sliders in OptionsPanel spelled its format string out three times -- once at
--- construction, once in OnValueChanged, and once more in Reset All Settings -- and
--- that third copy existed only because the second one had been suppressed.
+-- The kit owns the value caption: a caller driving it by hand ends up spelling the format
+-- string out at construction, in OnValueChanged, and again in Reset All Settings.
 --
 -- `onChange(value, slider)` fires for user input only. WoW sliders have no `userInput`
 -- flag (EditBox has one, sliders do not), so a programmatic SetValue is

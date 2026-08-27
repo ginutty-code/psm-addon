@@ -7,9 +7,8 @@
 --
 -- Relationship to PSM.Config: Config owns *semantic* colours that other systems
 -- also care about (COLORS.PRIMARY, the duplicate/owned row backgrounds, TAB) and
--- the layout constants. Theme owns the raw presentation values that were
--- previously typed out inline at every call site -- the font path, the size ramp,
--- the grey ramp, and the four backdrop shapes. Don't duplicate Config here.
+-- the layout constants. Theme owns the raw presentation values -- the font path,
+-- the size ramp, the grey ramp, and the four backdrop shapes. Don't duplicate Config.
 
 local _, ns = ...
 
@@ -98,49 +97,26 @@ Theme.CONTROL = {
     RESIZE_GRIP   = 16,
 
     -- Owned Pets reorder arrows. They borrow the dropdown arrow's texture (see Row.lua),
-    -- so they take its size too and end up indistinguishable from it.
+    -- so they take its size too.
     --
-    -- **One value, deliberately.** Measured with the Owned Pets panel open:
-    --     /dump PetDupSpecDrop.Button:GetSize()
-    -- a dropdown's arrow button is 24 on the default UI and 18 under ElvUI -- and the
-    -- addon sets neither. It sets nothing at all: 24 is Blizzard's template, and 18 is
-    -- ElvUI's HandleNextPrevButton resizing it, which is the same call the `reorderup` /
-    -- `reorderdown` skins make. Give these buttons 24 and the skin lands them on 18 by
-    -- itself, exactly as it does for every dropdown.
-    --
-    -- This briefly had a second `ROW_ARROW_SKINNED = 18` selected by PSM.Skin.IsActive(),
-    -- which hand-computed a number the skin layer was already producing -- a call site
-    -- reaching into territory Skin.lua owns. **If a difference is a skin difference, the
-    -- skin owns it.** Widgets applies `size` before `PSM.Skin.Apply`, so the ordering
-    -- that makes this work is guaranteed by the factory, not by luck.
+    -- One value, deliberately: 24 is Blizzard's dropdown-arrow size, and ElvUI's
+    -- HandleNextPrevButton -- the same call the `reorderup`/`reorderdown` skins make --
+    -- resizes it to 18 on its own. No second skinned constant: if a difference is a skin
+    -- difference, the skin owns it. Widgets applies `size` before `PSM.Skin.Apply`, so
+    -- that ordering is guaranteed by the factory.
     ROW_ARROW = 24,
 
-    -- Push button height. **One value, everywhere.** The addon previously ran six --
-    -- 18, 20, 22, 25, 28 and 30 -- split across two Config constants (BUTTON_HEIGHT 22,
-    -- PANEL_BUTTON_HEIGHT 25) and two dozen literals that ignored both.
-    --
-    -- Checked before collapsing it, because a split that tracks something real is a role
-    -- and not drift: the 22/25 divide does *not* follow font size. GameFontNormalSmall
-    -- appears on both sides and several 25s set no font at all. There was no rule.
-    --
-    -- 25 rather than 22 because it was already the majority (~28 buttons to 10), so this
-    -- moves ten buttons and leaves the rest exactly where they were.
+    -- Push button height. One value, everywhere -- the old 18/20/22/25/28/30 split
+    -- tracked nothing, not even font size.
     BUTTON = 25,
 
     -- Push button widths: a named ladder, chosen at the call site.
     --
-    -- **Fixed tiers, not fit-to-text**, and the reason is buttons that relabel themselves
-    -- at runtime -- Maximize/Restore, Select All/Unselect All, Exotic/!Exotic, NPC view/
-    -- Models view. Measuring at construction sizes for whichever label happens to be
-    -- first (and ModelsPanel's view toggle is built with no text at all, so it would
-    -- measure zero); re-measuring on every SetText makes a button change width when you
-    -- click it. A fixed width survives both, and keeps rows of buttons aligned.
-    --
-    -- Overflow is handled instead by clipping the label -- see Widgets.Button.
-    -- Tiers were picked from the labels, not from the old widths: switching clipping on
-    -- turns a button that was already overflowing into one that visibly truncates, so
-    -- preserving a too-narrow width would have *created* the regression. "Ability
-    -- Browser", "Unselect All" and "Create Waypoints" all move up a tier for that reason.
+    -- Fixed tiers, not fit-to-text, because several buttons relabel themselves at
+    -- runtime (Maximize/Restore, Select All/Unselect All, Exotic/!Exotic). Measuring at
+    -- construction sizes for whichever label is first -- ModelsPanel's view toggle is
+    -- built with no text at all -- and re-measuring on SetText makes a button change
+    -- width when clicked. Overflow is handled by clipping the label; see Widgets.Button.
     BUTTON_W = {
         XS =  50,
         S  =  80,
@@ -163,15 +139,12 @@ Theme.CONTROL = {
 --------------------------------------------------------------------------------
 
 -- The vertical position of every shared panel region, read by PanelManager and by
--- panels building their own filter bar/rail, so a panel's chrome comes from one
--- place instead of being re-derived as an independent pixel guess per panel. See
--- A13 in ../../ARCHITECTURE_PLAN.md for the survey of what these numbers replace.
+-- panels building their own filter bar/rail, so a panel's chrome comes from one place
+-- rather than a per-panel pixel guess.
 Theme.CHROME = {
-    TITLE_Y    = -35,  -- title, from panel TOP. No per-panel override -- that
-                        -- escape hatch (Models Browser's old -20) is what let its
-                        -- search box silently drift.
+    TITLE_Y    = -35,   -- title, from panel TOP. No per-panel override: the search box
+                        -- anchors to it, so an override moves that too.
     FILTER_TOP = -100,  -- TOP_BAR filter row / LEFT_RAIL top, from panel TOP.
-                         -- Collapses three independent guesses (-110/-100/-90).
     FOOTER_Y   = 15,     -- bare-label footer, from panel BOTTOM.
 }
 
@@ -179,10 +152,8 @@ Theme.CHROME = {
 -- BACKDROP PRESETS
 --------------------------------------------------------------------------------
 
--- Every backdrop in the addon is one of these four shapes. They differ only in
--- edge/tile size, so they are kept distinct rather than collapsed -- the goal of
--- the UI kit is to stop people *retyping* backdrops, not to restyle the addon.
--- PSM.Widgets.Backdrop() accepts overrides for the rare one-off.
+-- Every backdrop in the addon is one of these four shapes, kept distinct even though
+-- they differ only in edge/tile size. PSM.Widgets.Backdrop() takes overrides for one-offs.
 --
 -- These tables are read by SetBackdrop and never retained by the client, so
 -- sharing one table across every frame is safe. Do not mutate them; pass

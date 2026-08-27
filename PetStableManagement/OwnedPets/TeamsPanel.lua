@@ -22,13 +22,10 @@ local TEAMS_PER_FRAME      = 10
 ----------------------------------------------------------------------------------------------------------------
 
 
--- **The one place that keeps an explicit size**, rather than Theme.CONTROL.BUTTON and a
--- BUTTON_W tier. These are a compact vertical stack of four (Apply/Copy/Rename/Delete)
--- in a 64px column, and the column's own height is computed from them
--- (`4 * buttonHeight + 3 * buttonSpacing`). Taking the standard 25 would add 28px to
--- every team row and the 80px S tier would overflow the column, so adopting the standard
--- here means re-laying out the teams row -- a separate change with its own testing, not a
--- side effect of the sizing pass.
+-- The one place that keeps an explicit size, rather than Theme.CONTROL.BUTTON and a
+-- BUTTON_W tier: these are a stack of four in a 64px column whose height is computed
+-- from them, and the standard sizes would overflow it. Adopting the standard means
+-- re-laying out the teams row.
 local function CreateActionButton(parent, text, width, height)
     return ns.Widgets.Button(parent, {
         size       = { width, height },
@@ -537,23 +534,13 @@ local function ProcessRenderQueue()
     end
 end
 
--- **This defers; the coalescing is a side effect.** Investigated because a bare 0.03 next
--- to `Config.RENDER_DELAY` looked like a third copy of the render delay that had drifted.
--- It is not, and it is not a debounce either in the sense the shape suggests: every one of
--- the ~15 call sites fires once per user action or per event, and the only back-to-back
--- pair in the codebase was a duplicated block in Events.lua, now removed. There is no
--- burst left to absorb.
+-- This defers; the coalescing is a side effect. What it buys is getting
+-- `DoRefreshTeamsList` out of the caller's call stack -- it rebuilds every team row, and
+-- several callers are mid-operation on those very rows when they ask, so running it
+-- synchronously would tear down frames underneath their own callbacks.
 --
--- What the delay actually buys is getting `DoRefreshTeamsList` **out of the caller's call
--- stack**. It rebuilds and re-lays out every team row, and several callers are mid-operation
--- on those very rows when they ask -- `DragDrop:SwapTeamSlots` refreshes and then returns
--- true to a handler still holding a row, and the dialog paths refresh from inside a
--- confirm handler. Running it synchronously would tear down frames underneath their own
--- callbacks.
---
--- So it stays, and the name says what it is. **Not folded into RENDER_DELAY**: that is a
--- progressive-render tick, this is a reentrancy guard, and the two agreeing at 0.01 would
--- be a coincidence rather than a shared meaning.
+-- Not folded into `Config.RENDER_DELAY`: that is a progressive-render tick, this is a
+-- reentrancy guard.
 local REFRESH_DEFER = 0.03
 
 function ns.TeamsPanel:RefreshTeamsList()
@@ -734,14 +721,6 @@ end
 -- ENABLE BUTTONS
 ----------------------------------------------------------------------------------------------------------------
 
--- `EnablePetTeamsButtons` used to run 0.1s after this file loaded, re-enabling three
--- Pet Teams buttons and tearing down any tooltip overlay on them. None of the three is
--- disabled by anything any more -- the only :Disable() calls left in the addon are the
--- view-mode buttons marking the active view -- so all it did was race the login sequence
--- for frames that mostly did not exist yet.
---
--- Its one piece of real work was attaching the saved-team-count tooltip to the floating
--- menu's button, which only landed when that menu happened to already exist. Both that
--- button and the Owned Pets panel's now take the tooltip from
--- `PSM.Teams:ButtonTooltipSpec()` at build time, so it is attached every session rather
--- than when a timer wins a race.
+-- Nothing disables the Pet Teams buttons, so there is no re-enable pass here. The
+-- saved-team-count tooltip comes from `PSM.Teams:ButtonTooltipSpec()` at build time,
+-- attached every session rather than by a timer that has to win a race against login.

@@ -206,9 +206,8 @@ function ns.UI:AddOwnedPetsElements(panel)
     end)
 
     -- Buttons -------------------------------------------------------------
-    -- Every button on this panel is the same shape. Three builders used to exist for
-    -- it: MakeButton, MakeViewButton, and Export written out by hand -- differing only
-    -- in where they anchor and what they do on click.
+    -- Every button on this panel is the same shape, differing only in where it anchors
+    -- and what it does on click.
     local function PanelButton(opts)
         return Widgets.Button(panel, {
             point      = opts.point,

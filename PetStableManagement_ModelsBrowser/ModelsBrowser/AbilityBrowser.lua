@@ -290,10 +290,9 @@ if TooltipDataProcessor and Enum.TooltipDataType and not AB.tooltipHookInstalled
     end)
 end
 
--- Icons are pooled and rebound, so **nothing here may close over an entry**: every handler
--- reads `btn.entry`, which BindAbilityIcon reassigns. Capturing it was what made building
--- a fresh icon per populate the only correct option -- and since WoW frames cannot be
--- destroyed, every search leaked a complete copy of the panel's icon set.
+-- Icons are pooled and rebound, so nothing here may close over an entry: every handler
+-- reads `btn.entry`, which BindAbilityIcon reassigns. Capturing it forces a fresh icon per
+-- populate, and WoW frames cannot be destroyed.
 local function CreateAbilityIcon(parent, panel)
     local Widgets = PSM.Widgets
 
@@ -613,10 +612,8 @@ function AB:PopulateAbilities(panel, query, activeTag)
     query     = query or ""
     activeTag = activeTag or ""
 
-    -- Built once and reused. This used to create a fresh scroll child, a fresh card per
-    -- category and a fresh icon per ability on *every* call -- and the search box calls it
-    -- per keystroke (debounced, but still). WoW frames cannot be destroyed, so the old set
-    -- was only hidden: every search leaked a complete copy of the panel's frame tree.
+    -- Built once and reused. The search box calls this per keystroke, and WoW frames
+    -- cannot be destroyed, so building a fresh frame tree here leaks one per search.
     local scrollChild = panel.scrollChild
     if not scrollChild then
         scrollChild = PSM.Widgets.Frame(scrollFrame, {})

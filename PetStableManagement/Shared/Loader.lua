@@ -4,13 +4,6 @@
 -- The browser is ## LoadOnDemand: 1, so it is not parsed at login and the
 -- always-paid memory floor is this core addon alone. It carries its generated data
 -- tables in its own Data/ subfolder, so loading it brings the data with it.
---
--- (An earlier revision split the data into a third addon so core could load tables
--- without the browser UI. Every caller that wanted "data only" turned out to need
--- the browser's own resolvers -- PSM.PetModels, PSM.TamingChecker -- so the tier
--- was never exercised, and it cost users a third entry in the AddOns list. Merged
--- back. Worth re-splitting only if the UI-free resolvers are ever separated from
--- the panel code, which would make data-only loading real rather than theoretical.)
 
 local _, ns = ...
 
@@ -44,12 +37,9 @@ local FAILURE_HINT = {
 }
 
 -- Announcing is controlled by the caller's `silent` flag, not by a once-per-session
--- latch. There used to be one, on the reasoning that a failed load is a persistent
--- condition so repeating it is spam -- but that conflated two kinds of caller. Passive
--- ones (row rendering) already pass silent = true, and they are the only spam risk.
--- Everything else is an explicit user action: /psm models, a menu entry, a magnifier
--- click. Swallowing the answer to a direct request makes the command look broken, and
--- the latch meant the *second* thing you tried always failed in silence.
+-- latch. Passive callers (row rendering) already pass silent = true and are the only
+-- spam risk; everything else is an explicit user action, where swallowing the answer
+-- makes the command look broken.
 local function Announce(reason)
     local hint = FAILURE_HINT[reason] or ns.L("Reason: %s.", tostring(reason))
     ns.Utils:Msg("WARNING", ns.L("Could not load the Models Browser. %s", hint))
@@ -72,20 +62,13 @@ end
 -- This is the question UI affordances should ask -- "offer the user this action?" --
 -- since under LoadOnDemand "not loaded yet" is the normal state, not an absence.
 --
--- Two client facts make this harder than it looks, both confirmed by macro rather than
--- from memory, because guessing at them produced two wrong versions of this function:
+-- Two client facts, verified by macro, that make this harder than it looks:
 --
 --   1. `loadable` does NOT mean "can be loaded". A LoadOnDemand addon that is present
 --      and enabled but not yet parsed reports loadable = false -- the dormant state,
---      which is the *normal* state at login. Reading it alone answered "unavailable"
---      for every fresh session, so affordances hid until something else loaded the
---      browser: the minimap tooltip listed three clicks instead of four, and PSM.Menu
---      hid its browser entries.
---
---   2. `reason` does not distinguish enabled from disabled. A LoadOnDemand addon
---      reports "DEMAND_LOADED" *either way* -- verified with the module unticked and
---      the UI reloaded: loaded = false, loadable = false, reason = DEMAND_LOADED,
---      identical to the enabled-and-dormant case.
+--      which is the *normal* state at login.
+--   2. `reason` does not distinguish enabled from disabled: a LoadOnDemand addon
+--      reports "DEMAND_LOADED" either way.
 --
 -- So enable state is the only thing that separates "dormant" from "switched off", and
 -- it lives in its own call: GetAddOnInfo lost its `enabled` field in 8.0.

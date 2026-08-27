@@ -28,19 +28,11 @@ end)
 
 PSM.Store:Declare("panel")
 
--- **Fingerprinted rather than counted, because the home is a widget.**
---
--- Search is the last unmodelled input, and it is the one input whose state lives in a
--- frame instead of a table: five panels each own a search box, and seven sites read
--- `searchBox:GetSearchText()` directly. A counted slice would need every one of those
--- writes funnelled and enforced, and a widget's writes cannot be enforced by a spec --
--- Blizzard fires OnTextChanged, not us.
---
--- Reading the box at flush time sidesteps that entirely: the fingerprint *is* the truth,
--- so it cannot go stale no matter who typed what. The cost is that a fingerprint cannot
--- announce itself, which is what `Store:Touch()` is for -- and the failure mode of a
--- missed Touch is a late refresh, never a wrong one. That is the same trade the whole
--- design makes: an unfunnelled input costs speed, not correctness.
+-- Fingerprinted rather than counted because the home is a widget: a search box's writes
+-- come from Blizzard's OnTextChanged, so they cannot be funnelled or spec-enforced.
+-- Reading the box at flush time cannot go stale. The cost is that it cannot announce
+-- itself, which is what `Store:Touch()` is for; a missed Touch is a late refresh, never a
+-- wrong one.
 PSM.Store:Declare("search", function()
     local panel = PSM.state.modelsPanel
     local box   = panel and panel.searchBox
@@ -71,19 +63,13 @@ end
 
 -- Drop the models render cache and stop any pending render.
 --
--- **`:Cancel()` is the point of this, not `= nil`.** A C_Timer handle is owned by the
--- timer system, not by the field holding it: clearing the field drops the reference and
--- the timer still fires. `LoadModelsForSelectedFamilies` below has always cancelled
--- before re-arming, but the four hand-written "clear the caches" blocks that used to
--- exist -- here, in NPCDataLoader, in PetRoulette, and in core's PanelManager -- all
--- nilled without cancelling. So closing the browser inside the debounce window left a
--- timer that fired into the panel just torn down, recomputing the whole model list and
--- **repopulating the cache the teardown had cleared**. `PSM.state.modelsPanel` is never
--- set to nil, so the guard at the top of `_LoadModelsImmediate` did not stop it.
--- Every input to `_CalculateModelsData`, and the reason the 0.2s expiry could go: this
--- list *is* the old cache key, one slice per component, with `#stablePets` replaced by the
--- `pets` fingerprint. `panel` is here because a rebuilt filter system is a different panel
--- with a different search box, so a result computed against the old one must not survive.
+-- `:Cancel()` is the point of this, not `= nil`: a C_Timer handle is owned by the timer
+-- system, so clearing the field drops the reference and the timer still fires -- into the
+-- panel just torn down, refilling the cache the teardown cleared. `PSM.state.modelsPanel`
+-- is never set to nil, so `_LoadModelsImmediate`'s own guard does not stop it.
+-- Every input to `_CalculateModelsData`, which is why there is no expiry. `panel` is in
+-- the list because a rebuilt filter system is a different panel with a different search
+-- box, so a result computed against the old one must not survive.
 local MODELS_RESULT_SLICES = {
     "families", "expansions", "locations", "tamingRules", "conditions",
     "toggles", "favorites", "pets", "zone", "search", "panel",
@@ -157,13 +143,6 @@ local function DisplayPassesFilters(displayData, ownedSet)
 
     -- Taming rules: a display-level fact, so the aggregated set GetFamilyModels built.
     --
-    -- **A "Sliver of N'Zoth" special case used to live here and has been removed as dead
-    -- code.** It looked up NPC-level conditions when a taming rule of that name was
-    -- selected, from before that tame moved to Special Conditions. It could not fire for
-    -- three independent reasons: SpecialTames excludes the key from the taming-rule list so
-    -- it is never selectable, `ModelsData.Taming` contains no such value, and the fallback
-    -- compared against "Sliver of N'Zoth" while the condition is actually named
-    -- "N'lyeth, Sliver of N'Zoth". Conditions handle it, per NPC, below.
     local tamingSet = PSM.PetModels.TamingSet(displayData.taming)
     if not PSM.PetModels.TamingSetPasses(tamingSet, PSM.state.selectedTamingRules) then
         return false
@@ -237,10 +216,8 @@ function PSM.ModelsDataLoader:_IsZoneMatch(npc, playerMapId)
 
     -- Fallback: legacy zone name match if playerMapId happens to be a string.
     --
-    -- This used to split NpcLocation on "|" and then, separately, compare
-    -- `UiMapNames[uiMapId]` -- which is the same value NpcLocation resolves, so the two
-    -- comparisons were the same comparison. Both are leftovers from the free-text location
-    -- era: an NPC now carries a single `UiMapId`, so its location is one name.
+    -- An NPC carries a single `UiMapId`, so its location is one name -- no splitting, and
+    -- no separate `UiMapNames[uiMapId]` comparison, which resolves to the same value.
     if type(playerMapId) == "string" then
         if PSM.PetModels.NpcLocation(npc) == playerMapId then return true end
     end
@@ -254,11 +231,7 @@ end
 -- can reach here with one.
 --
 -- Thin wrappers over the shared rule in PetModels, kept as methods because the dynamic
--- filter selectors call them as `ML:_IsLocationSelected(...)`. Both used to return true for
--- an empty selection while the result-list blocks below treated the same state as "None";
--- every caller guards them with its own `hasLocFilter` / `hasExpFilter`, so that
--- disagreement was never reachable -- but it is the disagreement that shipped in
--- NPCDataLoader, where nothing guarded it.
+-- filter selectors call them as `ML:_IsLocationSelected(...)`.
 function PSM.ModelsDataLoader:_IsLocationSelected(locationString, selectedLocations)
     return PSM.PetModels.SelectionAllows(selectedLocations, locationString)
 end
@@ -274,14 +247,9 @@ end
 function PSM.ModelsDataLoader:LoadModelsForSelectedFamilies()
     if not PSM.state.modelsPanel or not PSM.PetModels then return end
     if PSM._modelsDebounceTimer then PSM._modelsDebounceTimer:Cancel() end
-    -- A `PSM._modelsRenderCache = nil` used to sit here, discarding the cache on the way in
-    -- -- so the models view's 0.2s window only ever helped calls arriving by some other
-    -- route, and the main reload path always recomputed. Deliberately *not* carried over as
-    -- `modelsResults = nil`: deciding what is stale is the selector's job now, and doing it
-    -- here would switch the cache off for the same path all over again.
-    --
-    -- Shared with NPCDataLoader, which is the point -- see the comment there for how the
-    -- two drifted apart while both were hardcoded.
+    -- Deliberately no `modelsResults = nil` here: deciding what is stale is the selector's
+    -- job, and discarding on the way in would switch the cache off for the main reload path.
+    -- The delay is shared with NPCDataLoader, which is the point.
     PSM._modelsDebounceTimer = C_Timer.NewTimer(PSM.Config.RENDER_DELAY, function()
         PSM.ModelsDataLoader:_LoadModelsImmediate()
     end)
@@ -292,11 +260,6 @@ function PSM.ModelsDataLoader:_LoadModelsImmediate()
     if not panel then return end
 
     -- **The 0.2s expiry is gone with the cache key, and that is one change, not two.**
-    -- A selector has no timestamp: it recomputes exactly when a dependency moves. The
-    -- expiry existed to bound staleness from inputs the string key did not model -- the
-    -- plan's own instruction was to keep it until the dependency set is provably complete,
-    -- and `search` was the last gap. Every component of the old key is now a slice.
-    --
     -- Built on first use rather than at file scope: `PSM.Store` belongs to core, and this
     -- is a LoadOnDemand file that must not capture another module's table at parse time.
     modelsResults = modelsResults or PSM.Store:Selector(MODELS_RESULT_SLICES, function()
@@ -535,9 +498,8 @@ end
 -- The families still reachable given every filter **except** the family selection.
 --
 -- Deliberately leave-one-out: it loops `panel.familiesList`, the full list, and never reads
--- `selectedModelsFamilies`. That is why `families` is absent from the dependency list on the
--- selector below, and why the selector is worth having -- ticking a family box cannot change
--- this answer, but under one shared cache key it rescanned all 61 families anyway.
+-- `selectedModelsFamilies`, which is why `families` is absent from the selector's
+-- dependency list below.
 local function ComputeAvailableFamilies()
     local panel = PSM.state.modelsPanel
     if not panel then return {} end

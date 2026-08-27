@@ -253,8 +253,7 @@ function ns.Data:SaveSettings()
             tamerSelectionInitialized = ns.state.tamerSelectionInitialized or false,
             -- No per-character minimapButton: every reader uses the account-wide
             -- PetStableManagementDB.settings.minimapButton (see Events.lua's
-            -- ADDON_LOADED handler). This used to write a same-session copy of it here
-            -- on every save, on every one of up to 15 characters, that nothing read.
+            -- ADDON_LOADED handler).
         }
 end
 

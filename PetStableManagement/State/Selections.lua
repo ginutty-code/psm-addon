@@ -1,24 +1,13 @@
 -- State/Selections.lua
 -- The five multi-select filter sets, and the only place they may be written.
 --
--- **A5.1 step 1: funnel the writes.** The plan's store invalidates on writes that go
--- through a setter, so "did we catch every write?" decides whether a version counter is
--- trustworthy or a source of permanent staleness. That question could not be answered by
--- reading the code, because the sets were mutated three ways:
+-- Every write goes through here so the store's version counters can be trusted: a
+-- mutation made through a helper's parameter is invisible to any search for the field
+-- name, so "did we catch them all?" cannot be answered by reading the code.
+-- `Tests/spec/selections_spec.lua` fails the build on a direct assignment anywhere else.
 --
---     PSM.state.selectedLocations[loc] = nil        -- directly
---     SelectAll(PSM.state.selectedModelsFamilies, list)   -- inside a helper, via a parameter
---     PSM.state.selectedExpansions = {}             -- reassigned wholesale
---
--- The second kind is invisible to any search for the field name, so the write count was a
--- lower bound that could not be turned into an upper bound. Routing every mutation through
--- here makes the set of writers finite and checkable -- `Tests/spec/selections_spec.lua`
--- fails the build on a direct assignment anywhere else, which is what turns "we think we
--- caught them all" into something a machine re-checks on every run.
---
--- **The values still live in `ns.state.selected*`.** Roughly a hundred read sites index
--- them directly and are untouched, because reads cannot invalidate anything and moving them
--- would be churn for its own sake. This owns writes; the store will hook them here.
+-- The values still live in `ns.state.selected*` and are read directly by ~100 sites.
+-- This owns writes only; reads cannot invalidate anything.
 --
 -- Tristate, like the toggles: nil (not selected), true (selected), "inverted" (locations
 -- only, and being removed there -- see ModelsFilters).
@@ -72,9 +61,7 @@ function Selections:Set(slice, key, value)
     Write(slice, self:Get(slice), key, value)
 end
 
--- `keys` is an array of names -- a families/expansions/locations list as the panel holds
--- it. Replaces the three `SelectAll(stateMap, list)` calls, which mutated a table they
--- received as a parameter and so could not be found by searching for what they wrote.
+-- `keys` is an array of names -- a families/expansions/locations list as the panel holds it.
 function Selections:SetAll(slice, keys, value)
     local set = self:Get(slice)
     for _, key in ipairs(keys or {}) do

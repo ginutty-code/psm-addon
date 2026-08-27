@@ -177,20 +177,13 @@ end
 -- THE FILTER-CHANGE SUBSCRIPTION
 --------------------------------------------------------------------------------
 
--- **A5.1 step 4.** This replaces nine hand-written
--- `ReloadAndSummarise() + UpdateDynamicFilters()` pairs. They were not two steps that both
--- had to happen: `ReloadAndSummarise` arms a debounce timer and returns, and the timer's
--- callback ends by calling `UpdateDynamicFilters` itself. The hand-written second half ran
--- *first*, synchronously, so the pill list narrowed on the click instead of 10-150ms later.
--- Preserved here, in one place, rather than retyped at every write site -- which is the
--- point, because a refresh a call site has to remember is one a call site can forget.
+-- One watcher instead of a `ReloadAndSummarise() + UpdateDynamicFilters()` pair retyped at
+-- every filter write site: a refresh a call site has to remember is one a call site can
+-- forget. (The pair was never two steps anyway -- `ReloadAndSummarise` arms a debounce
+-- whose callback ends by calling `UpdateDynamicFilters` itself.)
 --
--- Three of those sites also called `PopulateUnifiedFilterCheckboxes(panel)` immediately
--- before `UpdateDynamicFilters()`, which is that same function behind a nil-panel guard.
--- Each rebuilt the entire checkbox list twice per click. They go with the rest.
---
--- **`panel` is deliberately not watched.** It bumps when the filter system is rebuilt, and
--- a rebuild already populates; watching it would turn construction into a reload.
+-- `panel` is deliberately not watched: it bumps when the filter system is rebuilt, and a
+-- rebuild already populates, so watching it would turn construction into a reload.
 --
 -- `search` is fingerprinted off the search box, so it needs `Store:Touch()` to wake a
 -- flush -- see CreateSearchBox below.
@@ -295,13 +288,9 @@ end
 -- SEARCH BOX
 --------------------------------------------------------------------------------
 
--- The last hand-written refresh pair, and it goes the same way as the other nine -- except
--- that a widget cannot bump a slice, so it asks the store to re-read instead.
---
--- **The text is not passed on, deliberately.** The `search` slice fingerprints the box
--- directly, so handing the value to a setter here would create a second copy that could
--- disagree with the widget -- which is the shape of every bug this section of the plan has
--- been unwinding. `Touch` says only "look again"; the store finds the text itself.
+-- A widget cannot bump a slice, so it asks the store to re-read instead. The text is
+-- deliberately not passed on: the `search` slice fingerprints the box directly, and handing
+-- the value to a setter would create a second copy that could disagree with the widget.
 function PSM.ModelsFilters:CreateSearchBox(panel)
     PSM.PanelManager:CreateSearchBox(panel, function()
         PSM.Store:Touch()
@@ -430,17 +419,13 @@ function PSM.ModelsFilters:ResetAllFilters(panel)
     if panel.expansionList then SelectAll("expansions", panel.expansionList) end
     if panel.locationList  then SelectAll("locations",  panel.locationList)  end
 
-    -- **One rebuild, not four.** All three tabs share one `filterContent`, one
-    -- `filterCheckboxes` list and one `filterHeaders` list, and
-    -- `PopulateUnifiedFilterCheckboxes` opens by hiding whatever they hold -- so rebuilding
-    -- each tab in turn only ever leaves the last. `OnTabClick` rebuilds on every switch, so
-    -- there is nothing to pre-build.
+    -- One rebuild, not one per tab: all three tabs share one `filterContent`, and
+    -- `PopulateUnifiedFilterCheckboxes` opens by hiding whatever it holds, so rebuilding
+    -- each in turn only leaves the last. `OnTabClick` rebuilds on every switch anyway.
     self:PopulateUnifiedFilterCheckboxes(panel)
-    -- **A re-check, not a reload.** Everything above either bumps a slice or moves a
-    -- fingerprint, so asking the store to look again is strictly better than calling the
-    -- loader by hand: it cannot miss an input the watcher covers, and -- unlike the
-    -- unconditional reload that used to sit here -- it does no work at all when Reset is
-    -- pressed on filters that were already at their defaults.
+    -- A re-check, not a reload: everything above either bumps a slice or moves a
+    -- fingerprint, so the store cannot miss an input the watcher covers, and does no work
+    -- at all when Reset is pressed on filters already at their defaults.
     PSM.Store:Touch()
 
     if PSM.SpecialTames and PSM.SpecialTames.ResetInternalState then
@@ -632,10 +617,9 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel)
     -- selections does not read as a filter change and trigger a reload on construction.
     WatchFilterState()
 
-    -- Locations are two-state now. A saved "inverted" from the old three-state cycle
-    -- already meant the same thing as unselected -- both excluded the location -- so fold
-    -- it in rather than leaving a value the UI can render but no longer produce. Setting an
-    -- existing key to nil during pairs() is defined behaviour; adding one is not.
+    -- Locations are two-state: fold a saved "inverted" from the old three-state cycle
+    -- into nil, so no value survives that the UI can render but no longer produce. Setting
+    -- an existing key to nil during pairs() is defined behaviour; adding one is not.
     for loc, state in pairs(PSM.Selections:Get("locations")) do
         if state == "inverted" then PSM.Selections:Set("locations", loc, nil) end
     end
@@ -963,12 +947,9 @@ end
 
 -- Plain two-state checkbox: checked = show this location, unchecked = don't.
 --
--- Locations used to cycle nil -> true -> "inverted" -> nil like the Families and
--- Expansions filters. The third state bought the user nothing here, because locations are
--- seeded all-true (see InitStateIfEmpty): with an active selection always present, an
--- unchecked location already fails the include test, and "inverted" reached the same
--- outcome through the exclude path. Two ways to spell "hidden", and a click to cycle past
--- the one that looked different but was not.
+-- No "inverted" third state here, unlike Families and Expansions: locations are seeded
+-- all-true (see InitStateIfEmpty), so an unchecked location already fails the include
+-- test and "inverted" would be a second way to spell the same outcome.
 local function CreateLocationRow(panel, index, item, yOffset)
     local cb = GetPooledLocationRow(panel, index)
     cb:ClearAllPoints()

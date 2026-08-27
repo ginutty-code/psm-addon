@@ -20,10 +20,10 @@ local ID_LINE_HEIGHT = 14 -- display-id pills wrap onto a second line at this he
 -- it is the same inset the Tools and Show Only boxes already give their
 -- SectionHeaders inside an identical TOOLTIP-backdrop frame (ModelsPanel.lua).
 --
--- **Header and rows must share this.** Column x positions come from one
--- RecomputeColumnLayout, but the header's buttons anchor to the header frame while
--- cells anchor to their row frame -- so the two frames have to be inset identically
--- or every column in the header drifts out of step with the column under it.
+-- Header and rows must share this: column x positions come from one
+-- RecomputeColumnLayout, but the header's buttons anchor to the header frame while cells
+-- anchor to their row frame, so an inset applied to one and not the other drifts every
+-- column out of step with the column under it.
 local TABLE_INSET = 5
 
 -- This view packs a lot of columns into a row, so its text runs half a point
@@ -43,14 +43,10 @@ PSM.NPCRow.TABLE_INSET   = TABLE_INSET
 -- (npcViewColumnWidths). displayIds is the flex column -- its `width` is only a
 -- placeholder, since RecomputeColumnLayout gives it whatever the others leave.
 --
--- **These have to add up.** The panel is a fixed 1100 wide and not resizable, so the
--- table's usable width is a known 815, and the widths below are sized against it
--- rather than picked per column in isolation. They previously summed to 782 with
--- Continent enabled, against a budget of 755 -- so simply turning that column on
--- pushed the table 87px past its own right edge, with Display IDs pinned at its
--- floor and clipped. Trimmed to leave Display IDs 106px with every column shown and
--- 204px at the default set; longest real values still fit ("Eastern Kingdoms" ~80px
--- in Continent's 92, "Scrawny Pebbledweller" ~105px in Name's 120).
+-- These have to add up: the panel is a fixed 1100 wide and not resizable, so the table's
+-- usable width is a known 815 and the widths below are sized against it rather than picked
+-- per column. As set, Display IDs keeps 106px with every column shown and 204px at the
+-- default set, and the longest real values still fit.
 PSM.NPCRow.COLUMNS = {
     { key = "npcId",          label = PSM.L("ID"),           width = 40,  optional = true,  default = true  },
     { key = "name",           label = PSM.L("Name"),         width = 120, optional = false, default = true  },
@@ -234,11 +230,9 @@ end
 -- How wide `key` may be dragged before the flex column would be squeezed past its
 -- minimum -- i.e. before the table would run off its own right edge.
 --
--- **This has to live here, not in the drag handler.** Because Display IDs absorbs the
+-- This has to live here, not in the drag handler: because Display IDs absorbs the
 -- remainder, "how wide may this column be?" is a question about every *other* visible
--- column; the handler knows only the one under the cursor. Nothing related the two
--- before, so dragging any fixed column far enough pushed Display IDs outside the
--- panel -- it could not shrink any further, so the overflow had nowhere to go.
+-- column, and the handler knows only the one under the cursor.
 --
 -- Returns nil when there is no cap to apply (the flex column itself, or a layout with
 -- no flex column visible -- Display IDs is `optional = false`, so that is defensive).
@@ -316,13 +310,11 @@ ResizeDriver:SetScript("OnUpdate", function(self)
             -- Upper bound as well as lower: past this the Display IDs column has no
             -- room left to give up and the table would be drawn off its right edge.
             --
-            -- **The cap never pulls a column below where it already is.** A layout can
-            -- start out over budget without anyone dragging -- toggle Continent on, or
-            -- narrow the panel, and the stored widths already exceed the room -- and a
-            -- bare math.min there would snap the grabbed column down to the cap on the
-            -- first pixel of movement, in either direction. Bounding by `current`
-            -- instead means an over-budget column can still be dragged *smaller*
-            -- (which is the way out of that state) but never larger.
+            -- The cap never pulls a column below where it already is. A layout can start
+            -- out over budget without anyone dragging (toggle Continent on), and a bare
+            -- math.min would then snap the grabbed column to the cap on the first pixel of
+            -- movement. Bounding by `current` keeps dragging *smaller* available, which is
+            -- the way out of that state.
             local maxWidth = PSM.NPCRow:MaxWidthForColumn(panel, handle.columnKey)
             if maxWidth then wanted = math.min(wanted, math.max(maxWidth, current)) end
 
@@ -379,17 +371,13 @@ end
 function PSM.NPCRow:CreateHeaderRow(parent)
     local Widgets = PSM.Widgets
 
-    -- The same gold-on-dark bar as the "Show Only" filter group header -- which is
-    -- what this used to say in a comment, above a hand-written copy of it. inset 0
-    -- because this one spans the full width of the table rather than sitting inside
-    -- a panel; no `text`, because the columns below fill it themselves.
+    -- The same gold-on-dark bar as the "Show Only" filter group header. `inset = 0`
+    -- because this one spans the full width of the table; no `text`, because the columns
+    -- below fill it themselves.
     --
-    -- Inset by TABLE_INSET on three sides so the gold band clears petsFrame's silver
-    -- border instead of being drawn on top of it. The band keeps its full
-    -- HEADER_HEIGHT -- shaving the texture inside a flush frame only ate into the
-    -- band itself, which is the visible thing we are trying to keep whole.
-    -- UpdateNPCPanelLayout insets the rows by the same amount, so the header's
-    -- columns stay aligned with the cells beneath them.
+    -- Positioned in by TABLE_INSET on three sides so the gold band clears petsFrame's
+    -- silver border rather than being drawn on top of it, while keeping its full
+    -- HEADER_HEIGHT. UpdateNPCPanelLayout insets the rows by the same amount.
     local header = Widgets.SectionHeader(parent, {
         inset  = 0,
         point  = {
