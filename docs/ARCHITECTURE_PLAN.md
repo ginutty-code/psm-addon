@@ -1,9 +1,9 @@
 # PSM Architecture Plan
 
 A cross-repo plan spanning `psm-addon` and `psm-data`, tracked here in `psm-addon/docs/`
-as of 2026-08-27 (it spent its working life in the untracked `PSM/` workspace root,
-which is *not* a git repo, alongside `architecture.html` and
-`DATA_STRUCTURE_OPTIMIZATION_PLAN.md` — the latter is still there, untracked).
+as of 2026-08-27 alongside `architecture.html` and
+`DATA_STRUCTURE_OPTIMIZATION_PLAN.md` (all three spent their working life in the
+untracked `PSM/` workspace root, which is *not* a git repo).
 
 Written 2026-08-11, immediately after the data-structure optimization plan closed out
 (T9: static floor 13.26MB -> 6.57MB). That plan fixed *what the data looks like*. This
