@@ -65,9 +65,10 @@ assuming which repo you're committing to.
 For the full cross-repo picture — every `psm-data` pipeline stage, which
 `Manual/` CSV feeds which script, and the exact bridge point
 (`config.sync_output_to_addon()`) that copies compiled `.lua` tables into
-this repo — see `../architecture.html` (an interactive diagram one level up,
-outside both repos; open it in a browser, or `Read` it directly since the
-node/edge data is plain JS literals).
+this repo — see `docs/architecture.html` (an interactive diagram; open it in
+a browser, or `Read` it directly since the node/edge data is plain JS
+literals). `docs/ARCHITECTURE_PLAN.md` is the closed restructuring plan
+behind A1-A15 below — the record of *why*, not a to-do list.
 
 `index.html` at the repo root is a standalone feature-request form (no
 build step, no server) that walks users through picking a panel/feature
@@ -300,9 +301,9 @@ including it overstate the work — count `SetBackdrop({`. `PopUpManager.lua` is
 reference file for where that line falls.
 
 The full task record — every measurement, every bug found while migrating, and the
-reasoning behind each kit addition — is in `../ARCHITECTURE_PLAN.md` (outside both
-repos). **Read its A6 sections before continuing the migration**; several decisions
-there look arbitrary without the evidence that produced them.
+reasoning behind each kit addition — is in `docs/ARCHITECTURE_PLAN.md`. **Read its A6
+sections before continuing the migration**; several decisions there look arbitrary
+without the evidence that produced them.
 
 ## Models View / NPC View share filter state — reload through one entrypoint
 
