@@ -124,7 +124,7 @@ end
 -- unrelated panel closing before the Models Browser ever built its filter state would save
 -- its untouched {} default as real data, permanently overriding "all selected" on next login.
 local FILTER_KEYS = {
-    "sortBy", "exoticFilter", "duplicatesOnlyFilter",
+    "sortBy", "exoticFilter", "duplicatesOnlyFilter", "favoritesOnlyFilter",
     "selectedSpecs", "selectedFamilies", "selectedTamers", "selectedAbilities",
     "selectedTamingRules", "selectedConditions",
 }
@@ -139,6 +139,7 @@ local NIL_FILTER_KEYS = {
     sortBy = true,
     exoticFilter = true,
     duplicatesOnlyFilter = true,
+    favoritesOnlyFilter = true,
 }
 
 -- An empty table and an absent key already load identically -- see the comment in
@@ -243,6 +244,7 @@ function ns.Data:SaveSettings()
             sortBy                 = ns.state.sortBy or nil,
             exoticFilter           = ns.state.exoticFilter or false,
             duplicatesOnlyFilter   = ns.state.duplicatesOnlyFilter or false,
+            favoritesOnlyFilter    = ns.state.favoritesOnlyFilter or false,
             selectedSpecs          = DeepCopyIfNonEmpty(ns.state.selectedSpecs),
             selectedFamilies       = DeepCopyIfNonEmpty(ns.state.selectedFamilies),
             selectedTamers         = DeepCopyIfNonEmpty(ns.state.selectedTamers),

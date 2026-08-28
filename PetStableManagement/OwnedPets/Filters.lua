@@ -579,6 +579,7 @@ function ns.UI:UpdateFilterUI()
 
     -- SetTriState paints the box and keeps `.triState` in sync with the saved filter,
     -- which the two hand-written versions of this had to remember separately.
+    if panel.favoritesCheck  then panel.favoritesCheck:SetTriState(ns.state.favoritesOnlyFilter)    end
     if panel.exoticCheck     then panel.exoticCheck:SetTriState(ns.state.exoticFilter)              end
     if panel.duplicatesCheck then panel.duplicatesCheck:SetTriState(ns.state.duplicatesOnlyFilter)  end
 
@@ -615,7 +616,8 @@ function ns.UI:BuildSortButtons(panel)
                 ns.state.isStableOpen and ns.L("Tamer: kept on current hunter")
                                        or ns.L("All Hunters selected"),
                 ns.L("All Abilities selected"),
-                ns.L("Exotic Only: OFF"), ns.L("Duplicates Only: OFF"), ns.L("Clear search box"),
+                ns.L("Favorites: OFF"), ns.L("Exotic Only: OFF"), ns.L("Duplicates Only: OFF"),
+                ns.L("Clear search box"),
                 ns.L("Sort by: Unsorted"),
             }) do
                 lines[#lines + 1] = { text = text, color = ns.Theme.COLOR.FAINT }
@@ -648,6 +650,8 @@ function ns.UI:BuildSortButtons(panel)
 
             ns.state.exoticFilter         = nil
             ns.state.duplicatesOnlyFilter = nil
+            ns.state.favoritesOnlyFilter  = nil
+            panel.favoritesCheck:SetTriState(nil)
             panel.exoticCheck:SetTriState(nil)
             panel.duplicatesCheck:SetTriState(nil)
 

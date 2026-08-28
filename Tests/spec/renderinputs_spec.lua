@@ -60,6 +60,7 @@ local COVERED = {
     selectedAbilities    = "ownedAbilities",
     exoticFilter         = "ownedExotic",
     duplicatesOnlyFilter = "ownedDuplicates",
+    favoritesOnlyFilter  = "ownedFavorites",
     sortBy               = "ownedSort",
     panel                = "ownedSearch",   -- panel.searchBox
     content              = "panelWidth",    -- content:GetWidth()

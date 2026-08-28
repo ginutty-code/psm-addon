@@ -230,6 +230,7 @@ Store:Declare("ownedAbilities", function() return ns.Utils:GetTableHash(ns.state
 
 Store:Declare("ownedExotic",     function() return tostring(ns.state.exoticFilter) end)
 Store:Declare("ownedDuplicates", function() return tostring(ns.state.duplicatesOnlyFilter) end)
+Store:Declare("ownedFavorites",  function() return tostring(ns.state.favoritesOnlyFilter) end)
 Store:Declare("ownedSort",       function() return tostring(ns.state.sortBy) end)
 
 -- The panel's own search box, on the same argument as the browser's `search`: the home is a

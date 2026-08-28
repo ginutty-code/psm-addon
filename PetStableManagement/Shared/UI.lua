@@ -222,7 +222,8 @@ end
 -- trusting the cache key it replaces -- which is how `panelWidth` was found missing.
 local RENDER_SLICES = {
     "ownedPets", "ownedSearch", "ownedSpecs", "ownedFamilies", "ownedTamers",
-    "ownedAbilities", "ownedExotic", "ownedDuplicates", "ownedSort", "panelWidth",
+    "ownedAbilities", "ownedExotic", "ownedDuplicates", "ownedFavorites", "ownedSort",
+    "panelWidth",
 }
 
 local renderResults   -- the selector; built on first use, dropped by CreateRenderCache
@@ -317,6 +318,8 @@ function ns.UI:_CalculateRenderData()
 
         if     ns.state.exoticFilter == true     and not pet.isExotic                       then skip = true
         elseif ns.state.exoticFilter == "inverted" and pet.isExotic                          then skip = true
+        elseif ns.state.favoritesOnlyFilter == true       and not pet.isFavorite            then skip = true
+        elseif ns.state.favoritesOnlyFilter == "inverted" and     pet.isFavorite            then skip = true
         elseif hasSpecsFilter  and not ns.state.selectedSpecs[pet.specName]                 then skip = true
         elseif hasFamilyFilter and not ns.state.selectedFamilies[pet.familyName]            then skip = true
         elseif hasTamerFilter  and not ns.state.selectedTamers[pet.tamer]                   then skip = true

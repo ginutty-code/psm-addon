@@ -124,6 +124,7 @@ ns.state = {
     sortBySlot = false,
     exoticFilter = false,
     duplicatesOnlyFilter = false,
+    favoritesOnlyFilter = false,
     selectedSpecs = {},
     selectedFamilies = {},
     selectedTamers = {},
