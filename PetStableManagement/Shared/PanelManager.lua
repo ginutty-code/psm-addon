@@ -430,7 +430,10 @@ function ns.PanelManager:CreateRailBox(panel, opts)
         borderColor = ns.Theme.COLOR.SILVER,
     })
 
-    Widgets.SectionHeader(box, {
+    -- Kept on the box so a caller can anchor its first control to the band's
+    -- BOTTOMLEFT instead of re-deriving the band height -- the same convenience
+    -- `contentTop` offers callers that build relative to panel TOP.
+    box.sectionHeader = Widgets.SectionHeader(box, {
         width = opts.width - 10,
         point = { "TOPLEFT", RAILBOX_PAD_TOP, -RAILBOX_PAD_TOP },
         text  = opts.headerText,

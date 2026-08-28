@@ -106,21 +106,49 @@ function ns.UI:AddOwnedPetsElements(panel)
     })
 
     -- Filters & sort buttons ----------------------------------------------
-    ns.UI:BuildFilters(panel)
+    -- The left rail and the pet list share this top edge: below the search / reset
+    -- row (bottom ~-86 at the default font) and below BuildFilters' sortDrop
+    -- (y = -92) so nothing overlaps. Eyeball figure -- nudge in-game.
+    local LIST_TOP = -128
+
+    -- BuildFilters creates the left rail (Tools / Show Only / Filters boxes) and
+    -- leaves panel.toolsFrame empty for the Tools buttons added below.
+    ns.UI:BuildFilters(panel, LIST_TOP)
     ns.UI:BuildSortButtons(panel)
 
+    -- Tools box contents ------------------------------------------------------
+    -- Export and Pet Teams moved off the action row (it was at its width limit at
+    -- MIN_PANEL_WIDTH -- see docs/Owned_pets_toolbar_plan.md) into the rail's
+    -- Tools box. The box reserves a third slot; Team Roulette drops into it with
+    -- the Random Team feature.
+    local function ToolButton(text, anchorTo, onClick, tooltip)
+        return Widgets.Button(panel.toolsFrame, {
+            point      = anchorTo
+                and { "TOPLEFT", anchorTo, "BOTTOMLEFT", 0, -5 }
+                or  { "TOPLEFT", panel.toolsFrame.sectionHeader, "BOTTOMLEFT", 3, -6 },
+            width      = Theme.CONTROL.BUTTON_W.M,
+            text       = text,
+            fontObject = "GameFontNormalSmall",
+            onClick    = onClick,
+            tooltip    = tooltip,
+        })
+    end
+
+    panel.exportButton = ToolButton(ns.L("Export"), nil,
+        function() ns.Export:ShowExportDialog() end)
+    panel.teamsButton  = ToolButton(ns.L("Pet Teams"), panel.exportButton,
+        function() ns.TeamsPanel:Show() end, ns.Teams:ButtonTooltipSpec())
+
     -- Scroll frame --------------------------------------------------------
-    -- -69 clears the second dropdown row below FILTER_TOP (BuildFilters' row2Y, 34px
-    -- down -- one dropdown's height plus a 2px gap -- plus the original 35px
-    -- clearance). The stacked exotic/duplicates checkboxes live *above* FILTER_TOP
-    -- instead, in the search-box/reset-button gap, so they don't factor in here.
+    -- To the right of the rail (left edge follows the Tools box, so it tracks the
+    -- measured rail width) and sharing the rail's top edge.
     local scrollFrame = Widgets.Frame(panel, {
         frameType = "ScrollFrame",
         template  = "UIPanelScrollFrameTemplate",
         skin      = "scrollframe",
         point     = {
-            { "TOPLEFT",      10, Theme.CHROME.FILTER_TOP - 69 },
-            { "BOTTOMRIGHT", -30,   35 },
+            { "TOPLEFT",     panel.toolsFrame, "TOPRIGHT", 14, 0 },
+            { "BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30, 35 },
         },
     })
 
@@ -206,33 +234,8 @@ function ns.UI:AddOwnedPetsElements(panel)
     end)
 
     -- Buttons -------------------------------------------------------------
-    -- Every button on this panel is the same shape, differing only in where it anchors
-    -- and what it does on click.
-    local function PanelButton(opts)
-        return Widgets.Button(panel, {
-            point      = opts.point,
-            width      = ns.Theme.CONTROL.BUTTON_W.S,
-            text       = opts.text,
-            fontObject = "GameFontNormalSmall",
-            onClick    = opts.onClick,
-            tooltip    = opts.tooltip,
-        })
-    end
-
-    -- Export (leftmost; anchors to the panel edge instead of a sibling)
-    panel.exportButton = PanelButton({
-        text    = ns.L("Export"),
-        point   = { "TOPLEFT", 10, -5 },
-        onClick = function() ns.Export:ShowExportDialog() end,
-    })
-
-    panel.teamsButton = PanelButton({
-        text    = ns.L("Pet Teams"),
-        point   = { "TOPLEFT", panel.exportButton, "TOPRIGHT", 5, 0 },
-        onClick = function() ns.TeamsPanel:Show() end,
-        tooltip = ns.Teams:ButtonTooltipSpec(),
-    })
-
+    -- Export and Pet Teams are built above, in the rail's Tools box.
+    --
     -- View-mode buttons (right side, created right-to-left) ---------------
     local function ViewButton(text, mode, rightAnchor)
         return ns.PanelManager:CreateViewButton(panel, {

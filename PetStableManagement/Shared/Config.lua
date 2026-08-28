@@ -26,7 +26,6 @@ ns.Config = {
     -- configuration, and the panel's own filter row is now one of several regions
     -- that all read the same shared anchor.
     DROPDOWN_WIDTH   = 90,
-    DROPDOWN_SPACING = 118,
 
     -- Panel
     -- 570, not the original 550: the 2x2 filter grid (two dropdown columns plus the

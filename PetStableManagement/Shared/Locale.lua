@@ -180,8 +180,10 @@ L.Register({
     ["Sorted by Family"] = "Sorted by Family",
     ["Sorted by Spec"]   = "Sorted by Spec",
     ["Sorted by Tamer"]  = "Sorted by Tamer",
-    ["Exotic Only"]     = "Exotic Only",
-    ["Duplicates Only"] = "Duplicates Only",
+    -- Owned Pets "Show Only" rail box: labels drop the "Only" the box header implies.
+    ["Duplicates"] = "Duplicates",
+    ["Also narrows the Families list below to exotic-only."] =
+        "Also narrows the Families list below to exotic-only.",
 
     ["All Specs"]     = "All Specs",
     ["All Hunters"]   = "All Hunters",
@@ -329,6 +331,7 @@ L.Register({
     ["Pet Ability Browser"] = "Pet Ability Browser",
     ["Tools"]      = "Tools",
     ["Show Only"]  = "Show Only",
+    ["Filters"]    = "Filters",
     ["Previous"]   = "Previous",
     ["Next"]       = "Next",
     ["Page %d of %d"] = "Page %d of %d",

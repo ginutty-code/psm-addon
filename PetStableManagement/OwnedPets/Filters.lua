@@ -27,11 +27,14 @@ local function NextTriState(state)
 end
 
 -- A tri-state filter checkbox: off → include → exclude → off.
-local function CreateFilterCheckbox(panel, opts)
-    local cb = ns.Widgets.CheckBox(panel, {
+-- `parent` is the frame it is anchored in (a rail box now, not `panel`); its
+-- own field name on `panel` is set by the caller, unchanged.
+local function CreateFilterCheckbox(parent, opts)
+    local cb = ns.Widgets.CheckBox(parent, {
         point         = opts.point,
         label         = opts.label,
         labelFontSize = ns.Theme.SIZE.SMALL,
+        tooltip       = opts.tooltip,
     })
 
     -- Extends the clickable area rightward over the label text, so clicking the
@@ -292,71 +295,198 @@ local function InitSortDropdown(panel)
     UIDropDownMenu_SetText(dropdown, SortDropLabel())
 end
 
+-- ─── Rail width ───────────────────────────────────────────────────────────────
+
+-- The Owned Pets left rail is sized to its own content, not to Models Browser's
+-- flat 210px -- that panel is a fixed 1100px wide, this one is 500-570, and a
+-- 210px rail here would draw the centered search box straight through the rail's
+-- border. Every term is measured against the real in-game widget rather than the
+-- planning mockup's substitute-web-font guess. Computed once, memoised.
+local railWidth
+local function RailWidth()
+    if railWidth then return railWidth end
+
+    -- Checkbox labels, at their actual font (Friz Quadrata at Theme.SIZE.SMALL).
+    local scratch = UIParent:CreateFontString(nil, "ARTWORK")
+    scratch:SetFont(ns.Theme.FONT, ns.Theme.SIZE.SMALL, "")
+    local widestLabel = 0
+    for _, s in ipairs({ ns.L("Favorites"), ns.L("Exotic"), ns.L("Duplicates") }) do
+        scratch:SetText(s)
+        widestLabel = math.max(widestLabel, scratch:GetStringWidth() or 0)
+    end
+
+    -- Config.DROPDOWN_WIDTH is only the inner text width; UIDropDownMenu_SetWidth
+    -- pads the frame by a client-version-dependent amount (25 or 50) for the side
+    -- textures and the arrow button, and that padded frame is what has to fit the
+    -- rail box. Probe the real frame once rather than guessing the pad.
+    local probe = ns.CreateFrame("Frame", "PSMOwnedRailProbe", UIParent, "UIDropDownMenuTemplate")
+    UIDropDownMenu_SetWidth(probe, ns.Config.DROPDOWN_WIDTH)
+    local dropdownW = probe:GetWidth()
+    probe:Hide()
+
+    -- Widest of: the dropdown frame (less the ~8px it hangs invisibly past the
+    -- box's left edge -- see Dropdown's anchor); checkbox glyph + 4px gap + label;
+    -- the Tools buttons' fixed M tier ("Team Roulette" clips at S/80, fits M/100).
+    -- +16 keeps ~8px inside each vertical rail-box edge. Confirm the number in-game.
+    railWidth = math.ceil(math.max(
+        dropdownW - 8,
+        ns.Theme.CONTROL.CHECKBOX + 4 + widestLabel,
+        ns.Theme.CONTROL.BUTTON_W.M
+    ) + 16)
+    return railWidth
+end
+
 -- ─── Public API ───────────────────────────────────────────────────────────────
 
-function ns.UI:BuildFilters(panel)
+-- `railTop` is the panel-TOP-relative y where the rail's first box starts; it is
+-- shared with Panel.lua so the rail and the pet list line up on the same top edge.
+function ns.UI:BuildFilters(panel, railTop)
     local debouncedUpdate = ns.Utils:Debounce(function()
         ns.UI:UpdatePanel()
     end, ns.Config.UPDATE_DELAY)
 
     local Widgets = ns.Widgets
-    local cfg  = ns.Config
-    local rowY = ns.Theme.CHROME.FILTER_TOP
-    local step = cfg.DROPDOWN_SPACING
+    local Theme   = ns.Theme
+    local cfg     = ns.Config
+    local PM      = ns.PanelManager
+    local railW   = RailWidth()
 
-    -- Second row, directly below the first -- a 2x2 grid reads better than three
-    -- dropdowns crammed on one row plus a fourth on its own below. Columns are by
-    -- use/flow rather than by what fit where: column 1 narrows by exotic-ness then
-    -- browses by family then ability, column 2 narrows to duplicates then browses by
-    -- tamer then spec -- each checkbox sits directly over the dropdown it actually
-    -- affects (Exotic Only rebuilds the family dropdown's own contents; see
-    -- InitFamilyDropdown) rather than the other column's.
-    --
-    -- -34 is one dropdown template's height (32) plus a 2px gap; Panel.lua's scroll
-    -- frame clearance below FILTER_TOP is sized to match (see its comment).
-    local row2Y = rowY - 34
+    -- The filter chrome is three stacked rail boxes down the panel's left edge,
+    -- top-aligned with the pet list rather than with the title -- the space beside
+    -- the centered title/search box stays clear. Tools is created here as an empty
+    -- box and populated with its buttons by Panel.lua (which owns Export/Pet
+    -- Teams' click handlers); Show Only and Filters are built and filled here.
+    local toolsY = railTop or Theme.CHROME.TITLE_Y
+    local toolsBox = PM:CreateRailBox(panel, {
+        point         = { 10, toolsY },
+        width         = railW,
+        contentHeight = Theme.CONTROL.BUTTON * 3 + 10,   -- 3 stacked buttons, 5px gaps
+        headerText    = ns.L("Tools"),
+    })
+    panel.toolsFrame = toolsBox
 
-    -- All five are UIDropDownMenuTemplate frames of the same width, differing only
-    -- in where they sit and how they are populated.
-    local function Dropdown(name, point)
-        local d = Widgets.Frame(panel, {
-            name      = name,
-            template  = "UIDropDownMenuTemplate",
-            skin      = "dropdown",
-            point     = point,
+    -- ── Show Only: tri-state checkboxes ────────────────────────────────────────
+    -- Sized for three rows now; only the filtering logic behind Favorites lands in
+    -- a later commit, so the box height and the stack order are already final.
+    local showOnlyY = toolsY - toolsBox:GetHeight() - 5
+    local showOnlyBox = PM:CreateRailBox(panel, {
+        point         = { 10, showOnlyY },
+        width         = railW,
+        contentHeight = Theme.CONTROL.CHECKBOX_ROW * 3,
+        headerText    = ns.L("Show Only"),
+    })
+    panel.showOnlyFrame = showOnlyBox
+
+    local CHECK_GAP = Theme.CONTROL.CHECKBOX_ROW - Theme.CONTROL.CHECKBOX
+
+    panel.favoritesCheck = CreateFilterCheckbox(showOnlyBox, {
+        point         = { "TOPLEFT", showOnlyBox.sectionHeader, "BOTTOMLEFT", 3, -6 },
+        label         = ns.L("Favorites"),
+        labelHitWidth = railW,
+        initialState  = ns.state.favoritesOnlyFilter,
+        -- The render-pipeline branch, persistence and Reset wiring for this state
+        -- arrive with the Favorites commit; the control itself is layout.
+        onChanged = function(state)
+            ns.state.favoritesOnlyFilter = state
+            debouncedUpdate()
+        end,
+    })
+
+    panel.exoticCheck = CreateFilterCheckbox(showOnlyBox, {
+        point         = { "TOPLEFT", panel.favoritesCheck, "BOTTOMLEFT", 0, -CHECK_GAP },
+        label         = ns.L("Exotic"),
+        labelHitWidth = railW,
+        initialState  = ns.state.exoticFilter,
+        -- Clicking this rebuilds the Families dropdown's own contents
+        -- (InitFamilyDropdown) -- a coupling that used to be obvious from the
+        -- checkbox sitting directly above Families and no longer is.
+        tooltip = {
+            title = ns.L("Exotic"),
+            lines = { { text  = ns.L("Also narrows the Families list below to exotic-only."),
+                        color = Theme.COLOR.DIM } },
+        },
+        onChanged = function(state)
+            ns.state.exoticFilter = state
+            ns.Utils:ClearTable(ns.state.selectedFamilies)
+            InitFamilyDropdown(panel)
+            debouncedUpdate()
+        end,
+    })
+
+    panel.duplicatesCheck = CreateFilterCheckbox(showOnlyBox, {
+        point         = { "TOPLEFT", panel.exoticCheck, "BOTTOMLEFT", 0, -CHECK_GAP },
+        label         = ns.L("Duplicates"),
+        labelHitWidth = railW,
+        initialState  = ns.state.duplicatesOnlyFilter,
+        onChanged = function(state)
+            ns.state.duplicatesOnlyFilter = state
+            debouncedUpdate()
+        end,
+    })
+
+    -- ── Filters: four multi-select dropdowns in one column ────────────────────
+    -- Order: Hunters, Specs, Families, Abilities. Same panel.xxxDrop field names
+    -- and same Init* calls as the old 2x2 grid -- only the anchoring changed, and
+    -- nothing downstream anchors to these.
+    local DROP_H = 34   -- one UIDropDownMenuTemplate (32) plus a 2px gap
+    local filtersY = showOnlyY - showOnlyBox:GetHeight() - 5
+    local filtersBox = PM:CreateRailBox(panel, {
+        point         = { 10, filtersY },
+        width         = railW,
+        contentHeight = DROP_H * 4,
+        headerText    = ns.L("Filters"),
+    })
+    panel.filtersFrame = filtersBox
+
+    -- UIDropDownMenuTemplate carries ~16px of invisible frame on its left (the
+    -- "dropdown" skin re-anchors its visible backdrop to f+16). The section band
+    -- sits at box x=5, so -13 from it lands the visible edge ~8px inside the box.
+    -- Tune in-game.
+    local function Dropdown(name, i)
+        local d = Widgets.Frame(filtersBox, {
+            name     = name,
+            template = "UIDropDownMenuTemplate",
+            skin     = "dropdown",
+            point    = { "TOPLEFT", filtersBox.sectionHeader, "BOTTOMLEFT",
+                         -13, -6 - (i - 1) * DROP_H },
         })
         UIDropDownMenu_SetWidth(d, cfg.DROPDOWN_WIDTH)
         return d
     end
 
-    -- Column 1: Family (row 1), then Ability (row 2).
-    panel.familyDrop = Dropdown("PetDupFamilyDrop", { "TOPLEFT", -10, rowY })
-    InitFamilyDropdown(panel)
-
-    panel.abilityDrop = Dropdown("PetDupAbilityDrop", { "TOPLEFT", -10, row2Y })
-    InitAbilityDropdown(panel)
-
-    -- Column 2: Tamer (row 1), then Spec (row 2).
-    panel.tamerDrop = Dropdown("PetDupTamerDrop", { "TOPLEFT", step * 1 - 10, rowY })
+    panel.tamerDrop = Dropdown("PetDupTamerDrop", 1)
     self:ReinitializeTamerDropdown()
 
-    panel.specDrop = Dropdown("PetDupSpecDrop", { "TOPLEFT", step * 1 - 10, row2Y })
+    panel.specDrop = Dropdown("PetDupSpecDrop", 2)
     InitMultiDropdown(function() return ns.state.specList end,
                       function() return ns.state.selectedSpecs end,
                       panel.specDrop, ns.L("All Specs"))
 
-    -- row2Y, not rowY: lined up with the bottom dropdown row (Ability/Spec), not the
-    -- top one -- there's nothing else on the right at row2Y's height to compete with.
-    panel.sortDrop = Dropdown("PetDupSortDrop", { "TOPRIGHT", -17, row2Y })
+    panel.familyDrop = Dropdown("PetDupFamilyDrop", 3)
+    InitFamilyDropdown(panel)
+
+    panel.abilityDrop = Dropdown("PetDupAbilityDrop", 4)
+    InitAbilityDropdown(panel)
+
+    -- ── Sort by: not a filter, so it stays panel-anchored top-right ───────────
+    -- Dropped down from the old filter grid to sit just above the pet list's top
+    -- edge (Panel.lua's LIST_TOP, -128; this stays above it). Keeps its tooltip.
+    panel.sortDrop = Widgets.Frame(panel, {
+        name     = "PetDupSortDrop",
+        template = "UIDropDownMenuTemplate",
+        skin     = "dropdown",
+        point    = { "TOPRIGHT", panel, "TOPRIGHT", -17, -92 },
+    })
+    UIDropDownMenu_SetWidth(panel.sortDrop, cfg.DROPDOWN_WIDTH)
     InitSortDropdown(panel)
 
-    local DIM, GOLD = ns.Theme.COLOR.DIM, ns.Theme.COLOR.GOLD
+    local DIM, GOLD = Theme.COLOR.DIM, Theme.COLOR.GOLD
     ns.Tooltip.Attach(panel.sortDrop, {
         anchor     = "ANCHOR_BOTTOMLEFT",
         x          = 17,
         y          = 0,
         title      = ns.L("Sort by"),
-        titleColor = ns.Theme.COLOR.WHITE,
+        titleColor = Theme.COLOR.WHITE,
         lines = {
             { text = ns.L("Slot - sort by stable slot number"),     color = DIM },
             { text = ns.L("Model - sort by display ID"),            color = DIM },
@@ -368,33 +498,6 @@ function ns.UI:BuildFilters(panel)
             { text = ns.L("Custom drag-and-drop reordering in"),    color = GOLD },
             { text = ns.L("Grouped view requires Unsorted."),       color = GOLD },
         },
-    })
-
-    -- Each checkbox sits directly above the column it heads -- Exotic Only over
-    -- Family (it also rebuilds that dropdown's contents, see onChanged below),
-    -- Duplicates Only over Tamer -- rather than stacked together over one column.
-    panel.exoticCheck = CreateFilterCheckbox(panel, {
-        point         = { "BOTTOMLEFT", panel.familyDrop, "TOPLEFT", 16, 3 },
-        label         = ns.L("Exotic Only"),
-        labelHitWidth = 100,
-        initialState  = ns.state.exoticFilter,
-        onChanged = function(state)
-            ns.state.exoticFilter = state
-            ns.Utils:ClearTable(ns.state.selectedFamilies)
-            InitFamilyDropdown(panel)
-            debouncedUpdate()
-        end,
-    })
-
-    panel.duplicatesCheck = CreateFilterCheckbox(panel, {
-        point         = { "BOTTOMLEFT", panel.tamerDrop, "TOPLEFT", 16, 3 },
-        label         = ns.L("Duplicates Only"),
-        labelHitWidth = 120,
-        initialState  = ns.state.duplicatesOnlyFilter,
-        onChanged = function(state)
-            ns.state.duplicatesOnlyFilter = state
-            debouncedUpdate()
-        end,
     })
 end
 
