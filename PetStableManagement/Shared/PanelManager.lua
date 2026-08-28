@@ -388,6 +388,60 @@ function ns.PanelManager:CreateViewButton(panel, opts)
     })
 end
 
+-- ─── CreateRailBox ───────────────────────────────────────────────────────────
+
+-- One dark box with a gold section band at its top -- the shape Models Browser's
+-- `toolsFrame` and `showOnlyFrame` hand-roll (Widgets.Frame backdrop "TOOLTIP",
+-- borderColor SILVER, plus a Widgets.SectionHeader inset 5px from the top-left).
+-- Owned Pets' left-rail redesign needs the same shape three more times, so it is a
+-- factory here rather than a fourth copy. Nothing pet-specific -- same reason
+-- CreateSearchBox/CreateViewButton live in this file.
+--
+--   opts = { point = { x, y }, width, contentHeight, headerText }
+--     point         : { x, y } offset for a TOPLEFT-to-panel-TOPLEFT anchor. Boxes
+--                     that stack compute their own y from the box above's height
+--                     (box:GetHeight()); the factory takes a flat offset so the
+--                     returned contentTop stays a plain number relative to panel TOP.
+--     width         : box width.
+--     contentHeight : room the caller needs *below* the section band.
+--     headerText    : the band's label (already left-aligned by SectionHeader).
+--
+-- Returns:
+--   box        : the Widgets.Frame.
+--   contentTop : y-offset from panel TOP where the caller's first control goes,
+--                i.e. just below the section band -- so a call site anchors its
+--                content without re-deriving the band height every time.
+local RAILBOX_PAD_TOP    = 5   -- SectionHeader inset from the box's top edge
+local RAILBOX_HEADER_GAP = 6   -- gap between the band and the first control
+local RAILBOX_PAD_BOTTOM = 8   -- clearance below the last control
+
+function ns.PanelManager:CreateRailBox(panel, opts)
+    local Widgets = ns.Widgets
+    local x, y    = opts.point[1], opts.point[2]
+
+    local boxHeight = RAILBOX_PAD_TOP + ns.Theme.CONTROL.SECTION_HEADER
+                    + RAILBOX_HEADER_GAP + opts.contentHeight + RAILBOX_PAD_BOTTOM
+
+    local box = Widgets.Frame(panel, {
+        size        = { opts.width, boxHeight },
+        point       = { "TOPLEFT", panel, "TOPLEFT", x, y },
+        backdrop    = "TOOLTIP",
+        color       = ns.Config.COLORS.BACKGROUND,
+        borderColor = ns.Theme.COLOR.SILVER,
+    })
+
+    Widgets.SectionHeader(box, {
+        width = opts.width - 10,
+        point = { "TOPLEFT", RAILBOX_PAD_TOP, -RAILBOX_PAD_TOP },
+        text  = opts.headerText,
+    })
+
+    local contentTop = y - RAILBOX_PAD_TOP - ns.Theme.CONTROL.SECTION_HEADER
+                     - RAILBOX_HEADER_GAP
+
+    return box, contentTop
+end
+
 -- ─── CleanupPanel ────────────────────────────────────────────────────────────
 
 function ns.PanelManager:CleanupPanel(panel)
