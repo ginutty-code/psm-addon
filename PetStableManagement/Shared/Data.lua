@@ -238,7 +238,6 @@ function ns.Data:SaveSettings()
     end
     aw.modelViews          = ns.Utils.DeepCopy(ns.state.modelViews) or {}
     aw.popupZoom           = ns.state.popupZoom or 0.25
-    aw.globalModelRotation = ns.state.globalModelRotation or math.pi * 2
 
     char.settings = {
             sortBy                 = ns.state.sortBy or nil,
@@ -385,7 +384,6 @@ function ns.Data:LoadSettingsOnly()
     ns.state.favoriteModelsLoaded = true
     ns.state.modelViews          = ns.Utils.DeepCopy(aw.modelViews) or {}
     ns.state.popupZoom           = aw.popupZoom or 0.25
-    ns.state.globalModelRotation = aw.globalModelRotation or math.pi * 2
 end
 
 -- ─── Snapshots & migration ────────────────────────────────────────────────────

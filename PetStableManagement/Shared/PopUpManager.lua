@@ -668,8 +668,12 @@ function ns.PopUpManager:CreateModelPopup(config)
         if button == "LeftButton" then
             self.isRotating = false
             if ns.RotationFrame then ns.RotationFrame.activeModels[self] = nil end
-            ns.state.globalModelRotation = self.rotation
-            if ns.Data and ns.Data.SaveSettings then ns.Data:SaveSettings() end
+            -- Persist the drag-set angle against this popup's view key (per pet, or
+            -- per displayId) -- the same slot zoom and position already save to, and
+            -- the one ApplyModelView restores from on reopen. This used to write a
+            -- lone ns.state.globalModelRotation that nothing ever read back, so an
+            -- angle set by dragging in a popup was silently lost.
+            SaveView(popup, { rotation = self.rotation })
         elseif button == "RightButton" then
             self.isMoving = false
             if ns.MovementFrame then ns.MovementFrame.activeModels[self] = nil end
