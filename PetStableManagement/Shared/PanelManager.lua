@@ -14,6 +14,27 @@ local function SetBg(parent, childKey, ...)
     if f and f.SetBackdropColor then f:SetBackdropColor(...) end
 end
 
+-- The panel's resize limits, recomputed rather than captured: UIParent's extent in
+-- points moves with the UI scale, and a panel built before a scale change would
+-- otherwise keep a max size that no longer matches the screen.
+local function ApplyResizeBounds(panel, config)
+    if config.resizable == false or not panel.SetResizeBounds then return end
+    panel:SetResizeBounds(
+        config.minWidth  or 400,
+        config.minHeight or 300,
+        config.maxWidth  or (UIParent:GetWidth()  or 1920) - 16,
+        config.maxHeight or (UIParent:GetHeight() or 1080) - 16)
+end
+
+-- Leave the maximized state without moving the panel -- for when the *user* has just
+-- resized it by hand, so it is no longer the size Maximize gave it and the button must
+-- stop offering "Restore".
+local function ExitMaximized(panel)
+    if not panel.isMaximized then return end
+    panel.isMaximized = false
+    if panel.maximizeButton then panel.maximizeButton:SetText(ns.L("Maximize")) end
+end
+
 -- Returns true when no PSM panel is currently visible
 local function IsLastPanel()
     for _, key in ipairs({ "panel", "modelsPanel", "teamsPanel" }) do
@@ -92,13 +113,7 @@ function ns.PanelManager:CreateBasePanel(name, config)
     -- Resizable
     if config.resizable ~= false then
         panel:SetResizable(true)
-        if panel.SetResizeBounds then
-            panel:SetResizeBounds(
-                config.minWidth  or 400,
-                config.minHeight or 300,
-                config.maxWidth  or (UIParent:GetWidth()  or 1920) - 16,
-                config.maxHeight or (UIParent:GetHeight() or 1080) - 16)
-        end
+        ApplyResizeBounds(panel, config)
     end
 
     -- Resize handle. ResizeGrip calls SetResizable itself, so it is created only when
@@ -106,7 +121,12 @@ function ns.PanelManager:CreateBasePanel(name, config)
     -- do nothing.
     if config.showResizeHandle ~= false and config.resizable ~= false then
         panel.resizeButton = Widgets.ResizeGrip(panel, {
-            point = { "BOTTOMRIGHT", panel, "BOTTOMRIGHT", -2, 2 },
+            point  = { "BOTTOMRIGHT", panel, "BOTTOMRIGHT", -2, 2 },
+            -- A hand resize ends the maximized state. onStop fires only at the end of a
+            -- real drag, which is exactly the distinction this needs -- the panel is no
+            -- longer the size Maximize chose, so the button must stop saying "Restore"
+            -- and _prevGeometry must stop being what a click on it applies.
+            onStop = ExitMaximized,
         })
     end
 
@@ -170,9 +190,23 @@ function ns.PanelManager:CreateBasePanel(name, config)
                     y      = (y or UIParent:GetHeight()) - UIParent:GetHeight(),
                 }
                 panel.isMaximized = true
+                -- One anchor plus an explicit size, never TOPLEFT+BOTTOMRIGHT.
+                --
+                -- A frame anchored on two opposite corners has its size *derived* from
+                -- those anchors; SetWidth/SetHeight are still remembered but inert.
+                -- StartSizing normalises a frame back to a single anchor, and the moment
+                -- it does, the remembered size takes effect -- so pressing the resize
+                -- grip on a maximized panel snapped it to whatever it measured before
+                -- Maximize, before the mouse had moved at all. Hide/Show does not clear
+                -- that (CreateBasePanel returns the existing frame), which is why only a
+                -- reload appeared to fix it.
+                --
+                -- Bounds first: SetSize is clamped by them, and the max is UIParent's
+                -- own extent, so a stale one would leave the panel short of the screen.
+                ApplyResizeBounds(panel, config)
                 panel:ClearAllPoints()
-                panel:SetPoint("TOPLEFT",     UIParent, "TOPLEFT",     8,  -8)
-                panel:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -8,  8)
+                panel:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 8, -8)
+                panel:SetSize(UIParent:GetWidth() - 16, UIParent:GetHeight() - 16)
                 maxBtn:SetText(ns.L("Restore"))
             end
             if config.onResize then config.onResize(panel) end
