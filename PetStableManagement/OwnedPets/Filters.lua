@@ -223,6 +223,22 @@ local function InitAbilityDropdown(panel)
             end
         elseif level == 2 then
             local category = UIDROPDOWNMENU_MENU_VALUE
+            local listFrame = _G["DropDownList" .. level]
+
+            -- DropDownList2's buttons are one global pool shared with every other
+            -- level-2 menu in the UI, and the OnEnter hook below, once installed on a
+            -- button, stays for the session. Wipe our fields across the whole pool
+            -- before repopulating, so a button left over from a longer ability list
+            -- (or borrowed by some other addon's submenu) can't fire a stale ability
+            -- tooltip. numButtons is 0 here (reset before initialize runs), so this
+            -- walks the max, not the current count.
+            for i = 1, (UIDROPDOWNMENU_MAXBUTTONS or 8) do
+                local pooled = _G[listFrame:GetName() .. "Button" .. i]
+                if pooled then
+                    pooled.psmSpellId, pooled.psmAbilityName = nil, nil
+                end
+            end
+
             for _, name in ipairs(AbilitiesInCategory(category)) do
                 local info = UIDropDownMenu_CreateInfo()
                 info.text             = "  " .. name
@@ -231,9 +247,14 @@ local function InitAbilityDropdown(panel)
                 info.keepShownOnClick = true
                 info.isNotRadio       = true
                 info.icon             = ns.Data:GetAbilityIcon(name)
-                info.tooltipTitle     = name
-                info.tooltipText      = category
-                info.tooltipOnButton  = true
+                local spellId = ns.Data:GetAbilitySpellId(name)
+                if not spellId then
+                    -- No spell to hang a native tooltip off of (an offline-reconstructed
+                    -- entry AbilitiesData doesn't carry -- see GetAbilityCategory's own
+                    -- "Other" fallback). Falls back to the bare name rather than nothing.
+                    info.tooltipTitle    = name
+                    info.tooltipOnButton = true
+                end
                 info.func = function(_, _, _, checked)
                     selected[name] = checked or nil
                     UIDropDownMenu_SetText(dropdown, DropdownText(selected, allLabel))
@@ -241,6 +262,38 @@ local function InitAbilityDropdown(panel)
                     ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
                 end
                 UIDropDownMenu_AddButton(info, level)
+
+                -- UIDropDownMenu_AddButton has no spellId tooltip option (only the plain
+                -- tooltipTitle/tooltipText pair used above), so the native ability tooltip
+                -- -- same one a `#showtooltip spellId` macro shows -- needs the just-drawn
+                -- button pulled back out by index, same access pattern RecolorCategoryRow
+                -- uses on level 1. HookScript rather than SetScript: replacing OnEnter/
+                -- OnLeave outright would drop the template's own hover highlight. The
+                -- "Available from:" block under it is core's shared post-call, armed by
+                -- SetHoveredAbilityTooltip (set before Show -- SetSpellByID runs the
+                -- post-call synchronously).
+                --
+                -- `psmSpellId` is nil for a no-spell ability: the pool was cleared
+                -- above, so this row just stays without a native tooltip (its
+                -- tooltipOnButton fallback still shows) rather than inheriting one.
+                local btn = _G[listFrame:GetName() .. "Button" .. listFrame.numButtons]
+                if btn then
+                    btn.psmSpellId     = spellId
+                    btn.psmAbilityName = name
+                    if not btn.psmSpellTooltipHooked then
+                        btn.psmSpellTooltipHooked = true
+                        btn:HookScript("OnEnter", function(self)
+                            if self.psmSpellId then
+                                ns.Data:SetHoveredAbilityTooltip(self.psmAbilityName)
+                                ns.Tooltip.Show(self, { spellId = self.psmSpellId, anchor = "ANCHOR_RIGHT" })
+                            end
+                        end)
+                        btn:HookScript("OnLeave", function()
+                            ns.Data:SetHoveredAbilityTooltip(nil)
+                            ns.Tooltip.Hide()
+                        end)
+                    end
+                end
             end
         end
     end)

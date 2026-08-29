@@ -238,58 +238,6 @@ end
 -- Ability icon
 -- ─────────────────────────────────────────────
 
-local function GetSpecName(rankStr)
-    if not rankStr then return "" end
-    return rankStr:gsub(" Ability$", ""):gsub(" Passive$", ""):gsub("^%s+", ""):gsub("%s+$", "")
-end
-
--- ─────────────────────────────────────────────
--- Tooltip: custom "Available from" lines
--- ─────────────────────────────────────────────
--- GameTooltip:SetSpellByID can resolve asynchronously (server fetch) the first
--- time a given spell's tooltip is requested. When the data later arrives,
--- retail's TooltipDataProcessor rebuilds the tooltip's own lines internally,
--- which wipes out anything appended right after SetSpellByID. Appending via
--- AddTooltipPostCall instead runs on every rebuild (including that async
--- refresh), so the extra lines show up on the very first hover too.
-
-local function AbilityTooltipLines(entry)
-    local Theme = PSM.Theme
-    local lines = {}
-
-    local function Add(text, color)
-        lines[#lines + 1] = color and { text = text, color = color } or text
-    end
-
-    if entry.rank and entry.rank ~= "" then
-        Add(" ")
-        Add(entry.rank, PSM.Config.COLORS.PRIMARY)
-    end
-    if entry.specTier then
-        Add(" ")
-        Add(PSM.L("Available from:"), Theme.COLOR.GREY)
-        Add(PSM.L("Any pet with %s spec", GetSpecName(entry.rank)), Theme.COLOR.WHITE)
-    elseif #entry.families > 0 then
-        Add(" ")
-        Add(PSM.L("Available from:"), Theme.COLOR.GREY)
-        for _, family in ipairs(entry.families) do
-            Add(family.name, Theme.COLOR.WHITE)
-        end
-    end
-    return lines
-end
-
-if TooltipDataProcessor and Enum.TooltipDataType and not AB.tooltipHookInstalled then
-    AB.tooltipHookInstalled = true
-    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Spell, function(tooltip)
-        -- The identity check stays: this fires for every spell tooltip in the game,
-        -- including ones other frames own, and only GameTooltip is ours to append to.
-        if tooltip == GameTooltip and AB.hoveredAbilityEntry then
-            PSM.Tooltip.AddLines(AbilityTooltipLines(AB.hoveredAbilityEntry), tooltip)
-        end
-    end)
-end
-
 -- Icons are pooled and rebound, so nothing here may close over an entry: every handler
 -- reads `btn.entry`, which BindAbilityIcon reassigns. Capturing it forces a fresh icon per
 -- populate, and WoW frames cannot be destroyed.
@@ -322,10 +270,9 @@ local function CreateAbilityIcon(parent, panel)
         hidden    = true,
     })
 
-    -- The spell tooltip is Blizzard's own; our extra "Available from" lines are
-    -- appended by the TooltipDataProcessor post-call above, which needs
-    -- hoveredAbilityEntry set *before* the tooltip is built. Attach runs onEnter
-    -- first, so that ordering holds.
+    -- The spell tooltip is Blizzard's own; the extra "Available from:" lines come from
+    -- core's shared post-call, which reads the ability armed by SetHoveredAbilityTooltip.
+    -- Attach runs onEnter before it builds the tooltip, so the arm lands first.
     PSM.Tooltip.Attach(btn,
         function()
             local entry = btn.entry
@@ -334,19 +281,19 @@ local function CreateAbilityIcon(parent, panel)
             return {
                 title      = entry.name or PSM.L("Unknown"),
                 titleColor = PSM.Theme.COLOR.WHITE,
-                lines      = AbilityTooltipLines(entry),
+                lines      = PSM.Data:GetAbilityTooltipLines(entry.name),
             }
         end,
         {
             onEnter = function()
-                -- Only claimed when there is a spell to hang the post-call off, so a
+                -- Only armed when there is a spell to hang the post-call off, so a
                 -- spell tooltip raised by anything else never picks up our lines.
                 local entry = btn.entry
-                AB.hoveredAbilityEntry = (entry and entry.spellId) and entry or nil
+                PSM.Data:SetHoveredAbilityTooltip((entry and entry.spellId) and entry.name or nil)
                 highlight:Show()
             end,
             onLeave = function()
-                AB.hoveredAbilityEntry = nil
+                PSM.Data:SetHoveredAbilityTooltip(nil)
                 highlight:Hide()
             end,
         }

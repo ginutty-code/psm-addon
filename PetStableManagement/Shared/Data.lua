@@ -883,19 +883,45 @@ local abilityDetailByName
 local function BuildAbilityDetailIndex()
     if abilityDetailByName then return abilityDetailByName end
     abilityDetailByName = {}
-    for _, familyData in pairs(_G.AbilitiesData or {}) do
+    local familySeen = {}   -- name -> set of family names already recorded (dedupe)
+    for familyId, familyData in pairs(_G.AbilitiesData or {}) do
         if familyData.ranks then
-            for _, rankAbilities in pairs(familyData.ranks) do
-                for _, abilityData in pairs(rankAbilities) do
-                    if abilityData.name and not abilityDetailByName[abilityData.name] then
-                        abilityDetailByName[abilityData.name] = {
-                            category = abilityData.category or "Other",
-                            icon     = abilityData.icon,
-                        }
+            for rankName, rankAbilities in pairs(familyData.ranks) do
+                for spellId, abilityData in pairs(rankAbilities) do
+                    local name = abilityData.name
+                    if name then
+                        local detail = abilityDetailByName[name]
+                        if not detail then
+                            -- category/icon/spellId/rank come from the first entry seen
+                            -- for a name; families/specTier accumulate over every entry,
+                            -- since one ability name can be granted by several families.
+                            detail = {
+                                category = abilityData.category or "Other",
+                                icon     = abilityData.icon,
+                                spellId  = spellId,
+                                rank     = rankName,
+                                families = {},
+                            }
+                            abilityDetailByName[name] = detail
+                            familySeen[name] = {}
+                        end
+                        if type(familyId) == "number" then
+                            if familyData.name and not familySeen[name][familyData.name] then
+                                familySeen[name][familyData.name] = true
+                                detail.families[#detail.families + 1] = familyData.name
+                            end
+                        else
+                            -- The synthetic ["Spec"] family: rankName is e.g.
+                            -- "Cunning Ability", read as "Any pet with Cunning spec".
+                            detail.specTier = rankName
+                        end
                     end
                 end
             end
         end
+    end
+    for _, detail in pairs(abilityDetailByName) do
+        table.sort(detail.families)
     end
     return abilityDetailByName
 end
@@ -916,6 +942,81 @@ end
 function ns.Data:GetAbilityIcon(name)
     local detail = BuildAbilityDetailIndex()[name]
     return detail and detail.icon or nil
+end
+
+-- The spell ID an ability name resolves to (AbilitiesData's table key, not a field
+-- on the entry), or nil under the same fallback cases as GetAbilityCategory/Icon --
+-- the native tooltip via GameTooltip:SetSpellByID.
+function ns.Data:GetAbilitySpellId(name)
+    local detail = BuildAbilityDetailIndex()[name]
+    return detail and detail.spellId or nil
+end
+
+-- Where an ability name is available from: its granting families (sorted), the
+-- synthetic spec tier if it is a spec ability ("Cunning Ability" etc.), and its
+-- rank label ("Special Ability"). Returns nil for a name AbilitiesData doesn't
+-- carry. The families array is the cached index's own table -- read-only.
+function ns.Data:GetAbilitySource(name)
+    local detail = BuildAbilityDetailIndex()[name]
+    if not detail then return nil end
+    return detail.families, detail.specTier, detail.rank
+end
+
+-- "Cunning Ability" / "Ferocity Passive" -> "Cunning" / "Ferocity".
+local function AbilitySpecName(tier)
+    if not tier then return "" end
+    return (tier:gsub(" Ability$", ""):gsub(" Passive$", ""):gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+-- The "Available from:" block for an ability name, as a PSM.Tooltip `lines` array
+-- (blank spacer + rank + the granting families, or the spec tier for a spec ability).
+-- Returns {} for a name AbilitiesData doesn't carry. Used by GetAbilityTooltipLines'
+-- own post-call below and as the Ability Browser's non-spell fallback `lines`.
+function ns.Data:GetAbilityTooltipLines(name)
+    local families, specTier, rank = self:GetAbilitySource(name)
+    local Theme = ns.Theme
+    local lines = {}
+    if rank and rank ~= "" then
+        lines[#lines + 1] = " "
+        lines[#lines + 1] = { text = rank, color = ns.Config.COLORS.PRIMARY }
+    end
+    if specTier then
+        lines[#lines + 1] = " "
+        lines[#lines + 1] = { text = ns.L("Available from:"), color = Theme.COLOR.GREY }
+        lines[#lines + 1] = { text = ns.L("Any pet with %s spec", AbilitySpecName(specTier)),
+                              color = Theme.COLOR.WHITE }
+    elseif families and #families > 0 then
+        lines[#lines + 1] = " "
+        lines[#lines + 1] = { text = ns.L("Available from:"), color = Theme.COLOR.GREY }
+        for _, family in ipairs(families) do
+            lines[#lines + 1] = { text = family, color = Theme.COLOR.WHITE }
+        end
+    end
+    return lines
+end
+
+-- One native-ability-tooltip extension, shared by every panel that raises Blizzard's
+-- own ability tooltip (the Owned Pets ability filter submenu, the Ability Browser
+-- icons). A panel calls SetHoveredAbilityTooltip(name) from its row/icon OnEnter --
+-- *before* the Set* call, because SetSpellByID runs the post-call synchronously --
+-- and SetHoveredAbilityTooltip(nil) from OnLeave. Only one thing is ever hovered, so
+-- one marker covers every caller. It has to be a post-call and not lines appended
+-- after SetSpellByID: a spell tooltip can resolve async and get rebuilt, dropping
+-- anything added inline (see UI/Tooltip.lua's AddLines note).
+local hoveredAbilityName
+
+function ns.Data:SetHoveredAbilityTooltip(name)
+    hoveredAbilityName = name
+end
+
+if TooltipDataProcessor and Enum and Enum.TooltipDataType then
+    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Spell, function(tooltip)
+        -- Fires for every spell tooltip in the game; only GameTooltip is ours to
+        -- append to, and only while a panel has claimed it.
+        if tooltip == GameTooltip and hoveredAbilityName then
+            ns.Tooltip.AddLines(ns.Data:GetAbilityTooltipLines(hoveredAbilityName), tooltip)
+        end
+    end)
 end
 
 -- ─── List rebuilding ──────────────────────────────────────────────────────────

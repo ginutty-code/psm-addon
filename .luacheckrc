@@ -89,6 +89,7 @@ read_globals = {
     "StableFrame",
     "ToggleDropDownMenu",
     "TooltipDataProcessor",
+    "UIDROPDOWNMENU_MAXBUTTONS",
     "UIDROPDOWNMENU_MENU_VALUE",
     "UIDropDownMenu_AddButton",
     "UIDropDownMenu_CreateInfo",

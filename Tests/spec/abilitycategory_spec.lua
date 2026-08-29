@@ -19,6 +19,29 @@ local function freshData()
     return ns.Data, ns
 end
 
+-- GetAbilityTooltipLines pulls in the colour/locale tokens the plain data helpers
+-- don't touch.
+local function freshDataWithTokens()
+    _G.PetStableManagementDB = nil
+    local ns = Addon.namespace()
+    Addon.load("PetStableManagement/Shared/Locale.lua", ns)
+    Addon.load("PetStableManagement/Shared/Config.lua", ns)
+    Addon.load("PetStableManagement/UI/Theme.lua", ns)
+    Addon.load("PetStableManagement/Shared/Utils.lua", ns)
+    Addon.load("PetStableManagement/Shared/Data.lua", ns)
+    return ns.Data, ns
+end
+
+-- Flatten a PSM.Tooltip lines array to its text, dropping blank spacers.
+local function lineTexts(lines)
+    local out = {}
+    for _, l in ipairs(lines) do
+        local text = type(l) == "table" and l.text or l
+        if text and text ~= " " then out[#out + 1] = text end
+    end
+    return out
+end
+
 describe("GetAbilityCategory", function()
     it("returns the category AbilitiesData carries for a known ability name", function()
         _G.AbilitiesData = {
@@ -69,6 +92,78 @@ describe("GetAbilityCategory", function()
         local cat = Data:GetAbilityCategory("Shared Name")
         truthy(cat == "Enemy movement reduction" or cat == "Pet dodge",
             "one of the two, deterministically (first pairs() hit wins, not both)")
+    end)
+end)
+
+describe("GetAbilitySource", function()
+    it("returns the granting families, sorted and deduped", function()
+        _G.AbilitiesData = {
+            [2] = { name = "Cat",  ranks = { ["Special Ability"] = {
+                [111] = { name = "Growl", category = "Threat" },
+            } } },
+            [1] = { name = "Wolf", ranks = {
+                ["Special Ability"] = { [111] = { name = "Growl" } },
+                ["Bonus Ability"]   = { [111] = { name = "Growl" } },  -- same family twice
+            } },
+        }
+        local Data = freshData()
+        local families, specTier, rank = Data:GetAbilitySource("Growl")
+        eq(table.concat(families, ","), "Cat,Wolf", "sorted, each family once")
+        eq(specTier, nil, "not a spec ability")
+        eq(rank, "Special Ability", "first rank seen")
+    end)
+
+    it("reports the spec tier for a synthetic Spec-family ability", function()
+        _G.AbilitiesData = {
+            ["Spec"] = { name = "Spec abilities", ranks = { ["Cunning Ability"] = {
+                [272682] = { name = "Master's Call", category = "Ally movement impairing removal" },
+            } } },
+        }
+        local Data = freshData()
+        local families, specTier = Data:GetAbilitySource("Master's Call")
+        eq(#families, 0, "no real family")
+        eq(specTier, "Cunning Ability", "the spec tier rank name")
+    end)
+
+    it("returns nil for a name AbilitiesData doesn't carry", function()
+        _G.AbilitiesData = nil
+        local Data = freshData()
+        eq(Data:GetAbilitySource("Anything"), nil, "no data loaded")
+    end)
+end)
+
+describe("GetAbilityTooltipLines", function()
+    it("lists rank then the granting families", function()
+        _G.AbilitiesData = {
+            [1] = { name = "Wolf", ranks = { ["Special Ability"] = {
+                [111] = { name = "Growl" },
+            } } },
+            [2] = { name = "Cat",  ranks = { ["Special Ability"] = {
+                [111] = { name = "Growl" },
+            } } },
+        }
+        local Data = freshDataWithTokens()
+        local texts = lineTexts(Data:GetAbilityTooltipLines("Growl"))
+        eq(table.concat(texts, "|"), "Special Ability|Available from:|Cat|Wolf",
+            "rank line, header, families sorted")
+    end)
+
+    it("names the spec instead of families for a spec ability", function()
+        _G.AbilitiesData = {
+            ["Spec"] = { name = "Spec abilities", ranks = { ["Cunning Ability"] = {
+                [272682] = { name = "Master's Call" },
+            } } },
+        }
+        local Data = freshDataWithTokens()
+        local texts = lineTexts(Data:GetAbilityTooltipLines("Master's Call"))
+        eq(table.concat(texts, "|"), "Cunning Ability|Available from:|Any pet with Cunning spec",
+            "spec tier stripped to the bare spec name")
+    end)
+
+    it("returns an empty table for a name AbilitiesData doesn't carry", function()
+        _G.AbilitiesData = nil
+        local Data = freshDataWithTokens()
+        eq(#Data:GetAbilityTooltipLines("Anything"), 0, "no lines, no error")
     end)
 end)
 
