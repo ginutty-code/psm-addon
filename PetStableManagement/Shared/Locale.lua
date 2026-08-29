@@ -517,6 +517,7 @@ L.Register({
     -- Menu, panel chrome, row text and pet tooltip
     ["PSM Menu"]                     = "PSM Menu",
     ["Models Browser not available"] = "Models Browser not available",
+    ["Toggle Ability Browser"]  = "Toggle Ability Browser",
     ["Toggle Owned Pets"]     = "Toggle Owned Pets",
     -- Short form, for CombatBlocked's "Pet Stable Management: %s cannot open during
     -- combat." -- the panel's own title is "Pet Stable Management" too, which the
@@ -525,6 +526,7 @@ L.Register({
     ["Toggle Models Browser"] = "Toggle Models Browser",
     ["Toggle Pet Roulette"]   = "Toggle Pet Roulette",
     ["Toggle Pet Teams"]      = "Toggle Pet Teams",
+    ["Toggle Special Tames"]  = "Toggle Special Tames",
     ["Toggle Options"]        = "Toggle Options",
     ["Close All Panels"]      = "Close All Panels",
     -- Short form, for CombatBlocked's "Pet Stable Management: %s cannot open during

@@ -18,7 +18,7 @@ function menu:Create()
 
     local window = Widgets.MovableFrame(UIParent, {
         name   = "PSMMenu",
-        size   = { 200, 300 },
+        size   = { 200, 330 },
         strata = "HIGH",
         level  = 100,
         skin   = "frame",
@@ -100,10 +100,22 @@ function menu:Create()
 
     window.ownedButton    = AddButton(nil,                   ns.L("Toggle Owned Pets"),     function() ns.Broker:ToggleOwnedPetsPanel() end)
     window.modelsButton   = AddButton(window.ownedButton,    ns.L("Toggle Models Browser"), function() ns.Broker:ToggleModelsBrowserPanel() end, true)
-    window.rouletteButton = AddButton(window.modelsButton,   ns.L("Toggle Pet Roulette"),   function() ns.Broker:TogglePetRoulette() end,        true)
-    window.teamsButton    = AddButton(window.rouletteButton, ns.L("Toggle Pet Teams"),      function() ns.Broker:TogglePetTeamsPanel() end, false, ns.Teams:ButtonTooltipSpec())
-    window.optionsButton  = AddButton(window.teamsButton,    ns.L("Toggle Options"),        function() ns.Broker:ToggleOptionsPanel() end)
-    window.closeAllButton = AddButton(window.optionsButton,  ns.L("Close All Panels"),      function() ns.Broker:CloseAllPanels() end)
+    window.abilityButton  = AddButton(window.modelsButton,   ns.L("Toggle Ability Browser"),
+        function()
+            if ns.Loader:EnsureBrowser() and ns.Browser.AbilityBrowser then
+                ns.Browser.AbilityBrowser:Toggle()
+            end
+        end, true)
+    window.specialButton  = AddButton(window.abilityButton,  ns.L("Toggle Special Tames"),
+        function()
+            if ns.Loader:EnsureBrowser() and ns.Browser.SpecialTames then
+                ns.Browser.SpecialTames:Toggle()
+            end
+        end, true)
+    window.rouletteButton = AddButton(window.specialButton,  ns.L("Toggle Pet Roulette"),     function() ns.Broker:TogglePetRoulette() end,        true)
+    window.teamsButton    = AddButton(window.rouletteButton, ns.L("Toggle Pet Teams"),        function() ns.Broker:TogglePetTeamsPanel() end, false, ns.Teams:ButtonTooltipSpec())
+    window.optionsButton  = AddButton(window.teamsButton,    ns.L("Toggle Options"),          function() ns.Broker:ToggleOptionsPanel() end)
+    window.closeAllButton = AddButton(window.optionsButton,  ns.L("Close All Panels"),        function() ns.Broker:CloseAllPanels() end)
 
     -- The dimming is only a hint, and the tooltip corrects it on hover — but reopening
     -- the menu is the other moment the answer can have changed, so refresh it there too.
