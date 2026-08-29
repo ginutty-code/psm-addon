@@ -338,8 +338,9 @@ end
 
 -- ─── Public API ───────────────────────────────────────────────────────────────
 
--- `railTop` is the panel-TOP-relative y where the rail's first box starts; it is
--- shared with Panel.lua so the rail and the pet list line up on the same top edge.
+-- `railTop` is the panel-TOP-relative y where the rail's first box starts. Panel.lua
+-- passes the pet list's border top (LIST_TOP + ROW_BORDER_INSET), so the rail's
+-- boxes line up with rowsFrame's silver border rather than the first row inside it.
 function ns.UI:BuildFilters(panel, railTop)
     local debouncedUpdate = ns.Utils:Debounce(function()
         ns.UI:UpdatePanel()

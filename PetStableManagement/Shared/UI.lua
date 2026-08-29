@@ -5,6 +5,12 @@ local _, ns = ...
 
 ns.UI = ns.UI or {}
 
+-- List view insets each row this far from ns.state.content's left edge; the column
+-- width below reserves the same on the right, so a row (and its duplicate-highlight
+-- border) sits centred inside rowsFrame's silver frame instead of flush against its
+-- right edge. Must match the x offset used when the row is placed in UpdateVisibleRows.
+local LIST_ROW_GUTTER = 4
+
 -- The `PSM.UI:ApplyElvUISkin` / `PSM.UI.ElvUITexture` shims are gone. They forwarded to
 -- PSM.Skin so pre-kit call sites kept working during A6; the last of the 86 migrated with
 -- OwnedPets/Row.lua. Skinning is PSM.Skin.Apply, and almost always PSM.Widgets doing it
@@ -430,8 +436,11 @@ function ns.UI:_CalculateRenderData()
     local contentWidth = ns.state.content:GetWidth()
     if not contentWidth or contentWidth <= 0 then contentWidth = 500 end
     local colSpacing = 2
-    local colCount   = math.max(1, math.floor((contentWidth + colSpacing) / (500 + colSpacing)))
-    local colWidth   = math.max(500, math.floor((contentWidth - colSpacing * (colCount-1)) / colCount))
+    -- Reserve a gutter on both outer edges so rows are centred in the silver frame
+    -- (UpdateVisibleRows adds LIST_ROW_GUTTER back as the left inset).
+    local usableWidth = contentWidth - LIST_ROW_GUTTER * 2
+    local colCount   = math.max(1, math.floor((usableWidth + colSpacing) / (500 + colSpacing)))
+    local colWidth   = math.max(500, math.floor((usableWidth - colSpacing * (colCount-1)) / colCount))
 
     return {
         filteredPets          = filteredPets,
@@ -592,7 +601,7 @@ function ns.UI:UpdateVisibleRows()
 
             row:ClearAllPoints()
             row:SetPoint("TOPLEFT", ns.state.content, "TOPLEFT",
-                4 + col * (colWidth + colSpacing),
+                LIST_ROW_GUTTER + col * (colWidth + colSpacing),
                 -(rowIdx - 1) * ns.Config.ROW_HEIGHT)
             row:SetWidth(colWidth)
 

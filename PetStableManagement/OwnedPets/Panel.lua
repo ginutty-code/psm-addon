@@ -50,7 +50,7 @@ function ns.UI:CreateOwnedPetsPanel()
         width        = ns.Config.DEFAULT_PANEL_WIDTH,
         height       = ns.Config.DEFAULT_PANEL_HEIGHT,
         minWidth     = ns.Config.MIN_PANEL_WIDTH,
-        minHeight    = ns.Config.MIN_PANEL_HEIGHT,
+        minHeight    = ns.Config.MIN_OWNED_PETS_HEIGHT,
         position     = {
             point         = "TOPLEFT",
             relativeTo    = "StableFrame",
@@ -106,14 +106,19 @@ function ns.UI:AddOwnedPetsElements(panel)
     })
 
     -- Filters & sort buttons ----------------------------------------------
-    -- The left rail and the pet list share this top edge: below the search / reset
-    -- row (bottom ~-86 at the default font) and below BuildFilters' sortDrop
-    -- (y = -92) so nothing overlaps. Eyeball figure -- nudge in-game.
+    -- LIST_TOP is where the pet list's *rows* start: below the search / reset row
+    -- (bottom ~-86 at the default font) and below BuildFilters' sortDrop (y = -92)
+    -- so nothing overlaps. Eyeball figure -- nudge in-game.
     local LIST_TOP = -128
+    -- rowsFrame draws its silver border ROW_BORDER_INSET px outside the scroll
+    -- frame on every edge, so the list's visible top is LIST_TOP + this. The rail
+    -- starts there too, lining its boxes up with that border rather than with the
+    -- first row inside it.
+    local ROW_BORDER_INSET = 5
 
     -- BuildFilters creates the left rail (Tools / Show Only / Filters boxes) and
     -- leaves panel.toolsFrame empty for the Tools buttons added below.
-    ns.UI:BuildFilters(panel, LIST_TOP)
+    ns.UI:BuildFilters(panel, LIST_TOP + ROW_BORDER_INSET)
     ns.UI:BuildSortButtons(panel)
 
     -- Tools box contents ------------------------------------------------------
@@ -141,25 +146,30 @@ function ns.UI:AddOwnedPetsElements(panel)
 
     -- Scroll frame --------------------------------------------------------
     -- To the right of the rail (left edge follows the Tools box, so it tracks the
-    -- measured rail width) and sharing the rail's top edge.
+    -- measured rail width). The rail top sits ROW_BORDER_INSET above this so it
+    -- lines up with rowsFrame's border, not with the first row -- so drop the
+    -- scroll frame back down by that much to keep the rows where LIST_TOP puts them.
     local scrollFrame = Widgets.Frame(panel, {
         frameType = "ScrollFrame",
         template  = "UIPanelScrollFrameTemplate",
         skin      = "scrollframe",
         point     = {
-            { "TOPLEFT",     panel.toolsFrame, "TOPRIGHT", 14, 0 },
+            { "TOPLEFT",     panel.toolsFrame, "TOPRIGHT", 14, -ROW_BORDER_INSET },
             { "BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30, 35 },
         },
     })
 
-    -- Decorative border behind the rows
+    -- Decorative border behind the rows. borderColor matches CreateRailBox's boxes
+    -- (SILVER) -- without it the TOOLTIP edge keeps its default full-white tint and
+    -- reads as visibly heavier than the rail's grey border right beside it.
     local rowsFrame = Widgets.Frame(panel, {
-        backdrop = "TOOLTIP",
-        color    = ns.Config.COLORS.BACKGROUND,
-        level    = panel:GetFrameLevel() - 1,
+        backdrop    = "TOOLTIP",
+        color       = ns.Config.COLORS.BACKGROUND,
+        borderColor = Theme.COLOR.SILVER,
+        level       = panel:GetFrameLevel() - 1,
         point    = {
-            { "TOPLEFT",     scrollFrame, "TOPLEFT",     -5,  5 },
-            { "BOTTOMRIGHT", scrollFrame, "BOTTOMRIGHT",  5, -5 },
+            { "TOPLEFT",     scrollFrame, "TOPLEFT",     -ROW_BORDER_INSET,  ROW_BORDER_INSET },
+            { "BOTTOMRIGHT", scrollFrame, "BOTTOMRIGHT",  ROW_BORDER_INSET, -ROW_BORDER_INSET },
         },
     })
 

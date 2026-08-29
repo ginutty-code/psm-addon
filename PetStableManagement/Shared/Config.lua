@@ -39,6 +39,16 @@ ns.Config = {
     DEFAULT_ROW_WIDTH    = 400,
     MIN_PANEL_WIDTH      = 500,
     MIN_PANEL_HEIGHT     = 300,
+    -- Owned Pets carries the three-box left rail (see docs/Owned_pets_toolbar_plan.md).
+    -- This floor makes the Filters box's bottom edge line up with the pet-rows area's
+    -- lower silver border when the panel is dragged to its shortest.
+    --   Rail starts 123px below the top (LIST_TOP -128 + ROW_BORDER_INSET 5) and the
+    --   boxes stack to 543: Tools 126 + gap 5 + Show Only 107 + gap 5 + Filters 177.
+    --   rowsFrame's bottom border sits at panelHeight - 30 (scrollFrame's -35 footer
+    --   inset, less the 5px the border overhangs it). 543 = h - 30 -> h = 573; trued
+    --   up to 575 in-game (SectionHeader/button metrics run ~2px over the estimate).
+    -- TeamsPanel keeps the smaller shared MIN_PANEL_HEIGHT -- it has no rail.
+    MIN_OWNED_PETS_HEIGHT = 575,
 
     -- Layout
     CONTENT_PADDING    = 6,
