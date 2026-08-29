@@ -105,6 +105,18 @@ function ns.UI:AddOwnedPetsElements(panel)
         placeholder = ns.L("Search pets..."),
     })
 
+    -- Filter summary ----------------------------------------------------------
+    -- The faint "Filters: ..." line under the search box, mirroring the Models
+    -- Browser's, so the user can see what is narrowing the list without opening
+    -- each dropdown. ns.UI:UpdateFilterSummary (OwnedPets/Filters.lua) fills it;
+    -- _ApplyCachedRender and UpdateFilterUI both call that.
+    panel.filterSummaryText = Widgets.Label(panel, {
+        fontSize = Theme.SIZE.SMALL,
+        color    = Theme.COLOR.FAINT,
+        point    = { "TOP", panel.searchBox, "BOTTOM", 0, -6 },
+        text     = "",
+    })
+
     -- Filters & sort buttons ----------------------------------------------
     -- LIST_TOP is where the pet list's *rows* start: below the search / reset row
     -- (bottom ~-86 at the default font) and below BuildFilters' sortDrop (y = -92)

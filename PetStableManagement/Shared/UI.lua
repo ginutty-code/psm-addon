@@ -470,6 +470,9 @@ function ns.UI:_ApplyCachedRender(renderData, preserveScroll)
     if #parts > 0 then statsText = statsText .. ns.L(" | Duplicates: %s", table.concat(parts, "; ")) end
     ns.state.panel.statsText:SetText(statsText)
 
+    -- Filter summary line under the search box (OwnedPets/Filters.lua).
+    self:UpdateFilterSummary()
+
     -- Content height
     local rowHeight = (ns.state.panelViewMode == "grid") and ns.Config.GRID_ROW_HEIGHT or ns.Config.ROW_HEIGHT
     ns.state.content:SetHeight(math.max(renderData.rowTotal * rowHeight + 10, 100))

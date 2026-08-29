@@ -185,6 +185,15 @@ L.Register({
     ["Also narrows the Families list below to exotic-only."] =
         "Also narrows the Families list below to exotic-only.",
 
+    -- Owned Pets filter summary (the faint line under the search box). "Favorites",
+    -- "Exotic", "Duplicates", "Families", "Search", "Filters: %s" and "Not %s" are
+    -- already declared above / with the Models Browser summary; these are the rest.
+    ["Specs"]          = "Specs",
+    ["Hunters"]        = "Hunters",
+    ["Abilities"]      = "Abilities",
+    ["Not Exotic"]     = "Not Exotic",
+    ["Not Duplicates"] = "Not Duplicates",
+
     ["All Specs"]     = "All Specs",
     ["All Hunters"]   = "All Hunters",
     ["All Families"]  = "All Families",

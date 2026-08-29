@@ -143,10 +143,39 @@ local function InitAbilityDropdown(panel)
     end
 
     -- Same "all/some/none selected" idiom AbilityBrowser's own category-card headers
-    -- use (Theme.SelectionStateColor's doc comment names it as shared with them).
+    -- use (Theme.SelectionStateColor's doc comment names it as shared with them):
+    -- green when every ability under the category is ticked, white when only some
+    -- are, grey when none.
     local function CategoryColor(category)
         local allOn, noneOn = CategorySelectionState(category, ns.state.selectedAbilities)
         return ns.Theme.SelectionStateColor(allOn, not noneOn)
+    end
+
+    -- `category` wrapped in the colour escape for its current selection state.
+    -- +0.5 before the implicit truncation string.format("%x", ...) does on a float
+    -- (Lua 5.1: a C-style (int) cast, not a rounding one) -- without it, a channel
+    -- like Theme.COLOR.GREY's 0.6 (not exactly representable in binary float) can
+    -- land a shade off.
+    local function CategoryColorCode(category)
+        local r, g, b = unpack(CategoryColor(category))
+        return ("|cff%02x%02x%02x%s|r"):format(
+            math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5), category)
+    end
+
+    -- Recolour the still-open level-1 category row after a submenu checkbox toggles.
+    -- A level-1 row's colour is baked into its button text when level 1 is drawn, and
+    -- a keepShownOnClick submenu tick never redraws level 1 -- so without this the
+    -- category keeps its pre-click colour until the whole dropdown closes and reopens.
+    local function RecolorCategoryRow(category)
+        local list = _G["DropDownList1"]
+        if not list or not list:IsShown() then return end
+        for i = 1, list.numButtons or 0 do
+            local btn = _G["DropDownList1Button" .. i]
+            if btn and btn.value == category then
+                btn:SetText(CategoryColorCode(category))
+                return
+            end
+        end
     end
 
     UIDropDownMenu_Initialize(dropdown, function(_, level)
@@ -166,14 +195,8 @@ local function InitAbilityDropdown(panel)
             UIDropDownMenu_AddButton(info, level)
 
             for _, category in ipairs(AbilityCategories(ns.state.abilityList)) do
-                local r, g, b = unpack(CategoryColor(category))
                 info = UIDropDownMenu_CreateInfo()
-                -- +0.5 before the implicit truncation string.format("%x", ...) does on a
-                -- float (Lua 5.1: a C-style (int) cast, not a rounding one) -- without it,
-                -- a channel like Theme.COLOR.GREY's 0.6 (not exactly representable in
-                -- binary float) can land a shade off.
-                info.text         = ("|cff%02x%02x%02x%s|r"):format(
-                    math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5), category)
+                info.text         = CategoryColorCode(category)
                 info.value        = category
                 info.hasArrow     = true
                 info.notCheckable = true
@@ -214,6 +237,7 @@ local function InitAbilityDropdown(panel)
                 info.func = function(_, _, _, checked)
                     selected[name] = checked or nil
                     UIDropDownMenu_SetText(dropdown, DropdownText(selected, allLabel))
+                    RecolorCategoryRow(category)
                     ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
                 end
                 UIDropDownMenu_AddButton(info, level)
@@ -574,6 +598,62 @@ function ns.UI:ReinitializeTamerDropdown()
     UIDropDownMenu_SetText(dropdown, DropdownText(getState(), allLabel))
 end
 
+-- ─── Filter summary ──────────────────────────────────────────────────────────
+-- The faint line under the search box. Mirrors PSM.ModelsFilters:GenerateFilterSummary:
+-- each entry is a whole localised string, and the only composition is "Not %s" over a
+-- tri-state's excluded form. panel.filterSummaryText is created in OwnedPets/Panel.lua.
+
+-- Number of keys in a set (small tables only).
+local function CountKeys(t)
+    local n = 0
+    for _ in pairs(t) do n = n + 1 end
+    return n
+end
+
+function ns.UI:GenerateFilterSummary()
+    local panel = ns.state.panel
+    if not panel then return "" end
+
+    local parts = {}
+
+    -- Hunters. While the stable is open the tamer dropdown defaults to the current
+    -- hunter (SetDefaultTamerSelection, and Reset keeps it there), so that one exact
+    -- selection is not a filter the user chose -- only list it past the default.
+    local tamers = ns.state.selectedTamers
+    if next(tamers) then
+        local key = ns.GetCharacterKey()
+        local isJustCurrentHunter = ns.state.isStableOpen and tamers[key] and CountKeys(tamers) == 1
+        if not isJustCurrentHunter then parts[#parts + 1] = ns.L("Hunters") end
+    end
+
+    -- Remaining multi-select dropdowns: active whenever anything is picked (empty = all).
+    if next(ns.state.selectedSpecs)     then parts[#parts + 1] = ns.L("Specs")     end
+    if next(ns.state.selectedFamilies)  then parts[#parts + 1] = ns.L("Families")  end
+    if next(ns.state.selectedAbilities) then parts[#parts + 1] = ns.L("Abilities") end
+
+    -- Tri-state "Show Only" checkboxes: true = only, "inverted" = exclude.
+    local function TriState(value, onLabel, notLabel)
+        if     value == true       then parts[#parts + 1] = onLabel
+        elseif value == "inverted" then parts[#parts + 1] = notLabel end
+    end
+    TriState(ns.state.favoritesOnlyFilter,  ns.L("Favorites"),  ns.L("Not Favorites"))
+    TriState(ns.state.exoticFilter,         ns.L("Exotic"),     ns.L("Not Exotic"))
+    TriState(ns.state.duplicatesOnlyFilter, ns.L("Duplicates"), ns.L("Not Duplicates"))
+
+    -- Search
+    if (panel.searchBox and panel.searchBox:GetSearchText() or "") ~= "" then
+        parts[#parts + 1] = ns.L("Search")
+    end
+
+    return #parts > 0 and ns.L("Filters: %s", table.concat(parts, ", ")) or ""
+end
+
+function ns.UI:UpdateFilterSummary()
+    local panel = ns.state.panel
+    if not panel or not panel.filterSummaryText then return end
+    panel.filterSummaryText:SetText(self:GenerateFilterSummary())
+end
+
 function ns.UI:UpdateFilterUI()
     local panel = ns.state.panel
     if not panel then return end
@@ -589,6 +669,8 @@ function ns.UI:UpdateFilterUI()
     if panel.tamerDrop   then UIDropDownMenu_SetText(panel.tamerDrop,   DropdownText(ns.state.selectedTamers,  ns.L("All Hunters")))     end
     if panel.abilityDrop then UIDropDownMenu_SetText(panel.abilityDrop, DropdownText(ns.state.selectedAbilities, ns.L("All Abilities"))) end
     if panel.sortDrop    then UIDropDownMenu_SetText(panel.sortDrop,    SortDropLabel())                                            end
+
+    self:UpdateFilterSummary()
 end
 
 -- Lives here rather than in UI.lua, which held a byte-identical copy of SORT_LABELS to
