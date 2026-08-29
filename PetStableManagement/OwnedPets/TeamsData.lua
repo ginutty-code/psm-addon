@@ -101,7 +101,11 @@ function ns.Teams:SlotRecord(pet)
         level      = pet.level or 0,
         familyName = pet.familyName or (pet.family and pet.family.name),
         specName   = pet.specName or pet.specialization,
-        specID     = pet.specID or pet.specId,
+        -- No `specID`: it is a pure numeric re-encoding of `specName` (via the
+        -- account-wide abilities pool), not an independent observation, so any
+        -- reader that wants the number derives it from `specName` at read time
+        -- (see Export.lua). `abilities`/`isExotic` DO stay -- those carry real
+        -- per-pet information the slot needs for drift detection.
         isExotic   = pet.isExotic or false,
         -- Only the current character can capture their own slots, so an absent tamer
         -- means "captured now" rather than "unknown".

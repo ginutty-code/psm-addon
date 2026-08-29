@@ -103,6 +103,11 @@ function ns.Export:GenerateCSV(selectedColumns)
 
                 if col.key == "isExotic" then
                     value = pet.isExotic and "Yes" or "No"
+                elseif col.key == "specID" then
+                    -- Derived from specName at export time rather than read off a
+                    -- persisted `pet.specID`: it is a pure re-encoding of specName
+                    -- and is no longer stored on every record.
+                    value = ns.Data:GetPoolSpecID(pet.specName) or ""
                 elseif col.key == "isActive" then
                     value = (pet.slotID and pet.slotID <= 5) and "Active" or "Stabled"
                 elseif ABILITY_KEYS[col.key] then
