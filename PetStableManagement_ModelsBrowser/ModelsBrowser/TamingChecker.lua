@@ -24,10 +24,8 @@ local RACE_IDS = {
 -- Taming rules
 -- Each rule key matches the string used in ModelsData.lua taming={} fields.
 -- check fields:
---   spec      (number)  : required specialization ID
---   level     (number)  : required player level
 --   autoRaces (table)   : race IDs that automatically qualify (OR logic)
---   spellID   (number)  : spell taught by the unlock item
+--   spellID   (number)  : spell taught by the unlock item (or a class passive)
 --   questID   (number)  : account-wide quest/flag completion fallback
 --   toyID     (number)  : required toy item ID
 -- ---------------------------------------------------------------------------
@@ -38,8 +36,7 @@ PSM.TamingRules = {
         hint        = { plain = "Beast Mastery, level 10" },
         accountWide = false,
         check = {
-            spec  = 253,
-            level = 10,
+            spellID = 53270,  -- Exotic Beasts; only granted at BM + level 10
         },
     },
 
@@ -196,16 +193,6 @@ PSM.TamingRules = {
 local function EvaluateRule(rule)
     local c = rule.check
 
-    -- Spec + level check (Exotic Family)
-    if c.spec then
-        local specID = GetSpecializationInfo(GetSpecialization())
-        local level  = UnitLevel("player")
-        if specID == c.spec and level >= c.level then
-            return "met"
-        end
-        return "not_met"
-    end
-
     -- Toy check (Friendly Taming)
     if c.toyID then
         return PlayerHasToy(c.toyID) and "met" or "not_met"
@@ -240,12 +227,17 @@ end
 -- ---------------------------------------------------------------------------
 local statusCache = {}
 
+-- Public so a consumer refreshing on the same two events can force the recompute
+-- itself, rather than depending on this frame's OnEvent running before its own
+-- (frame dispatch order between two frames is not guaranteed).
+function PSM.TamingChecker.InvalidateCache()
+    statusCache = {}
+end
+
 local cacheFrame = CreateFrame("Frame")
 cacheFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
 cacheFrame:RegisterEvent("SPELLS_CHANGED")
-cacheFrame:SetScript("OnEvent", function()
-    statusCache = {}
-end)
+cacheFrame:SetScript("OnEvent", PSM.TamingChecker.InvalidateCache)
 
 -- ---------------------------------------------------------------------------
 -- Public API

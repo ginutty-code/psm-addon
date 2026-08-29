@@ -726,17 +726,32 @@ end
 -- Status refresh
 -- ─────────────────────────────────────────────
 
-local function UpdateAllStatuses(panel)
-    for _, row in ipairs(panel.ruleRows or {}) do
-        if row.ruleKey and not row.isCondition then
-            local status = PSM.TamingChecker.GetRuleStatus(row.ruleKey)
-            if status == "met" then
-                row.statusIcon.texture:SetTexCoord(0, 0.5, 0, 0.5)
-            else
-                row.statusIcon.texture:SetTexCoord(0.5, 1, 0.5, 1)
-            end
-        end
-    end
+-- Rule status is live character state (spec, known spells), and it is only shown
+-- while this panel is open -- so the watcher is armed on show and disarmed on
+-- hide rather than left registered for the whole session. The refresh is a full
+-- RepopulateRows, not an icon-only pass: the status icon, the label colour and
+-- the Unlocked/Locked tab filter all follow status, and the last two are baked in
+-- at row creation. StartStatusWatch also refreshes once up front, to catch a spec
+-- or spell change that happened while the panel was closed and unwatched.
+local statusWatcher = CreateFrame("Frame")
+
+local function RefreshStatuses(panel)
+    panel = panel or PSM.state.specialTames
+    if not panel then return end
+    PSM.TamingChecker.InvalidateCache()
+    RepopulateRows(panel, panel.searchBox and panel.searchBox:GetSearchText(), panel.activeTag)
+end
+
+statusWatcher:SetScript("OnEvent", function() RefreshStatuses() end)
+
+local function StartStatusWatch(panel)
+    statusWatcher:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+    statusWatcher:RegisterEvent("SPELLS_CHANGED")
+    RefreshStatuses(panel)
+end
+
+local function StopStatusWatch()
+    statusWatcher:UnregisterAllEvents()
 end
 
 -- ─────────────────────────────────────────────
@@ -1005,7 +1020,11 @@ function ST:CreateSpecialTamesPanel()
         showMaximizeButton = false,
 
         onShow = function(p)
-            UpdateAllStatuses(p)
+            StartStatusWatch(p)
+        end,
+
+        onHide = function()
+            StopStatusWatch()
         end,
     })
 
