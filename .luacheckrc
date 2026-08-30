@@ -67,6 +67,7 @@ read_globals = {
     "GetSpecialization",
     "GetSpecializationInfo",
     "GetSpellInfo",
+    "GetSpellTexture",
     "GetTime",
     "HideUIPanel",
     "InterfaceOptionsFrame",

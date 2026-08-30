@@ -168,20 +168,42 @@ describe("GetAbilityTooltipLines", function()
 end)
 
 describe("GetAbilityIcon", function()
-    it("returns the icon AbilitiesData carries", function()
+    -- AbilitiesData no longer stores an icon per ability; GetAbilityIcon derives the
+    -- texture fileID from the spell ID via Utils:GetSpellTextureCompat -> C_Spell.
+    -- The real API maps spellID -> numeric fileID; this stub models that with an
+    -- offset so the test can assert the ID was threaded through. Core.lua (which sets
+    -- the real ns.C_Spell) isn't loaded here, so the spec injects it.
+    local function withSpellTexture(ns, fn)
+        ns.C_Spell = { GetSpellTexture = fn }
+    end
+
+    it("derives the texture fileID from the ability's spell ID", function()
         _G.AbilitiesData = {
             [1] = { name = "Wolf", ranks = { ["Special Ability"] = {
-                [111] = { name = "Furious Howl", icon = "ability_hunter_pet_wolf" },
+                [111] = { name = "Furious Howl" },
             } } },
         }
-        local Data = freshData()
-        eq(Data:GetAbilityIcon("Furious Howl"), "ability_hunter_pet_wolf", "known ability")
+        local Data, ns = freshData()
+        withSpellTexture(ns, function(id) return id and 800000 + id or nil end)
+        eq(Data:GetAbilityIcon("Furious Howl"), 800111, "fileID for spell 111")
     end)
 
-    it("returns nil for a name AbilitiesData doesn't carry", function()
+    it("returns nil for a name AbilitiesData doesn't carry (no spell ID to resolve)", function()
         _G.AbilitiesData = nil
-        local Data = freshData()
+        local Data, ns = freshData()
+        withSpellTexture(ns, function(id) return id and 800000 + id or nil end)
         eq(Data:GetAbilityIcon("Anything"), nil, "no data loaded")
+    end)
+
+    it("returns nil when the client can't resolve the spell ID", function()
+        _G.AbilitiesData = {
+            [1] = { name = "Wolf", ranks = { ["Special Ability"] = {
+                [111] = { name = "Furious Howl" },
+            } } },
+        }
+        local Data, ns = freshData()
+        withSpellTexture(ns, function() return nil end)
+        eq(Data:GetAbilityIcon("Furious Howl"), nil, "known ability, unresolvable texture")
     end)
 end)
 

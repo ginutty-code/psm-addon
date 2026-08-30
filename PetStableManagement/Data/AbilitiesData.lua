@@ -2,17 +2,22 @@ PSM_DataSchemaVersion = 1
 
 -- Abilities Data Export
 -- Generated automatically
--- Format: AbilitiesData[family_id] = {name = "family_name", icon = "family_icon", ranks = {[rank] = {[ability_id] = {name = "ability_name", icon = "ability_icon", category = "category", tag = "tag"}, ...}}}
+-- Format: AbilitiesData[family_id] = {name = "family_name", ranks = {[rank] = {[ability_id] = {name = "ability_name", category = "category", tag = "tag"}, ...}}}
 
 AbilitiesData = {
     [1] = {
         name = "Wolf",
-        icon = "ability_hunter_pet_wolf",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [263840] = {
                     name = "Furious Bite",
-                    icon = "ability_hunter_pet_wolf",
                     category = "Enemy movement reduction",
                     tag = "Control"
                 }
@@ -21,12 +26,17 @@ AbilitiesData = {
     },
     [2] = {
         name = "Cat",
-        icon = "ability_hunter_pet_cat",
         ranks = {
+            ["Basic Ability"] = {
+                [16827] = {
+                    name = "Claw",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Bonus Ability"] = {
                 [24450] = {
                     name = "Prowl",
-                    icon = "ability_druid_supriseattack",
                     category = "First attack damage bonus",
                     tag = "Damage"
                 }
@@ -34,7 +44,6 @@ AbilitiesData = {
             ["Special Ability"] = {
                 [263892] = {
                     name = "Catlike Reflexes",
-                    icon = "ability_hunter_catlikereflexes",
                     category = "Pet dodge",
                     tag = "Defense"
                 }
@@ -43,12 +52,17 @@ AbilitiesData = {
     },
     [3] = {
         name = "Spider",
-        icon = "ability_hunter_pet_spider",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [160067] = {
                     name = "Web Spray",
-                    icon = "inv_misc_web_01",
                     category = "Enemy movement reduction",
                     tag = "Control"
                 }
@@ -57,12 +71,17 @@ AbilitiesData = {
     },
     [4] = {
         name = "Bear",
-        icon = "ability_hunter_pet_bear",
         ranks = {
+            ["Basic Ability"] = {
+                [16827] = {
+                    name = "Claw",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Bonus Ability"] = {
                 [94019] = {
                     name = "Rest",
-                    icon = "ability_hunter_separationanxiety",
                     category = "Fun",
                     tag = "Fun"
                 }
@@ -70,7 +89,6 @@ AbilitiesData = {
             ["Special Ability"] = {
                 [263934] = {
                     name = "Thick Fur",
-                    icon = "spell_druid_bristlingfur",
                     category = "Pet damage taken reduction",
                     tag = "Defense"
                 }
@@ -79,12 +97,17 @@ AbilitiesData = {
     },
     [5] = {
         name = "Boar",
-        icon = "ability_hunter_pet_boar",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [263869] = {
                     name = "Bristle",
-                    icon = "spell_magic_polymorphpig",
                     category = "Pet damage taken reduction",
                     tag = "Defense"
                 }
@@ -93,12 +116,17 @@ AbilitiesData = {
     },
     [6] = {
         name = "Crocolisk",
-        icon = "ability_hunter_pet_crocolisk",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [50433] = {
                     name = "Ankle Crack",
-                    icon = "ability_hunter_pet_crocolisk",
                     category = "Enemy movement reduction",
                     tag = "Control"
                 }
@@ -107,12 +135,17 @@ AbilitiesData = {
     },
     [7] = {
         name = "Carrion Bird",
-        icon = "ability_hunter_pet_vulture",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [24423] = {
                     name = "Bloody Screech",
-                    icon = "ability_hunter_pet_vulture",
                     category = "Enemy healing reduction",
                     tag = "Debuffs"
                 }
@@ -121,12 +154,17 @@ AbilitiesData = {
     },
     [8] = {
         name = "Crab",
-        icon = "ability_hunter_pet_crab",
         ranks = {
+            ["Basic Ability"] = {
+                [16827] = {
+                    name = "Claw",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [50245] = {
                     name = "Pin",
-                    icon = "ability_hunter_pet_crab",
                     category = "Enemy movement reduction",
                     tag = "Control"
                 }
@@ -135,12 +173,17 @@ AbilitiesData = {
     },
     [9] = {
         name = "Gorilla",
-        icon = "ability_hunter_pet_gorilla",
         ranks = {
+            ["Basic Ability"] = {
+                [49966] = {
+                    name = "Smack",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [263939] = {
                     name = "Silverback",
-                    icon = "ability_hunter_pet_gorilla",
                     category = "Pet damage taken reduction",
                     tag = "Defense"
                 }
@@ -149,12 +192,17 @@ AbilitiesData = {
     },
     [11] = {
         name = "Raptor",
-        icon = "ability_hunter_pet_raptor",
         ranks = {
+            ["Basic Ability"] = {
+                [16827] = {
+                    name = "Claw",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [263854] = {
                     name = "Savage Rend",
-                    icon = "ability_gouge",
                     category = "Enemy healing reduction",
                     tag = "Debuffs"
                 }
@@ -163,12 +211,17 @@ AbilitiesData = {
     },
     [12] = {
         name = "Tallstrider",
-        icon = "ability_hunter_pet_tallstrider",
         ranks = {
+            ["Basic Ability"] = {
+                [16827] = {
+                    name = "Claw",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [50285] = {
                     name = "Dust Cloud",
-                    icon = "inv_misc_dust",
                     category = "Enemy movement reduction",
                     tag = "Control"
                 }
@@ -177,12 +230,17 @@ AbilitiesData = {
     },
     [20] = {
         name = "Scorpid",
-        icon = "ability_hunter_pet_scorpid",
         ranks = {
+            ["Basic Ability"] = {
+                [16827] = {
+                    name = "Claw",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [160060] = {
                     name = "Deadly Sting",
-                    icon = "trade_archaeology_tinybronzescorpion",
                     category = "Enemy healing reduction",
                     tag = "Debuffs"
                 }
@@ -191,12 +249,17 @@ AbilitiesData = {
     },
     [21] = {
         name = "Turtle",
-        icon = "ability_hunter_pet_turtle",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [26064] = {
                     name = "Shell Shield",
-                    icon = "inv_shield_21",
                     category = "Pet damage taken reduction",
                     tag = "Defense"
                 }
@@ -205,12 +268,17 @@ AbilitiesData = {
     },
     [24] = {
         name = "Bat",
-        icon = "ability_hunter_pet_bat",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [344348] = {
                     name = "Sonic Screech",
-                    icon = "spell_arcane_massdispel",
                     category = "Pet dispel",
                     tag = "Defense"
                 }
@@ -219,12 +287,17 @@ AbilitiesData = {
     },
     [25] = {
         name = "Hyena",
-        icon = "ability_hunter_pet_hyena",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [263853] = {
                     name = "Infected Bite",
-                    icon = "ability_druid_primaltenacity",
                     category = "Enemy healing reduction",
                     tag = "Debuffs"
                 }
@@ -233,12 +306,17 @@ AbilitiesData = {
     },
     [26] = {
         name = "Bird of Prey",
-        icon = "ability_hunter_pet_owl",
         ranks = {
+            ["Basic Ability"] = {
+                [16827] = {
+                    name = "Claw",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Bonus Ability"] = {
                 [94022] = {
                     name = "Trick",
-                    icon = "ability_hunter_separationanxiety",
                     category = "Fun",
                     tag = "Fun"
                 }
@@ -246,7 +324,6 @@ AbilitiesData = {
             ["Special Ability"] = {
                 [263852] = {
                     name = "Talon Rend",
-                    icon = "ability_druid_mangle2",
                     category = "Enemy movement reduction",
                     tag = "Control"
                 }
@@ -255,12 +332,17 @@ AbilitiesData = {
     },
     [27] = {
         name = "Wind Serpent",
-        icon = "ability_hunter_pet_windserpent",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [264360] = {
                     name = "Winged Agility",
-                    icon = "ability_hunter_serpentswiftness",
                     category = "Pet dodge",
                     tag = "Defense"
                 }
@@ -269,12 +351,17 @@ AbilitiesData = {
     },
     [30] = {
         name = "Dragonhawk",
-        icon = "ability_hunter_pet_dragonhawk",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [263887] = {
                     name = "Dragon's Guile",
-                    icon = "ability_hunter_pet_dragonhawk",
                     category = "Pet dodge",
                     tag = "Defense"
                 }
@@ -283,12 +370,17 @@ AbilitiesData = {
     },
     [31] = {
         name = "Ravager",
-        icon = "ability_hunter_pet_ravager",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [263857] = {
                     name = "Ravage",
-                    icon = "artifactability_feraldruid_openwounds",
                     category = "Enemy healing reduction",
                     tag = "Debuffs"
                 }
@@ -297,12 +389,17 @@ AbilitiesData = {
     },
     [32] = {
         name = "Warp Stalker",
-        icon = "ability_hunter_pet_warpstalker",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [35346] = {
                     name = "Warp Time",
-                    icon = "spell_arcane_arcane04",
                     category = "Enemy movement reduction",
                     tag = "Control"
                 }
@@ -311,12 +408,17 @@ AbilitiesData = {
     },
     [33] = {
         name = "Sporebat",
-        icon = "ability_hunter_pet_sporebat",
         ranks = {
+            ["Basic Ability"] = {
+                [49966] = {
+                    name = "Smack",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [344347] = {
                     name = "Spore Cloud",
-                    icon = "spell_arcane_massdispel",
                     category = "Pet dispel",
                     tag = "Defense"
                 }
@@ -325,12 +427,17 @@ AbilitiesData = {
     },
     [34] = {
         name = "Ray",
-        icon = "ability_hunter_pet_netherray",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [344349] = {
                     name = "Nether Energy",
-                    icon = "spell_arcane_massdispel",
                     category = "Pet dispel",
                     tag = "Defense"
                 }
@@ -339,12 +446,17 @@ AbilitiesData = {
     },
     [35] = {
         name = "Serpent",
-        icon = "spell_nature_guardianward",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [263904] = {
                     name = "Serpent's Swiftness",
-                    icon = "ability_hunter_serpentswiftness",
                     category = "Pet dodge",
                     tag = "Defense"
                 }
@@ -353,12 +465,17 @@ AbilitiesData = {
     },
     [37] = {
         name = "Moth",
-        icon = "ability_hunter_pet_moth",
         ranks = {
+            ["Basic Ability"] = {
+                [49966] = {
+                    name = "Smack",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [344353] = {
                     name = "Serenity Dust",
-                    icon = "spell_arcane_massdispel",
                     category = "Pet dispel",
                     tag = "Defense"
                 }
@@ -367,12 +484,17 @@ AbilitiesData = {
     },
     [38] = {
         name = "Chimaera",
-        icon = "ability_hunter_pet_chimera",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Exotic Ability"] = {
                 [92380] = {
                     name = "Froststorm Breath",
-                    icon = "spell_frost_icestorm",
                     category = "Exotic: Damage over time",
                     tag = "Damage"
                 }
@@ -380,7 +502,6 @@ AbilitiesData = {
             ["Special Ability"] = {
                 [54644] = {
                     name = "Frost Breath",
-                    icon = "spell_frost_chillingblast",
                     category = "Enemy movement reduction",
                     tag = "Control"
                 }
@@ -389,20 +510,24 @@ AbilitiesData = {
     },
     [39] = {
         name = "Devilsaur",
-        icon = "ability_hunter_pet_devilsaur",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Exotic Ability"] = {
                 [159953] = {
                     name = "Feast",
-                    icon = "ability_racial_cannibalize",
-                    category = "Exotic: Pet armor&healing",
+                    category = "Exotic: Pet armor & healing",
                     tag = "Defense"
                 }
             },
             ["Special Ability"] = {
                 [54680] = {
                     name = "Monstrous Bite",
-                    icon = "inv_misc_bone_09",
                     category = "Enemy healing reduction",
                     tag = "Debuffs"
                 }
@@ -411,12 +536,17 @@ AbilitiesData = {
     },
     [41] = {
         name = "Aqiri",
-        icon = "ability_hunter_pet_silithid",
         ranks = {
+            ["Basic Ability"] = {
+                [16827] = {
+                    name = "Claw",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Exotic Ability"] = {
                 [280151] = {
                     name = "Dune Strider",
-                    icon = "ability_hunter_pet_silithid",
                     category = "Exotic: Pet movement speed",
                     tag = "Utility"
                 }
@@ -424,7 +554,6 @@ AbilitiesData = {
             ["Special Ability"] = {
                 [160065] = {
                     name = "Tendon Rip",
-                    icon = "inv_misc_monsterclaw_09",
                     category = "Enemy movement reduction",
                     tag = "Control"
                 }
@@ -433,12 +562,17 @@ AbilitiesData = {
     },
     [42] = {
         name = "Worm",
-        icon = "ability_hunter_pet_worm",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Exotic Ability"] = {
                 [93433] = {
                     name = "Burrow Attack",
-                    icon = "inv_qiraj_skinsandworm",
                     category = "Exotic: Damage over time",
                     tag = "Damage"
                 }
@@ -446,7 +580,6 @@ AbilitiesData = {
             ["Special Ability"] = {
                 [263446] = {
                     name = "Acid Spit",
-                    icon = "ability_creature_poison_02",
                     category = "Enemy movement reduction",
                     tag = "Control"
                 }
@@ -455,12 +588,17 @@ AbilitiesData = {
     },
     [43] = {
         name = "Clefthoof",
-        icon = "inv_clefthoofdraenormount_blue",
         ranks = {
+            ["Basic Ability"] = {
+                [49966] = {
+                    name = "Smack",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Exotic Ability"] = {
                 [280069] = {
                     name = "Blood of the Rhino",
-                    icon = "spell_shadow_lifedrain",
                     category = "Exotic: Pet armor & healing",
                     tag = "Defense"
                 }
@@ -468,7 +606,6 @@ AbilitiesData = {
             ["Special Ability"] = {
                 [160057] = {
                     name = "Thick Hide",
-                    icon = "inv_misc_nativebeastskin",
                     category = "Pet damage taken reduction",
                     tag = "Defense"
                 }
@@ -477,12 +614,17 @@ AbilitiesData = {
     },
     [44] = {
         name = "Wasp",
-        icon = "ability_hunter_pet_wasp",
         ranks = {
+            ["Basic Ability"] = {
+                [49966] = {
+                    name = "Smack",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [263858] = {
                     name = "Toxic Sting",
-                    icon = "ability_poisons",
                     category = "Enemy healing reduction",
                     tag = "Debuffs"
                 }
@@ -491,12 +633,17 @@ AbilitiesData = {
     },
     [45] = {
         name = "Core Hound",
-        icon = "ability_hunter_pet_corehound",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Exotic Ability"] = {
                 [159788] = {
                     name = "Molten Hide",
-                    icon = "spell_shaman_improvedfirenova",
                     category = "Exotic: Damage over time",
                     tag = "Damage"
                 }
@@ -504,7 +651,6 @@ AbilitiesData = {
             ["Special Ability"] = {
                 [263867] = {
                     name = "Obsidian Skin",
-                    icon = "ability_mage_moltenarmor",
                     category = "Pet damage taken reduction",
                     tag = "Defense"
                 }
@@ -513,12 +659,17 @@ AbilitiesData = {
     },
     [46] = {
         name = "Spirit Beast",
-        icon = "ability_druid_primalprecision",
         ranks = {
+            ["Basic Ability"] = {
+                [16827] = {
+                    name = "Claw",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Bonus Ability"] = {
                 [90328] = {
                     name = "Spirit Walk",
-                    icon = "ability_druid_supriseattack",
                     category = "First attack damage bonus",
                     tag = "Damage"
                 }
@@ -526,7 +677,6 @@ AbilitiesData = {
             ["Exotic Ability"] = {
                 [90361] = {
                     name = "Spirit Mend",
-                    icon = "spell_shaman_spiritlink",
                     category = "Exotic: Ally healing",
                     tag = "Utility"
                 }
@@ -534,7 +684,6 @@ AbilitiesData = {
             ["Special Ability"] = {
                 [344351] = {
                     name = "Spirit Pulse",
-                    icon = "spell_arcane_massdispel",
                     category = "Pet dispel",
                     tag = "Defense"
                 }
@@ -543,12 +692,17 @@ AbilitiesData = {
     },
     [50] = {
         name = "Fox",
-        icon = "ability_hunter_aspectofthefox",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Bonus Ability"] = {
                 [90347] = {
                     name = "Play",
-                    icon = "ability_hunter_separationanxiety",
                     category = "Fun",
                     tag = "Fun"
                 }
@@ -556,7 +710,6 @@ AbilitiesData = {
             ["Special Ability"] = {
                 [160011] = {
                     name = "Agile Reflexes",
-                    icon = "inv_misc_foxkit",
                     category = "Pet dodge",
                     tag = "Defense"
                 }
@@ -565,12 +718,17 @@ AbilitiesData = {
     },
     [51] = {
         name = "Monkey",
-        icon = "inv_pet_monkey",
         ranks = {
+            ["Basic Ability"] = {
+                [49966] = {
+                    name = "Smack",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [160044] = {
                     name = "Primal Agility",
-                    icon = "inv_pet_monkey",
                     category = "Pet dodge",
                     tag = "Defense"
                 }
@@ -579,12 +737,17 @@ AbilitiesData = {
     },
     [52] = {
         name = "Hound",
-        icon = "inv_pet_mastiff",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [263423] = {
                     name = "Lock Jaw",
-                    icon = "ability_druid_lacerate",
                     category = "Enemy movement reduction",
                     tag = "Control"
                 }
@@ -593,12 +756,17 @@ AbilitiesData = {
     },
     [53] = {
         name = "Beetle",
-        icon = "inv_misc_ahnqirajtrinket_01",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [90339] = {
                     name = "Harden Carapace",
-                    icon = "inv_qiraj_carapaceoldgod",
                     category = "Pet damage taken reduction",
                     tag = "Defense"
                 }
@@ -607,12 +775,17 @@ AbilitiesData = {
     },
     [55] = {
         name = "Shale Beast",
-        icon = "inv_pet_-shalespider",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Exotic Passive"] = {
                 [279259] = {
                     name = "Shimmering Shale",
-                    icon = "inv_skinning_80_shimmerscale",
                     category = "Exotic: Pet damage taken reduction",
                     tag = "Defense"
                 }
@@ -620,7 +793,6 @@ AbilitiesData = {
             ["Special Ability"] = {
                 [160063] = {
                     name = "Solid Shell",
-                    icon = "inv_misc_stonetablet_01",
                     category = "Pet damage taken reduction",
                     tag = "Defense"
                 }
@@ -629,12 +801,17 @@ AbilitiesData = {
     },
     [68] = {
         name = "Hydra",
-        icon = "trade_archaeology_whitehydrafigurine",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [263863] = {
                     name = "Acid Bite",
-                    icon = "spell_nature_corrosivebreath",
                     category = "Enemy healing reduction",
                     tag = "Debuffs"
                 }
@@ -643,12 +820,17 @@ AbilitiesData = {
     },
     [125] = {
         name = "Waterfowl",
-        icon = "inv_pet_crane",
         ranks = {
+            ["Basic Ability"] = {
+                [49966] = {
+                    name = "Smack",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Bonus Ability"] = {
                 [126259] = {
                     name = "Trick",
-                    icon = "ability_hunter_separationanxiety",
                     category = "Fun",
                     tag = "Fun"
                 }
@@ -656,7 +838,6 @@ AbilitiesData = {
             ["Special Ability"] = {
                 [344350] = {
                     name = "Oiled Feathers",
-                    icon = "spell_arcane_massdispel",
                     category = "Pet dispel",
                     tag = "Defense"
                 }
@@ -665,12 +846,17 @@ AbilitiesData = {
     },
     [126] = {
         name = "Water Strider",
-        icon = "inv_pet_waterstrider",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Exotic Ability"] = {
                 [126311] = {
                     name = "Surface Trot",
-                    icon = "spell_frost_windwalkon",
                     category = "Exotic: Hunter and pet water walking",
                     tag = "Utility"
                 }
@@ -678,7 +864,6 @@ AbilitiesData = {
             ["Special Ability"] = {
                 [344346] = {
                     name = "Soothing Waters",
-                    icon = "spell_arcane_massdispel",
                     category = "Pet dispel",
                     tag = "Defense"
                 }
@@ -687,12 +872,17 @@ AbilitiesData = {
     },
     [127] = {
         name = "Rodent",
-        icon = "inv_pet_porcupine",
         ranks = {
+            ["Basic Ability"] = {
+                [16827] = {
+                    name = "Claw",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Bonus Ability"] = {
                 [126364] = {
                     name = "Rest",
-                    icon = "ability_hunter_separationanxiety",
                     category = "Fun",
                     tag = "Fun"
                 }
@@ -700,7 +890,6 @@ AbilitiesData = {
             ["Special Ability"] = {
                 [263856] = {
                     name = "Gnaw",
-                    icon = "inv_pet_beaver",
                     category = "Enemy healing reduction",
                     tag = "Debuffs"
                 }
@@ -709,12 +898,17 @@ AbilitiesData = {
     },
     [128] = {
         name = "Stone Hound",
-        icon = "achievement_moguraid_01",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Exotic Ability"] = {
                 [267922] = {
                     name = "Eternal Guardian",
-                    icon = "spell_nature_reincarnation",
                     category = "Exotic: Pet instant revive",
                     tag = "Defense"
                 }
@@ -722,7 +916,6 @@ AbilitiesData = {
             ["Special Ability"] = {
                 [160049] = {
                     name = "Stone Armor",
-                    icon = "achievement_moguraid_01",
                     category = "Pet damage taken reduction",
                     tag = "Defense"
                 }
@@ -731,12 +924,17 @@ AbilitiesData = {
     },
     [129] = {
         name = "Gruffhorn",
-        icon = "inv_pet_-goat",
         ranks = {
+            ["Basic Ability"] = {
+                [49966] = {
+                    name = "Smack",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [263921] = {
                     name = "Gruff",
-                    icon = "inv_babyspacegoat",
                     category = "Pet damage taken reduction",
                     tag = "Defense"
                 }
@@ -745,12 +943,17 @@ AbilitiesData = {
     },
     [130] = {
         name = "Basilisk",
-        icon = "inv_pet_-basilisk",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [263841] = {
                     name = "Petrifying Gaze",
-                    icon = "inv_treasurebasiliskmount_green",
                     category = "Enemy movement reduction",
                     tag = "Control"
                 }
@@ -759,12 +962,17 @@ AbilitiesData = {
     },
     [138] = {
         name = "Direhorn",
-        icon = "inv_pet_direhorn",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [263861] = {
                     name = "Gore",
-                    icon = "inv_pet_direhorn",
                     category = "Enemy healing reduction",
                     tag = "Debuffs"
                 }
@@ -773,12 +981,17 @@ AbilitiesData = {
     },
     [150] = {
         name = "Riverbeast",
-        icon = "inv_hippo_green",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [160018] = {
                     name = "Gruesome Bite",
-                    icon = "ability_devour",
                     category = "Enemy healing reduction",
                     tag = "Debuffs"
                 }
@@ -787,12 +1000,17 @@ AbilitiesData = {
     },
     [151] = {
         name = "Stag",
-        icon = "inv_talbukdraenor_white",
         ranks = {
+            ["Basic Ability"] = {
+                [49966] = {
+                    name = "Smack",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [344352] = {
                     name = "Nature's Grace",
-                    icon = "spell_arcane_massdispel",
                     category = "Pet dispel",
                     tag = "Defense"
                 }
@@ -801,12 +1019,17 @@ AbilitiesData = {
     },
     [154] = {
         name = "Mechanical",
-        icon = "ability_mount_mechastrider",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [263868] = {
                     name = "Defense Matrix",
-                    icon = "ability_vehicle_shellshieldgenerator",
                     category = "Pet damage taken reduction",
                     tag = "Defense"
                 }
@@ -815,12 +1038,17 @@ AbilitiesData = {
     },
     [156] = {
         name = "Scalehide",
-        icon = "inv_mushanbeastmount",
         ranks = {
+            ["Basic Ability"] = {
+                [49966] = {
+                    name = "Smack",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [263865] = {
                     name = "Scale Shield",
-                    icon = "inv_artifact_dragonscales",
                     category = "Pet damage taken reduction",
                     tag = "Defense"
                 }
@@ -829,12 +1057,17 @@ AbilitiesData = {
     },
     [157] = {
         name = "Oxen",
-        icon = "ability_mount_yakmount",
         ranks = {
+            ["Basic Ability"] = {
+                [49966] = {
+                    name = "Smack",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [264023] = {
                     name = "Niuzao's Fortitude",
-                    icon = "ability_monk_chargingoxwave",
                     category = "Pet damage taken reduction",
                     tag = "Defense"
                 }
@@ -843,12 +1076,17 @@ AbilitiesData = {
     },
     [160] = {
         name = "Feathermane",
-        icon = "inv_misc_elitehippogryph",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Exotic Ability"] = {
                 [160007] = {
                     name = "Updraft",
-                    icon = "spell_magic_featherfall",
                     category = "Exotic: Hunter and pet slow fall",
                     tag = "Utility"
                 }
@@ -856,7 +1094,6 @@ AbilitiesData = {
             ["Special Ability"] = {
                 [263916] = {
                     name = "Feather Flurry",
-                    icon = "inv_feather_13",
                     category = "Pet dodge",
                     tag = "Defense"
                 }
@@ -865,12 +1102,17 @@ AbilitiesData = {
     },
     [288] = {
         name = "Lizard",
-        icon = "inv_komododragon_green",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [279362] = {
                     name = "Grievous Bite",
-                    icon = "inv_misc_bone_09",
                     category = "Enemy healing reduction",
                     tag = "Debuffs"
                 }
@@ -879,12 +1121,17 @@ AbilitiesData = {
     },
     [290] = {
         name = "Pterrordax",
-        icon = "inv_pterrordax2mount_yellow",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Exotic Ability"] = {
                 [160007] = {
                     name = "Updraft",
-                    icon = "spell_magic_featherfall",
                     category = "Exotic: Hunter and pet slow fall",
                     tag = "Utility"
                 }
@@ -892,7 +1139,6 @@ AbilitiesData = {
             ["Special Ability"] = {
                 [279399] = {
                     name = "Ancient Hide",
-                    icon = "inv_skinning_80_coarseleather",
                     category = "Pet damage taken reduction",
                     tag = "Defense"
                 }
@@ -901,12 +1147,17 @@ AbilitiesData = {
     },
     [291] = {
         name = "Hopper",
-        icon = "inv_pet_toad_green",
         ranks = {
+            ["Basic Ability"] = {
+                [49966] = {
+                    name = "Smack",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [279336] = {
                     name = "Swarm of Flies",
-                    icon = "spell_nature_insect_swarm2",
                     category = "Pet dodge",
                     tag = "Defense"
                 }
@@ -915,12 +1166,17 @@ AbilitiesData = {
     },
     [292] = {
         name = "Carapid",
-        icon = "achievement_dungeon_thesandqueen",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Exotic Passive"] = {
                 [279254] = {
                     name = "Calcified Carapace",
-                    icon = "trade_archaeology_blacktrilobite",
                     category = "Exotic: Pet damage taken reduction",
                     tag = "Defense"
                 }
@@ -928,7 +1184,6 @@ AbilitiesData = {
             ["Special Ability"] = {
                 [279410] = {
                     name = "Bulwark",
-                    icon = "inv_shield_18",
                     category = "Pet damage taken reduction",
                     tag = "Defense"
                 }
@@ -937,12 +1192,17 @@ AbilitiesData = {
     },
     [296] = {
         name = "Blood Beast",
-        icon = "inv_bloodtrollbeast_mount",
         ranks = {
+            ["Basic Ability"] = {
+                [17253] = {
+                    name = "Bite",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [288962] = {
                     name = "Blood Bolt",
-                    icon = "artifactability_blooddeathknight_umbilicuseternus",
                     category = "Enemy movement reduction",
                     tag = "Control"
                 }
@@ -951,12 +1211,17 @@ AbilitiesData = {
     },
     [298] = {
         name = "Camel",
-        icon = "ability_mount_camel_brown",
         ranks = {
+            ["Basic Ability"] = {
+                [49966] = {
+                    name = "Smack",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [341115] = {
                     name = "Hardy",
-                    icon = "ability_mount_camel_brown",
                     category = "Pet damage taken reduction",
                     tag = "Defense"
                 }
@@ -965,12 +1230,17 @@ AbilitiesData = {
     },
     [299] = {
         name = "Courser",
-        icon = "inv_horse3_pale",
         ranks = {
+            ["Basic Ability"] = {
+                [49966] = {
+                    name = "Smack",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [341117] = {
                     name = "Fleethoof",
-                    icon = "inv_horse3_pale",
                     category = "Pet dodge",
                     tag = "Defense"
                 }
@@ -979,12 +1249,17 @@ AbilitiesData = {
     },
     [300] = {
         name = "Mammoth",
-        icon = "ability_mount_ridingelekk",
         ranks = {
+            ["Basic Ability"] = {
+                [49966] = {
+                    name = "Smack",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [341118] = {
                     name = "Trample",
-                    icon = "ability_mount_ridingelekk",
                     category = "Enemy movement reduction",
                     tag = "Control"
                 }
@@ -993,12 +1268,17 @@ AbilitiesData = {
     },
     [303] = {
         name = "Lesser Dragonkin",
-        icon = "inv_misc_head_dragon_nexus",
         ranks = {
+            ["Basic Ability"] = {
+                [16827] = {
+                    name = "Claw",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Special Ability"] = {
                 [392622] = {
                     name = "Shimmering Scales",
-                    icon = "inv_misc_rubysanctum1",
                     category = "Pet damage taken reduction",
                     tag = "Defense"
                 }
@@ -1007,12 +1287,17 @@ AbilitiesData = {
     },
     [315] = {
         name = "Whiptail",
-        icon = "inv_stalkermount_red",
         ranks = {
+            ["Basic Ability"] = {
+                [16827] = {
+                    name = "Claw",
+                    category = "Basic Attack",
+                    tag = "Damage"
+                }
+            },
             ["Bonus Ability"] = {
                 [24450] = {
                     name = "Prowl",
-                    icon = "ability_druid_supriseattack",
                     category = "First attack damage bonus",
                     tag = "Damage"
                 }
@@ -1020,13 +1305,11 @@ AbilitiesData = {
             ["Special Ability"] = {
                 [1247058] = {
                     name = "Serrated Strike",
-                    icon = "ability_druid_ravage",
                     category = "Enemy healing reduction",
                     tag = "Debuffs"
                 },
                 [1247078] = {
                     name = "Shadow Jump",
-                    icon = "spell_shadow_shadesofdarkness",
                     category = "Enemy movement reduction",
                     tag = "Control"
                 }
@@ -1035,12 +1318,10 @@ AbilitiesData = {
     },
     ["Spec"] = {
         name = "Spec abilities",
-        icon = "",
         ranks = {
             ["Cunning Ability"] = {
                 [272682] = {
                     name = "Master's Call",
-                    icon = "ability_hunter_masterscall",
                     category = "Ally movement impairing removal",
                     tag = "Spec"
                 }
@@ -1048,7 +1329,6 @@ AbilitiesData = {
             ["Cunning Passive"] = {
                 [264656] = {
                     name = "Pathfinding",
-                    icon = "spell_lifegivingspeed",
                     category = "Hunter and pet movement speed",
                     tag = "Spec"
                 }
@@ -1056,7 +1336,6 @@ AbilitiesData = {
             ["Ferocity Ability"] = {
                 [264667] = {
                     name = "Primal Rage",
-                    icon = "spell_shadow_unholyfrenzy",
                     category = "Bloodlust / Heroism",
                     tag = "Spec"
                 }
@@ -1064,7 +1343,6 @@ AbilitiesData = {
             ["Ferocity Passive"] = {
                 [264663] = {
                     name = "Predator's Thirst",
-                    icon = "spell_shadow_vampiricaura",
                     category = "Hunter and pet leech",
                     tag = "Spec"
                 }
@@ -1072,7 +1350,6 @@ AbilitiesData = {
             ["Tenacity Ability"] = {
                 [272679] = {
                     name = "Fortitude of the Bear",
-                    icon = "spell_druid_bearhug",
                     category = "Hunter and pet damage reduction",
                     tag = "Spec"
                 }
@@ -1080,7 +1357,6 @@ AbilitiesData = {
             ["Tenacity Passive"] = {
                 [264662] = {
                     name = "Endurance Training",
-                    icon = "ability_hunter_huntervswild",
                     category = "Hunter and pet health buff",
                     tag = "Spec"
                 }

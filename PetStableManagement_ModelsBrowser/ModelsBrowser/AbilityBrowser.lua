@@ -77,7 +77,6 @@ local function BuildAbilityIndex()
                         entry = {
                             spellId  = spellId,
                             name     = abilityData.name,
-                            icon     = abilityData.icon,
                             rank     = rankName,
                             tag      = abilityData.tag,
                             category = abilityData.category,
@@ -324,8 +323,7 @@ end
 local function BindAbilityIcon(btn, entry)
     btn.entry   = entry
     btn.spellId = entry.spellId
-    btn.iconTex:SetTexture(
-        entry.icon and entry.icon ~= "" and ("Interface\\Icons\\" .. entry.icon) or nil)
+    btn.iconTex:SetTexture(PSM.Utils:GetSpellTextureCompat(entry.spellId))
     SetIconAppearance(btn, AB.selectedAbilities[entry.spellId])
 end
 

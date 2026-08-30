@@ -139,6 +139,23 @@ function ns.Utils:GetSpellNameCompat(spellID)
     end
 end
 
+-- The icon texture (a numeric fileID) for a spell ID. Prefers C_Spell.GetSpellTexture,
+-- the retail API; falls back to the legacy GetSpellTexture global, which -- like
+-- GetSpellInfo in GetSpellNameCompat -- is expected to be nil on modern clients.
+-- Returns nil for a non-number or an unresolvable spell ID. This replaces the icon
+-- name once stored per ability in Data/AbilitiesData.lua: the spell ID is the single
+-- source of truth now, so a mis-scraped icon name can no longer drift from it.
+function ns.Utils:GetSpellTextureCompat(spellID)
+    if type(spellID) ~= "number" then return nil end
+    if ns.C_Spell and ns.C_Spell.GetSpellTexture then
+        local tex = ns.Utils.SafeCall(ns.C_Spell.GetSpellTexture, spellID)
+        if tex then return tex end
+    end
+    if ns.GetSpellTexture then
+        return ns.Utils.SafeCall(ns.GetSpellTexture, spellID)
+    end
+end
+
 function ns.Utils:HasAnimalCompanionTalent()
     return IsPlayerSpell(267116) == true
 end

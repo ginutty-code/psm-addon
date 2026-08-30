@@ -890,12 +890,11 @@ local function BuildAbilityDetailIndex()
                     if name then
                         local detail = abilityDetailByName[name]
                         if not detail then
-                            -- category/icon/spellId/rank come from the first entry seen
+                            -- category/spellId/rank come from the first entry seen
                             -- for a name; families/specTier accumulate over every entry,
                             -- since one ability name can be granted by several families.
                             detail = {
                                 category = abilityData.category or "Other",
-                                icon     = abilityData.icon,
                                 spellId  = spellId,
                                 rank     = rankName,
                                 families = {},
@@ -934,12 +933,13 @@ function ns.Data:GetAbilityCategory(name)
     return detail and detail.category or "Other"
 end
 
--- The icon texture for an ability name, or nil when AbilitiesData doesn't carry it
--- (same cases as GetAbilityCategory's fallback) -- callers already handle a nil icon
--- (UIDropDownMenu_AddButton simply shows no icon).
+-- The icon texture (a numeric fileID) for an ability name, derived at runtime from the
+-- spell ID -- AbilitiesData no longer stores an icon per ability. Nil for a name it
+-- doesn't carry (same cases as GetAbilityCategory's fallback) or a spell ID the client
+-- can't resolve; callers already handle a nil icon (UIDropDownMenu_AddButton and
+-- Texture:SetTexture both simply show nothing).
 function ns.Data:GetAbilityIcon(name)
-    local detail = BuildAbilityDetailIndex()[name]
-    return detail and detail.icon or nil
+    return ns.Utils:GetSpellTextureCompat(self:GetAbilitySpellId(name))
 end
 
 -- The spell ID an ability name resolves to (AbilitiesData's table key, not a field

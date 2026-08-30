@@ -71,8 +71,9 @@ PetStableManagementDB = PetStableManagementDB or {
 -- (load-on-demand frames, separate Blizzard addons) -- call those through the global at
 -- the point of use instead.
 --
--- PSM.GetSpellInfo is *expected* to be nil on modern clients -- it is the legacy half
--- of Utils:GetSpellNameCompat. Nil is the answer, not a missing capture.
+-- PSM.GetSpellInfo / PSM.GetSpellTexture are *expected* to be nil on modern clients --
+-- they are the legacy halves of Utils:GetSpellNameCompat / Utils:GetSpellTextureCompat.
+-- Nil is the answer, not a missing capture.
 
 -- Blizzard's stable frame, looked up on every call rather than aliased. There is no
 -- PSM.StableFrame field on purpose: a field would be a snapshot again, and there are
@@ -88,6 +89,7 @@ ns.hooksecurefunc = hooksecurefunc
 ns.C_StableInfo = C_StableInfo
 ns.C_Spell = C_Spell
 ns.GetSpellInfo = GetSpellInfo
+ns.GetSpellTexture = GetSpellTexture
 ns.UIParent = UIParent
 ns.GameTooltip = GameTooltip
 ns.GetCursorPosition = GetCursorPosition
