@@ -1216,11 +1216,15 @@ function ns.PopUpManager:ShowCoordsPopup(text, npcName, location, displayId)
         })
         ns.Skin.Apply(f.contentScroll.ScrollBar, "scrollbar")
 
+        -- Multi-line scroll-child editbox: keep only its width synced to the
+        -- scroll frame. Its height must stay unset so it auto-grows to fit the
+        -- text, which is what gives the scroll frame something to scroll when
+        -- there are more waypoint rows than fit the viewport. (Forcing the
+        -- height to the viewport pins it to one screenful; see ShowNoteEditor.)
         f.editBox = Widgets.EditBox(f.contentScroll, {
             name      = "PSMCoordsEditBox",
             multiline = true,
             width     = f.contentScroll:GetWidth(),
-            height    = f.contentScroll:GetHeight(),
             textColor = Theme.COLOR.WHITE,
             closes    = f,
         })
@@ -1228,7 +1232,6 @@ function ns.PopUpManager:ShowCoordsPopup(text, npcName, location, displayId)
 
         f:SetScript("OnSizeChanged", function()
             f.editBox:SetWidth(f.contentScroll:GetWidth())
-            f.editBox:SetHeight(f.contentScroll:GetHeight())
         end)
 
         f.closeButton = Widgets.CloseButton(f, { level = f:GetFrameLevel() + 10 })
@@ -1244,11 +1247,16 @@ function ns.PopUpManager:ShowCoordsPopup(text, npcName, location, displayId)
     self.coordsPopup.location  = location
     self.coordsPopup.displayId = tonumber(displayId)
     self.coordsPopup.editBox:SetText(text or "")
+    -- Re-sync width every open: contentScroll:GetWidth() is 0 at build time
+    -- (frame never laid out yet), and a plain Show() doesn't fire OnSizeChanged,
+    -- so without this the editbox stays zero-width and the text reads as one row.
+    self.coordsPopup.editBox:SetWidth(self.coordsPopup.contentScroll:GetWidth())
     self.coordsPopup:Show()
     self.coordsPopup:Raise()
 
     ns.C_Timer.After(0.01, function()
         if self.coordsPopup and self.coordsPopup.contentScroll then
+            self.coordsPopup.editBox:SetWidth(self.coordsPopup.contentScroll:GetWidth())
             self.coordsPopup.contentScroll:SetVerticalScroll(0)
         end
     end)
