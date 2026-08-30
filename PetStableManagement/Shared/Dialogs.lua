@@ -346,6 +346,399 @@ function ns.Dialogs:ShowSaveTeamDialog(options)
 end
 
 --------------------------------------------------------------------------------
+-- TEAM ROULETTE DIALOG
+--------------------------------------------------------------------------------
+
+-- The preview for a random roll: one cell per slot, a per-slot spec-cycle button, a
+-- per-slot lock, and Re-roll / Apply now / Save as team... / Cancel. The roll itself is
+-- ns.TeamRoulette (OwnedPets/TeamRoulette.lua); this file owns only the chrome.
+--
+-- `state` is the live table ns.TeamRoulette:Show builds: { slotCount, template,
+-- locked, slots, report }. Re-roll and spec changes mutate it in place and repaint.
+
+-- Text colour per spec on the cycle button, matching the Stable Master's own spec
+-- identities: Ferocity brown, Tenacity purple, Cunning green. Plus the "Any" resting
+-- colour. Local because only this button cares.
+local ROULETTE_SPEC_COLOR = {
+    Any      = ns.Theme.COLOR.MUTED,
+    Ferocity = { 0.80, 0.52, 0.34 },
+    Tenacity = { 0.72, 0.52, 0.92 },
+    Cunning  = { 0.45, 0.78, 0.42 },
+}
+
+-- The per-slot lock affordance: a plain padlock icon (no button chrome -- the button
+-- backdrop fought the cell), tinted by state. Swap the texture or either colour if a
+-- different glyph reads better; other theme-friendly candidates:
+--   Interface\Buttons\UI-Button-KeyRing-Down   Interface\TimeManager\PauseButton
+--   Interface\Buttons\UI-CheckBox-Check (a green check, if "keep" reads better than "lock")
+local LOCK_ICON        = "Interface\\petbattles\\petbattle-lockicon"
+local LOCK_TINT_OPEN   = ns.Theme.COLOR.GOLD     -- unlocked: still in play
+local LOCK_TINT_CLOSED = ns.Theme.COLOR.SILVER   -- locked: settled
+
+-- Any → Ferocity → Tenacity → Cunning → Any. The kit renders a plain button; the
+-- cycle order is this caller's, the same split Filters.lua's NextTriState uses.
+local function NextRouletteSpec(spec)
+    if spec == nil        then return "Ferocity" end
+    if spec == "Ferocity" then return "Tenacity" end
+    if spec == "Tenacity" then return "Cunning"  end
+    return nil
+end
+
+function ns.Dialogs:ShowTeamRouletteDialog(state)
+    if not state or not state.slotCount then return end
+
+    local Theme, Widgets = ns.Theme, ns.Widgets
+
+    local slotCount     = state.slotCount
+    local CELL_W        = 96
+    local CELL_H        = 127
+    local PORTRAIT      = 66
+    local CELL_BORDER   = { 0.3, 0.3, 0.3, 1 }
+    local PICK_BORDER   = { 1, 0.82, 0, 1 }   -- the "picked up, choose a slot to swap with" outline
+    local CELL_GAP      = 8
+    local COMPANION_GAP = 16   -- extra space before slot 6, mirroring the Teams panel
+    local GRID_Y        = -62
+    local warnY         = GRID_Y - CELL_H - 24
+    local gridW         = slotCount * CELL_W + (slotCount - 1) * CELL_GAP
+                          + (slotCount >= 6 and COMPANION_GAP or 0)
+    local dialogW       = math.max(440, gridW + 40)
+    local dialogH       = -warnY + 78
+
+    local d = CreateBaseDialog("PSMTeamRouletteDialog", dialogW, dialogH, ns.L("Team Roulette"))
+
+    d.poolText = CreateDialogText(d, {
+        fontSize = Theme.SIZE.LABEL,
+        color    = Theme.COLOR.GOLD,
+        point    = { "TOP", d.title, "BOTTOM", 0, -8 },
+        text     = "",
+    })
+
+    -- One cell per slot: portrait, name, family, spec line, lock, spec-cycle button.
+    local startX = (dialogW - gridW) / 2
+    d.cells = {}
+
+    for slot = 1, slotCount do
+        local x = startX + (slot - 1) * (CELL_W + CELL_GAP)
+                  + (slot == 6 and COMPANION_GAP or 0)
+
+        local cell = Widgets.Frame(d, {
+            frameType   = "Button",
+            size        = { CELL_W, CELL_H },
+            point       = { "TOPLEFT", d, "TOPLEFT", x, GRID_Y },
+            backdrop    = "TOOLTIP_ROW",
+            color       = ns.Config.COLORS.BACKGROUND,
+            borderColor = CELL_BORDER,
+        })
+
+        cell.portrait = Widgets.Texture(cell, {
+            size  = { PORTRAIT, PORTRAIT },
+            point = { "TOP", 0, -6 },
+        })
+
+        cell.nameText = Widgets.Label(cell, {
+            fontSize = Theme.SIZE.SMALL,
+            color    = Theme.COLOR.WHITE,
+            justify  = "CENTER",
+            point    = { "TOP", cell.portrait, "BOTTOM", 0, -3 },
+            width    = CELL_W - 8,
+            text     = "",
+        })
+
+        cell.familyText = Widgets.Label(cell, {
+            fontSize = Theme.SIZE.TINY,
+            color    = Theme.COLOR.GREY,
+            justify  = "CENTER",
+            point    = { "TOP", cell.nameText, "BOTTOM", 0, -2 },
+            width    = CELL_W - 8,
+            text     = "",
+        })
+
+        cell.specText = Widgets.Label(cell, {
+            fontSize = Theme.SIZE.TINY,
+            color    = Theme.COLOR.MUTED,
+            justify  = "CENTER",
+            point    = { "TOP", cell.familyText, "BOTTOM", 0, -3 },
+            width    = CELL_W - 6,
+            text     = "",
+        })
+
+        -- A plain icon, not a skinned button: the button chrome fought the cell.
+        -- Refresh() tints it per state (see LOCK_ICON / LOCK_TINT_* above).
+        cell.lock = Widgets.IconButton(cell, {
+            texture   = LOCK_ICON,
+            highlight = "Interface\\Buttons\\UI-Common-MouseHilight",
+            size      = { 18, 18 },
+            point     = { "TOPLEFT", 4, -4 },
+        })
+
+        -- Same size and art as the Teams panel's per-slot remove button.
+        cell.removeButton = Widgets.IconButton(cell, {
+            texture   = "Interface\\Buttons\\UI-StopButton",
+            highlight = "Interface\\Buttons\\UI-StopButton",
+            size      = { 16, 16 },
+            alpha     = 0.7,
+            point     = { "TOPRIGHT", -3, -3 },
+            hidden    = true,
+        })
+
+        d.cells[slot] = cell
+    end
+
+    -- The spec-cycle buttons sit under the grid, aligned to their cells.
+    for slot = 1, slotCount do
+        local cell = d.cells[slot]
+        cell.specButton = Widgets.Button(cell, {
+            width      = CELL_W - 6,
+            text       = "",
+            fontObject = "GameFontNormalSmall",
+            point      = { "TOP", cell, "BOTTOM", 0, -3 },
+        })
+        cell.specButton:SetHeight(20)
+    end
+
+    -- Warning line (short roll) and the button row.
+    d.warnText = CreateDialogText(d, {
+        fontSize = Theme.SIZE.SMALL,
+        color    = Theme.COLOR.ORANGE,
+        justify  = "CENTER",
+        width    = dialogW - 40,
+        point    = { "TOP", d, "TOP", 0, warnY },
+        text     = "",
+    })
+
+    -- Width is the exact button run (M + M + L + M plus three 8px gaps) so the row
+    -- centres in the dialog rather than clumping against the left edge.
+    local bc = ns.Widgets.Frame(d, {
+        size  = { 3 * ns.Theme.CONTROL.BUTTON_W.M + ns.Theme.CONTROL.BUTTON_W.L + 3 * 8, 30 },
+        point = { "BOTTOM", 0, 14 },
+    })
+
+    d.rerollButton = CreateDialogButton(bc, ns.L("Re-roll"))
+    d.rerollButton:SetPoint("LEFT", 0, 0)
+
+    d.applyButton = CreateDialogButton(bc, ns.L("Apply now"))
+    d.applyButton:SetPoint("LEFT", d.rerollButton, "RIGHT", 8, 0)
+
+    d.saveButton = CreateDialogButton(bc, ns.L("Save as team..."), ns.Theme.CONTROL.BUTTON_W.L)
+    d.saveButton:SetPoint("LEFT", d.applyButton, "RIGHT", 8, 0)
+
+    d.cancelButton = CreateDialogButton(bc, ns.L("Cancel"))
+    d.cancelButton:SetPoint("LEFT", d.saveButton, "RIGHT", 8, 0)
+    d.cancelButton:SetScript("OnClick", function() d:Hide() end)
+
+    ----------------------------------------------------------------------------
+    -- Repaint from state
+    ----------------------------------------------------------------------------
+
+    local function SlotLabel(slot)
+        return slot == 6 and ns.L("Slot %s (Companion)", slot) or ns.L("Slot %s", slot)
+    end
+
+    -- The pool line follows the Owned Pets panel's live filter: Shared/UI.lua calls
+    -- this after every re-render while the dialog is open (feedback #2).
+    function d.SyncPool()
+        d.poolText:SetText(ns.L("Drawing from %d filtered pets", #ns.TeamRoulette:CurrentPool()))
+    end
+
+    d._pickedSlot = nil
+
+    local function Refresh()
+        d.SyncPool()
+        for slot = 1, slotCount do
+            local cell      = d.cells[slot]
+            local rec       = state.slots and state.slots[slot]
+            local req       = state.template[slot]
+            local lockedVal = state.locked[slot]
+            local keptEmpty = lockedVal == "empty"
+            local isLocked  = lockedVal ~= nil
+
+            -- Spec-cycle button label + colour (independent of whether a pet landed).
+            cell.specButton:SetText(req or ns.L("Any"))
+            local col = ROULETTE_SPEC_COLOR[req or "Any"] or Theme.COLOR.MUTED
+            local fs  = cell.specButton:GetFontString()
+            if fs then fs:SetTextColor(col[1], col[2], col[3]) end
+
+            cell:SetBackdropBorderColor(unpack(slot == d._pickedSlot and PICK_BORDER or CELL_BORDER))
+
+            -- Padlock tint by state: gold = unlocked (still in play), silver = locked.
+            local lt = cell.lock:GetNormalTexture()
+            if lt then
+                lt:SetDesaturated(true)
+                lt:SetVertexColor(unpack(isLocked and LOCK_TINT_CLOSED or LOCK_TINT_OPEN))
+            end
+
+            -- Remove is available only for an unlocked, occupied slot.
+            cell.removeButton:SetShown(rec ~= nil and not isLocked)
+
+            if rec then
+                if rec.displayID and rec.displayID > 0 then
+                    SetPortraitTextureFromCreatureDisplayID(cell.portrait, rec.displayID)
+                    cell.portrait:SetTexCoord(1, 0, 0, 1)
+                elseif rec.icon then
+                    cell.portrait:SetTexture(rec.icon)
+                    cell.portrait:SetTexCoord(0, 1, 0, 1)
+                else
+                    cell.portrait:SetTexture(nil)
+                end
+                cell.portrait:SetAlpha(1)
+                cell.nameText:SetText(rec.name or "?")
+                cell.nameText:SetTextColor(unpack(Theme.COLOR.WHITE))
+                cell.familyText:SetText(rec.familyName or "")
+                cell.specText:SetText(rec.specName or "")
+                cell.specText:SetTextColor(unpack(Theme.COLOR.MUTED))
+
+                cell:SetScript("OnEnter", function(self)
+                    ns.Tooltip.Show(self, ns.PetTooltip.Spec(rec, { slotLabel = SlotLabel(slot) }))
+                end)
+                cell:SetScript("OnLeave", ns.Tooltip.Hide)
+            else
+                cell.portrait:SetTexture(nil)
+                cell.portrait:SetAlpha(0)
+                cell.nameText:SetText(keptEmpty and ns.L("(kept empty)") or ns.L("(empty)"))
+                cell.nameText:SetTextColor(unpack(keptEmpty and Theme.COLOR.ORANGE or Theme.COLOR.GREY))
+                cell.familyText:SetText("")
+                cell.specText:SetText("")
+                cell:SetScript("OnEnter", nil)
+                cell:SetScript("OnLeave", nil)
+            end
+        end
+
+        local report = state.report or {}
+        if (report.short or 0) > 0 then
+            d.warnText:SetText(ns.L("Only %d of %d slots could be filled from the current filters.",
+                report.filled or 0, slotCount))
+            d.warnText:SetTextColor(unpack(Theme.COLOR.ORANGE))
+        else
+            d.warnText:SetText(ns.L("Click a pet then a slot to swap. Lock a slot to keep it through re-rolls."))
+            d.warnText:SetTextColor(unpack(Theme.COLOR.FAINT))
+        end
+
+        -- Apply is always enabled; its tooltip explains when it will not do anything.
+        d.applyButton:SetAlpha(ns.state.isStableOpen and 1 or 0.6)
+    end
+
+    ----------------------------------------------------------------------------
+    -- Wiring
+    ----------------------------------------------------------------------------
+
+    -- Click a slot to pick it up, click another to swap the two; a locked slot is
+    -- inert (feedback #3). Reuses ns.TeamRoulette's state mutators so this file stays
+    -- purely presentational.
+    local function CellClicked(slot)
+        if state.locked[slot] then return end
+        if d._pickedSlot == nil then
+            d._pickedSlot = slot
+        elseif d._pickedSlot == slot then
+            d._pickedSlot = nil
+        else
+            ns.TeamRoulette:SwapSlots(state, d._pickedSlot, slot)
+            d._pickedSlot = nil
+        end
+        Refresh()
+    end
+
+    for slot = 1, slotCount do
+        local cell = d.cells[slot]
+
+        cell:SetScript("OnClick", function() CellClicked(slot) end)
+
+        -- A spec change retunes only this slot -- it draws a fresh pet for it and
+        -- leaves the rest of the team alone (feedback #4).
+        cell.specButton:SetScript("OnClick", function()
+            state.template[slot] = NextRouletteSpec(state.template[slot])
+            ns.TeamRoulette:RetuneSlot(state, slot)
+            Refresh()
+        end)
+
+        cell.removeButton:SetScript("OnClick", function()
+            ns.TeamRoulette:RemoveSlot(state, slot)
+            if d._pickedSlot == slot then d._pickedSlot = nil end
+            Refresh()
+        end)
+        ns.Tooltip.Attach(cell.removeButton, { title = ns.L("Remove this pet") }, {
+            onEnter = function(self) self:SetAlpha(1.0) end,
+            onLeave = function(self) self:SetAlpha(0.7) end,
+        })
+
+        -- Lock freezes the slot as it stands -- a pet or a deliberate empty; clicking
+        -- again frees it.
+        cell.lock:SetScript("OnClick", function()
+            if state.locked[slot] then
+                state.locked[slot] = nil
+            elseif state.slots and state.slots[slot] then
+                state.locked[slot] = state.slots[slot]
+            else
+                state.locked[slot] = "empty"
+            end
+            if d._pickedSlot == slot then d._pickedSlot = nil end
+            Refresh()
+        end)
+        ns.Tooltip.Attach(cell.lock, function()
+            local v = state.locked[slot]
+            if v == "empty" then
+                return { title = ns.L("Kept empty - click to let re-rolls fill it") }
+            elseif v then
+                return { title = ns.L("Locked - kept on re-roll") }
+            elseif state.slots and state.slots[slot] then
+                return { title = ns.L("Lock this pet in place") }
+            end
+            return { title = ns.L("Keep this slot empty") }
+        end)
+    end
+
+    d.rerollButton:SetScript("OnClick", function()
+        ns.TeamRoulette:Reroll(state)
+        Refresh()
+    end)
+
+    d.applyButton:SetScript("OnClick", function()
+        if not ns.state.isStableOpen then
+            ns.Utils:Msg("WARNING", ns.L("You must be at a Stable Master to apply a team."))
+            return
+        end
+        local ok, err = ns.Teams:ApplySlots(state.slots, ns.L("Team Roulette"))
+        if not ok then
+            ns.Utils:Msg("ERROR", err or ns.L("Failed to apply team"))
+            return
+        end
+        d:Hide()
+    end)
+    ns.Tooltip.Attach(d.applyButton, function()
+        if ns.state.isStableOpen then
+            return { title = ns.L("Move these pets into slots 1-6 now") }
+        end
+        return { title = ns.L("Visit a Stable Master to apply teams"),
+                 titleColor = ns.Theme.COLOR.ORANGE }
+    end)
+
+    d.saveButton:SetScript("OnClick", function()
+        ns.Dialogs:ShowNameInputDialog({
+            title       = ns.L("Save New Team"),
+            description = ns.L("Enter a name for your pet team:"),
+            onConfirm   = function(name)
+                local id, err = ns.Teams:SaveTeam(name, state.slots)
+                if id then
+                    if ns.TeamsPanel then ns.TeamsPanel:RefreshTeamsList() end
+                else
+                    ns.Utils:Msg("ERROR", err or ns.L("Failed to save team"))
+                end
+            end,
+        })
+    end)
+
+    -- Published so Shared/UI.lua can push filter changes into the open preview, and
+    -- cleared on hide so that push is a no-op once the dialog is gone.
+    ns.Dialogs.teamRouletteDialog = d
+    d:HookScript("OnHide", function()
+        if ns.Dialogs.teamRouletteDialog == d then ns.Dialogs.teamRouletteDialog = nil end
+    end)
+
+    Refresh()
+    d:Show()
+    return d
+end
+
+--------------------------------------------------------------------------------
 -- UTILITY
 --------------------------------------------------------------------------------
 

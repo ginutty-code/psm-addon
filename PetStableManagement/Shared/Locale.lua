@@ -326,6 +326,32 @@ L.Register({
     ["Failed to duplicate team"] = "Failed to duplicate team",
     ["Failed to delete team"]    = "Failed to delete team",
 
+    -- Team Roulette (Owned Pets -> Tools): the roll dialog and its button. The name
+    -- pairs with the Models Browser's "Pet Roulette".
+    ["Team Roulette"] = "Team Roulette",
+    ["Drawing from %d filtered pets"] = "Drawing from %d filtered pets",
+    ["Re-roll"]        = "Re-roll",
+    ["Apply now"]      = "Apply now",
+    ["Save as team..."] = "Save as team...",
+    ["Any"]            = "Any",
+    ["(empty)"]        = "(empty)",
+    ["(kept empty)"]   = "(kept empty)",
+    ["Remove this pet"]           = "Remove this pet",
+    ["Lock this pet in place"]    = "Lock this pet in place",
+    ["Keep this slot empty"]      = "Keep this slot empty",
+    ["Locked - kept on re-roll"]  = "Locked - kept on re-roll",
+    ["Kept empty - click to let re-rolls fill it"] =
+        "Kept empty - click to let re-rolls fill it",
+    ["Click a pet then a slot to swap. Lock a slot to keep it through re-rolls."] =
+        "Click a pet then a slot to swap. Lock a slot to keep it through re-rolls.",
+    ["Move these pets into slots 1-6 now"] = "Move these pets into slots 1-6 now",
+    ["No pets match the current filters."] = "No pets match the current filters.",
+    ["Only %d of %d slots could be filled from the current filters."] =
+        "Only %d of %d slots could be filled from the current filters.",
+    ["Roll a random team"] = "Roll a random team",
+    ["Roll a random team from the %d filtered pets"] =
+        "Roll a random team from the %d filtered pets",
+
     -- Dialog titles passed positionally to CreateBaseDialog, and the delete-all prompt.
     ["Save Pet Team"]   = "Save Pet Team",
     ["Add Pet to Team"] = "Add Pet to Team",

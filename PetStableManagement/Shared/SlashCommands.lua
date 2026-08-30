@@ -53,6 +53,10 @@ local PETSTABLE_COMMANDS = {
         ns.Broker:TogglePetTeamsPanel()
     end,
 
+    teamroulette = function()
+        ns.TeamRoulette:Show()
+    end,
+
     debug = function()
         ns.Log:Dump()
     end,
@@ -72,6 +76,7 @@ local PETSTABLE_COMMANDS = {
             { "/psm options",         ns.L("Toggle Options") },
             { "/psm roulette",        ns.L("Toggle Pet Roulette") },
             { "/psm teams",           ns.L("Toggle Pet Teams") },
+            { "/psm teamroulette",    ns.L("Roll a random team") },
             { "/psm debug",           ns.L("Show recent errors") },
             { "/psm help",            ns.L("Show this list of commands") },
             { "/petswap [from] [to]", ns.L("Swap two stable pet slots") },

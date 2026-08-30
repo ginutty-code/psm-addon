@@ -462,6 +462,12 @@ function ns.UI:_ApplyCachedRender(renderData, preserveScroll)
     if ns._scrollLock then preserveScroll = true end
     ns.state.currentRenderData = renderData
 
+    -- Keep an open Team Roulette preview's pool line in step with the filter.
+    if ns.Dialogs and ns.Dialogs.teamRouletteDialog
+       and ns.Dialogs.teamRouletteDialog:IsShown() then
+        ns.Dialogs.teamRouletteDialog.SyncPool()
+    end
+
     -- Stats text
     local statsText = ns.L("Showing: %d pets", renderData.filteredCount)
     local parts = {}

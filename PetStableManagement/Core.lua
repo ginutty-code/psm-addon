@@ -49,7 +49,11 @@ PetStableManagementDB = PetStableManagementDB or {
          modelsViewMode = "displayId", -- Default view mode for the Models Browser panel (displayId | npc)
          -- Popup sizes the user chose by dragging a resize grip, keyed by popup name.
          -- Present means "stop auto-sizing this one" -- see PopUpManager.
-         popupSizes = {}
+         popupSizes = {},
+         -- Team Roulette's per-slot spec template ({ [slot] = "Ferocity"|... }),
+         -- persisted between sessions. Only seeds a fresh DB; TeamRoulette.lua
+         -- defends the key for existing saved variables.
+         teamRoulette = { template = {} }
      },
     filters = {
         selectedModelsFamilies = {},

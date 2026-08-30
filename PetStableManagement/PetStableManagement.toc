@@ -74,6 +74,7 @@ OwnedPets/Export.lua
 OwnedPets/DragDrop.lua
 OwnedPets/PetGroups.lua
 OwnedPets/TeamsData.lua
+OwnedPets/TeamRoulette.lua
 OwnedPets/TeamsPanel.lua
 
 # Loaded last, and it must stay last: it publishes core's public members onto _G.PSM

@@ -31,6 +31,7 @@ The main panel for viewing and managing your hunter's pet collection.
 - **Detailed Abilities Display**: Search and view pet abilities by specialization, family, and pet-specific
 - **Pet Management Actions**: Make pets active, set as companion (if Animal Companion talent is selected), stable, or release them (only while the Blizzard Stable window is open)
 - **Team Assignment**: Add or remove pets from teams directly from the Owned Pets panel
+- **Team Roulette**: Roll a random team from the pets the current filter shows, with per-slot spec control (Any / Ferocity / Tenacity / Cunning); preview and re-roll, retune a single slot, swap or remove pets, lock a slot to keep its pet (or keep it empty) across re-rolls, then apply at a Stable Master or save as a team
 - **Statistics Display**: Shows collection stats including duplicates
 
 #### Grid View
@@ -118,6 +119,7 @@ In the WoW addon list (Esc → AddOns), you can enable/disable:
 - `/psm models`: Toggle the pet model browser (requires Models Browser module)
 - `/psm roulette`: Start pet roulette (requires Models Browser module)
 - `/psm teams`: Toggle the Pet Teams panel
+- `/psm teamroulette`: Open Team Roulette for the current Owned Pets filter
 - `/psm options`: Toggle the options panel
 - `/psm menu`: Toggle the floating menu
 - `/psm show` / `/psm hide`: Show or hide the minimap button

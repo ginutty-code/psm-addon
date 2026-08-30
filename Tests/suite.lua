@@ -32,6 +32,7 @@ local SPECS = {
     "Tests/spec/loaderinputs_spec.lua",
     "Tests/spec/widgetlabels_spec.lua",
     "Tests/spec/locale_spec.lua",
+    "Tests/spec/teamroulette_spec.lua",
 }
 
 return function()

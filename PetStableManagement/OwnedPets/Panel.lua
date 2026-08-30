@@ -155,6 +155,21 @@ function ns.UI:AddOwnedPetsElements(panel)
         function() ns.Export:ShowExportDialog() end)
     panel.teamsButton  = ToolButton(ns.L("Pet Teams"), panel.exportButton,
         function() ns.TeamsPanel:Show() end, ns.Teams:ButtonTooltipSpec())
+    -- Turns the current filter into a playable team; see OwnedPets/TeamRoulette.lua.
+    -- Panel-wide filters, so it belongs on the chrome and works in all three views.
+    panel.teamRouletteButton = ToolButton(ns.L("Team Roulette"), panel.teamsButton,
+        function() ns.TeamRoulette:Show() end, function()
+            local rd = ns.state.currentRenderData
+            return {
+                anchor = "ANCHOR_BOTTOM",
+                title  = ns.L("Team Roulette"),
+                lines  = {{
+                    text  = ns.L("Roll a random team from the %d filtered pets",
+                                 rd and rd.filteredPets and #rd.filteredPets or 0),
+                    color = ns.Theme.COLOR.WHITE,
+                }},
+            }
+        end)
 
     -- Scroll frame --------------------------------------------------------
     -- To the right of the rail (left edge follows the Tools box, so it tracks the

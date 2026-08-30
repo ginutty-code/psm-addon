@@ -271,7 +271,36 @@ end
 -- APPLY TEAM
 ----------------------------------------------------------------------------------------------------------------
 
+-- Spec name -> spec index, preferring the live API and falling back to the fixed
+-- {Ferocity=1, Tenacity=2, Cunning=3} order. One definition so the roll dialog's spec
+-- list and the coercion path in RestorePetSpecializations agree by construction, rather
+-- than by two literals staying in sync.
+function ns.Teams:SpecIndexByName()
+    local map = { Ferocity = 1, Tenacity = 2, Cunning = 3 }
+    local available = C_StableInfo and C_StableInfo.GetAvailablePetSpecInfos
+        and C_StableInfo.GetAvailablePetSpecInfos() or {}
+    for _, spec in ipairs(available) do
+        if spec.specializationName and spec.specIndex then
+            map[spec.specializationName] = spec.specIndex
+        end
+    end
+    return map
+end
+
+-- Resolve a saved team to its slot table, then delegate. The two callers
+-- (TeamsPanel's Apply button, and the retry below) keep working unchanged.
 function ns.Teams:ApplyTeam(teamId, retryCount)
+    local _, team = FindTeam(teamId)
+    if not team then return false, "Team not found" end
+    return self:ApplySlots(team.slots, team.name, { teamId = teamId }, retryCount)
+end
+
+-- The apply engine, working from an explicit slot table so a roll can be applied
+-- without first being saved as a team. `opts.teamId` is optional and used only for the
+-- activeTeamId bookkeeping in OnTeamApplied; `label` is what the chat messages name
+-- (a team's name, or L("Team Roulette")).
+function ns.Teams:ApplySlots(slots, label, opts, retryCount)
+    opts       = opts or {}
     retryCount = retryCount or 0
 
     if not ns.state.isStableOpen then
@@ -280,9 +309,7 @@ function ns.Teams:ApplyTeam(teamId, retryCount)
     if not (C_StableInfo and C_StableInfo.SetPetSlot) then
         return false, "C_StableInfo.SetPetSlot not available"
     end
-
-    local _, team = FindTeam(teamId)
-    if not team then return false, "Team not found" end
+    if not slots then return false, "No slots to apply" end
 
     local currentSlots, err = self:GetCurrentSlots()
     if not currentSlots then return false, err end
@@ -296,7 +323,7 @@ function ns.Teams:ApplyTeam(teamId, retryCount)
     local moveOps, clearOps = {}, {}
 
     for targetSlot = 1, 6 do
-        local teamPet    = team.slots[targetSlot]
+        local teamPet    = slots[targetSlot]
         local currentPet = currentSlots[targetSlot]
 
         if not teamPet and currentPet then
@@ -324,20 +351,17 @@ function ns.Teams:ApplyTeam(teamId, retryCount)
     if #moveOps > 0 or #clearOps > 0 then
         self:ExecuteClearOperations(clearOps, 1, function()
             self:ExecuteSlotOperations(moveOps, 1, function()
-                self:ValidateAndRetryApply(teamId, retryCount)
+                self:ValidateAndRetryApply(slots, label, opts, retryCount)
             end)
         end)
     else
-        self:ValidateAndRetryApply(teamId, retryCount)
+        self:ValidateAndRetryApply(slots, label, opts, retryCount)
     end
 
     return true, nil
 end
 
-function ns.Teams:ValidateAndRetryApply(teamId, retryCount)
-    local _, team = FindTeam(teamId)
-    if not team then return end
-
+function ns.Teams:ValidateAndRetryApply(slots, label, opts, retryCount)
     ns.C_Timer.After(APPLY_RETRY_DELAY, function()
         if ns.Data and ns.Data.CollectStablePets then
             ns.Data:CollectStablePets()
@@ -346,16 +370,16 @@ function ns.Teams:ValidateAndRetryApply(teamId, retryCount)
         local currentSlots = self:GetCurrentSlots()
         if not currentSlots then
             if retryCount < APPLY_RETRY_MAX_ATTEMPTS then
-                self:ApplyTeam(teamId, retryCount + 1)
+                self:ApplySlots(slots, label, opts, retryCount + 1)
             else
-                self:OnTeamApplied(teamId)
+                self:OnTeamApplied(slots, label, opts)
             end
             return
         end
 
         local positionsMatch = true
         for slot = 1, 6 do
-            local c, s = currentSlots[slot], team.slots[slot]
+            local c, s = currentSlots[slot], slots[slot]
             if (not c and s) or (c and not s) or (c and s and c.petNumber ~= s.petNumber) then
                 positionsMatch = false
                 break
@@ -363,20 +387,21 @@ function ns.Teams:ValidateAndRetryApply(teamId, retryCount)
         end
 
         if positionsMatch or retryCount >= APPLY_RETRY_MAX_ATTEMPTS then
-            self:OnTeamApplied(teamId)
+            self:OnTeamApplied(slots, label, opts)
         else
-            self:ApplyTeam(teamId, retryCount + 1)
+            self:ApplySlots(slots, label, opts, retryCount + 1)
         end
     end)
 end
 
-function ns.Teams:OnTeamApplied(teamId)
-    local _, team = FindTeam(teamId)
-    if not team then return end
+function ns.Teams:OnTeamApplied(slots, label, opts)
+    opts = opts or {}
 
-    self:RestorePetSpecializations(team)
+    self:RestorePetSpecializations(slots)
 
-    CharData().activeTeamId = teamId
+    if opts.teamId then
+        CharData().activeTeamId = opts.teamId
+    end
 
     -- Verify specs then finalise UI
     local MAX_VERIFY = 5
@@ -385,7 +410,7 @@ function ns.Teams:OnTeamApplied(teamId)
     local function verifyAndFinalize(attempt)
         local allMatch = true
         for slot = 1, 6 do
-            local teamPet = team.slots[slot]
+            local teamPet = slots[slot]
             if teamPet and teamPet.specName then
                 local info = C_StableInfo.GetStablePetInfo(slot)
                 if info and info.name then
@@ -396,7 +421,7 @@ function ns.Teams:OnTeamApplied(teamId)
         end
 
         if allMatch or attempt >= MAX_VERIFY then
-            MsgOK(ns.L("Team '%s' applied successfully.", team.name))
+            MsgOK(ns.L("Team '%s' applied successfully.", label or ns.L("Unknown")))
             if ns.TeamsPanel and ns.TeamsPanel.RefreshTeamsList then
                 ns.TeamsPanel:RefreshTeamsList()
             end
@@ -411,23 +436,16 @@ function ns.Teams:OnTeamApplied(teamId)
     ns.C_Timer.After(0.5, function() verifyAndFinalize(1) end)
 end
 
-function ns.Teams:RestorePetSpecializations(team)
-    if not (team and team.slots)                              then return end
+function ns.Teams:RestorePetSpecializations(slots)
+    if not slots                                             then return end
     if not (C_StableInfo and C_StableInfo.GetStablePetInfo)  then return end
 
-    -- Build specName -> specIndex map, preferring live API data
-    local specNameToIndex = { Ferocity = 1, Tenacity = 2, Cunning = 3 }
-    local available = C_StableInfo.GetAvailablePetSpecInfos and C_StableInfo.GetAvailablePetSpecInfos() or {}
-    for _, spec in ipairs(available) do
-        if spec.specializationName and spec.specIndex then
-            specNameToIndex[spec.specializationName] = spec.specIndex
-        end
-    end
+    local specNameToIndex = self:SpecIndexByName()
 
     local remaining = {}
 
     for slot = 1, 6 do
-        local teamPet = team.slots[slot]
+        local teamPet = slots[slot]
         if teamPet and teamPet.specName then
             local info = C_StableInfo.GetStablePetInfo(slot)
             if info and info.name then
