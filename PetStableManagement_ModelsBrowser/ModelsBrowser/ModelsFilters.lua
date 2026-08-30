@@ -11,15 +11,11 @@ PSM.ModelsFilters = PSM.ModelsFilters or {}
 -- EXOTIC FAMILIES
 --------------------------------------------------------------------------------
 
-local EXOTIC_FAMILIES = {
-    ["Aqiri"] = true, ["Carapid"] = true, ["Chimaera"] = true,
-    ["Core Hound"] = true, ["Devilsaur"] = true, ["Pterrordax"] = true,
-    ["Shale Beast"] = true, ["Spirit Beast"] = true, ["Stone Hound"] = true,
-    ["Water Strider"] = true, ["Whiptail"] = true, ["Worm"] = true,
-}
-
+-- Single source of truth is core's PSM.Data.IsExoticFamily. This file used to carry
+-- a byte-identical copy of the 12-family roster -- two lists that must agree is
+-- exactly what one list prevents.
 function PSM.ModelsFilters:IsFamilyExotic(familyName)
-    return familyName and EXOTIC_FAMILIES[familyName] or false
+    return familyName and PSM.Data.IsExoticFamily(familyName) or false
 end
 
 --------------------------------------------------------------------------------

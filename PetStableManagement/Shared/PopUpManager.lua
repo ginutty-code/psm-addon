@@ -53,14 +53,18 @@ local function ApplyModelView(modelFrame, view)
     modelFrame.isRotating = false
 end
 
+-- Returns specName, isActual -- isActual is true when the value is a real pet
+-- record's own spec (this pet's petData, or an owned pet matched by displayId),
+-- false when it is the family's FAMILY_TO_SPEC default. Callers that only want the
+-- name (spec background art) ignore the second value.
 local function GetPopupSpecialization(displayId, petData)
     if petData then
         if petData.specName and petData.specName ~= "" then
-            return petData.specName
+            return petData.specName, true
         end
         if petData.familyName then
             local spec = ns.Config.FAMILY_TO_SPEC[petData.familyName]
-            if spec then return spec end
+            if spec then return spec, false end
         end
     end
 
@@ -69,11 +73,11 @@ local function GetPopupSpecialization(displayId, petData)
             for _, pet in ipairs(ns.state.stablePets) do
                 if tonumber(pet.displayID) == tonumber(displayId) then
                     if pet.specName and pet.specName ~= "" then
-                        return pet.specName
+                        return pet.specName, true
                     end
                     if pet.familyName then
                         local spec = ns.Config.FAMILY_TO_SPEC[pet.familyName]
-                        if spec then return spec end
+                        if spec then return spec, false end
                     end
                 end
             end
@@ -83,7 +87,7 @@ local function GetPopupSpecialization(displayId, petData)
             for _, model in ipairs(ns.state.modelsPanel.allModels) do
                 if model.displayId == displayId then
                     local spec = ns.Config.FAMILY_TO_SPEC[model.familyName]
-                    if spec then return spec end
+                    if spec then return spec, false end
                 end
             end
         end
@@ -93,7 +97,7 @@ local function GetPopupSpecialization(displayId, petData)
                 local info = ns.Browser.PetModels:GetModelInfo(familyName, displayId)
                 if info then
                     local spec = ns.Config.FAMILY_TO_SPEC[familyName]
-                    if spec then return spec end
+                    if spec then return spec, false end
                 end
             end
         end
@@ -731,22 +735,86 @@ function ns.PopUpManager:CreateModelPopup(config)
     end)
     popup.SetFavTexCoord = SetFavTexCoord
 
-    -- Info text (anchored to bottom of model frame)
-    popup.infoText = Widgets.Label(popup, {
-        fontSize = Theme.SIZE.LABEL,
-        point    = {
+    -- Info row: "<family> (<spec>) - Display ID: <n>", centered. infoRow owns the
+    -- layout slot the single info label used to hold -- the taming frame and NPC list
+    -- anchor to it -- while infoCluster is a shrink-to-content frame centered inside
+    -- it, so the parts read as one centered line the way the old single label did.
+    -- The family name and the spec name are each their own mouse-enabled segment
+    -- (hover -> that family's / spec's abilities); the Display ID tail is plain.
+    popup.infoRow = Widgets.Frame(popup, {
+        height = Theme.SIZE.LABEL + 4,
+        point  = {
             { "TOPLEFT",  mf,    "BOTTOMLEFT", 0,   -20 },
             { "TOPRIGHT", popup, "TOPRIGHT",   -25, -20 },
         },
     })
+    popup.infoCluster = Widgets.Frame(popup.infoRow, {
+        height = Theme.SIZE.LABEL + 4,
+        point  = { "CENTER", popup.infoRow, "CENTER", 0, 0 },
+    })
+
+    -- A frame sized to its own text, since Widgets.Label is a bare FontString and
+    -- cannot take OnEnter. :SetContent(text) resizes it (min 1px so a 0-width frame
+    -- can't break the anchor chain). Inter-part spacing lives in the text itself, so
+    -- an absent spec leaves no gap.
+    local function HoverSegment(anchor, textColor)
+        local seg = Widgets.Frame(popup.infoCluster, {
+            height = Theme.SIZE.LABEL + 4,
+            point  = anchor,
+        })
+        seg:EnableMouse(true)
+        seg.label = Widgets.Label(seg, {
+            fontSize = Theme.SIZE.LABEL,
+            color    = textColor,
+            point    = { "LEFT", seg, "LEFT", 0, 0 },
+        })
+        seg.baseColor = textColor
+        function seg:SetContent(text)
+            self.label:SetText(text or "")
+            self:SetWidth(math.max(1, self.label:GetStringWidth()))
+        end
+        return seg
+    end
+
+    popup.familyLabel = HoverSegment({ "LEFT", popup.infoCluster, "LEFT",  0, 0 }, Theme.COLOR.WHITE)
+    popup.specLabel   = HoverSegment({ "LEFT", popup.familyLabel, "RIGHT", 0, 0 }, Theme.COLOR.MUTED)
+
+    popup.infoText = Widgets.Label(popup.infoCluster, {
+        fontSize = Theme.SIZE.LABEL,
+        point    = { "LEFT", popup.specLabel, "RIGHT", 0, 0 },
+    })
+
+    -- Re-centre after the three texts change: infoCluster is CENTER-anchored, so
+    -- sizing it to the content width is the whole job.
+    function popup.RelayoutInfoRow()
+        popup.infoCluster:SetWidth(math.max(1, popup.familyLabel:GetWidth()
+            + popup.specLabel:GetWidth() + popup.infoText:GetStringWidth()))
+    end
+
+    local function WireSegment(seg, kind, getSubject, hoverColor)
+        ns.Tooltip.Attach(seg, function()
+            local subject = getSubject()
+            if not subject then return nil end
+            return ns.Data:GetAbilityTooltip(kind, subject, {
+                noSpec   = (kind == "family"),   -- specLabel sits right beside it
+                toplevel = true,
+                anchor   = "ANCHOR_BOTTOM",
+            })
+        end, {
+            onEnter = function() seg.label:SetTextColor(unpack(hoverColor)) end,
+            onLeave = function() seg.label:SetTextColor(unpack(seg.baseColor)) end,
+        })
+    end
+    WireSegment(popup.familyLabel, "family", function() return popup.hoverFamily end, Theme.COLOR.GOLD)
+    WireSegment(popup.specLabel,   "spec",   function() return popup.hoverSpec   end, Theme.COLOR.WHITE)
 
     -- Taming requirements area
     local tf = Widgets.Frame(popup, {
         backdrop = "SOLID",
         color    = Theme.FILL.ROW,
         point    = {
-            { "TOPLEFT",  popup.infoText, "BOTTOMLEFT",  0, -10 },
-            { "TOPRIGHT", popup.infoText, "BOTTOMRIGHT", 0, -10 },
+            { "TOPLEFT",  popup.infoRow, "BOTTOMLEFT",  0, -10 },
+            { "TOPRIGHT", popup.infoRow, "BOTTOMRIGHT", 0, -10 },
         },
     })
     popup.tamingFrame = tf
@@ -890,16 +958,16 @@ function ns.PopUpManager:CreateModelPopup(config)
             local mh = math.max(200, h - staticOffsets - rowsH)
 
             mf:SetSize(mw - 10, mh - 10)
-            if popup.infoText then
-                popup.infoText:SetWidth(w - 50)
+            if popup.infoRow then
+                popup.infoRow:SetWidth(w - 50)
             end
             if popup.tamingFrame then
                 UpdateTamingLayout(popup)
             end
             -- Dynamically adjust NPC area anchors if taming frame is hidden
             if popup.tamingFrame and not popup.tamingFrame:IsShown() then
-                popup.npcsScrollFrame:SetPoint("TOPLEFT", popup.infoText, "BOTTOMLEFT", 0, -8)
-                popup.npcsScrollFrame:SetPoint("TOPRIGHT", popup.infoText, "BOTTOMRIGHT", 0, -8)
+                popup.npcsScrollFrame:SetPoint("TOPLEFT", popup.infoRow, "BOTTOMLEFT", 0, -8)
+                popup.npcsScrollFrame:SetPoint("TOPRIGHT", popup.infoRow, "BOTTOMRIGHT", 0, -8)
             else
                 popup.npcsScrollFrame:SetPoint("TOPLEFT", popup.tamingFrame, "BOTTOMLEFT", 0, -8)
                 popup.npcsScrollFrame:SetPoint("TOPRIGHT", popup.tamingFrame, "BOTTOMRIGHT", 0, -8)
@@ -937,6 +1005,10 @@ function ns.PopUpManager:CreateModelPopup(config)
             config.cleanupFunction()
         else
             if self.infoText then self.infoText:SetText("") end
+            if self.familyLabel then self.familyLabel:SetContent(nil) end
+            if self.specLabel   then self.specLabel:SetContent(nil)   end
+            if self.RelayoutInfoRow then self.RelayoutInfoRow() end
+            self.hoverFamily, self.hoverSpec = nil, nil
             if self.npcRows then
                 for _, r in ipairs(self.npcRows) do r:Hide(); r:SetParent(nil) end
                 self.npcRows = nil
@@ -1432,7 +1504,22 @@ function ns.PopUpManager:PopulateModelPopup(popup, displayId, petData, npcs)
             end
         end
     end
-    popup.infoText:SetText(ns.L("%s - Display ID: %d", familyName, displayId))
+    local isKnownFamily = familyName ~= ns.L("Unknown")
+    -- specIsCurrent: the value is a real pet's own spec (this petData, or an owned
+    -- pet matched by displayId -- e.g. inspecting your pet's model from the Browser),
+    -- not the family's FAMILY_TO_SPEC default.
+    local specName, specIsCurrent = GetPopupSpecialization(displayId, petData)
+    local specText
+    if specName then
+        specText = specIsCurrent and ns.L(" (Current Spec: %s)", specName)
+                                 or  ns.L(" (Default Spec: %s)", specName)
+    end
+    popup.hoverFamily = isKnownFamily and familyName or nil
+    popup.hoverSpec   = specName
+    popup.familyLabel:SetContent(familyName)
+    popup.specLabel:SetContent(specText)
+    popup.infoText:SetText(" - " .. ns.L("Display ID: %d", displayId))
+    popup.RelayoutInfoRow()
 
     -- Taming requirements
     local tamingData = nil

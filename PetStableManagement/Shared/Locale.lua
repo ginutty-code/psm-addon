@@ -162,7 +162,6 @@ L.Register({
     ["Item #%s"]  = "Item #%s",
     ["Quest #%s"] = "Quest #%s",
     ["%s (auto)"] = "%s (auto)",
-    ["%s - Display ID: %d"] = "%s - Display ID: %d",
 
     -- Joins the alternative locations in a taming hint; a separator is copy too.
     [" or "] = " or ",
@@ -444,6 +443,10 @@ L.Register({
     ["Right-click and drag to move (left/right, up/down)"] =
         "Right-click and drag to move (left/right, up/down)",
     ["Scroll to zoom"] = "Scroll to zoom",
+    ["Change at the Stable Master."] = "Change at the Stable Master.",
+    ["Spec Abilities"] = "Spec Abilities",
+    [" (Current Spec: %s)"] = " (Current Spec: %s)",
+    [" (Default Spec: %s)"] = " (Default Spec: %s)",
 
     ["Team '%s' is already up to date."] =
         "Team '%s' is already up to date.",

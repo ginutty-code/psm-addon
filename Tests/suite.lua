@@ -17,6 +17,7 @@ local SPECS = {
     "Tests/spec/dataschema_spec.lua",
     "Tests/spec/abilitiespool_spec.lua",
     "Tests/spec/abilitycategory_spec.lua",
+    "Tests/spec/family_abilities_spec.lua",
     "Tests/spec/utils_spec.lua",
     "Tests/spec/log_spec.lua",
     "Tests/spec/loader_spec.lua",

@@ -269,6 +269,21 @@ function M:GetFamilyModels(familyName)
     return self[familyName]
 end
 
+-- The single display-ID entry for a family (the { displayId, npcs, taming } shape
+-- GetFamilyModels builds), or nil when that family has no such display ID. Core's
+-- PopUpManager uses this to resolve a magnifier popup's family/npcs/spec when it was
+-- opened from a context that carries only a display ID (Owned Pets, before the
+-- browser panel has ever been built).
+function M:GetModelInfo(familyName, displayId)
+    local fam = self:GetFamilyModels(familyName)
+    if not fam or not fam.displayIds then return nil end
+    local target = tonumber(displayId) or displayId
+    for _, entry in ipairs(fam.displayIds) do
+        if entry.displayId == target then return entry end
+    end
+    return nil
+end
+
 -- Returns the sorted list of all known family names.
 -- Memoized: the family universe is static for the session; only ClearCache() invalidates it.
 function M:GetAvailableFamilies()

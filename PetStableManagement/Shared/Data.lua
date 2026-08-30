@@ -876,14 +876,44 @@ end
 -- Tag -> Category -> Ability path for no benefit here -- Owned Pets only ever lists
 -- categories actually present on the account's pets, not the whole game's catalog
 -- tag exists to keep browsable in the Ability Browser.
+--
+-- One walk of AbilitiesData feeds three module-local views, all cached together and
+-- guarded on the first:
+--   abilityDetailByName[name]   -> { category, spellId, rank, families, specTier }
+--   familyAbilitiesByName[name] -> { ranks = { [rankLabel] = { row, ... } } }
+--   specAbilitiesByTier[label]  -> { row, ... }   -- from the synthetic ["Spec"] family
+-- where row = { name, spellId, category, tag }. The family/spec views back the
+-- hover tooltips in PSM.Data:GetAbilityTooltip; the detail view is unchanged.
 local abilityDetailByName
+local familyAbilitiesByName
+local specAbilitiesByTier
 
-local function BuildAbilityDetailIndex()
-    if abilityDetailByName then return abilityDetailByName end
-    abilityDetailByName = {}
+-- Rank display order. Semantic knowledge no API or data field carries; the labels
+-- are stable WoW pet-ability tiers. An unrecognised label sorts last rather than
+-- being dropped. "Basic Ability" (Claw/Bite/Smack, one per family) is placed last
+-- on purpose -- every family has one, so it carries no distinguishing information
+-- and belongs below the abilities that do.
+local RANK_ORDER = { "Special Ability", "Bonus Ability", "Exotic Ability", "Exotic Passive", "Basic Ability" }
+local RANK_INDEX = {}
+for i, label in ipairs(RANK_ORDER) do RANK_INDEX[label] = i end
+local function RankIndex(label) return RANK_INDEX[label] or math.huge end
+
+local function BuildAbilityIndex()
+    if abilityDetailByName then return end
+    abilityDetailByName, familyAbilitiesByName, specAbilitiesByTier = {}, {}, {}
     local familySeen = {}   -- name -> set of family names already recorded (dedupe)
     for familyId, familyData in pairs(_G.AbilitiesData or {}) do
         if familyData.ranks then
+            local isNumeric = type(familyId) == "number"
+            local famName   = familyData.name
+            local famEntry
+            if isNumeric and famName then
+                famEntry = familyAbilitiesByName[famName]
+                if not famEntry then
+                    famEntry = { ranks = {} }
+                    familyAbilitiesByName[famName] = famEntry
+                end
+            end
             for rankName, rankAbilities in pairs(familyData.ranks) do
                 for spellId, abilityData in pairs(rankAbilities) do
                     local name = abilityData.name
@@ -902,25 +932,41 @@ local function BuildAbilityDetailIndex()
                             abilityDetailByName[name] = detail
                             familySeen[name] = {}
                         end
-                        if type(familyId) == "number" then
-                            if familyData.name and not familySeen[name][familyData.name] then
-                                familySeen[name][familyData.name] = true
-                                detail.families[#detail.families + 1] = familyData.name
+                        if isNumeric then
+                            if famName and not familySeen[name][famName] then
+                                familySeen[name][famName] = true
+                                detail.families[#detail.families + 1] = famName
                             end
                         else
                             -- The synthetic ["Spec"] family: rankName is e.g.
                             -- "Cunning Ability", read as "Any pet with Cunning spec".
                             detail.specTier = rankName
                         end
+
+                        local row = { name = name, spellId = spellId,
+                                      category = abilityData.category, tag = abilityData.tag }
+                        if famEntry then
+                            local list = famEntry.ranks[rankName]
+                            if not list then list = {}; famEntry.ranks[rankName] = list end
+                            list[#list + 1] = row
+                        elseif not isNumeric then
+                            local list = specAbilitiesByTier[rankName]
+                            if not list then list = {}; specAbilitiesByTier[rankName] = list end
+                            list[#list + 1] = row
+                        end
                     end
                 end
             end
         end
     end
+    local function ByName(a, b) return a.name < b.name end
     for _, detail in pairs(abilityDetailByName) do
         table.sort(detail.families)
     end
-    return abilityDetailByName
+    for _, famEntry in pairs(familyAbilitiesByName) do
+        for _, list in pairs(famEntry.ranks) do table.sort(list, ByName) end
+    end
+    for _, list in pairs(specAbilitiesByTier) do table.sort(list, ByName) end
 end
 
 -- The category an ability name groups under, or "Other" for a name AbilitiesData
@@ -929,7 +975,8 @@ end
 -- precedent for the same field -- Wowhead-sourced English with nothing to translate
 -- against.
 function ns.Data:GetAbilityCategory(name)
-    local detail = BuildAbilityDetailIndex()[name]
+    BuildAbilityIndex()
+    local detail = abilityDetailByName[name]
     return detail and detail.category or "Other"
 end
 
@@ -946,7 +993,8 @@ end
 -- on the entry), or nil under the same fallback cases as GetAbilityCategory/Icon --
 -- the native tooltip via GameTooltip:SetSpellByID.
 function ns.Data:GetAbilitySpellId(name)
-    local detail = BuildAbilityDetailIndex()[name]
+    BuildAbilityIndex()
+    local detail = abilityDetailByName[name]
     return detail and detail.spellId or nil
 end
 
@@ -955,9 +1003,36 @@ end
 -- rank label ("Special Ability"). Returns nil for a name AbilitiesData doesn't
 -- carry. The families array is the cached index's own table -- read-only.
 function ns.Data:GetAbilitySource(name)
-    local detail = BuildAbilityDetailIndex()[name]
+    BuildAbilityIndex()
+    local detail = abilityDetailByName[name]
     if not detail then return nil end
     return detail.families, detail.specTier, detail.rank
+end
+
+-- Every ability a pet family can learn, as { ranks = { [rankLabel] = { row, ... } } },
+-- where row = { name, spellId, category, tag }. Returns nil for a family name
+-- AbilitiesData does not carry. The returned tables are the cached index's own --
+-- read-only. Whether the family is *exotic* is a separate question with one answer:
+-- ns.Data.IsExoticFamily (a fixed roster; a family can carry an Exotic-rank ability
+-- yet no longer be exotic -- Clefthoof).
+function ns.Data:GetFamilyAbilities(familyName)
+    BuildAbilityIndex()
+    return familyAbilitiesByName[familyName]
+end
+
+-- A hunter pet spec's two bonus abilities as { ability = row, passive = row }
+-- (either may be nil), from AbilitiesData's synthetic ["Spec"] family. `specName`
+-- is "Ferocity" / "Cunning" / "Tenacity". Returns nil when the spec has no rows.
+function ns.Data:GetSpecAbilities(specName)
+    if not specName then return nil end
+    BuildAbilityIndex()
+    local abilityList = specAbilitiesByTier[specName .. " Ability"]
+    local passiveList = specAbilitiesByTier[specName .. " Passive"]
+    if not abilityList and not passiveList then return nil end
+    return {
+        ability = abilityList and abilityList[1] or nil,
+        passive = passiveList and passiveList[1] or nil,
+    }
 end
 
 -- "Cunning Ability" / "Ferocity Passive" -> "Cunning" / "Ferocity".
@@ -991,6 +1066,104 @@ function ns.Data:GetAbilityTooltipLines(name)
         end
     end
     return lines
+end
+
+-- ─── Family / spec / pet ability tooltip factory ──────────────────────────────
+-- One entry point for the three subjects a hover can be about. `pet` delegates to
+-- PetTooltip.Spec (the owned-pet tooltip every view already shows); `family` and
+-- `spec` are built here from the family/spec index above. Every branch returns a
+-- PSM.Tooltip spec, or nil -- callers pass a function spec to Tooltip.Attach and a
+-- nil return suppresses the tooltip (see UI/Tooltip.lua).
+
+-- PetTooltip only exposes the ordered ABILITY_BUCKETS array; this is the by-key
+-- colour lookup the family/spec branches want. Read at call time, not file scope:
+-- OwnedPets/PetTooltip.lua loads after this file.
+local function BucketColor(key)
+    for _, bucket in ipairs(ns.PetTooltip.ABILITY_BUCKETS) do
+        if bucket.key == key then return bucket.color end
+    end
+end
+
+-- Append one group per present rank label, in RANK_ORDER: a header (Config PRIMARY,
+-- as GetAbilityTooltipLines does) then "  • name" per ability in `nameColor`.
+local function AppendRankGroups(lines, ranks, nameColor)
+    local labels = {}
+    for label in pairs(ranks) do labels[#labels + 1] = label end
+    table.sort(labels, function(a, b) return RankIndex(a) < RankIndex(b) end)
+    for _, label in ipairs(labels) do
+        lines[#lines + 1] = " "
+        lines[#lines + 1] = { text = label, color = ns.Config.COLORS.PRIMARY }
+        for _, row in ipairs(ranks[label]) do
+            lines[#lines + 1] = { text = "  \226\128\162 " .. row.name, color = nameColor }
+        end
+    end
+end
+
+local TOOLTIP_PASSTHROUGH = { "anchor", "x", "y", "point", "toplevel" }
+
+function ns.Data:GetAbilityTooltip(kind, subject, opts)
+    opts = opts or {}
+    local spec
+
+    if kind == "pet" then
+        spec = ns.PetTooltip.Spec(subject, opts)
+
+    elseif kind == "family" then
+        local fam = self:GetFamilyAbilities(subject)
+        if not fam then return nil end
+        local lines = {}
+        AppendRankGroups(lines, fam.ranks, BucketColor("family"))
+        if not opts.noSpec then
+            local specName = ns.Config.FAMILY_TO_SPEC[subject]
+            local specAb   = specName and self:GetSpecAbilities(specName)
+            if specAb then
+                lines[#lines + 1] = " "
+                lines[#lines + 1] = { text = ns.L("Spec: %s", specName), color = ns.Config.COLORS.PRIMARY }
+                for _, row in ipairs({ specAb.ability, specAb.passive }) do
+                    if row then
+                        lines[#lines + 1] = { text = "  \226\128\162 " .. row.name, color = ns.Config.COLORS.PRIMARY }
+                    end
+                end
+            end
+        end
+        if #lines == 0 then return nil end
+        spec = {
+            title      = subject .. (ns.Data.IsExoticFamily(subject) and ns.L(" [Exotic]") or ""),
+            titleColor = ns.Theme.COLOR.WHITE,
+            lines      = lines,
+        }
+
+    elseif kind == "spec" then
+        local specAb = self:GetSpecAbilities(subject)
+        if not specAb then return nil end
+        local lines = {}
+        for _, row in ipairs({ specAb.ability, specAb.passive }) do
+            if row then
+                lines[#lines + 1] = { text = "  \226\128\162 " .. row.name, color = ns.Config.COLORS.PRIMARY }
+            end
+        end
+        if #lines == 0 then return nil end
+        lines[#lines + 1] = " "
+        lines[#lines + 1] = { text = ns.L("Change at the Stable Master."), color = ns.Theme.COLOR.DIM }
+        spec = {
+            title      = ns.L("Spec Abilities"),   -- not the spec name: the cursor is already on it
+            titleColor = ns.Theme.COLOR.WHITE,
+            lines      = lines,
+        }
+
+    else
+        return nil
+    end
+
+    if not spec then return nil end
+    if opts.hints and kind ~= "pet" then   -- pet: PetTooltip.Spec already reads opts.hints
+        spec.lines[#spec.lines + 1] = " "
+        spec.lines[#spec.lines + 1] = { text = opts.hints, color = ns.Theme.COLOR.DIM }
+    end
+    for _, key in ipairs(TOOLTIP_PASSTHROUGH) do
+        if opts[key] ~= nil then spec[key] = opts[key] end
+    end
+    return spec
 end
 
 -- One native-ability-tooltip extension, shared by every panel that raises Blizzard's
