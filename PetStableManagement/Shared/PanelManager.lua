@@ -20,10 +20,38 @@ end
 local function ApplyResizeBounds(panel, config)
     if config.resizable == false or not panel.SetResizeBounds then return end
     panel:SetResizeBounds(
-        config.minWidth  or 400,
+        panel._minWidthOverride or config.minWidth or 400,
         config.minHeight or 300,
         config.maxWidth  or (UIParent:GetWidth()  or 1920) - 16,
         config.maxHeight or (UIParent:GetHeight() or 1080) - 16)
+end
+
+-- Change a resizable panel's minimum width after creation and re-assert the bounds.
+-- For a panel whose left rail lives inside its own width (Owned Pets) the minimum has
+-- to rise by the rail width while the rail is expanded, or the list could be dragged
+-- narrower than it can ever be with the rail collapsed. The override is stored on the
+-- panel and read by ApplyResizeBounds, so it also survives the maximize/restore
+-- round-trip. Pass nil to clear it.
+function ns.PanelManager:SetMinWidth(panel, minWidth)
+    panel._minWidthOverride = minWidth
+    if panel._resizeConfig then ApplyResizeBounds(panel, panel._resizeConfig) end
+end
+
+-- SetWidth so the frame grows and shrinks from its RIGHT edge, whatever it is
+-- currently anchored by. A frame left anchored by its right edge or centre -- which
+-- is what a hand drag, or a relative anchor to a frame that has since moved, can
+-- leave it -- would otherwise grow leftward. Owned Pets docks to StableFrame's right
+-- edge and grew *onto* the stable frame when the rail expanded; re-pinning TOPLEFT to
+-- the frame's current screen position first makes the direction deterministic. The
+-- panel keeps its on-screen spot (StableFrame does not move once shown), it just
+-- stops tracking that anchor.
+function ns.PanelManager:SetWidthAnchored(panel, width)
+    local left, top = panel:GetLeft(), panel:GetTop()
+    if left and top then
+        panel:ClearAllPoints()
+        panel:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+    end
+    panel:SetWidth(width)
 end
 
 -- Leave the maximized state without moving the panel -- for when the *user* has just
@@ -86,6 +114,9 @@ function ns.PanelManager:CreateBasePanel(name, config)
     })
     panel:SetToplevel(true)
     panel:SetClampedToScreen(true)
+    -- Kept so a post-creation bounds change (PanelManager:SetMinWidth) and the
+    -- maximize/restore path can re-derive the same limits from the same source.
+    panel._resizeConfig = config
 
     -- At high enough Blizzard UI scale, a fixed-point panel (Models Browser is
     -- 1100x820) can exceed UIParent's shrunken effective size. Plain clamping is
@@ -431,11 +462,17 @@ end
 -- factory here rather than a fourth copy. Nothing pet-specific -- same reason
 -- CreateSearchBox/CreateViewButton live in this file.
 --
---   opts = { point = { x, y }, width, contentHeight, headerText }
+--   opts = { point = { x, y } | rail = <CreateRail container>, width, contentHeight, headerText }
 --     point         : { x, y } offset for a TOPLEFT-to-panel-TOPLEFT anchor. Boxes
 --                     that stack compute their own y from the box above's height
 --                     (box:GetHeight()); the factory takes a flat offset so the
 --                     returned contentTop stays a plain number relative to panel TOP.
+--                     Mutually exclusive with `rail`.
+--     rail          : a `CreateRail` container. Given instead of `point`, the box is
+--                     parented to the rail, appended to `rail.boxes` and stacked under
+--                     the box above it -- the rail owns hide/show/move. `contentTop`
+--                     is not a panel-relative number in this mode and is returned nil;
+--                     callers anchor their controls to `box.sectionHeader` instead.
 --     width         : box width.
 --     contentHeight : room the caller needs *below* the section band.
 --     headerText    : the band's label (already left-aligned by SectionHeader).
@@ -444,25 +481,37 @@ end
 --   box        : the Widgets.Frame.
 --   contentTop : y-offset from panel TOP where the caller's first control goes,
 --                i.e. just below the section band -- so a call site anchors its
---                content without re-deriving the band height every time.
+--                content without re-deriving the band height every time. nil when
+--                `opts.rail` is used (the box's y is the rail's to manage).
 local RAILBOX_PAD_TOP    = 5   -- SectionHeader inset from the box's top edge
 local RAILBOX_HEADER_GAP = 6   -- gap between the band and the first control
 local RAILBOX_PAD_BOTTOM = 8   -- clearance below the last control
 
 function ns.PanelManager:CreateRailBox(panel, opts)
     local Widgets = ns.Widgets
-    local x, y    = opts.point[1], opts.point[2]
+    local rail    = opts.rail
 
     local boxHeight = RAILBOX_PAD_TOP + ns.Theme.CONTROL.SECTION_HEADER
                     + RAILBOX_HEADER_GAP + opts.contentHeight + RAILBOX_PAD_BOTTOM
 
-    local box = Widgets.Frame(panel, {
+    local box = Widgets.Frame(rail or panel, {
         size        = { opts.width, boxHeight },
-        point       = { "TOPLEFT", panel, "TOPLEFT", x, y },
         backdrop    = "TOOLTIP",
         color       = ns.Config.COLORS.BACKGROUND,
         borderColor = ns.Theme.COLOR.SILVER,
     })
+
+    -- Placement is one of two mutually exclusive modes -- see the `point` / `rail`
+    -- notes above. Rail mode defers stacking to `rail:AddBox`.
+    local contentTop
+    if rail then
+        rail:AddBox(box)
+    else
+        local x, y = opts.point[1], opts.point[2]
+        box:SetPoint("TOPLEFT", panel, "TOPLEFT", x, y)
+        contentTop = y - RAILBOX_PAD_TOP - ns.Theme.CONTROL.SECTION_HEADER
+                       - RAILBOX_HEADER_GAP
+    end
 
     -- Kept on the box so a caller can anchor its first control to the band's
     -- BOTTOMLEFT instead of re-deriving the band height -- the same convenience
@@ -473,10 +522,269 @@ function ns.PanelManager:CreateRailBox(panel, opts)
         text  = opts.headerText,
     })
 
-    local contentTop = y - RAILBOX_PAD_TOP - ns.Theme.CONTROL.SECTION_HEADER
-                     - RAILBOX_HEADER_GAP
-
     return box, contentTop
+end
+
+-- ─── CreateRail ──────────────────────────────────────────────────────────────
+
+-- The left filter rail as one frame. Owned Pets and Models Browser each stack three
+-- CreateRailBox frames down the panel's left edge and track them box-by-box;
+-- CreateRail makes "the rail" a single container to hide, move and persist as a unit,
+-- so a panel can collapse the whole column and let its content area reclaim the width.
+--
+--   opts = {
+--     point        = { x, y },  -- TOPLEFT offset from panel TOPLEFT (rail top). y < 0.
+--     width        = <number>,  -- measured rail width
+--     bottomInset  = <number>,  -- gap from panel BOTTOM (default: footer room)
+--     savedKey     = "ownedRailCollapsed",  -- PetStableManagementDB.settings key (bool)
+--     onToggle     = function(collapsed) ... end,  -- panel-specific reaction: the
+--                               --   panel's one content-reflow entrypoint, and where
+--                               --   a panel that carries the rail in its own width
+--                               --   (Owned Pets) does the panel:SetWidth. NOT called
+--                               --   by ApplyInitialState -- see there.
+--   }
+--
+-- rail fields / methods:
+--   rail.width             -- opts.width, exposed so a caller's SetWidth math can read it
+--   rail.boxes             -- array, stack order (filled by CreateRailBox via AddBox)
+--   rail.toggleButton      -- the state IconButton (icons from RAIL_ICONS; on panel)
+--   rail.toggleLabel       -- the "Collapse"/"Expand" word beside it, rotated when shut
+--   rail:AddBox(box)       -- append + stack under the previous box
+--   rail:IsCollapsed()     -- the persisted bool
+--   rail:SetCollapsed(b)   -- persist, apply the visible state, fire onToggle
+--   rail:ToggleCollapsed()
+--   rail:RefreshToggle()   -- redraw just the icon + word (for RAIL_ICON_SET swaps)
+--   rail:ApplyInitialState()  -- apply the visible state for the persisted bool, once
+--                             --   the boxes exist. No persist, no onToggle: the panel
+--                             --   is built at its collapsed-state width and onShow
+--                             --   renders once regardless, so the caller owns any
+--                             --   width restore for a saved-expanded panel.
+--
+-- Collapse is positional, not width-based: it hides every box and re-anchors the
+-- container by its TOPRIGHT to { panel, TOPLEFT, x, y } -- the *same* x its TOPLEFT
+-- uses when expanded -- so the container's right edge moves left by exactly its own
+-- width. Anything anchored to that edge (the pet list) therefore keeps a constant
+-- width in both states, provided the panel's own width also changes by the rail
+-- width (which is what Owned Pets' onToggle does). A zero-width rail was rejected:
+-- WoW clamps tiny frame sizes and a resize settle can call SetWidth on the content
+-- frame, so a width-based collapse invites a fight a position-based one avoids.
+--
+-- The visible collapsed affordance (the toggle icon + rotated word) is drawn by
+-- panel-parented widgets, not by the container, so how far the container peeks in
+-- does not matter -- only that the list anchor lands consistently.
+local RAIL_BOX_GAP     = 5    -- vertical gap between stacked boxes
+local RAIL_TOGGLE_LIFT = 20   -- px the toggle icon/word sits above the rail's top box
+local RAIL_TOGGLE_SIZE = 24   -- toggle icon button, square. Blizzard's Bigger/Smaller
+                              -- art is ~32px source, so it stays crisp scaled here.
+
+-- Toggle-icon set: maps the button's *action* in the current state ("expand" when the
+-- rail is shut, "collapse" when open) to an icon -- either an atlas name (string) or a
+-- { normal, pushed } pair of texture paths. RAIL_ICONS is a table of named sets and
+-- `ns.PanelManager.RAIL_ICON_SET` picks one (the seam is kept for swapping the look
+-- later; `rail:RefreshToggle()` redraws without a reload).
+local RAIL_ICON_HILITE = "Interface\\Buttons\\UI-Common-MouseHilight"
+local RAIL_ICONS = {
+    npe = {  -- big gold new-player-experience arrows (atlas)
+        expand   = "NPE_ArrowRight",
+        collapse = "NPE_ArrowLeft",
+    },
+}
+
+ns.PanelManager.RAIL_ICON_SET = "npe"
+
+function ns.PanelManager:CreateRail(panel, opts)
+    local Widgets      = ns.Widgets
+    local x, y         = opts.point[1], opts.point[2]
+    local savedKey     = opts.savedKey
+    local bottomInset  = opts.bottomInset or (ns.Theme.CHROME.FOOTER_Y + 20)
+    local toggleY      = y + RAIL_TOGGLE_LIFT   -- above the Tools box, in the clear gap
+
+    -- Invisible container: no backdrop, no skin. Its height is not load-bearing (the
+    -- boxes anchor to its TOPLEFT and the content area to its TOPRIGHT, both
+    -- independent of height) -- it is sized for tidiness only.
+    local rail = Widgets.Frame(panel, {
+        size  = { opts.width, math.max(1, (panel:GetHeight() or 0) + y - bottomInset) },
+        point = { "TOPLEFT", panel, "TOPLEFT", x, y },
+    })
+    rail.width = opts.width
+    rail.boxes = {}
+
+    local function Persist(collapsed)
+        if savedKey and PetStableManagementDB and PetStableManagementDB.settings then
+            PetStableManagementDB.settings[savedKey] = collapsed or nil
+        end
+    end
+
+    function rail:IsCollapsed()
+        return (savedKey and PetStableManagementDB and PetStableManagementDB.settings
+                and PetStableManagementDB.settings[savedKey]) and true or false
+    end
+
+    -- Stack `box` under the previous one (or at the rail's top for the first), and
+    -- match its shown state to the rail's -- so boxes added after a collapsed rail
+    -- is built come up hidden without the caller sequencing anything.
+    function rail:AddBox(box)
+        local prev = self.boxes[#self.boxes]
+        box:ClearAllPoints()
+        if prev then
+            box:SetPoint("TOPLEFT", prev, "BOTTOMLEFT", 0, -RAIL_BOX_GAP)
+        else
+            box:SetPoint("TOPLEFT", self, "TOPLEFT", 0, 0)
+        end
+        self.boxes[#self.boxes + 1] = box
+        box:SetShown(not self:IsCollapsed())
+        return box
+    end
+
+    -- Lays out the two toggle affordances for the current state: the icon button and
+    -- the word. The button's glyph/size are set here (not at creation) so a live
+    -- RAIL_ICON_SET swap via rail:RefreshToggle() takes effect. Glyph comes from the
+    -- RAIL_ICONS set, keyed by what a click *does* now: "expand" while shut, "collapse"
+    -- while open.
+    --
+    -- Icon and word keep one size in both states (the word never shrinks). Open: icon
+    -- at the panel's left margin, horizontal word beside it, above the Tools box.
+    -- Shut: both tuck into the strip left of the list's border -- icon nudged a few px
+    -- right of / above the rotated word below it. The strip is made wide enough by the
+    -- rail's own left inset (see BuildFilters); RAIL_STRIP_INSET is the word's margin
+    -- inside it, RAIL_ICON_NUDGE_* the icon's extra offset from there.
+    local RAIL_STRIP_INSET   = 4
+    local RAIL_ICON_NUDGE_X  = 6   -- collapsed icon: px right of the word's left edge
+    local RAIL_ICON_NUDGE_Y  = 3   -- collapsed icon: px higher than the shared toggleY
+    local function UpdateToggleVisual()
+        local collapsed = rail:IsCollapsed()
+
+        local btn = rail.toggleButton
+        if btn then
+            local set   = RAIL_ICONS[ns.PanelManager.RAIL_ICON_SET] or RAIL_ICONS.npe
+            local glyph = collapsed and set.expand or set.collapse
+            if type(glyph) == "string" then
+                btn:SetNormalAtlas(glyph)
+                btn:SetPushedAtlas(glyph)
+            else
+                btn:SetNormalTexture(glyph[1])
+                btn:SetPushedTexture(glyph[2])
+            end
+            btn:SetHighlightTexture(RAIL_ICON_HILITE, "ADD")
+            btn:SetSize(RAIL_TOGGLE_SIZE, RAIL_TOGGLE_SIZE)
+            btn:ClearAllPoints()
+            if collapsed then
+                btn:SetPoint("TOPLEFT", panel, "TOPLEFT",
+                    RAIL_STRIP_INSET + RAIL_ICON_NUDGE_X, toggleY + RAIL_ICON_NUDGE_Y)
+            else
+                btn:SetPoint("TOPLEFT", panel, "TOPLEFT", 6, toggleY)
+            end
+        end
+
+        local label = rail.toggleLabel
+        if not label then return end
+
+        label.text:SetText(collapsed and ns.L("Expand") or ns.L("Collapse"))
+        label.text:SetFont(ns.Theme.FONT, ns.Theme.SIZE.TITLE, "OUTLINE")
+
+        local tw = math.ceil((label.text:GetStringWidth()  or 0)) + 2
+        local th = math.ceil((label.text:GetStringHeight() or 0)) + 2
+        label:ClearAllPoints()
+        if collapsed then
+            -- +pi/2 reads bottom-to-top (letter tops point left). Flip the sign
+            -- in-game if it lands upside down. The hit frame's bounds swap with the
+            -- rotated text; pinned near the panel's left edge, clear of the border.
+            label.text:SetRotation(math.pi / 2)
+            label:SetSize(th, tw)
+            label:SetPoint("TOPLEFT", panel, "TOPLEFT",
+                RAIL_STRIP_INSET, toggleY - RAIL_TOGGLE_SIZE - 4)
+        else
+            label.text:SetRotation(0)
+            label:SetSize(tw, th)
+            label:SetPoint("LEFT", btn or rail, "RIGHT", 4, 0)
+        end
+    end
+
+    -- The visible half of a state change: box visibility, rail position, toggle glyph.
+    -- No persistence, no onToggle -- SetCollapsed adds those, ApplyInitialState does
+    -- not.
+    local function ApplyVisualState(collapsed)
+        for _, box in ipairs(rail.boxes) do
+            box:SetShown(not collapsed)
+        end
+
+        rail:ClearAllPoints()
+        if collapsed then
+            -- TOPRIGHT to the same x the expanded TOPLEFT uses: the right edge (the
+            -- list's anchor) shifts left by exactly the rail width, no more.
+            rail:SetPoint("TOPRIGHT", panel, "TOPLEFT", x, y)
+        else
+            rail:SetPoint("TOPLEFT", panel, "TOPLEFT", x, y)
+        end
+
+        UpdateToggleVisual()
+    end
+
+    function rail:SetCollapsed(collapsed)
+        collapsed = collapsed and true or false
+        Persist(collapsed)
+        ApplyVisualState(collapsed)
+        if opts.onToggle then opts.onToggle(collapsed) end
+    end
+
+    function rail:ToggleCollapsed()
+        self:SetCollapsed(not self:IsCollapsed())
+    end
+
+    -- Redraw just the toggle icon + word (e.g. after changing RAIL_ICON_SET live).
+    function rail:RefreshToggle()
+        UpdateToggleVisual()
+    end
+
+    -- Called once the caller's boxes exist (Owned Pets does it in onShow). Applies the
+    -- visible state for the persisted bool -- box visibility, rail position, glyph --
+    -- and nothing else. It deliberately does not fire onToggle: onShow renders the
+    -- panel immediately afterwards regardless, and a panel that carries the rail in
+    -- its own width restores that width in onShow (it is the one place that knows
+    -- whether the current width already accounts for the rail).
+    function rail:ApplyInitialState()
+        ApplyVisualState(self:IsCollapsed())
+    end
+
+    -- Toggle affordances, both parented to `panel` (not `rail`) so they stay on
+    -- screen when the rail slides off, and both wired to ToggleCollapsed. Deliberately
+    -- unskinned: the Bigger/Smaller art carries its own bevel, and ElvUI's
+    -- HandleButton would strip exactly that. UpdateToggleVisual sets the textures per
+    -- state from RAIL_ICONS.
+    rail.toggleButton = Widgets.IconButton(panel, {
+        size    = { RAIL_TOGGLE_SIZE, RAIL_TOGGLE_SIZE },
+        point   = { "TOPLEFT", panel, "TOPLEFT", 6, toggleY },
+        level   = panel:GetFrameLevel() + 10,
+        onClick = function() rail:ToggleCollapsed() end,
+        tooltip = function()
+            return {
+                title = rail:IsCollapsed() and ns.L("Expand filters")
+                                            or ns.L("Collapse filters"),
+            }
+        end,
+    })
+
+    -- The word: gold, no fill, and its own click target so either the icon or the
+    -- word toggles. A Button-type frame rather than a bare FontString so it can take
+    -- the click; UpdateToggleVisual owns its text, font size, rotation and anchor
+    -- (the fontSize here is just an initial value it overrides on the first pass).
+    local toggleLabel = Widgets.Frame(panel, {
+        frameType = "Button",
+        level     = panel:GetFrameLevel() + 10,
+    })
+    toggleLabel.text = Widgets.Label(toggleLabel, {
+        fontSize = ns.Theme.SIZE.TITLE,
+        outline  = true,
+        color    = ns.Theme.COLOR.GOLD,
+        point    = { "CENTER", 0, 0 },
+        text     = "",
+    })
+    toggleLabel:SetScript("OnClick", function() rail:ToggleCollapsed() end)
+    rail.toggleLabel = toggleLabel
+
+    UpdateToggleVisual()
+
+    return rail
 end
 
 -- ─── CleanupPanel ────────────────────────────────────────────────────────────

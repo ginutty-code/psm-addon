@@ -49,6 +49,13 @@ ns.Config = {
     --   up to 575 in-game (SectionHeader/button metrics run ~2px over the estimate).
     -- TeamsPanel keeps the smaller shared MIN_PANEL_HEIGHT -- it has no rail.
     MIN_OWNED_PETS_HEIGHT = 575,
+    -- Owned Pets width is pinned: the pet list is a fixed-width design (a hand
+    -- resize only ever grows it, never shrinks it below this), and the collapsible
+    -- rail already varies the panel width by its own measure. Equal to
+    -- DEFAULT_PANEL_WIDTH on purpose -- kept a separate constant so TeamsPanel's
+    -- MIN_PANEL_WIDTH stays independent. Expanded, the effective floor is this plus
+    -- the measured rail width (PanelManager:SetMinWidth, from Panel/Filters).
+    MIN_OWNED_PETS_WIDTH = 570,
 
     -- Layout
     CONTENT_PADDING    = 6,

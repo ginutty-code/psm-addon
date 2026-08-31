@@ -46,6 +46,7 @@ PetStableManagementDB = PetStableManagementDB or {
          openWithStable = true, -- Open Owned Pets panel automatically when Stable window opens
          showFloatingMenu = false, -- Default unticked
          panelViewMode = "list", -- Default view mode for Owned Pets panel
+         ownedRailCollapsed = false, -- Owned Pets left filter rail collapsed (PanelManager:CreateRail)
          modelsViewMode = "displayId", -- Default view mode for the Models Browser panel (displayId | npc)
          -- Popup sizes the user chose by dragging a resize grip, keyed by popup name.
          -- Present means "stop auto-sizing this one" -- see PopUpManager.

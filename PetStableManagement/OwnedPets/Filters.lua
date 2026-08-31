@@ -431,12 +431,48 @@ function ns.UI:BuildFilters(panel, railTop)
 
     -- The filter chrome is three stacked rail boxes down the panel's left edge,
     -- top-aligned with the pet list rather than with the title -- the space beside
-    -- the centered title/search box stays clear. Tools is created here as an empty
-    -- box and populated with its buttons by Panel.lua (which owns Export/Pet
-    -- Teams' click handlers); Show Only and Filters are built and filled here.
-    local toolsY = railTop or Theme.CHROME.TITLE_Y
+    -- the centered title/search box stays clear. They live inside `panel.rail`, an
+    -- invisible container PanelManager owns so the whole column collapses as a unit;
+    -- the boxes stack themselves via `rail = panel.rail` rather than each computing a
+    -- y from the box above. Tools is created here as an empty box and populated with
+    -- its buttons by Panel.lua (which owns Export/Pet Teams' click handlers); Show
+    -- Only and Filters are built and filled here.
+    -- The rail's left inset doubles as the collapsed strip's width: when collapsed the
+    -- container's right edge sits at this x, and the list's silver border lands ~9px
+    -- further in (the 14px rail->list gap in Panel.lua less the 5px row border), so
+    -- the strip is inset + ~9. 28 -> ~37px strip, enough for the rotated "Expand" word
+    -- (~20px at TITLE) plus a clear margin each side. Widening it here narrows the pet
+    -- list by the same amount in *both* states, so text wrapping stays identical.
+    panel.rail = PM:CreateRail(panel, {
+        point    = { 28, railTop or Theme.CHROME.TITLE_Y },
+        width    = railW,
+        savedKey = "ownedRailCollapsed",
+        -- The panel carries the rail in its own width: the strip is added on the
+        -- right, not carved from the list, so the list keeps its size in both states
+        -- and DEFAULT_PANEL_WIDTH is the *collapsed* width. Delta rather than an
+        -- absolute, so a hand-resize survives a toggle; panel._railWidened (kept here
+        -- and reconciled in onShow) is the single bit tracking whether the current
+        -- width already includes the strip. Then the same content-reflow every
+        -- onResize runs.
+        onToggle = function(collapsed)
+            -- Width is pinned to the (state-dependent) minimum, so order matters:
+            -- drop the floor before a shrink, raise it after a grow, or SetWidth is
+            -- clamped.
+            local minW = cfg.MIN_OWNED_PETS_WIDTH + (collapsed and 0 or railW)
+            if collapsed then
+                PM:SetMinWidth(panel, minW)
+                PM:SetWidthAnchored(panel, panel:GetWidth() - railW)
+            else
+                PM:SetWidthAnchored(panel, panel:GetWidth() + railW)
+                PM:SetMinWidth(panel, minW)
+            end
+            panel._railWidened = not collapsed
+            ns.C_Timer.After(0.01, function() ns.UI:RenderPanel(true) end)
+        end,
+    })
+
     local toolsBox = PM:CreateRailBox(panel, {
-        point         = { 10, toolsY },
+        rail          = panel.rail,
         width         = railW,
         contentHeight = Theme.CONTROL.BUTTON * 3 + 10,   -- 3 stacked buttons, 5px gaps
         headerText    = ns.L("Tools"),
@@ -446,9 +482,8 @@ function ns.UI:BuildFilters(panel, railTop)
     -- ── Show Only: tri-state checkboxes ────────────────────────────────────────
     -- Sized for three rows now; only the filtering logic behind Favorites lands in
     -- a later commit, so the box height and the stack order are already final.
-    local showOnlyY = toolsY - toolsBox:GetHeight() - 5
     local showOnlyBox = PM:CreateRailBox(panel, {
-        point         = { 10, showOnlyY },
+        rail          = panel.rail,
         width         = railW,
         contentHeight = Theme.CONTROL.CHECKBOX_ROW * 3,
         headerText    = ns.L("Show Only"),
@@ -507,9 +542,8 @@ function ns.UI:BuildFilters(panel, railTop)
     -- and same Init* calls as the old 2x2 grid -- only the anchoring changed, and
     -- nothing downstream anchors to these.
     local DROP_H = 34   -- one UIDropDownMenuTemplate (32) plus a 2px gap
-    local filtersY = showOnlyY - showOnlyBox:GetHeight() - 5
     local filtersBox = PM:CreateRailBox(panel, {
-        point         = { 10, filtersY },
+        rail          = panel.rail,
         width         = railW,
         contentHeight = DROP_H * 4,
         headerText    = ns.L("Filters"),

@@ -47,9 +47,14 @@ end
 
 function ns.UI:CreateOwnedPetsPanel()
     local config = {
+        -- The collapsed-rail width. An expanded rail adds its own width on the right
+        -- (onShow / BuildFilters' onToggle), so the pet list keeps its size either way.
         width        = ns.Config.DEFAULT_PANEL_WIDTH,
         height       = ns.Config.DEFAULT_PANEL_HEIGHT,
-        minWidth     = ns.Config.MIN_PANEL_WIDTH,
+        -- Width is pinned to the default (MIN_OWNED_PETS_WIDTH == DEFAULT_PANEL_WIDTH);
+        -- a hand resize only grows it. Expanded, the floor rises by the rail width
+        -- (SetMinWidth in onShow / onResize / BuildFilters' onToggle).
+        minWidth     = ns.Config.MIN_OWNED_PETS_WIDTH,
         minHeight    = ns.Config.MIN_OWNED_PETS_HEIGHT,
         position     = {
             point         = "TOPLEFT",
@@ -65,6 +70,33 @@ function ns.UI:CreateOwnedPetsPanel()
         end,
 
         onShow = function(panel)
+            -- Restore the saved rail state before the first render. ApplyInitialState
+            -- does the visible half (boxes, position, glyph); the panel width is this
+            -- panel's own concern, since only here do we know whether the current
+            -- width already includes the rail strip. The panel is built at
+            -- DEFAULT_PANEL_WIDTH == the *collapsed* width, so a saved-expanded rail
+            -- needs +railW added once. panel._railWidened is the tracking bit,
+            -- also maintained by BuildFilters' onToggle.
+            if panel.rail then
+                panel.rail:ApplyInitialState()
+                local wantWide = not panel.rail:IsCollapsed()
+                local minW = ns.Config.MIN_OWNED_PETS_WIDTH
+                    + (wantWide and panel.rail.width or 0)
+                -- Order matters against the pinned floor: drop the minimum before a
+                -- shrink, raise it after a grow, so SetWidth is never clamped.
+                if not wantWide and panel._railWidened then
+                    ns.PanelManager:SetMinWidth(panel, minW)
+                    ns.PanelManager:SetWidthAnchored(panel, panel:GetWidth() - panel.rail.width)
+                    panel._railWidened = false
+                elseif wantWide and not panel._railWidened then
+                    ns.PanelManager:SetWidthAnchored(panel, panel:GetWidth() + panel.rail.width)
+                    panel._railWidened = true
+                end
+                -- Assert every show: a rebuilt panel starts from config's minWidth
+                -- (the collapsed value) regardless of the saved state.
+                ns.PanelManager:SetMinWidth(panel, minW)
+            end
+
             if #ns.state.stablePets == 0 then
                 ns.Data:LoadPersistentDataForDisplay(false)
             end
@@ -79,6 +111,12 @@ function ns.UI:CreateOwnedPetsPanel()
         end,
 
         onResize = function(panel)
+            -- Maximize resets bounds from config; re-assert the rail-aware minimum so
+            -- a restore of an expanded panel keeps the wider floor.
+            if panel.rail then
+                ns.PanelManager:SetMinWidth(panel, ns.Config.MIN_OWNED_PETS_WIDTH
+                    + (panel.rail:IsCollapsed() and 0 or panel.rail.width))
+            end
             ns.C_Timer.After(0.01, function()
                 ns.UI:RenderPanel(true)  -- true = preserve scroll position
             end)
@@ -172,16 +210,20 @@ function ns.UI:AddOwnedPetsElements(panel)
         end)
 
     -- Scroll frame --------------------------------------------------------
-    -- To the right of the rail (left edge follows the Tools box, so it tracks the
-    -- measured rail width). The rail top sits ROW_BORDER_INSET above this so it
-    -- lines up with rowsFrame's border, not with the first row -- so drop the
-    -- scroll frame back down by that much to keep the rows where LIST_TOP puts them.
+    -- Left edge follows panel.rail's TOPRIGHT (the container, not a box). CreateRail
+    -- anchors that edge to the same panel-x in both states -- TOPLEFT+x expanded,
+    -- TOPRIGHT+x collapsed -- and BuildFilters' onToggle changes the panel width by
+    -- the rail width to match, so this list is the *same width* whichever state the
+    -- rail is in (only the panel's right edge moves). The rail top sits
+    -- ROW_BORDER_INSET above this so it lines up with rowsFrame's border, not with
+    -- the first row -- so drop the scroll frame back down by that much to keep the
+    -- rows where LIST_TOP puts them.
     local scrollFrame = Widgets.Frame(panel, {
         frameType = "ScrollFrame",
         template  = "UIPanelScrollFrameTemplate",
         skin      = "scrollframe",
         point     = {
-            { "TOPLEFT",     panel.toolsFrame, "TOPRIGHT", 14, -ROW_BORDER_INSET },
+            { "TOPLEFT",     panel.rail, "TOPRIGHT", 14, -ROW_BORDER_INSET },
             { "BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30, 35 },
         },
     })
