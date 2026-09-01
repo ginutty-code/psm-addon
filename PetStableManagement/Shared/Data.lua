@@ -210,6 +210,19 @@ function ns.Data:SavePersistentData()
         end
     end
 
+    -- An empty snapshot is not worth persisting. LoadPersistentDataForDisplay
+    -- fills at most 10 "other character" slots; a stored {} still occupies one,
+    -- and enough of them (every non-hunter alt that merely opens the panel hits
+    -- this path at logout with zero matching pets) can crowd every real hunter
+    -- out of the cap -- the panel then shows only the current character.
+    if count == 0 then
+        char.snapshotData = nil
+    end
+    -- Per-character recency stamp, read by LoadPersistentDataForDisplay to keep
+    -- the newest snapshots when it applies the 10-character cap. Numeric epoch
+    -- seconds, not the display string in db.lastUpdated.
+    char.lastUpdated = time()
+
     self:SaveSettings()
     return count
 end
@@ -290,35 +303,42 @@ function ns.Data:LoadPersistentDataForDisplay(preserveCurrentData)
             end
         end
 
-        -- Load from up to 10 most-recently-updated OTHER characters
+        -- Load from up to 10 OTHER characters, newest snapshot first. Only
+        -- characters that actually hold a non-empty snapshot are eligible: a
+        -- stored {} (written by a non-hunter alt that merely opened the panel)
+        -- must not consume a slot -- when enough did, the cap pushed every real
+        -- hunter out and the panel showed only the current character. Ordering
+        -- is by SavePersistentData's per-character `lastUpdated`; saves from
+        -- before that stamp existed sort last (treated as 0) rather than in
+        -- hash order, and an alphabetical tiebreak keeps the result stable
+        -- across reloads.
         local keys = {}
-        for k in pairs(db.characters) do 
-            if k ~= currentKey then
+        for k, charData in pairs(db.characters) do
+            if k ~= currentKey and type(charData) == "table"
+               and type(charData.snapshotData) == "table" and next(charData.snapshotData) then
                 keys[#keys + 1] = k
             end
         end
         table.sort(keys, function(a, b)
-            local at = (db.characters[a] or {}).lastUpdated or 0
-            local bt = (db.characters[b] or {}).lastUpdated or 0
-            return at > bt
+            local at = tonumber((db.characters[a] or {}).lastUpdated) or 0
+            local bt = tonumber((db.characters[b] or {}).lastUpdated) or 0
+            if at ~= bt then return at > bt end
+            return a < b
         end)
 
         local loaded = 0
         for _, charKey in ipairs(keys) do
             if loaded >= 10 then break end
-            local charData = db.characters[charKey]
-            if type(charData.snapshotData) == "table" then
-                for _, pet in ipairs(charData.snapshotData) do
-                    if type(pet) == "table" and pet.name and pet.icon then
-                        local p = ns.Utils.DeepCopy(pet)
-                        p.tamer = charKey
-                        p.guid  = p.guid or p.petNumber
-                        self:NormalizePetData(p)
-                        table.insert(ns.state.stablePets, p)
-                    end
+            for _, pet in ipairs(db.characters[charKey].snapshotData) do
+                if type(pet) == "table" and pet.name and pet.icon then
+                    local p = ns.Utils.DeepCopy(pet)
+                    p.tamer = charKey
+                    p.guid  = p.guid or p.petNumber
+                    self:NormalizePetData(p)
+                    table.insert(ns.state.stablePets, p)
                 end
-                loaded = loaded + 1
             end
+            loaded = loaded + 1
         end
 
         if #ns.state.stablePets == 0 then return false end
