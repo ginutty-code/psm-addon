@@ -17,6 +17,43 @@ local function scalingFactor()
     return 5 / ppc
 end
 
+-- Row geometry shared by CreateModelRow and LayoutText.
+local MODEL_INSET = 4    -- model card offset from the row's left edge; matches the
+                        -- Owned Pets list row (Shared/UI.lua `modelInset = 4`).
+local NAME_GAP    = 15   -- name / NPC text LEFT gap from the model card's right edge
+local RIGHT_PAD   = 12   -- clearance kept from the column's right edge
+local MIN_TEXT_W  = 50   -- never let the text area collapse entirely
+
+-- True at the smallest pets-per-column setting (2), where the model card is largest
+-- and the row shortest: the name / NPC lines are cramped and redundant with the row
+-- tooltip, so they are dropped entirely. LayoutText and UpdateItemRow both consult
+-- this so the live-drag geometry pass and the data render agree on what is shown.
+function PSM.ModelRow:TextSuppressed()
+    local ppc = PetStableManagementDB.settings.petsPerColumn or PSM.Config.DEFAULT_PETS_PER_COLUMN
+    return ppc <= PSM.Config.MIN_PETS_PER_COLUMN
+end
+
+-- Fit the name and NPC-description text to the row's current width -- or hide it
+-- outright when TextSuppressed(). The row width is the model-view column width (set
+-- by UpdateModelsPanelLayout), which changes on resize, so this is called from that
+-- layout pass *and* from UpdateItemRow -- one formula, so a live drag and a data
+-- refresh can't disagree.
+function PSM.ModelRow:LayoutText(row)
+    if not row then return end
+    if self:TextSuppressed() then
+        if row.nameText      then row.nameText:Hide()      end
+        if row.infoText      then row.infoText:Hide()      end
+        if row.noteIndicator then row.noteIndicator:Hide() end
+        for _, npc in ipairs(row.npcTexts or {}) do npc:Hide() end
+        return
+    end
+    local mcfg = PSM.ModelsPanel.MODELS_CONFIG
+    local w = math.max(MIN_TEXT_W,
+        (row:GetWidth() or 0) - mcfg.MODEL_SIZE - MODEL_INSET - NAME_GAP - RIGHT_PAD)
+    if row.nameText then row.nameText:SetWidth(w) end
+    for _, npc in ipairs(row.npcTexts or {}) do npc:SetWidth(w) end
+end
+
 --------------------------------------------------------------------------------
 
 -- Everything the row tooltip says. Reads `row.tooltipData`, which UpdateItemRow refreshes,
@@ -63,11 +100,11 @@ function PSM.ModelRow:CreateModelRow(parent)
         useBackdropTemplate = true,
         width  = 432,
         height = mcfg.ROW_HEIGHT,
-        modelSize = mcfg.MODEL_SIZE,
+        modelSize  = mcfg.MODEL_SIZE,
+        modelInset = MODEL_INSET,  -- CreateBaseRow anchors row.model at this x; the
+                                   -- favorite/reset/magnify buttons follow it.
     })
 
-    row.model:ClearAllPoints()
-    row.model:SetPoint("LEFT", 20, 0)
     row.model:SetWidth(mcfg.MODEL_SIZE)
     row.model:SetHeight(mcfg.MODEL_SIZE)
 
@@ -78,7 +115,7 @@ function PSM.ModelRow:CreateModelRow(parent)
         justify  = "LEFT",
         wordWrap = true,
         width    = textW,
-        point    = { "LEFT", row.model, "RIGHT", 15, 15 },
+        point    = { "LEFT", row.model, "RIGHT", NAME_GAP, 15 },
     })
 
     row.infoText = Widgets.Label(row, {
@@ -106,7 +143,7 @@ function PSM.ModelRow:CreateModelRow(parent)
             color    = PSM.Theme.COLOR.MUTED,
             wordWrap = true,
             width    = textW,
-            point    = { "LEFT", row.model, "RIGHT", 15, 10 - i * 12 * sf },
+            point    = { "LEFT", row.model, "RIGHT", NAME_GAP, 10 - i * 12 * sf },
             hidden   = true,
         })
         table.insert(row.customElements, npc)
@@ -116,6 +153,8 @@ function PSM.ModelRow:CreateModelRow(parent)
     table.insert(row.customElements, row.favoriteButton)
 
     PSM.Tooltip.Attach(row, RowTooltipSpec)
+
+    PSM.ModelRow:LayoutText(row)  -- initial text width from the 432 base row width
 
     return row
 end
@@ -153,13 +192,14 @@ end
 
 --------------------------------------------------------------------------------
 
-function PSM.ModelRow:UpdateItemRow(row, item, index, scale)
+-- `index` is unused here but is the shared interface with the twin
+-- NPCRow:UpdateItemRow(row, item, index); ModelsPanel dispatches to whichever by view
+-- mode, so the signatures stay aligned.
+function PSM.ModelRow:UpdateItemRow(row, item, index)
     if not item then
         row:Hide()
         return
     end
-
-    scale = scale or scalingFactor()
 
     local mcfg = PSM.ModelsPanel.MODELS_CONFIG
     row:SetHeight(mcfg.ROW_HEIGHT)
@@ -201,33 +241,39 @@ function PSM.ModelRow:UpdateItemRow(row, item, index, scale)
     if totalOwned > 0 then
         nameStr = nameStr .. string.format(" (%s)", ownershipStr)
     end
-    row.nameText:SetWidth(PSM.Config.TEXT_WIDTH / scale)
-    row.nameText:SetText(nameStr)
-    row.nameText:SetTextColor(unpack(totalOwned > 0 and PSM.Theme.COLOR.GREEN or PSM.Theme.COLOR.WHITE))
-    row.nameText:Show()
 
-    if row.infoText then
-        row.infoText:Show()
-        row.infoText:SetText("")
-    end
+    -- LayoutText fits the text widths to the column, or hides the text frames
+    -- entirely when TextSuppressed() (petsPerColumn == 2). Skip the show/populate
+    -- block in that case -- the row tooltip carries the same information.
+    self:LayoutText(row)
+    if not self:TextSuppressed() then
+        row.nameText:SetText(nameStr)
+        row.nameText:SetTextColor(unpack(totalOwned > 0 and PSM.Theme.COLOR.GREEN or PSM.Theme.COLOR.WHITE))
+        row.nameText:Show()
 
-    -- First NPC line (detailed) + "and N more..." if applicable
-    for i = 1, 4 do row.npcTexts[i]:Hide() end
+        if row.infoText then
+            row.infoText:Show()
+            row.infoText:SetText("")
+        end
 
-    local totalNpcs = #npcs
-    if npcs[1] then
-        local first = row.npcTexts[1]
-        first:SetText(_G.PSM._modelsDescriptionCache and _G.PSM._modelsDescriptionCache[npcs[1]])
-        first:ClearAllPoints()
-        first:SetPoint("TOPLEFT", row.nameText, "BOTTOMLEFT", 0, -5)
-        first:Show()
+        -- First NPC line (detailed) + "and N more..." if applicable
+        for i = 1, 4 do row.npcTexts[i]:Hide() end
 
-        if totalNpcs > 1 then
-            local more = row.npcTexts[2]
-            more:SetText(PSM.L("and %d more...", totalNpcs - 1))
-            more:ClearAllPoints()
-            more:SetPoint("TOPLEFT", first, "BOTTOMLEFT", 0, -5)
-            more:Show()
+        local totalNpcs = #npcs
+        if npcs[1] then
+            local first = row.npcTexts[1]
+            first:SetText(_G.PSM._modelsDescriptionCache and _G.PSM._modelsDescriptionCache[npcs[1]])
+            first:ClearAllPoints()
+            first:SetPoint("TOPLEFT", row.nameText, "BOTTOMLEFT", 0, -5)
+            first:Show()
+
+            if totalNpcs > 1 then
+                local more = row.npcTexts[2]
+                more:SetText(PSM.L("and %d more...", totalNpcs - 1))
+                more:ClearAllPoints()
+                more:SetPoint("TOPLEFT", first, "BOTTOMLEFT", 0, -5)
+                more:Show()
+            end
         end
     end
 

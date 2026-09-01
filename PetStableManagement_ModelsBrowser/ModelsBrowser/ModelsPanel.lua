@@ -15,6 +15,19 @@ local MODELS_CONFIG = {
     -- states -- see AddModelsBrowserElements's rail comment.
     PANEL_WIDTH    = 1115,
     PANEL_HEIGHT   = 820,
+    -- Resize floors. MIN_WIDTH is the *collapsed*-rail floor; expanded, the effective
+    -- floor is MIN_WIDTH + RAIL_WIDTH (890), asserted rail-aware via
+    -- PanelManager:SetMinWidth in onShow / the rail's onToggle -- same model as Owned
+    -- Pets. At MIN_WIDTH the panel is ~1115 - 680 = 435px narrower than default:
+    -- petsFrame ~= 620 wide, model columnWidth ~= 295.
+    --
+    -- MIN_HEIGHT: the rail's Tools (125) + Show Only (160) boxes are fixed, but its
+    -- filter box now bottom-anchors to the panel (ModelsFilters.lua) so it flexes,
+    -- and Models view fits its rows to petsFrame's height (GetPageLayout). ~495 from
+    -- TITLE_Y covers the two fixed boxes + a usable filter box + gaps; 650 leaves
+    -- margin and still gives Models view ~4 rows at the default model size.
+    MIN_WIDTH      = 680,
+    MIN_HEIGHT     = 650,
     ROW_HEIGHT     = 120,
     MODEL_SIZE     = 100,
     PETS_PER_PAGE  = 10,
@@ -45,8 +58,11 @@ end
 -- Internal helpers
 -- ─────────────────────────────────────────────
 
--- Returns petsPerColumn and petsPerPage from current DB settings.
--- In NPC view (single-column text rows) petsPerPage is a flat, larger constant.
+-- Returns (petsPerColumn, petsPerPage). The first value is always the raw
+-- petsPerColumn setting -- it drives the model scale in UpdateModelsPanelLayout, so
+-- it must not change with the panel size. The second, rows-per-page, tracks the
+-- panel's height in both views: the setting fixes the model *size*, the available
+-- height decides how many of that size fit.
 local function GetPageLayout()
     local panel = PSM.state.modelsPanel
     if panel and panel.modelsViewMode == "npc" then
@@ -64,8 +80,18 @@ local function GetPageLayout()
         end
         return 1, math.min(fit, MODELS_CONFIG.NPC_MAX_ROWS)
     end
-    local ppc = PetStableManagementDB.settings.petsPerColumn or PSM.Config.DEFAULT_PETS_PER_COLUMN
-    return ppc, ppc * 2
+
+    local ppc  = PetStableManagementDB.settings.petsPerColumn or PSM.Config.DEFAULT_PETS_PER_COLUMN
+    local rows = ppc
+    if panel and panel.petsFrame then
+        -- Same row-height formula UpdateModelsPanelLayout uses (120 * scale, scale =
+        -- 5/ppc); the 10px is its top pad. At the shipped 820 height this floors to
+        -- exactly `ppc` for every setting 2-10, so an unresized panel is unchanged.
+        local rowH = 120 * (5 / ppc)
+        rows = math.floor((panel.petsFrame:GetHeight() - 10) / rowH)
+        rows = math.max(1, math.min(rows, PSM.Config.MAX_PETS_PER_COLUMN))
+    end
+    return ppc, rows * 2
 end
 
 -- Returns the item list backing the currently active view.
@@ -106,24 +132,42 @@ end
 
 -- The panel's one content-reflow entrypoint (docs/Collapsible_left_rail_plan.md 5b):
 -- re-derive column widths / the NPC column grid from petsFrame's *current* width and
--- redraw the page in place. Today's only caller is the rail's onToggle; a future
--- width-resize handler calls this same function rather than growing a second path.
--- GoToPage with the current page is exactly "recompute and redraw without moving
--- pages" -- both UpdateModelsPanelLayout and UpdateNPCPanelLayout read
--- petsFrame:GetWidth() fresh every call, so this is safe to call repeatedly
--- (including mid-drag, once dragging exists).
+-- redraw the page in place. Called by the rail's onToggle and by the OnSizeChanged
+-- settle timer. GoToPage with the current page is exactly "recompute and redraw
+-- without moving pages" -- both UpdateModelsPanelLayout and UpdateNPCPanelLayout read
+-- petsFrame:GetWidth() fresh every call, so this is safe to call repeatedly.
 function PSM.ModelsPanel:ReflowContent(panel)
     panel = panel or PSM.state.modelsPanel
     if not panel or not panel.petsFrame then return end
     GoToPage(panel, panel.currentPage or 1)
 end
 
+-- The cheap per-drag-frame counterpart to ReflowContent, so rows track the frame
+-- edge live instead of snapping into place when the drag stops. Model view does a
+-- geometry-only pass -- reposition/resize the rows and reflow their text to the new
+-- column width, but NOT UpdateVisibleRows, because that re-issues SetDisplayInfo and
+-- would restart every model's load/animation on every drag frame. NPC view has no
+-- models, so its normal layout pass is cheap enough to run directly (and it skips
+-- GoToPage's SavedVariables write). The settle timer still runs the full
+-- ReflowContent once the drag rests.
+function PSM.ModelsPanel:ReflowContentLive(panel)
+    panel = panel or PSM.state.modelsPanel
+    if not panel or not panel.petsFrame then return end
+    if panel.modelsViewMode == "npc" then
+        self:UpdateNPCPanelLayout()
+    else
+        self:UpdateModelsPanelLayout(true)
+    end
+end
+
 -- ─────────────────────────────────────────────
 -- Layout
 -- ─────────────────────────────────────────────
 
--- Recomputes MODELS_CONFIG scaling and repositions model rows.
-function PSM.ModelsPanel:UpdateModelsPanelLayout()
+-- Recomputes MODELS_CONFIG scaling and repositions model rows. `geometryOnly` skips
+-- the UpdateVisibleRows re-render (used by ReflowContentLive during a resize drag --
+-- see there).
+function PSM.ModelsPanel:UpdateModelsPanelLayout(geometryOnly)
     local panel = PSM.state.modelsPanel
     if not panel then return end
 
@@ -156,13 +200,16 @@ function PSM.ModelsPanel:UpdateModelsPanelLayout()
                 row.model:SetWidth(MODELS_CONFIG.MODEL_SIZE)
                 row.model:SetHeight(MODELS_CONFIG.MODEL_SIZE)
             end
+            PSM.ModelRow:LayoutText(row)  -- fit name/NPC text to the new column width
             -- Visibility handled in UpdateVisibleRows
         else
             row:Hide()
         end
     end
 
-    self:UpdateVisibleRows()
+    if not geometryOnly then
+        self:UpdateVisibleRows()
+    end
 end
 
 -- ─────────────────────────────────────────────
@@ -200,9 +247,14 @@ function PSM.ModelsPanel:CreateModelsPanel()
     local panel = PSM.PanelManager:CreateBasePanel("modelsPanel", {
         width              = MODELS_CONFIG.PANEL_WIDTH,
         height             = MODELS_CONFIG.PANEL_HEIGHT,
+        minWidth           = MODELS_CONFIG.MIN_WIDTH,
+        minHeight          = MODELS_CONFIG.MIN_HEIGHT,
         title              = PSM.L("Pet Model Browser"),
-        resizable          = false,
-        showResizeHandle   = false,
+        -- Width-primary resize: ReflowContent (below) is the one reflow entrypoint the
+        -- OnSizeChanged handler and the rail's onToggle both call. No Maximize button --
+        -- the corner grip only; its onResize path is unused so no onResize callback here.
+        resizable          = true,
+        showResizeHandle   = true,
         showMaximizeButton = false,
 
         onShow = function(p)
@@ -221,13 +273,21 @@ function PSM.ModelsPanel:CreateModelsPanel()
             if p.rail then
                 p.rail:ApplyInitialState()
                 local wantCollapsed = p.rail:IsCollapsed()
+                local minW = MODELS_CONFIG.MIN_WIDTH + (wantCollapsed and 0 or p.rail.width)
+                -- Order against the pinned floor (same rule as OwnedPets/Panel.lua):
+                -- drop the minimum before a shrink, raise it after a grow, so
+                -- SetWidthAnchored is never clamped mid-adjust.
                 if wantCollapsed and not p._railShrunk then
+                    PSM.PanelManager:SetMinWidth(p, MODELS_CONFIG.MIN_WIDTH)
                     PSM.PanelManager:SetWidthAnchored(p, p:GetWidth() - p.rail.width)
                     p._railShrunk = true
                 elseif not wantCollapsed and p._railShrunk then
                     PSM.PanelManager:SetWidthAnchored(p, p:GetWidth() + p.rail.width)
                     p._railShrunk = false
                 end
+                -- Assert every show: a rebuilt panel starts from config.minWidth (the
+                -- collapsed value) regardless of the saved rail state.
+                PSM.PanelManager:SetMinWidth(p, minW)
                 PSM.ModelsPanel:ReflowContent(p)
             end
 
@@ -320,9 +380,8 @@ function PSM.ModelsPanel:UpdateVisibleRows()
         return
     end
 
-    local ppc = PetStableManagementDB.settings.petsPerColumn or PSM.Config.DEFAULT_PETS_PER_COLUMN
-    local petsPerPage = ppc * 2
-    local scale = 5 / ppc
+    -- One source for rows-per-page: GetPageLayout, which now factors in panel height.
+    local _, petsPerPage = GetPageLayout()
 
     local maxPages = math.max(1, math.ceil(totalPets / petsPerPage))
 
@@ -351,7 +410,7 @@ function PSM.ModelsPanel:UpdateVisibleRows()
         local row  = panel.modelRows[rowIndex]
         local item = panel.allModels[i]
         if item and row then
-            PSM.ModelRow:UpdateItemRow(row, item, i, scale)
+            PSM.ModelRow:UpdateItemRow(row, item, i)
             row:Show()
         end
         rowIndex = rowIndex + 1
@@ -492,10 +551,16 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
         width    = RAIL_WIDTH,
         savedKey = "modelsRailCollapsed",
         onToggle = function(collapsed)
+            -- Rail-aware width floor, ordered like OwnedPets/Panel.lua: drop the
+            -- minimum before the shrink, raise it after the grow, so SetWidthAnchored
+            -- is never clamped. The panel carries the rail in its own width, so the
+            -- floor moves with the rail state.
             if collapsed then
+                PM:SetMinWidth(panel, MODELS_CONFIG.MIN_WIDTH)
                 PM:SetWidthAnchored(panel, panel:GetWidth() - RAIL_WIDTH)
             else
                 PM:SetWidthAnchored(panel, panel:GetWidth() + RAIL_WIDTH)
+                PM:SetMinWidth(panel, MODELS_CONFIG.MIN_WIDTH + RAIL_WIDTH)
             end
             panel._railShrunk = collapsed
             PSM.ModelsPanel:ReflowContent(panel)
@@ -536,6 +601,12 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     -- controls below can derive their position from Theme.CHROME.FOOTER_Y instead of
     -- re-guessing their own offset from petsFrame's bottom edge.
     local FOOTER_INSET = 50
+
+    -- The corner resize grip (16px, at the panel's BOTTOMRIGHT) overlaps the bottom-
+    -- right corner of the First/Last button row by a few px. Lift that row this much so
+    -- it clears the grip. Previous/Next chain off First/Last and follow; pageText and
+    -- the page-jump frame already sit higher.
+    local GRIP_CLEARANCE = 8
 
     -- Pets frame (2-column layout). Anchored to the *rail container's* top-right, not
     -- showOnlyFrame's -- see docs/Collapsible_left_rail_plan.md 5b: the rail is what
@@ -686,7 +757,7 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     -- moves as one with Theme.CHROME.FOOTER_Y instead of re-guessing its own offset.
     local firstButton = Widgets.Button(panel, {
         width   = PSM.Theme.CONTROL.BUTTON_W.XS,
-        point   = { "BOTTOMLEFT", petsFrame, "BOTTOMLEFT", 0, PSM.Theme.CHROME.FOOTER_Y - FOOTER_INSET },
+        point   = { "BOTTOMLEFT", petsFrame, "BOTTOMLEFT", 0, PSM.Theme.CHROME.FOOTER_Y - FOOTER_INSET + GRIP_CLEARANCE },
         text    = "First",
         onClick = function() GoToPage(panel, 1) end,
     })
@@ -700,7 +771,7 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
 
     local lastButton = Widgets.Button(panel, {
         width   = PSM.Theme.CONTROL.BUTTON_W.XS,
-        point   = { "BOTTOMRIGHT", petsFrame, "BOTTOMRIGHT", 0, PSM.Theme.CHROME.FOOTER_Y - FOOTER_INSET },
+        point   = { "BOTTOMRIGHT", petsFrame, "BOTTOMRIGHT", 0, PSM.Theme.CHROME.FOOTER_Y - FOOTER_INSET + GRIP_CLEARANCE },
         text    = "Last",
         onClick = function()
             local _, petsPerPage = GetPageLayout()
@@ -780,6 +851,32 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     if PSM.NPCDataLoader and PSM.NPCDataLoader.ReleaseCache then
         PSM.NPCDataLoader:ReleaseCache()
     end
+
+    -- Width-primary resize. The corner grip (Widgets.ResizeGrip, added by
+    -- CreateBasePanel for showResizeHandle = true) fires OnSizeChanged on every drag
+    -- frame. Two passes, same split as CreateScrollPreservingResizeHandler
+    -- (Shared/PanelManager.lua): a leading geometry-only ReflowContentLive every ~8px
+    -- so the rows track the frame edge during the drag, and a trailing settle timer
+    -- running the full ReflowContent (re-render + SetDisplayInfo) once the drag rests.
+    -- HookScript so it composes with anything CreateBasePanel adds later; both entry
+    -- points guard on panel.petsFrame and are idempotent, so an early fire is harmless.
+    panel:HookScript("OnSizeChanged", function(_, width, height)
+        -- Trailing settle: the full ReflowContent once the drag rests.
+        if panel._resizeSettleTimer then panel._resizeSettleTimer:Cancel() end
+        panel._resizeSettleTimer = C_Timer.NewTimer(0.12, function()
+            panel._resizeSettleTimer = nil
+            panel._resizeLastW, panel._resizeLastH = panel:GetWidth(), panel:GetHeight()
+            PSM.ModelsPanel:ReflowContent(panel)
+        end)
+
+        -- Leading pass: a cheap geometry-only reflow every ~8px so rows track the
+        -- frame edge during the drag instead of hanging in the air until the settle.
+        if math.abs((panel._resizeLastW or 0) - width)  >= 8
+        or math.abs((panel._resizeLastH or 0) - height) >= 8 then
+            panel._resizeLastW, panel._resizeLastH = width, height
+            PSM.ModelsPanel:ReflowContentLive(panel)
+        end
+    end)
 
     -- Now that pagination controls exist, position the NPC row pool if that's
     -- the persisted starting mode (UpdateNPCPanelLayout touches panel.prevButton etc).

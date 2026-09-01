@@ -298,12 +298,21 @@ marker runs ~81px, below which the marker clips first).
 **Still open:** stored column widths mask the new defaults for existing characters —
 no reset path. Tracked as [psm-backlog#4](https://github.com/ginutty-code/psm-backlog/issues/4).
 
-**Proportional column scaling was considered and declined** (2026-08-22). It would
-  guarantee a fit at any width/column count, but the displayed width would stop
-  matching the stored width: the drag handler reads `current` from storage, so the
-  first pixel of a drag would jump the column back. Trimming the defaults solved the
-  actual reported problem without that split. Revisit only if the panel ever becomes
-  resizable — the numbers above all assume it is not.
+**Proportional column scaling was considered and declined** (2026-08-22), then
+  **implemented** (2026-09-02) once the panel became width-resizable. The 2026-08-22
+  objection stands — displayed width stops matching stored width, so a naive drag
+  jumps the column back — and is handled: `RecomputeColumnLayout` computes one shared
+  `panel._npcColumnScale` (`= 1` at or above the ~815px design width, `< 1` below it),
+  scales the shrinkable non-flex columns by it (columns already at `MIN_COLUMN_WIDTH`
+  are held out and subtracted from the budget first, so the flex column doesn't eat
+  their shortfall and overflow), and the `ResizeDriver` drag handler divides the
+  cursor delta by that factor so the grabbed boundary tracks the cursor in *displayed*
+  space while `npcColumnWidths` stays in stored space. `MaxWidthForColumn` stays a
+  stored-space cap — approximate while scaled, but self-limiting via each column's
+  `MIN_COLUMN_WIDTH`. A sorted column scaled toward `MIN_COLUMN_WIDTH` (30) clips its
+  sort marker — the same trade `MIN_FLEX_WIDTH` already documents. The fixed-defaults
+  work above is unchanged: it is still what a column layout starts from, and `factor`
+  only ever shrinks that to fit a narrower panel.
 
 ---
 

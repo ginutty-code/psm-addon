@@ -642,8 +642,10 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel)
     -- Parented to `panel.rail` (not `panel`) and handed to `rail:AddBox` like the
     -- other two boxes, so it hides/shows and moves with them on collapse -- AddBox
     -- only re-anchors and toggles `:SetShown()`, it has no dependency on the box
-    -- being a CreateRailBox product. No explicit `point`: AddBox sets the anchor
-    -- (stacked under showOnlyFrame, same -5px gap as before).
+    -- being a CreateRailBox product. No explicit `point`: AddBox sets the TOPLEFT
+    -- anchor (stacked under showOnlyFrame, same -5px gap as before). `size`'s 210
+    -- still fixes the width; the 440 height is now just a fallback -- the BOTTOMLEFT
+    -- anchor below derives the real height.
     panel.unifiedFilterFrame = PSM.Widgets.Frame(panel.rail, {
         size        = { 210, 440 },
         backdrop    = "TOOLTIP",
@@ -651,6 +653,15 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel)
         borderColor = PSM.Theme.COLOR.SILVER,
     })
     panel.rail:AddBox(panel.unifiedFilterFrame)
+
+    -- Second anchor so the box flexes with a panel resize instead of staying a fixed
+    -- 440: filterScrollFrame is already BOTTOMRIGHT-anchored to this frame, so the
+    -- checkbox viewport grows/shrinks with it for nothing. Anchored to `panel`, not
+    -- the rail (whose height is a construction-time snapshot); while the rail is
+    -- collapsed this frame is hidden, so the cross-anchor costs nothing. `50` lines
+    -- the bottom up with petsFrame's bottom edge (its BOTTOMRIGHT inset in
+    -- ModelsPanel.lua); `25` is the rail's own left inset.
+    panel.unifiedFilterFrame:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 25, 50)
 
     ---------- Tab buttons ----------
     local tabFrame = PSM.Widgets.Frame(panel.unifiedFilterFrame, {

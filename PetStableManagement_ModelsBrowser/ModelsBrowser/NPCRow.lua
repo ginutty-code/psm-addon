@@ -210,18 +210,43 @@ function PSM.NPCRow:RecomputeColumnLayout(panel)
     local totalWidth = TableWidth(panel)
     local visible    = VisibleColumns(self, panel)
 
+    -- The stored/default non-flex widths are sized against a known ~815px table (see
+    -- the COLUMNS comment). Once the panel is resizable it can be narrower than that,
+    -- and without this the rightmost columns run straight off petsFrame's edge. So
+    -- when the fixed columns plus the flex floor don't fit, scale the *shrinkable*
+    -- non-flex columns by one shared factor -- columns already at MIN_COLUMN_WIDTH
+    -- can't give, so they're held out of the pool and their width subtracted from the
+    -- room first (otherwise the flex column absorbs the shortfall and overflows).
+    -- factor == 1 at or above the design width, so nothing changes for a panel that
+    -- hasn't been dragged narrow. The 0.35 clamp is a backstop -- MIN_WIDTH keeps the
+    -- real factor well above it. (Revisits docs/Backlog.md's "proportional scaling
+    -- declined" note, which said to reconsider this if the panel ever became resizable.)
+    local pinnedNeed, shrinkNeed = 0, 0
+    for _, col in ipairs(visible) do
+        if col.key ~= FLEX_COLUMN then
+            local w = StoredWidth(panel, col)
+            if w <= MIN_COLUMN_WIDTH then pinnedNeed = pinnedNeed + MIN_COLUMN_WIDTH
+            else                          shrinkNeed = shrinkNeed + w end
+        end
+    end
+    local room   = totalWidth - COLUMN_GAP * math.max(0, #visible - 1) - MIN_FLEX_WIDTH - pinnedNeed
+    local factor = (shrinkNeed > 0 and room < shrinkNeed) and math.max(0.35, room / shrinkNeed) or 1
+    panel._npcColumnScale = factor
+
     local layout = {}
     local x = CELL_PAD
     for _, col in ipairs(visible) do
         local width
         if col.key == FLEX_COLUMN then
             -- Flex column: absorbs whatever the fixed columns leave, which is what
-            -- keeps the overall table width constant while they resize. Its floor is
-            -- only ever reached when the fixed columns have taken everything, which
-            -- MaxWidthForColumn now prevents a drag from doing.
+            -- keeps the overall table width constant while they resize. With `factor`
+            -- active the fixed columns have already been squeezed to fit, so this
+            -- lands at MIN_FLEX_WIDTH.
             width = math.max(MIN_FLEX_WIDTH, totalWidth - (x - CELL_PAD))
         else
-            width = StoredWidth(panel, col)
+            local w = StoredWidth(panel, col)
+            width = (w <= MIN_COLUMN_WIDTH) and w
+                    or math.max(MIN_COLUMN_WIDTH, math.floor(w * factor))
         end
         table.insert(layout, { key = col.key, x = x, width = width })
         x = x + width + COLUMN_GAP
@@ -240,6 +265,12 @@ end
 --
 -- Returns nil when there is no cap to apply (the flex column itself, or a layout with
 -- no flex column visible -- Display IDs is `optional = false`, so that is defensive).
+--
+-- Computed in *stored* width space. When RecomputeColumnLayout is scaling columns
+-- (_npcColumnScale < 1, i.e. the panel is narrower than the design width) this cap is
+-- only approximate -- but every other column has its own MIN_COLUMN_WIDTH floor, so
+-- the recompute is self-limiting and an over-permissive cap cannot push anything off
+-- the edge, only make neighbours a little narrower.
 function PSM.NPCRow:MaxWidthForColumn(panel, key)
     if not panel or not panel.petsFrame then return nil end
     if key == FLEX_COLUMN then return nil end
@@ -309,7 +340,13 @@ ResizeDriver:SetScript("OnUpdate", function(self)
             panel.npcColumnWidths = panel.npcColumnWidths or {}
             local col = PSM.NPCRow.COLUMNS_BY_KEY[handle.columnKey]
             local current = panel.npcColumnWidths[handle.columnKey] or col.width
-            local wanted  = math.max(MIN_COLUMN_WIDTH, current + delta)
+            -- npcColumnWidths is *stored* width; RecomputeColumnLayout may be drawing
+            -- columns at `_npcColumnScale` of that. Divide the cursor delta by the
+            -- factor so a 1px drag of the boundary moves the stored width by 1px of
+            -- *displayed* travel -- otherwise the next reflow scales the change back
+            -- down and the column appears not to follow the cursor.
+            local f = panel._npcColumnScale or 1
+            local wanted = math.max(MIN_COLUMN_WIDTH, current + delta / f)
 
             -- Upper bound as well as lower: past this the Display IDs column has no
             -- room left to give up and the table would be drawn off its right edge.
