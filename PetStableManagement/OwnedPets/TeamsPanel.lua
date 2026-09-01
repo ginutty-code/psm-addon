@@ -282,11 +282,16 @@ function ns.TeamsPanel:CreateTeamRow(parent)
         vertexColor = Theme.COLOR.GOLD,
     })
 
-    -- Pet icon slots
+    -- Pet icon slots. The masked portrait + ring is Widgets.PetPortrait now (slotSize
+    -- and ICON_SIZE are exactly its ringSize/portraitSize defaults). petIcons/petMasks/
+    -- petBorders stay populated as aliases into the widget: DragDrop pokes
+    -- row.petBorders for its drop-target tint and PanelManager:CleanupPanel iterates
+    -- row.petIcons.
     row.petIcons          = {}
     row.petIconContainers = {}
     row.petMasks          = {}
     row.petBorders        = {}
+    row.petPortraits      = {}
 
     for i = 1, 6 do
         local container = Widgets.Frame(row.iconsFrame, {
@@ -295,35 +300,17 @@ function ns.TeamsPanel:CreateTeamRow(parent)
             point     = { "LEFT", SlotXPos(i, slotSize, slotSpacing, slot5to6Gap), 0 },
         })
 
-        local tex = Widgets.Texture(container, {
-            layer    = "BACKGROUND",
-            sublayer = 1,
-            size     = { ICON_SIZE, ICON_SIZE },
-            point    = { "CENTER" },
-            hidden   = true,
-        })
-
-        local mask = Widgets.MaskTexture(container, {
-            texture = "Interface\\CharacterFrame\\TempPortraitAlphaMask",
-            size    = { ICON_SIZE, ICON_SIZE },
-            point   = { "CENTER" },
-        })
-        tex:AddMaskTexture(mask)
-
-        local border = Widgets.Texture(container, {
-            layer     = "BORDER",
-            atlas     = "footer_inactive-ring",
-            allPoints = true,
-        })
+        local pp = Widgets.PetPortrait(container)
 
         container:EnableMouse(true)
         container.displayId    = nil
         container.removeButton = CreateRemoveFromSlotButton(row.iconsFrame, container, i, nil)
 
-        row.petIcons[i]          = tex
+        row.petPortraits[i]      = pp
         row.petIconContainers[i] = container
-        row.petMasks[i]          = mask
-        row.petBorders[i]        = border
+        row.petIcons[i]          = pp.portrait
+        row.petMasks[i]          = pp.mask
+        row.petBorders[i]        = pp.ring
     end
 
     -- Action buttons
@@ -373,24 +360,16 @@ function ns.TeamsPanel:UpdateTeamRow(row, team)
 
     -- Pet icons
     for slot = 1, 6 do
-        local tex       = row.petIcons[slot]
         local container = row.petIconContainers[slot]
         local petData   = team.slots[slot]
+        local hasArt     = petData and ((petData.displayID and petData.displayID > 0) or petData.icon)
 
-        if petData and petData.displayID and petData.displayID > 0 then
-            SetPortraitTextureFromCreatureDisplayID(tex, petData.displayID)
-            tex:SetTexCoord(1, 0, 0, 1)
-            tex:AddMaskTexture(row.petMasks[slot])
-            tex:Show()
-            container.displayId = petData.displayID
-            SetupPetSlotInteraction(container, petData, slot, team)
-        elseif petData and petData.icon then
-            tex:SetTexture(petData.icon)
-            tex:Show()
-            container.displayId = nil
+        if hasArt then
+            row.petPortraits[slot]:SetPet(petData)
+            container.displayId = (petData.displayID and petData.displayID > 0) and petData.displayID or nil
             SetupPetSlotInteraction(container, petData, slot, team)
         else
-            tex:Hide()
+            row.petPortraits[slot]:Clear()
             container.displayId = nil
             container:SetScript("OnEnter", nil)
             container:SetScript("OnLeave", nil)

@@ -162,25 +162,7 @@ local function GetTeamDragFrame()
     f:SetMovable(true)
     f:SetClampedToScreen(true)
 
-    f.portrait = Widgets.Texture(f, {
-        layer    = "BACKGROUND",
-        sublayer = 1,
-        size     = { ICON_SIZE, ICON_SIZE },
-        point    = { "CENTER", f, "CENTER", 0, 0 },
-    })
-
-    f.mask = Widgets.MaskTexture(f, {
-        texture = "Interface\\CharacterFrame\\TempPortraitAlphaMask",
-        size    = { ICON_SIZE, ICON_SIZE },
-        point   = { "CENTER", f, "CENTER", 0, 0 },
-    })
-    f.portrait:AddMaskTexture(f.mask)
-
-    f.border = Widgets.Texture(f, {
-        layer     = "BORDER",
-        atlas     = "footer_inactive-ring",
-        allPoints = true,
-    })
+    f.petPortrait = Widgets.PetPortrait(f)   -- masked portrait + ring, same as a Teams slot
 
     DD.teamState.dragFrame = f
     return f
@@ -644,14 +626,7 @@ function DD:SetupTeamSlotDragDrop(modelFrame, slotNum, teamId, teamData)
 
         local df  = GetTeamDragFrame()
         local pet = teamData.slots[slotNum]
-        if pet.displayID and pet.displayID > 0 then
-            SetPortraitTextureFromCreatureDisplayID(df.portrait, pet.displayID)
-            df.portrait:SetTexCoord(1, 0, 0, 1)
-            df.portrait:AddMaskTexture(df.mask)
-            df.portrait:Show()
-        else
-            df.portrait:Hide()
-        end
+        df.petPortrait:SetPet(pet)
 
         df:ClearAllPoints()
         df:SetPoint("CENTER", self, "CENTER", 0, 0)

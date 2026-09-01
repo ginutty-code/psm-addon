@@ -197,13 +197,16 @@ function ns.UI:AddOwnedPetsElements(panel)
     -- Panel-wide filters, so it belongs on the chrome and works in all three views.
     panel.teamRouletteButton = ToolButton(ns.L("Team Roulette"), panel.teamsButton,
         function() ns.TeamRoulette:Show() end, function()
-            local rd = ns.state.currentRenderData
+            -- The draw pool, not the raw filtered list: CurrentPool further restricts
+            -- filteredPets to pets THIS character owns (a team can only be applied with
+            -- your own pets), so the count here matches what the roll actually draws
+            -- from -- filteredPets alone counts the whole account.
             return {
                 anchor = "ANCHOR_BOTTOM",
                 title  = ns.L("Team Roulette"),
                 lines  = {{
-                    text  = ns.L("Roll a random team from the %d filtered pets",
-                                 rd and rd.filteredPets and #rd.filteredPets or 0),
+                    text  = ns.L("Roll a random team from the %d available pets",
+                                 #ns.TeamRoulette:CurrentPool()),
                     color = ns.Theme.COLOR.WHITE,
                 }},
             }

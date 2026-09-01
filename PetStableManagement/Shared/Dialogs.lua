@@ -69,9 +69,11 @@ local function CreateBaseDialog(name, width, height, title, resizable)
         if d.onCancel then d.onCancel() end
     end
 
+    -- 20x20 to match every panel's close button (PanelManager:CreateBasePanel) --
+    -- both go through Widgets.CloseButton, the size is the only thing that differed.
     d.closeButton = Widgets.CloseButton(d, {
         point   = { "TOPRIGHT", -2, -2 },
-        size    = { 24, 24 },
+        size    = { 20, 20 },
         onClick = function() d:Hide(); Cancel() end,
     })
 
@@ -390,15 +392,23 @@ function ns.Dialogs:ShowTeamRouletteDialog(state)
     local Theme, Widgets = ns.Theme, ns.Widgets
 
     local slotCount     = state.slotCount
-    local CELL_W        = 96
-    local CELL_H        = 127
-    local PORTRAIT      = 66
+    -- The cell is sized around the ringed pet portrait so the grid reads like a row of
+    -- Teams-panel slots. RING is the footer_inactive-ring frame; PORTRAIT_TOP is where
+    -- it hangs from the cell top; the name/family/spec stack sits under it.
+    local RING          = Theme.CONTROL.PET_PORTRAIT_RING
+    local PORTRAIT_TOP  = -8
+    local CELL_W        = RING + 8
+    local CELL_H        = 150
     local CELL_BORDER   = { 0.3, 0.3, 0.3, 1 }
     local PICK_BORDER   = { 1, 0.82, 0, 1 }   -- the "picked up, choose a slot to swap with" outline
     local CELL_GAP      = 8
-    local COMPANION_GAP = 16   -- extra space before slot 6, mirroring the Teams panel
+    local COMPANION_GAP = 26   -- extra space before slot 6 (a touch tighter than the
+                               -- Teams panel's 30, so slot 6 sits nearer slot 5)
+    local DIVIDER_W     = 26   -- gold rule length, = Teams panel's slot5to6Gap - 4
     local GRID_Y        = -62
-    local warnY         = GRID_Y - CELL_H - 24
+    -- -42, up from the old -24: the spec-cycle button hangs ~23px below each cell, so
+    -- the old gap left the warning/hint line almost touching it.
+    local warnY         = GRID_Y - CELL_H - 42
     local gridW         = slotCount * CELL_W + (slotCount - 1) * CELL_GAP
                           + (slotCount >= 6 and COMPANION_GAP or 0)
     local dialogW       = math.max(440, gridW + 40)
@@ -430,16 +440,17 @@ function ns.Dialogs:ShowTeamRouletteDialog(state)
             borderColor = CELL_BORDER,
         })
 
-        cell.portrait = Widgets.Texture(cell, {
-            size  = { PORTRAIT, PORTRAIT },
-            point = { "TOP", 0, -6 },
+        cell.portrait = Widgets.PetPortrait(cell, {
+            point = { "TOP", 0, PORTRAIT_TOP },
         })
 
+        -- +12 pulls the name up through the ring atlas's transparent lower band so it
+        -- doesn't float; nudge in-game if the gap still reads wrong.
         cell.nameText = Widgets.Label(cell, {
             fontSize = Theme.SIZE.SMALL,
             color    = Theme.COLOR.WHITE,
             justify  = "CENTER",
-            point    = { "TOP", cell.portrait, "BOTTOM", 0, -3 },
+            point    = { "TOP", cell.portrait, "BOTTOM", 0, 12 },
             width    = CELL_W - 8,
             text     = "",
         })
@@ -482,6 +493,21 @@ function ns.Dialogs:ShowTeamRouletteDialog(state)
         })
 
         d.cells[slot] = cell
+    end
+
+    -- Gold rule in the companion gap, level with the portraits -- the same divider the
+    -- Teams panel draws between slots 5 and 6.
+    if slotCount >= 6 then
+        local slot5Right = startX + 4 * (CELL_W + CELL_GAP) + CELL_W
+        d.dividerLine = Widgets.Texture(d, {
+            layer       = "OVERLAY",
+            texture     = "Interface\\Buttons\\WHITE8X8",
+            size        = { DIVIDER_W, 2 },
+            point       = { "CENTER", d, "TOPLEFT",
+                            slot5Right + (CELL_GAP + COMPANION_GAP) / 2,
+                            GRID_Y + PORTRAIT_TOP - RING / 2 },
+            vertexColor = Theme.COLOR.GOLD,
+        })
     end
 
     -- The spec-cycle buttons sit under the grid, aligned to their cells.
@@ -537,7 +563,7 @@ function ns.Dialogs:ShowTeamRouletteDialog(state)
     -- The pool line follows the Owned Pets panel's live filter: Shared/UI.lua calls
     -- this after every re-render while the dialog is open (feedback #2).
     function d.SyncPool()
-        d.poolText:SetText(ns.L("Drawing from %d filtered pets", #ns.TeamRoulette:CurrentPool()))
+        d.poolText:SetText(ns.L("Drawing from %d available pets", #ns.TeamRoulette:CurrentPool()))
     end
 
     d._pickedSlot = nil
@@ -571,16 +597,7 @@ function ns.Dialogs:ShowTeamRouletteDialog(state)
             cell.removeButton:SetShown(rec ~= nil and not isLocked)
 
             if rec then
-                if rec.displayID and rec.displayID > 0 then
-                    SetPortraitTextureFromCreatureDisplayID(cell.portrait, rec.displayID)
-                    cell.portrait:SetTexCoord(1, 0, 0, 1)
-                elseif rec.icon then
-                    cell.portrait:SetTexture(rec.icon)
-                    cell.portrait:SetTexCoord(0, 1, 0, 1)
-                else
-                    cell.portrait:SetTexture(nil)
-                end
-                cell.portrait:SetAlpha(1)
+                cell.portrait:SetPet(rec)
                 cell.nameText:SetText(rec.name or "?")
                 cell.nameText:SetTextColor(unpack(Theme.COLOR.WHITE))
                 cell.familyText:SetText(rec.familyName or "")
@@ -592,8 +609,7 @@ function ns.Dialogs:ShowTeamRouletteDialog(state)
                 end)
                 cell:SetScript("OnLeave", ns.Tooltip.Hide)
             else
-                cell.portrait:SetTexture(nil)
-                cell.portrait:SetAlpha(0)
+                cell.portrait:Clear()
                 cell.nameText:SetText(keptEmpty and ns.L("(kept empty)") or ns.L("(empty)"))
                 cell.nameText:SetTextColor(unpack(keptEmpty and Theme.COLOR.ORANGE or Theme.COLOR.GREY))
                 cell.familyText:SetText("")

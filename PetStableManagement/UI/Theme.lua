@@ -132,6 +132,14 @@ Theme.CONTROL = {
     -- fit a sort arrow beside its label, and 20 clipped the descenders at BODY.
     -- Both boxes that grow by 2px have 3px of clearance above their first control.
     SECTION_HEADER = 22,
+
+    -- The circular pet portrait (Widgets.PetPortrait): a masked creature portrait
+    -- sitting inside the footer_inactive-ring atlas. Two values, not one, because the
+    -- ring art carries a fixed band of transparent padding -- a 55px portrait centred
+    -- in a 100px ring is the proportion the Teams panel established, and the drag
+    -- frame and Team Roulette match it so a slot reads the same everywhere.
+    PET_PORTRAIT      = 55,
+    PET_PORTRAIT_RING = 100,
 }
 
 --------------------------------------------------------------------------------

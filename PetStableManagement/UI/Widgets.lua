@@ -42,6 +42,7 @@ local OPTIONS = {
     Tab         = { frameType = true, palette = true, fontSize = true, fontObject = true, text = true },
     MaskTexture = { texture = true, wrapH = true, wrapV = true },
     Texture     = { layer = true, sublayer = true, allPoints = true, color = true, texture = true, atlas = true, texCoord = true, vertexColor = true },
+    PetPortrait = { portraitSize = true, ringSize = true },
     CheckBox    = { name = true, template = true, checked = true, onClick = true, tooltip = true, label = true, labelFontObject = true, labelFontSize = true, labelColor = true },
     Slider      = { name = true, template = true, min = true, max = true, step = true, value = true, lowLabel = true, highLabel = true, format = true, onChange = true },
     -- No fontSize/fontObject/color: the label's type is the kit's, not the caller's
@@ -463,6 +464,104 @@ function Widgets.Texture(parent, opts)
     if opts.texCoord    then t:SetTexCoord(unpack(opts.texCoord))       end
     if opts.vertexColor then t:SetVertexColor(unpack(opts.vertexColor)) end
     return t
+end
+
+-- The circular pet portrait: a masked creature portrait inside the
+-- footer_inactive-ring atlas. Hand-rolled in three places before this -- the Teams
+-- panel's slots, DragDrop's drag frame, and (ring-less) the Team Roulette dialog --
+-- each repeating the same three-texture build and the same displayID-vs-icon
+-- texcoord flip. Returns a container frame sized `ringSize`, with:
+--
+--   .portrait / .mask / .ring   -- the pieces, for callers that still poke at them
+--   :SetDisplayID(id)           -- creature portrait (flips texcoord for the model),
+--                                  or clears on a nil/0 id
+--   :SetIcon(path)              -- a plain icon texture, no flip
+--   :SetPet(rec)                -- rec.displayID > 0 -> SetDisplayID, else rec.icon
+--                                  -> SetIcon, else Clear. The shape every slot uses.
+--   :Clear()                    -- hide the portrait, keep the ring
+--   :SetRingColor(r,g,b[,a]) / :ResetRingColor()  -- DragDrop's drop-target tint
+--
+-- Sizes default to Theme.CONTROL.PET_PORTRAIT / PET_PORTRAIT_RING; pass
+-- portraitSize/ringSize only to deviate (nothing does yet).
+local PET_PORTRAIT_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+local PET_PORTRAIT_RING_ATLAS = "footer_inactive-ring"
+
+function Widgets.PetPortrait(parent, opts)
+    opts = opts or {}
+    CheckOptions("PetPortrait", opts, OPTIONS.PetPortrait)
+
+    local portraitSize = opts.portraitSize or ns.Theme.CONTROL.PET_PORTRAIT
+    local ringSize     = opts.ringSize     or ns.Theme.CONTROL.PET_PORTRAIT_RING
+
+    local pp = Widgets.Frame(parent, {
+        size  = { ringSize, ringSize },
+        point = opts.point or { "CENTER" },
+        hidden = opts.hidden,
+    })
+
+    pp.portrait = Widgets.Texture(pp, {
+        layer    = "BACKGROUND",
+        sublayer = 1,
+        size     = { portraitSize, portraitSize },
+        point    = { "CENTER" },
+        hidden   = true,
+    })
+
+    pp.mask = Widgets.MaskTexture(pp, {
+        texture = PET_PORTRAIT_MASK,
+        size    = { portraitSize, portraitSize },
+        point   = { "CENTER" },
+    })
+    pp.portrait:AddMaskTexture(pp.mask)
+
+    pp.ring = Widgets.Texture(pp, {
+        layer     = "BORDER",
+        atlas     = PET_PORTRAIT_RING_ATLAS,
+        allPoints = true,
+    })
+
+    -- SetPortraitTextureFromCreatureDisplayID and SetTexture both drop mask
+    -- attachments on some clients, so the mask is re-added on every content change --
+    -- the Teams panel already did this defensively.
+    function pp:SetDisplayID(displayID)
+        if not displayID or displayID <= 0 then return self:Clear() end
+        SetPortraitTextureFromCreatureDisplayID(self.portrait, displayID)
+        self.portrait:SetTexCoord(1, 0, 0, 1)   -- creature portraits come in mirrored
+        self.portrait:AddMaskTexture(self.mask)
+        self.portrait:Show()
+    end
+
+    function pp:SetIcon(path)
+        if not path then return self:Clear() end
+        self.portrait:SetTexture(path)
+        self.portrait:SetTexCoord(0, 1, 0, 1)
+        self.portrait:AddMaskTexture(self.mask)
+        self.portrait:Show()
+    end
+
+    function pp:SetPet(rec)
+        if rec and rec.displayID and rec.displayID > 0 then
+            self:SetDisplayID(rec.displayID)
+        elseif rec and rec.icon then
+            self:SetIcon(rec.icon)
+        else
+            self:Clear()
+        end
+    end
+
+    function pp:Clear()
+        self.portrait:Hide()
+    end
+
+    function pp:SetRingColor(r, g, b, a)
+        self.ring:SetVertexColor(r, g, b, a or 1)
+    end
+
+    function pp:ResetRingColor()
+        self.ring:SetVertexColor(1, 1, 1, 1)
+    end
+
+    return pp
 end
 
 --------------------------------------------------------------------------------

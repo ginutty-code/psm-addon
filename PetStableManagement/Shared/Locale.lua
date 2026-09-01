@@ -337,7 +337,7 @@ L.Register({
     -- Team Roulette (Owned Pets -> Tools): the roll dialog and its button. The name
     -- pairs with the Models Browser's "Pet Roulette".
     ["Team Roulette"] = "Team Roulette",
-    ["Drawing from %d filtered pets"] = "Drawing from %d filtered pets",
+    ["Drawing from %d available pets"] = "Drawing from %d available pets",
     ["Re-roll"]        = "Re-roll",
     ["Apply now"]      = "Apply now",
     ["Save as team..."] = "Save as team...",
@@ -357,8 +357,8 @@ L.Register({
     ["Only %d of %d slots could be filled from the current filters."] =
         "Only %d of %d slots could be filled from the current filters.",
     ["Roll a random team"] = "Roll a random team",
-    ["Roll a random team from the %d filtered pets"] =
-        "Roll a random team from the %d filtered pets",
+    ["Roll a random team from the %d available pets"] =
+        "Roll a random team from the %d available pets",
 
     -- Dialog titles passed positionally to CreateBaseDialog, and the delete-all prompt.
     ["Save Pet Team"]   = "Save Pet Team",
