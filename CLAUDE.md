@@ -409,7 +409,7 @@ until the layering work separates it.
 so it doesn't only ever exercise the lupa fallback).
 
 The lint job **gates on errors, not warnings**. luacheck exits 1 for warnings and
-≥2 for errors; the project carries a stable warning baseline (10), so failing on any
+≥2 for errors; the project carries a stable warning baseline (9), so failing on any
 warning would fail every run. The count is printed in the job log — treat a change
 in it as something you caused, and account for it.
 
@@ -425,11 +425,11 @@ path is in `CLAUDE.local.md` (untracked). Run from the repo root:
 luacheck PetStableManagement PetStableManagement_ModelsBrowser Tests
 ```
 
-The current clean baseline is **10 warnings / 0 errors**. Treat any change in it as
+The current clean baseline is **9 warnings / 0 errors**. Treat any change in it as
 something you introduced, and account for it — a drop is as much a claim as a rise,
 and should be attributable to a specific edit.
 
-**All ten remaining are deliberate**, so don't "fix" them without reading this first:
+**All nine remaining are deliberate**, so don't "fix" them without reading this first:
 
 - **Five `setting read-only field`** (`StableFrame.PSM_*`, `ReleasePetButton.psm_hooked`,
   two `SlashCmdList` entries). luacheck models these Blizzard globals as read-only; the
@@ -437,9 +437,10 @@ and should be attributable to a specific edit.
 - **`TeamsData.lua` empty if branch** — the `not c and not s` case is an intentional
   documented no-op, and the branch after it is a correct XOR. Removing it would mean
   restructuring working code to satisfy a style check.
-- **`Panel.lua` unused argument `panel`** (an `onResize` handler) and **`SpecialTames.lua`
-  unused argument `text`** (an `OnHyperlinkClick` handler). Both are *callback signatures*
-  — the first ours, the second Blizzard's. The names document the contract.
+- **`SpecialTames.lua` unused argument `text`** (an `OnHyperlinkClick` handler) — a
+  Blizzard callback signature; the name documents the contract. (`Panel.lua`'s
+  `onResize` handler used to be a tenth here for the same reason; it now reads
+  `panel` to re-assert the rail-aware minimum width, so the warning is gone.)
 - **`ModelRow.lua` unused `index`** and **`SpecialTames.lua` unused `scrollW`**. Each of
   these functions has a **twin** — `NPCRow:UpdateItemRow` and `AbilityBrowser:ReflowCards` —
   with the same signature, and the twin *uses* the parameter. `ModelsPanel` calls both

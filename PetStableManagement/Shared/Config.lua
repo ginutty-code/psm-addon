@@ -28,13 +28,17 @@ ns.Config = {
     DROPDOWN_WIDTH   = 90,
 
     -- Panel
-    -- 570, not the original 550: the 2x2 filter grid (two dropdown columns plus the
+    -- 578, not the original 550: the 2x2 filter grid (two dropdown columns plus the
     -- Sort dropdown on the right) needs a little more breathing room than the panel
-    -- had when it was three dropdowns across one row. Also the fallback default for
+    -- had when it was three dropdowns across one row (550 -> 570), and the Owned Pets
+    -- rail's left/right insets grew by a net 8px for visual parity with Models
+    -- Browser's rail (570 -> 578, docs/Collapsible_left_rail_plan.md 5e) -- kept here
+    -- rather than absorbed by the pet list, so the list's rendered width doesn't
+    -- shrink as a side effect of a padding-only change. Also the fallback default for
     -- TeamsPanel's width (until a player resizes it -- see GetTeamsPanelWidth), so
-    -- that panel grows by the same 20px until then, deliberately, since nothing about
-    -- growing the shared baseline should read as a bug to fix later.
-    DEFAULT_PANEL_WIDTH  = 570,
+    -- that panel grows by the same amount until then, deliberately, since nothing
+    -- about growing the shared baseline should read as a bug to fix later.
+    DEFAULT_PANEL_WIDTH  = 578,
     DEFAULT_PANEL_HEIGHT = 640,
     DEFAULT_ROW_WIDTH    = 400,
     MIN_PANEL_WIDTH      = 500,
@@ -49,6 +53,13 @@ ns.Config = {
     --   up to 575 in-game (SectionHeader/button metrics run ~2px over the estimate).
     -- TeamsPanel keeps the smaller shared MIN_PANEL_HEIGHT -- it has no rail.
     MIN_OWNED_PETS_HEIGHT = 575,
+    -- Owned Pets width is pinned: the pet list is a fixed-width design (a hand
+    -- resize only ever grows it, never shrinks it below this), and the collapsible
+    -- rail already varies the panel width by its own measure. Equal to
+    -- DEFAULT_PANEL_WIDTH on purpose -- kept a separate constant so TeamsPanel's
+    -- MIN_PANEL_WIDTH stays independent. Expanded, the effective floor is this plus
+    -- the measured rail width (PanelManager:SetMinWidth, from Panel/Filters).
+    MIN_OWNED_PETS_WIDTH = 578,
 
     -- Layout
     CONTENT_PADDING    = 6,

@@ -39,7 +39,13 @@ local function CreateTristateCheckbox(parent, anchorTo, label, onChanged)
         point = { "TOPLEFT", 18, -19 }
     end
 
-    local cb = Widgets.CheckBox(parent, { point = point })
+    -- True parent is the Show Only box itself, not the panel -- all five toggles that
+    -- reach this helper are Show Only's content. Parenting to `parent` (the panel) put
+    -- them at the panel's own frame level, one level below showOnlyFrame's (nested
+    -- inside panel.rail since 5b) -- the box's backdrop rendered on top of them, and
+    -- since they weren't true children, hiding the box on rail-collapse left them on
+    -- screen at their last position instead of hiding with it.
+    local cb = Widgets.CheckBox(parent.showOnlyFrame, { point = point })
 
     cb.text = Widgets.Label(cb, {
         fontSize = PSM.Theme.SIZE.SMALL,
@@ -627,13 +633,24 @@ function PSM.ModelsFilters:BuildUnifiedFilterSystem(panel)
     panel.locationContinents  = locationContinents
 
         ---------- Filter frame ----------
-    panel.unifiedFilterFrame = PSM.Widgets.Frame(panel, {
-        point       = { "TOPLEFT", panel.showOnlyFrame, "BOTTOMLEFT", 0, -5 },
+    -- Deliberately still a hand-rolled frame, not PanelManager:CreateRailBox, unlike
+    -- toolsFrame/showOnlyFrame (see docs/Collapsible_left_rail_plan.md 5a/5b). This
+    -- box's own tab row (Families/Expansions/Locations) already reads as its title,
+    -- and CreateRailBox's gold section band would sit on top of that -- a tab/header
+    -- redesign question deferred, not answered here.
+    --
+    -- Parented to `panel.rail` (not `panel`) and handed to `rail:AddBox` like the
+    -- other two boxes, so it hides/shows and moves with them on collapse -- AddBox
+    -- only re-anchors and toggles `:SetShown()`, it has no dependency on the box
+    -- being a CreateRailBox product. No explicit `point`: AddBox sets the anchor
+    -- (stacked under showOnlyFrame, same -5px gap as before).
+    panel.unifiedFilterFrame = PSM.Widgets.Frame(panel.rail, {
         size        = { 210, 440 },
         backdrop    = "TOOLTIP",
         color       = PSM.Config.COLORS.BACKGROUND,
         borderColor = PSM.Theme.COLOR.SILVER,
     })
+    panel.rail:AddBox(panel.unifiedFilterFrame)
 
     ---------- Tab buttons ----------
     local tabFrame = PSM.Widgets.Frame(panel.unifiedFilterFrame, {

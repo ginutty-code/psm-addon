@@ -184,6 +184,14 @@ L.Register({
     ["Also narrows the Families list below to exotic-only."] =
         "Also narrows the Families list below to exotic-only.",
 
+    -- Left filter rail collapse toggle (PanelManager:CreateRail). The word beside the
+    -- icon ("Collapse" open / "Expand" shut, the latter rotated 90deg), and the
+    -- icon's tooltip title.
+    ["Collapse"]         = "Collapse",
+    ["Expand"]           = "Expand",
+    ["Collapse tools and filters"] = "Collapse tools and filters",
+    ["Expand tools and filters"]   = "Expand tools and filters",
+
     -- Owned Pets filter summary (the faint line under the search box). "Favorites",
     -- "Exotic", "Duplicates", "Families", "Search", "Filters: %s" and "Not %s" are
     -- already declared above / with the Models Browser summary; these are the rest.
