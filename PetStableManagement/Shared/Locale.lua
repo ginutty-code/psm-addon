@@ -189,8 +189,8 @@ L.Register({
     -- icon's tooltip title.
     ["Collapse"]         = "Collapse",
     ["Expand"]           = "Expand",
-    ["Collapse filters"] = "Collapse filters",
-    ["Expand filters"]   = "Expand filters",
+    ["Collapse tools and filters"] = "Collapse tools and filters",
+    ["Expand tools and filters"]   = "Expand tools and filters",
 
     -- Owned Pets filter summary (the faint line under the search box). "Favorites",
     -- "Exotic", "Duplicates", "Families", "Search", "Filters: %s" and "Not %s" are

@@ -117,7 +117,7 @@ hide/move rather than a list of boxes each panel tracks by hand. This is the
   a `Widgets.IconButton { skin = "collapsebutton" }`, ~16px, anchored top-left near
   the rail's top corner (roughly `{ "TOPLEFT", panel, "TOPLEFT", 6, opts.point[2] }`),
   left/right chevron texture (or the `UI-PlusButton` +/- pair `GroupedView` uses),
-  tooltip "Collapse filters" / "Expand filters". Created inside `CreateRail` and
+  tooltip "Collapse tools and filters" / "Expand tools and filters". Created inside `CreateRail` and
   stored as `rail.toggleButton`.
 - `CreateRail` reads `PetStableManagementDB.settings[savedKey]` at build time and
   applies the initial state after the boxes are added (a `C_Timer.After(0, …)` or an
@@ -215,6 +215,32 @@ It must:
 `settings.modelsRailCollapsed`, default `false`, documented at `Core.lua:53` beside
 `modelsViewMode`.
 
+### 5c. Post-ship fixes from the Owned Pets rollout (carry forward to 5b)
+
+Two bugs surfaced after Owned Pets shipped, both fixed in `Shared/PanelManager.lua`
+and both relevant here:
+
+- **Toggle icon direction.** The `RAIL_ICONS.npe` atlas mapping had `expand`/
+  `collapse` swapped (arrow pointed the wrong way for what the click was about to
+  do). Fixed in the shared `RAIL_ICONS` table in `CreateRail`, so **no action needed
+  for Models Browser** — 5b inherits the corrected mapping automatically.
+- **`SetWidthAnchored` can push a maximized panel off-screen.** Owned Pets' rail
+  lives in the panel's own width (expand adds `railW` to the panel, keeping the pet
+  list the same size either way — see §3). When the panel was already maximized
+  (`width == UIParent:GetWidth() - 16`, the same bound `ApplyResizeBounds` enforces),
+  expanding the rail added `railW` on top of that and the right edge went past the
+  screen edge. Fixed by clamping `SetWidthAnchored`'s target width to
+  `panel._resizeConfig.maxWidth` (or the same `UIParent:GetWidth() - 16` fallback) —
+  at that bound the panel stops growing and the content anchored to the rail's
+  moving edge narrows instead of overflowing.
+
+  **Doesn't bite Models Browser today** (`resizable = false`, `showMaximizeButton =
+  false` — `ModelsPanel.lua:186/188` — so its width never changes at all, maximized
+  or not). It becomes live the moment the Models Browser width-resizability goal is
+  implemented (`docs/architecture.html` / long-standing goal captured in project
+  memory) and that panel gets a rail whose expand adds to panel width — at that
+  point re-check this clamp still does the right thing rather than re-deriving it.
+
 ### 6. Non-goals (explicit)
 
 - **`MIN_PANEL_WIDTH` is not lowered when collapsed** *in this change*. Collapse
@@ -238,7 +264,7 @@ It must:
 | `PetStableManagement/OwnedPets/Filters.lua` | `BuildFilters` builds `panel.rail` and creates the three boxes into it; defines `onToggle` |
 | `PetStableManagement/OwnedPets/Panel.lua` | `scrollFrame` point 1 anchors to `panel.rail`; `onShow` applies the saved collapse state |
 | `PetStableManagement/Core.lua` | `ownedRailCollapsed = false` in the settings defaults block |
-| `PetStableManagement/Shared/Locale.lua` | `L("Collapse filters")`, `L("Expand filters")` (tooltip) |
+| `PetStableManagement/Shared/Locale.lua` | `L("Collapse tools and filters")`, `L("Expand tools and filters")` (tooltip) |
 
 **Models Browser (follow-up, two PRs):**
 

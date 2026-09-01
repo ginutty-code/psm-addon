@@ -771,8 +771,8 @@ function ns.PanelManager:CreateRail(panel, opts)
         onClick = function() rail:ToggleCollapsed() end,
         tooltip = function()
             return {
-                title = rail:IsCollapsed() and ns.L("Expand filters")
-                                            or ns.L("Collapse filters"),
+                title = rail:IsCollapsed() and ns.L("Expand tools and filters")
+                                            or ns.L("Collapse tools and filters"),
             }
         end,
     })
