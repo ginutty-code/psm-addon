@@ -5,11 +5,13 @@ local _, ns = ...
 
 ns.UI = ns.UI or {}
 
--- List view insets each row this far from ns.state.content's left edge; the column
--- width below reserves the same on the right, so a row (and its duplicate-highlight
--- border) sits centred inside rowsFrame's silver frame instead of flush against its
--- right edge. Must match the x offset used when the row is placed in UpdateVisibleRows.
-local LIST_ROW_GUTTER = 4
+-- List view reserves this much on each outer edge when sizing columns, so a row (and
+-- its duplicate-highlight border) doesn't sit flush against rowsFrame's silver frame.
+-- The row's actual left placement is LIST_ROW_LEFT_INSET (2px tighter): the silver
+-- frame reads as slightly right-of-centre otherwise, and the extra 2px between the
+-- row's left border and the model card keeps the duplicate border off the favorite star.
+local LIST_ROW_GUTTER     = 4
+local LIST_ROW_LEFT_INSET = LIST_ROW_GUTTER - 2
 
 -- The `PSM.UI:ApplyElvUISkin` / `PSM.UI.ElvUITexture` shims are gone. They forwarded to
 -- PSM.Skin so pre-kit call sites kept working during A6; the last of the 86 migrated with
@@ -571,6 +573,8 @@ function ns.UI:UpdateVisibleRows()
                 width     = ns.Config.DEFAULT_ROW_WIDTH,
                 height    = ns.Config.ROW_HEIGHT,
                 modelSize = 110,
+                modelInset = 4,   -- push the model card 2px right of the default so its
+                                  -- favorite star clears the row's duplicate border
                 showMagnifyButton = true,
                 showTeamButtons   = true,
             })
@@ -610,7 +614,7 @@ function ns.UI:UpdateVisibleRows()
 
             row:ClearAllPoints()
             row:SetPoint("TOPLEFT", ns.state.content, "TOPLEFT",
-                LIST_ROW_GUTTER + col * (colWidth + colSpacing),
+                LIST_ROW_LEFT_INSET + col * (colWidth + colSpacing),
                 -(rowIdx - 1) * ns.Config.ROW_HEIGHT)
             row:SetWidth(colWidth)
 
