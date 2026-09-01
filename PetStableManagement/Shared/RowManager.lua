@@ -389,11 +389,15 @@ function ns.RowManager:CreateBaseRow(parent, config)
     CreateSeparator(row)
 
     -- Model
-    local modelSize = config.modelSize or ns.Config.MODEL_SIZE
+    local modelSize  = config.modelSize or ns.Config.MODEL_SIZE
+    -- How far the model card sits from the row's left edge. Defaults to 2 (flush against
+    -- the row border); the list view passes 4 so its favorite star clears the duplicate
+    -- border. The favorite/icon anchor to row.model, so they follow this offset.
+    local modelInset = config.modelInset or 2
     row.model = Widgets.Frame(row, {
         frameType = "PlayerModel",
         size      = { modelSize, modelSize },
-        point     = { "LEFT", row, "LEFT", 2, 0 },
+        point     = { "LEFT", row, "LEFT", modelInset, 0 },
     })
     row.model.rotation   = math.pi * 2
     row.model.zoom       = 1.0
@@ -455,11 +459,11 @@ function ns.RowManager:CreateBaseRow(parent, config)
     row.favoriteButton  = favBtn
     row._setFavTexCoords = SetFavTexCoords  -- expose for UpdateFavoriteButton
 
-    -- Icon fallback
+    -- Icon fallback -- shares the model's inset so it lands where the model would
     row.icon = Widgets.Texture(row, {
         layer  = "ARTWORK",
         size   = { ns.Config.ICON_SIZE, ns.Config.ICON_SIZE },
-        point  = { "LEFT", row, "LEFT", 2, 0 },
+        point  = { "LEFT", row, "LEFT", modelInset, 0 },
         hidden = true,
     })
 
