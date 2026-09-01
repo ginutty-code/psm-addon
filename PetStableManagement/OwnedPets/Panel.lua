@@ -223,7 +223,7 @@ function ns.UI:AddOwnedPetsElements(panel)
         template  = "UIPanelScrollFrameTemplate",
         skin      = "scrollframe",
         point     = {
-            { "TOPLEFT",     panel.rail, "TOPRIGHT", 14, -ROW_BORDER_INSET },
+            { "TOPLEFT",     panel.rail, "TOPRIGHT", 25, -ROW_BORDER_INSET },
             { "BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30, 35 },
         },
     })

@@ -9,7 +9,11 @@ PSM.ModelsPanel = PSM.ModelsPanel or {}
 
 -- Panel-specific constants (base values; scaling applied dynamically)
 local MODELS_CONFIG = {
-    PANEL_WIDTH    = 1100,
+    -- 1100 + 15: the +15 offsets the rail's left inset growing from 10 to 25 (rail
+    -- parity with Owned Pets, docs/Collapsible_left_rail_plan.md 5d), so petsFrame's
+    -- rendered width is unchanged from the original 1100-wide layout in both rail
+    -- states -- see AddModelsBrowserElements's rail comment.
+    PANEL_WIDTH    = 1115,
     PANEL_HEIGHT   = 820,
     ROW_HEIGHT     = 120,
     MODEL_SIZE     = 100,
@@ -98,6 +102,20 @@ local function GoToPage(panel, page)
     else
         PSM.ModelsPanel:UpdateModelsPanelLayout()
     end
+end
+
+-- The panel's one content-reflow entrypoint (docs/Collapsible_left_rail_plan.md 5b):
+-- re-derive column widths / the NPC column grid from petsFrame's *current* width and
+-- redraw the page in place. Today's only caller is the rail's onToggle; a future
+-- width-resize handler calls this same function rather than growing a second path.
+-- GoToPage with the current page is exactly "recompute and redraw without moving
+-- pages" -- both UpdateModelsPanelLayout and UpdateNPCPanelLayout read
+-- petsFrame:GetWidth() fresh every call, so this is safe to call repeatedly
+-- (including mid-drag, once dragging exists).
+function PSM.ModelsPanel:ReflowContent(panel)
+    panel = panel or PSM.state.modelsPanel
+    if not panel or not panel.petsFrame then return end
+    GoToPage(panel, panel.currentPage or 1)
 end
 
 -- ─────────────────────────────────────────────
@@ -189,6 +207,30 @@ function PSM.ModelsPanel:CreateModelsPanel()
 
         onShow = function(p)
             p._layoutDone = false
+
+            -- Restore the saved rail state before anything reads petsFrame's width.
+            -- ApplyInitialState only does the visible half (box show/hide, rail
+            -- position, toggle glyph) -- no onToggle -- so the width restore and the
+            -- reflow are this call's job, same split Owned Pets' onShow uses. The panel
+            -- is always *constructed* at MODELS_CONFIG.PANEL_WIDTH -- the *expanded*
+            -- width, matching this panel's pre-collapse-feature size -- so a saved
+            -- collapsed rail needs the rail's width subtracted once here.
+            -- p._railShrunk is the tracking bit (also maintained by AddModelsBrowserElements's
+            -- onToggle), same role as Owned Pets' panel._railWidened, just measuring
+            -- from the opposite baseline.
+            if p.rail then
+                p.rail:ApplyInitialState()
+                local wantCollapsed = p.rail:IsCollapsed()
+                if wantCollapsed and not p._railShrunk then
+                    PSM.PanelManager:SetWidthAnchored(p, p:GetWidth() - p.rail.width)
+                    p._railShrunk = true
+                elseif not wantCollapsed and p._railShrunk then
+                    PSM.PanelManager:SetWidthAnchored(p, p:GetWidth() + p.rail.width)
+                    p._railShrunk = false
+                end
+                PSM.ModelsPanel:ReflowContent(p)
+            end
+
             C_Timer.After(0.01, function()
                 if p.showPetsInMyZone then
                     p.currentPlayerZone = PSM.ModelsFilters:GetPlayerZone()
@@ -421,39 +463,58 @@ end
 
 function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     local Widgets = PSM.Widgets
+    local PM      = PSM.PanelManager
 
-    -- Tools: navigation to the other browser panels. Topmost in the rail, level with
-    -- the title rather than FILTER_TOP -- the rail column (x=10..220) never shares
-    -- horizontal space with the centered title/search box, so it can start as high as
-    -- the title itself with no collision, recovering the room Tools needs without
-    -- shrinking Show Only or Unified Filters below it.
-    panel.toolsFrame = Widgets.Frame(panel, {
-        size        = { 210, 125 },
-        point       = { "TOPLEFT", 10, PSM.Theme.CHROME.TITLE_Y },
-        backdrop    = "TOOLTIP",
-        color       = PSM.Config.COLORS.BACKGROUND,
-        borderColor = PSM.Theme.COLOR.SILVER,
+    -- The left rail, as one PanelManager:CreateRail container -- see
+    -- docs/Collapsible_left_rail_plan.md 5b. Topmost in the rail, level with the title
+    -- rather than FILTER_TOP -- the rail column never shares horizontal space with the
+    -- centered title/search box, so it can start as high as the title itself with no
+    -- collision, recovering the room Tools needs without shrinking Show Only or
+    -- Unified Filters below it.
+    --
+    -- Left inset 25, not a smaller value: matches Owned Pets' rail inset for visual
+    -- symmetry between the two panels (both were reviewed side by side and found to
+    -- have mismatched left/right padding -- see 5d). The panel is 1100+15px wider than
+    -- its pre-parity value specifically to absorb this 15px shift with no other
+    -- geometry changing -- see MODELS_CONFIG.PANEL_WIDTH's comment.
+    --
+    -- Like Owned Pets, the rail lives in the *panel's* own width, not the content
+    -- area's: petsFrame keeps a constant size and the panel shrinks/grows around it
+    -- (SetWidthAnchored below), rather than petsFrame absorbing the freed column.
+    -- `resizable = false` only disables the user's drag handle -- SetWidth still
+    -- works fine called from code. MODELS_CONFIG.PANEL_WIDTH is built as the
+    -- *expanded* size (this panel's size before the collapse feature existed, kept
+    -- as the default so nobody who has never touched the toggle sees a size change);
+    -- collapsing subtracts the rail's width, expanding adds it back.
+    local RAIL_WIDTH = 210
+    panel.rail = PM:CreateRail(panel, {
+        point    = { 25, PSM.Theme.CHROME.TITLE_Y },
+        width    = RAIL_WIDTH,
+        savedKey = "modelsRailCollapsed",
+        onToggle = function(collapsed)
+            if collapsed then
+                PM:SetWidthAnchored(panel, panel:GetWidth() - RAIL_WIDTH)
+            else
+                PM:SetWidthAnchored(panel, panel:GetWidth() + RAIL_WIDTH)
+            end
+            panel._railShrunk = collapsed
+            PSM.ModelsPanel:ReflowContent(panel)
+        end,
     })
 
-    Widgets.SectionHeader(panel.toolsFrame, {
-        width = 200,
-        point = { "TOPLEFT", 5, -5 },
-        text  = PSM.L("Tools"),
+    panel.toolsFrame = PM:CreateRailBox(panel, {
+        rail          = panel.rail,
+        width         = RAIL_WIDTH,
+        contentHeight = 84,   -- old flat height 125, less CreateRailBox's 41px band overhead
+        headerText    = PSM.L("Tools"),
     })
 
     -- Show Only filters frame
-    panel.showOnlyFrame = Widgets.Frame(panel, {
-        size        = { 210, 160 },
-        point       = { "TOPLEFT", panel.toolsFrame, "BOTTOMLEFT", 0, -5 },
-        backdrop    = "TOOLTIP",
-        color       = PSM.Config.COLORS.BACKGROUND,
-        borderColor = PSM.Theme.COLOR.SILVER,
-    })
-
-    Widgets.SectionHeader(panel.showOnlyFrame, {
-        width = 200,
-        point = { "TOPLEFT", 5, -5 },
-        text  = PSM.L("Show Only"),
+    panel.showOnlyFrame = PM:CreateRailBox(panel, {
+        rail          = panel.rail,
+        width         = RAIL_WIDTH,
+        contentHeight = 119,  -- old flat height 160, less the same 41px
+        headerText    = PSM.L("Show Only"),
     })
 
     local MF = PSM.ModelsFilters
@@ -476,19 +537,26 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     -- re-guessing their own offset from petsFrame's bottom edge.
     local FOOTER_INSET = 50
 
-    -- Pets frame (2-column layout). Anchored to Show Only's top, pulled up 30px --
-    -- a visual-balance choice specific to this panel, not a shared boundary: Models
-    -- Browser is the only LEFT_RAIL panel, so there's no sibling panel this could drift
-    -- out of step with. Level with Show Only exactly (offset 0) read as too far below
-    -- the header once Tools pushed Show Only down; this splits the difference without
-    -- moving Tools any higher (it's already at TITLE_Y, the highest it can go).
-    local PETS_FRAME_TOP_LIFT = 50
+    -- Pets frame (2-column layout). Anchored to the *rail container's* top-right, not
+    -- showOnlyFrame's -- see docs/Collapsible_left_rail_plan.md 5b: the rail is what
+    -- moves on collapse, so petsFrame has to track its edge, not one box's, to shift
+    -- left with it (petsFrame's own size stays constant -- the panel shrinks around
+    -- it, see the rail's onToggle). panel.rail's TOPRIGHT is level with Tools (the
+    -- rail's own top),
+    -- well above where showOnlyFrame's TOPRIGHT used to sit -- PETS_FRAME_TOP_LIFT is
+    -- negative now to land at the exact same screen position as before this change
+    -- (it was +50 off showOnlyFrame's top; showOnlyFrame's top itself was toolsFrame's
+    -- height + the 5px stack gap below the rail's top, i.e. -130, so -130+50 = -80
+    -- keeps the expanded-state position pixel-identical). X is untouched: rail and
+    -- every box in it share the same 210px width and left edge, so the rail's
+    -- TOPRIGHT X equals showOnlyFrame's TOPRIGHT X exactly.
+    local PETS_FRAME_TOP_LIFT = -80
     local petsFrame = Widgets.Frame(panel, {
         backdrop    = "TOOLTIP",
         color       = PSM.Config.COLORS.BACKGROUND,
         borderColor = PSM.Theme.COLOR.SILVER,  -- same as Tools/Show Only/Unified Filters
         point       = {
-            { "TOPLEFT",     panel.showOnlyFrame, "TOPRIGHT", 25,  PETS_FRAME_TOP_LIFT },
+            { "TOPLEFT",     panel.rail, "TOPRIGHT", 25,  PETS_FRAME_TOP_LIFT },
             { "BOTTOMRIGHT", -10, FOOTER_INSET },
         },
     })

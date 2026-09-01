@@ -43,10 +43,14 @@ PSM.NPCRow.TABLE_INSET   = TABLE_INSET
 -- (npcViewColumnWidths). displayIds is the flex column -- its `width` is only a
 -- placeholder, since RecomputeColumnLayout gives it whatever the others leave.
 --
--- These have to add up: the panel is a fixed 1100 wide and not resizable, so the table's
--- usable width is a known 815 and the widths below are sized against it rather than picked
--- per column. As set, Display IDs keeps 106px with every column shown and 204px at the
--- default set, and the longest real values still fit.
+-- These have to add up: at the panel's original expanded width (1100, now 1115 --
+-- see MODELS_CONFIG.PANEL_WIDTH) the table's usable width was a known ~815, and the
+-- widths below are sized against that rather than picked per column. The left rail
+-- can now collapse (docs/Collapsible_left_rail_plan.md 5b), widening the table, and
+-- RecomputeColumnLayout's flex column absorbs whatever that frees -- these defaults
+-- are the *narrow* baseline, not a hard requirement. As set, Display IDs keeps 106px
+-- with every column shown and 204px at the default set, and the longest real values
+-- still fit.
 PSM.NPCRow.COLUMNS = {
     { key = "npcId",          label = PSM.L("ID"),           width = 40,  optional = true,  default = true  },
     { key = "name",           label = PSM.L("Name"),         width = 120, optional = false, default = true  },

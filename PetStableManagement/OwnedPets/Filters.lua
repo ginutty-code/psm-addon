@@ -375,10 +375,10 @@ end
 -- ─── Rail width ───────────────────────────────────────────────────────────────
 
 -- The Owned Pets left rail is sized to its own content, not to Models Browser's
--- flat 210px -- that panel is a fixed 1100px wide, this one is 500-570, and a
--- 210px rail here would draw the centered search box straight through the rail's
--- border. Every term is measured against the real in-game widget rather than the
--- planning mockup's substitute-web-font guess. Computed once, memoised.
+-- flat 210px -- that panel is a fixed 1100px (now 1115) wide, this one is 500-578,
+-- and a 210px rail here would draw the centered search box straight through the
+-- rail's border. Every term is measured against the real in-game widget rather than
+-- the planning mockup's substitute-web-font guess. Computed once, memoised.
 local railWidth
 local function RailWidth()
     if railWidth then return railWidth end
@@ -438,13 +438,19 @@ function ns.UI:BuildFilters(panel, railTop)
     -- its buttons by Panel.lua (which owns Export/Pet Teams' click handlers); Show
     -- Only and Filters are built and filled here.
     -- The rail's left inset doubles as the collapsed strip's width: when collapsed the
-    -- container's right edge sits at this x, and the list's silver border lands ~9px
-    -- further in (the 14px rail->list gap in Panel.lua less the 5px row border), so
-    -- the strip is inset + ~9. 28 -> ~37px strip, enough for the rotated "Expand" word
-    -- (~20px at TITLE) plus a clear margin each side. Widening it here narrows the pet
-    -- list by the same amount in *both* states, so text wrapping stays identical.
+    -- container's right edge sits at this x, and the list's silver border lands
+    -- further in by (rail->list gap in Panel.lua, now 25px, matching Models Browser's
+    -- scrollbar-driven gap for visual symmetry between the two panels' rails) less the
+    -- 5px row border, so the strip is inset + ~20. 25 -> ~45px strip, comfortably past
+    -- the rotated "Expand" word (~20px at TITLE) plus a clear margin each side --
+    -- 25 was chosen (down from an earlier 28) to match Models Browser's left inset,
+    -- and the bigger right gap here more than covers the few px given up on the left.
+    -- The net +8px of gap is absorbed by DEFAULT_PANEL_WIDTH / MIN_OWNED_PETS_WIDTH
+    -- (570 -> 578, Shared/Config.lua), not by the pet list -- so the list's rendered
+    -- width, and therefore its text wrapping, is unchanged from before this parity
+    -- pass in both rail states.
     panel.rail = PM:CreateRail(panel, {
-        point    = { 28, railTop or Theme.CHROME.TITLE_Y },
+        point    = { 25, railTop or Theme.CHROME.TITLE_Y },
         width    = railW,
         savedKey = "ownedRailCollapsed",
         -- The panel carries the rail in its own width: the strip is added on the
