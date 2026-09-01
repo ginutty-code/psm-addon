@@ -45,7 +45,20 @@ end
 -- the frame's current screen position first makes the direction deterministic. The
 -- panel keeps its on-screen spot (StableFrame does not move once shown), it just
 -- stops tracking that anchor.
+--
+-- Clamped to the panel's own max-width bound (same source ApplyResizeBounds reads)
+-- so a maximized panel -- already at that bound, with no room on either edge --
+-- can't be grown past the screen's right edge by a rail expanding into it. Below
+-- the max, this is a no-op: the width passed in already fits. At the max, the
+-- panel simply doesn't grow further; the content anchored to the moving rail
+-- edge and the panel's now-fixed edge narrows on its own.
 function ns.PanelManager:SetWidthAnchored(panel, width)
+    local config = panel._resizeConfig
+    local maxWidth = config and (config.maxWidth or (UIParent:GetWidth() or 1920) - 16)
+    if maxWidth then
+        width = math.min(width, maxWidth)
+    end
+
     local left, top = panel:GetLeft(), panel:GetTop()
     if left and top then
         panel:ClearAllPoints()
@@ -585,8 +598,8 @@ local RAIL_TOGGLE_SIZE = 24   -- toggle icon button, square. Blizzard's Bigger/S
 local RAIL_ICON_HILITE = "Interface\\Buttons\\UI-Common-MouseHilight"
 local RAIL_ICONS = {
     npe = {  -- big gold new-player-experience arrows (atlas)
-        expand   = "NPE_ArrowRight",
-        collapse = "NPE_ArrowLeft",
+        expand   = "NPE_ArrowLeft",
+        collapse = "NPE_ArrowRight",
     },
 }
 
