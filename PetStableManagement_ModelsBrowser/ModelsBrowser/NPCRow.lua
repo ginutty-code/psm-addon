@@ -167,20 +167,6 @@ local COLUMN_GAP       = 6   -- horizontal gap between two columns
 local MIN_COLUMN_WIDTH = 30
 local FLEX_COLUMN      = "displayIds"
 
--- The flex column gets its own, larger floor. It is not a label like the others: it
--- holds a comma-separated list of 6-digit ids, so 30px shows part of one number and
--- nothing else, whereas 30px on "NK" or "A/H" is a perfectly readable column.
--- Raising the shared MIN_COLUMN_WIDTH instead would have forced ID, NK, A/H and Note
--- -- all 28-42 by default -- up to 60 each, spending ~100px to make the column this
--- floor exists to protect *smaller*.
---
--- 90 is set by the *header*, not the data: "Display IDs" runs ~65px at Theme.SIZE.BODY,
--- which the 4px label inset plus the right-anchored sort arrow (shown on whichever
--- column is sorted) push toward ~85px. Below that the arrow starts to overlap the
--- label -- so the one column you cannot widen would obscure the indicator telling you
--- it is the sorted one.
-local MIN_FLEX_WIDTH   = 90
-
 -- Width available to the columns themselves. Header and rows are both TABLE_INSET
 -- narrower than petsFrame on each side and carry CELL_PAD of their own padding
 -- inside that, so the columns get what is left after both. Derived rather than a
@@ -252,7 +238,7 @@ function PSM.NPCRow:RecomputeColumnLayout(panel)
             else                          shrinkNeed = shrinkNeed + w end
         end
     end
-    local room   = totalWidth - COLUMN_GAP * math.max(0, #visible - 1) - MIN_FLEX_WIDTH - pinnedNeed
+    local room   = totalWidth - COLUMN_GAP * math.max(0, #visible - 1) - MIN_COLUMN_WIDTH - pinnedNeed
     local factor = (shrinkNeed > 0 and room < shrinkNeed) and math.max(0.35, room / shrinkNeed) or 1
     panel._npcColumnScale = factor
 
@@ -264,8 +250,8 @@ function PSM.NPCRow:RecomputeColumnLayout(panel)
             -- Flex column: absorbs whatever the fixed columns leave, which is what
             -- keeps the overall table width constant while they resize. With `factor`
             -- active the fixed columns have already been squeezed to fit, so this
-            -- lands at MIN_FLEX_WIDTH.
-            width = math.max(MIN_FLEX_WIDTH, totalWidth - (x - CELL_PAD))
+            -- lands at MIN_COLUMN_WIDTH.
+            width = math.max(MIN_COLUMN_WIDTH, totalWidth - (x - CELL_PAD))
         else
             local w = StoredWidth(panel, col)
             width = (w <= MIN_COLUMN_WIDTH) and w
@@ -298,22 +284,59 @@ function PSM.NPCRow:MaxWidthForColumn(panel, key)
     if not panel or not panel.petsFrame then return nil end
     if key == FLEX_COLUMN then return nil end
 
-    local visible  = VisibleColumns(self, panel)
-    local hasFlex  = false
-    local claimed  = 0          -- what the other fixed columns already take
+    local visible = VisibleColumns(self, panel)
+    local hasFlex = false
+    local claimed = 0
     for _, col in ipairs(visible) do
         if col.key == FLEX_COLUMN then
             hasFlex = true
         elseif col.key ~= key then
-            claimed = claimed + StoredWidth(panel, col)
+            -- Every other column (both left and right) can shrink toward MIN_COLUMN_WIDTH
+            claimed = claimed + MIN_COLUMN_WIDTH
         end
     end
     if not hasFlex then return nil end
 
-    -- Laying out n columns spends COLUMN_GAP between each adjacent pair: n-1 gaps.
-    -- What is reserved at the end is the *flex* column's floor, not a fixed column's.
-    local budget = TableWidth(panel) - (COLUMN_GAP * (#visible - 1)) - MIN_FLEX_WIDTH
+    local budget = TableWidth(panel) - (COLUMN_GAP * (#visible - 1)) - MIN_COLUMN_WIDTH
     return math.max(MIN_COLUMN_WIDTH, budget - claimed)
+end
+
+-- Distributes `displayDelta` px of shrink (positive) or growth (negative), caused by
+-- dragging `key` wider/narrower, across every visible column to key's right --
+-- weighted by each one's last-drawn display width -- and writes the result back as
+-- *stored* width (dividing by the scale factor, same conversion the dragged column's
+-- own delta already uses). The flex column is deliberately left untouched: it has no
+-- stored width of its own, so its share flows through automatically as whatever
+-- RecomputeColumnLayout leaves over once the others claim theirs (conservation of the
+-- fixed total table width).
+function PSM.NPCRow:ShrinkColumnsRightOf(panel, key, displayDelta)
+    if displayDelta == 0 then return end
+    local layout = panel.npcColumnLayout
+    if not layout then return end
+
+    local layoutByKey = {}
+    for _, l in ipairs(layout) do layoutByKey[l.key] = l end
+
+    local passedKey, rightCols, rightTotal = false, {}, 0
+    for _, col in ipairs(VisibleColumns(self, panel)) do
+        if col.key == key then
+            passedKey = true
+        elseif passedKey then
+            local w = (layoutByKey[col.key] and layoutByKey[col.key].width) or StoredWidth(panel, col)
+            table.insert(rightCols, { col = col, width = w })
+            rightTotal = rightTotal + w
+        end
+    end
+    if rightTotal <= 0 then return end
+
+    local f = panel._npcColumnScale or 1
+    for _, entry in ipairs(rightCols) do
+        if entry.col.key ~= FLEX_COLUMN then
+            local share      = entry.width / rightTotal
+            local newDisplay = math.max(MIN_COLUMN_WIDTH, entry.width - displayDelta * share)
+            panel.npcColumnWidths[entry.col.key] = newDisplay / f
+        end
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -344,6 +367,10 @@ local function StopResize(handle)
     if panel and panel.npcColumnWidths then
         PetStableManagementDB.settings.npcViewColumnWidths = PSM.Utils.DeepCopy(panel.npcColumnWidths)
     end
+    handle.startWidths = nil
+    handle.startX = nil
+    handle.lastDeltaX = nil
+    handle.startLayoutByKey = nil
 end
 
 ResizeDriver:SetScript("OnUpdate", function(self)
@@ -360,40 +387,115 @@ ResizeDriver:SetScript("OnUpdate", function(self)
 
     local scale = UIParent:GetEffectiveScale()
     local x = GetCursorPosition() / scale
-    local delta = x - (handle.lastX or x)
-    if delta ~= 0 then
-        local panel = PSM.state.modelsPanel
-        if panel then
-            panel.npcColumnWidths = panel.npcColumnWidths or {}
-            local col = PSM.NPCRow.COLUMNS_BY_KEY[handle.columnKey]
-            local current = panel.npcColumnWidths[handle.columnKey] or col.width
-            -- npcColumnWidths is *stored* width; RecomputeColumnLayout may be drawing
-            -- columns at `_npcColumnScale` of that. Divide the cursor delta by the
-            -- factor so a 1px drag of the boundary moves the stored width by 1px of
-            -- *displayed* travel -- otherwise the next reflow scales the change back
-            -- down and the column appears not to follow the cursor.
-            local f = panel._npcColumnScale or 1
-            local wanted = math.max(MIN_COLUMN_WIDTH, current + delta / f)
-
-            -- Upper bound as well as lower: past this the Display IDs column has no
-            -- room left to give up and the table would be drawn off its right edge.
-            --
-            -- The cap never pulls a column below where it already is. A layout can start
-            -- out over budget without anyone dragging (toggle Continent on), and a bare
-            -- math.min would then snap the grabbed column to the cap on the first pixel of
-            -- movement. Bounding by `current` keeps dragging *smaller* available, which is
-            -- the way out of that state.
-            local maxWidth = PSM.NPCRow:MaxWidthForColumn(panel, handle.columnKey)
-            if maxWidth then wanted = math.min(wanted, math.max(maxWidth, current)) end
-
-            panel.npcColumnWidths[handle.columnKey] = wanted
-            PSM.NPCRow:ReflowVisibleRows(panel)
-        end
-        -- Always the raw cursor, including while clamped. Each frame re-reads the
-        -- *stored* width and applies only that frame's delta, so a clamped drag
-        -- accumulates no debt: push past the cap and the column simply stops, and
-        -- the first pixel back the other way shrinks it again.
+    local deltaX = x - (handle.startX or x)
+    if deltaX ~= (handle.lastDeltaX or 0) then
+        handle.lastDeltaX = deltaX
         handle.lastX = x
+        local panel = PSM.state.modelsPanel
+        if panel and handle.startWidths then
+            local f = panel._npcColumnScale or 1
+            local totalDelta = deltaX / f
+
+            local visible = VisibleColumns(PSM.NPCRow, panel)
+            local leftCols, rightCols = {}, {}
+            local passedKey = false
+            for _, col in ipairs(visible) do
+                if not passedKey then
+                    table.insert(leftCols, col)
+                    if col.key == handle.columnKey then
+                        passedKey = true
+                    end
+                else
+                    table.insert(rightCols, col)
+                end
+            end
+
+            if passedKey and (#leftCols > 0) and (#rightCols > 0) then
+                local startWidths = handle.startWidths
+                local startLayout = handle.startLayoutByKey or {}
+
+                -- Left partition totals
+                local startLeftTotal = 0
+                local leftAvailable = 0
+                for _, col in ipairs(leftCols) do
+                    local w = startWidths[col.key] or col.width
+                    startLeftTotal = startLeftTotal + w
+                    leftAvailable = leftAvailable + math.max(0, w - MIN_COLUMN_WIDTH)
+                end
+
+                -- Right partition totals
+                local startRightTotal = 0
+                local rightAvailable = 0
+                for _, col in ipairs(rightCols) do
+                    local w
+                    if col.key == FLEX_COLUMN then
+                        w = (startLayout[col.key] or 120) / f
+                    else
+                        w = startWidths[col.key] or col.width
+                    end
+                    startRightTotal = startRightTotal + w
+                    rightAvailable = rightAvailable + math.max(0, w - MIN_COLUMN_WIDTH)
+                end
+
+                -- Clamp totalDelta to available shrink capacity in either direction
+                if totalDelta < -leftAvailable then totalDelta = -leftAvailable end
+                if totalDelta > rightAvailable then totalDelta = rightAvailable end
+
+                if totalDelta < 0 then
+                    -- DRAGGING LEFT: left partition shrinks, right partition grows
+                    local shrinkAmount = -totalDelta
+                    for _, col in ipairs(leftCols) do
+                        local w = startWidths[col.key] or col.width
+                        local avail = math.max(0, w - MIN_COLUMN_WIDTH)
+                        local share = (leftAvailable > 0) and (avail / leftAvailable) or 0
+                        panel.npcColumnWidths[col.key] = w - (shrinkAmount * share)
+                    end
+
+                    local growAmount = -totalDelta
+                    if startRightTotal > 0 then
+                        for _, col in ipairs(rightCols) do
+                            if col.key ~= FLEX_COLUMN then
+                                local w = startWidths[col.key] or col.width
+                                local share = w / startRightTotal
+                                panel.npcColumnWidths[col.key] = w + (growAmount * share)
+                            end
+                        end
+                    end
+                elseif totalDelta > 0 then
+                    -- DRAGGING RIGHT: right partition shrinks, left partition grows
+                    local shrinkAmount = totalDelta
+                    for _, col in ipairs(rightCols) do
+                        if col.key ~= FLEX_COLUMN then
+                            local w = startWidths[col.key] or col.width
+                            local avail = math.max(0, w - MIN_COLUMN_WIDTH)
+                            local share = (rightAvailable > 0) and (avail / rightAvailable) or 0
+                            panel.npcColumnWidths[col.key] = w - (shrinkAmount * share)
+                        end
+                    end
+
+                    local growAmount = totalDelta
+                    if startLeftTotal > 0 then
+                        for _, col in ipairs(leftCols) do
+                            local w = startWidths[col.key] or col.width
+                            local share = w / startLeftTotal
+                            panel.npcColumnWidths[col.key] = w + (growAmount * share)
+                        end
+                    end
+                else
+                    -- totalDelta == 0: restore start widths
+                    for _, col in ipairs(leftCols) do
+                        panel.npcColumnWidths[col.key] = startWidths[col.key] or col.width
+                    end
+                    for _, col in ipairs(rightCols) do
+                        if col.key ~= FLEX_COLUMN then
+                            panel.npcColumnWidths[col.key] = startWidths[col.key] or col.width
+                        end
+                    end
+                end
+
+                PSM.NPCRow:ReflowVisibleRows(panel)
+            end
+        end
     end
 end)
 
@@ -422,6 +524,23 @@ local function CreateResizeHandle(header, columnKey)
         if button ~= "LeftButton" then return end
         local scale = UIParent:GetEffectiveScale()
         self.lastX = GetCursorPosition() / scale
+        self.startX = self.lastX
+        self.lastDeltaX = 0
+        local panel = PSM.state.modelsPanel
+        if panel then
+            panel.npcColumnWidths = panel.npcColumnWidths or {}
+            self.startWidths = {}
+            for _, col in ipairs(PSM.NPCRow.COLUMNS) do
+                self.startWidths[col.key] = panel.npcColumnWidths[col.key] or col.width
+            end
+            local startLayoutByKey = {}
+            if panel.npcColumnLayout then
+                for _, l in ipairs(panel.npcColumnLayout) do
+                    startLayoutByKey[l.key] = l.width
+                end
+            end
+            self.startLayoutByKey = startLayoutByKey
+        end
         ResizeDriver.active = self
         SetHandleAlpha(self, 1)
     end)
@@ -468,16 +587,16 @@ function PSM.NPCRow:CreateHeaderRow(parent)
         btn.columnKey = col.key
 
         -- The sorted column carries a small arrow rather than a " ^"/" v" text
-        -- marker. Interface\Buttons\UI-SortArrow is Blizzard's own column-sort
+        -- marker. Interface\Buttons\arrow-down-down is Blizzard's own column-sort
         -- glyph and points down at rest; UpdateHeaderRow flips it vertically for
         -- the ascending direction and shows it only on the active sort column.
         -- Tinted white -- the raw texture is a dim gold that disappears against
         -- the header band.
         btn.sortArrow = Widgets.Texture(btn, {
             layer       = "OVERLAY",
-            texture     = "Interface\\Buttons\\UI-SortArrow",
-            size        = { 8, 8 },
-            point       = { "RIGHT", -3, 0 },
+            texture     = "Interface\\Buttons\\arrow-down-down",
+            size        = { 16, 16 },
+            point       = { "RIGHT", 0, 0 },
             vertexColor = PSM.Theme.COLOR.WHITE,
             hidden      = true,
         })
