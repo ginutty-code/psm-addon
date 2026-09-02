@@ -38,6 +38,25 @@ local MODELS_CONFIG = {
 
 PSM.ModelsPanel.MODELS_CONFIG = MODELS_CONFIG
 
+-- Measured rail width. File scope so both CreateModelsPanel (width cap) and
+-- AddModelsBrowserElements (the rail itself) read one value.
+local RAIL_WIDTH = 210
+
+-- The panel's maximum width, cap-derived rather than a literal (see
+-- NPCRow:NaturalPetsFrameWidth). Past this, the NPC view only pads its Display IDs
+-- column and the Models view only widens the gap between its two pet columns -- dead
+-- space in both. Rail-aware exactly like MIN_WIDTH: `expanded` adds the rail width,
+-- since the rail sits inside the panel's own width. The +60 is the petsFrame inset a
+-- collapsed panel carries (rail hidden to the left: 25 + 25 left of petsFrame, 10
+-- right); expanded adds RAIL_WIDTH on top for a constant petsFrame width.
+local PETSFRAME_INSET_COLLAPSED = 60
+
+local function MaxPanelWidth(expanded)
+    local pf = (PSM.NPCRow and PSM.NPCRow.NaturalPetsFrameWidth
+                and PSM.NPCRow:NaturalPetsFrameWidth()) or 889
+    return pf + PETSFRAME_INSET_COLLAPSED + (expanded and RAIL_WIDTH or 0)
+end
+
 -- Release both render caches and cancel both pending renders.
 --
 -- The service core's PanelManager calls on last-panel-close, so the underscore cache
@@ -249,6 +268,9 @@ function PSM.ModelsPanel:CreateModelsPanel()
         height             = MODELS_CONFIG.PANEL_HEIGHT,
         minWidth           = MODELS_CONFIG.MIN_WIDTH,
         minHeight          = MODELS_CONFIG.MIN_HEIGHT,
+        -- Constructed expanded (PANEL_WIDTH is the expanded size), so the cap passed
+        -- here is the expanded one; onShow / the rail's onToggle re-assert it rail-aware.
+        maxWidth           = MaxPanelWidth(true),
         title              = PSM.L("Pet Model Browser"),
         -- Width-primary resize: ReflowContent (below) is the one reflow entrypoint the
         -- OnSizeChanged handler and the rail's onToggle both call. No Maximize button --
@@ -274,20 +296,25 @@ function PSM.ModelsPanel:CreateModelsPanel()
                 p.rail:ApplyInitialState()
                 local wantCollapsed = p.rail:IsCollapsed()
                 local minW = MODELS_CONFIG.MIN_WIDTH + (wantCollapsed and 0 or p.rail.width)
-                -- Order against the pinned floor (same rule as OwnedPets/Panel.lua):
-                -- drop the minimum before a shrink, raise it after a grow, so
-                -- SetWidthAnchored is never clamped mid-adjust.
+                local maxW = MaxPanelWidth(not wantCollapsed)
+                -- Order against both bounds (same rule as OwnedPets/Panel.lua and the
+                -- rail's onToggle): loosen the bound a size change needs room against
+                -- before it, tighten after. Shrink drops the min first; grow raises the
+                -- max first.
                 if wantCollapsed and not p._railShrunk then
                     PSM.PanelManager:SetMinWidth(p, MODELS_CONFIG.MIN_WIDTH)
                     PSM.PanelManager:SetWidthAnchored(p, p:GetWidth() - p.rail.width)
                     p._railShrunk = true
                 elseif not wantCollapsed and p._railShrunk then
+                    PSM.PanelManager:SetMaxWidth(p, maxW)
                     PSM.PanelManager:SetWidthAnchored(p, p:GetWidth() + p.rail.width)
                     p._railShrunk = false
                 end
-                -- Assert every show: a rebuilt panel starts from config.minWidth (the
-                -- collapsed value) regardless of the saved rail state.
+                -- Assert every show: a rebuilt panel starts from config.minWidth /
+                -- config.maxWidth (the values for the constructed state) regardless of
+                -- the saved rail state.
                 PSM.PanelManager:SetMinWidth(p, minW)
+                PSM.PanelManager:SetMaxWidth(p, maxW)
                 PSM.ModelsPanel:ReflowContent(p)
             end
 
@@ -545,20 +572,22 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     -- *expanded* size (this panel's size before the collapse feature existed, kept
     -- as the default so nobody who has never touched the toggle sees a size change);
     -- collapsing subtracts the rail's width, expanding adds it back.
-    local RAIL_WIDTH = 210
     panel.rail = PM:CreateRail(panel, {
         point    = { 25, PSM.Theme.CHROME.TITLE_Y },
         width    = RAIL_WIDTH,
         savedKey = "modelsRailCollapsed",
         onToggle = function(collapsed)
-            -- Rail-aware width floor, ordered like OwnedPets/Panel.lua: drop the
-            -- minimum before the shrink, raise it after the grow, so SetWidthAnchored
-            -- is never clamped. The panel carries the rail in its own width, so the
-            -- floor moves with the rail state.
+            -- Rail-aware width bounds, ordered like OwnedPets/Panel.lua: loosen the
+            -- bound the size change needs room against *before* it, tighten it *after*.
+            -- Shrinking (collapse): drop the min first, drop the max last. Growing
+            -- (expand): raise the max first, raise the min last. The panel carries the
+            -- rail in its own width, so both bounds move with the rail state.
             if collapsed then
                 PM:SetMinWidth(panel, MODELS_CONFIG.MIN_WIDTH)
                 PM:SetWidthAnchored(panel, panel:GetWidth() - RAIL_WIDTH)
+                PM:SetMaxWidth(panel, MaxPanelWidth(false))
             else
+                PM:SetMaxWidth(panel, MaxPanelWidth(true))
                 PM:SetWidthAnchored(panel, panel:GetWidth() + RAIL_WIDTH)
                 PM:SetMinWidth(panel, MODELS_CONFIG.MIN_WIDTH + RAIL_WIDTH)
             end
@@ -852,31 +881,16 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
         PSM.NPCDataLoader:ReleaseCache()
     end
 
-    -- Width-primary resize. The corner grip (Widgets.ResizeGrip, added by
-    -- CreateBasePanel for showResizeHandle = true) fires OnSizeChanged on every drag
-    -- frame. Two passes, same split as CreateScrollPreservingResizeHandler
-    -- (Shared/PanelManager.lua): a leading geometry-only ReflowContentLive every ~8px
-    -- so the rows track the frame edge during the drag, and a trailing settle timer
-    -- running the full ReflowContent (re-render + SetDisplayInfo) once the drag rests.
-    -- HookScript so it composes with anything CreateBasePanel adds later; both entry
-    -- points guard on panel.petsFrame and are idempotent, so an early fire is harmless.
-    panel:HookScript("OnSizeChanged", function(_, width, height)
-        -- Trailing settle: the full ReflowContent once the drag rests.
-        if panel._resizeSettleTimer then panel._resizeSettleTimer:Cancel() end
-        panel._resizeSettleTimer = C_Timer.NewTimer(0.12, function()
-            panel._resizeSettleTimer = nil
-            panel._resizeLastW, panel._resizeLastH = panel:GetWidth(), panel:GetHeight()
-            PSM.ModelsPanel:ReflowContent(panel)
-        end)
-
-        -- Leading pass: a cheap geometry-only reflow every ~8px so rows track the
-        -- frame edge during the drag instead of hanging in the air until the settle.
-        if math.abs((panel._resizeLastW or 0) - width)  >= 8
-        or math.abs((panel._resizeLastH or 0) - height) >= 8 then
-            panel._resizeLastW, panel._resizeLastH = width, height
-            PSM.ModelsPanel:ReflowContentLive(panel)
-        end
-    end)
+    -- Width-primary resize, through the shared skeleton (PanelManager:AttachResizeHandler):
+    -- a leading geometry-only ReflowContentLive every ~8px so rows track the frame edge
+    -- during the drag, then the full ReflowContent (re-render + SetDisplayInfo) once it
+    -- rests. Both guard on panel.petsFrame and are idempotent, so an early fire is
+    -- harmless. Owned Pets' CreateScrollPreservingResizeHandler is the same skeleton with
+    -- a scroll-fraction settle.
+    PSM.PanelManager:AttachResizeHandler(panel, {
+        onLive   = function() PSM.ModelsPanel:ReflowContentLive(panel) end,
+        onSettle = function() PSM.ModelsPanel:ReflowContent(panel) end,
+    })
 
     -- Now that pagination controls exist, position the NPC row pool if that's
     -- the persisted starting mode (UpdateNPCPanelLayout touches panel.prevButton etc).

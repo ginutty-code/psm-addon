@@ -306,10 +306,7 @@ function ns.UI:AddOwnedPetsElements(panel)
     })
 
     -- Resize handler (scroll-position-preserving) -------------------------
-    ns.PanelManager:CreateScrollPreservingResizeHandler(
-        panel, scrollFrame, content,
-        function(preserveScroll) ns.UI:RenderPanel(preserveScroll) end
-    )
+    ns.PanelManager:CreateScrollPreservingResizeHandler(panel, scrollFrame, content)
 
     ns.C_Timer.After(0.01, function()
         content:SetWidth(scrollFrame:GetWidth())

@@ -322,6 +322,30 @@ function Widgets.CloseButton(parent, opts)
     return b
 end
 
+-- Shared OnUpdate driver for corner-grip dragging -- the same pattern as NPCRow's
+-- column ResizeDriver and RowManager's model rotate/move drivers. One is enough: a
+-- single mouse drags one grip at a time. Raw CreateFrame on purpose: an invisible
+-- ticker with nothing to draw, not a widget.
+local GripDriver = CreateFrame("Frame")
+
+local function StopGrip(grip)
+    if not grip then return end
+    GripDriver.active = nil
+    grip.frame:StopMovingOrSizing()
+    if grip.onStop then grip.onStop(grip.frame) end
+end
+
+-- The cursor is usually off the 16px grip by the time the button comes up: a resize
+-- that clamps against SetResizeBounds/SetClampedToScreen leaves the grip behind, and a
+-- release over another frame or outside the game window never reaches it at all. A
+-- missed OnMouseUp used to strand the frame in StartSizing indefinitely -- the corner
+-- then tracked the cursor with no button held, the state outlived Hide/Show (
+-- CreateBasePanel hands back the same frame) and only a reload cleared it. Poll the
+-- button directly instead; OnMouseUp below stays as the fast path.
+GripDriver:SetScript("OnUpdate", function(self)
+    if self.active and not IsMouseButtonDown("LeftButton") then StopGrip(self.active) end
+end)
+
 -- The corner drag handle for a resizable frame. Calls SetResizable for you,
 -- because a grip on a non-resizable frame silently does nothing.
 function Widgets.ResizeGrip(frame, opts)
@@ -330,6 +354,8 @@ function Widgets.ResizeGrip(frame, opts)
     frame:SetResizable(true)
 
     local grip = CreateFrame("Button", nil, frame)
+    grip.frame  = frame
+    grip.onStop = opts.onStop
     local side = ns.Theme.CONTROL.RESIZE_GRIP
     grip:SetSize(unpack(opts.size or { side, side }))
     grip:SetPoint(unpack(opts.point or { "BOTTOMRIGHT", frame, "BOTTOMRIGHT", -4, 4 }))
@@ -339,14 +365,16 @@ function Widgets.ResizeGrip(frame, opts)
     -- Left button only. Two of the three hand-written grips this replaces started a
     -- resize on *any* button, including right-click, which nobody wants.
     grip:SetScript("OnMouseDown", function(_, button)
-        if button == "LeftButton" then frame:StartSizing(opts.corner or "BOTTOMRIGHT") end
+        if button ~= "LeftButton" then return end
+        frame:StartSizing(opts.corner or "BOTTOMRIGHT")
+        GripDriver.active = grip
     end)
     -- `onStop` fires only at the end of a *user* drag, which is the distinction callers
     -- actually need: OnSizeChanged cannot tell a drag from a programmatic SetHeight, and
     -- anything that auto-sizes needs to know "the user chose this size" specifically.
+    -- The fast path; GripDriver's OnUpdate is the net for when this is missed.
     grip:SetScript("OnMouseUp", function()
-        frame:StopMovingOrSizing()
-        if opts.onStop then opts.onStop(frame) end
+        if GripDriver.active == grip then StopGrip(grip) end
     end)
     ns.Skin.Apply(grip, "resizegrip")
     return grip

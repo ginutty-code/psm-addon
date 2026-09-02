@@ -364,14 +364,14 @@ function DD:CompleteDrop(targetRow, targetPet)
 
         self:EndDrag()
 
+        -- Keep the eye on the same part of the list across the re-render. Same
+        -- scroll-fraction pair the resize settle uses (Shared/UI.lua); snapshot now,
+        -- restore after RenderPanel(true) has actually applied (it debounces ~0.01s,
+        -- so the nested wait). The outer 0.1s wait is this path's own -- MovePetToGroup
+        -- / ReorderPetInGroup have to settle before the render reads the new order.
         local scrollFrame = ns.state.scrollFrame
-        local scrollBar   = scrollFrame and scrollFrame.ScrollBar
         local content     = ns.state.content
-        local pct         = 0
-        if scrollBar and content then
-            local maxScroll = math.max(0, content:GetHeight() - scrollFrame:GetHeight())
-            if maxScroll > 0 then pct = scrollBar:GetValue() / maxScroll end
-        end
+        local pct         = ns.UI:SnapshotScrollFraction(scrollFrame, content)
 
         ns.C_Timer.After(0.1, function()
             if ns.UI.RenderPanel then
@@ -379,10 +379,9 @@ function DD:CompleteDrop(targetRow, targetPet)
             elseif ns.UI._RenderPanelImmediate then
                 ns.UI:_RenderPanelImmediate(true)
             end
-            if scrollBar and content and scrollFrame then
+            if scrollFrame and content then
                 ns.C_Timer.After(0.05, function()
-                    local maxScroll = math.max(0, content:GetHeight() - scrollFrame:GetHeight())
-                    if maxScroll > 0 then scrollBar:SetValue(maxScroll * pct) end
+                    ns.UI:RestoreScrollFraction(scrollFrame, content, pct)
                 end)
             end
         end)

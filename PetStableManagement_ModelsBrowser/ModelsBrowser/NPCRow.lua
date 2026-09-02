@@ -174,11 +174,11 @@ local FLEX_COLUMN      = "displayIds"
 -- -- all 28-42 by default -- up to 60 each, spending ~100px to make the column this
 -- floor exists to protect *smaller*.
 --
--- 90 is set by the *header*, not the data: "Display IDs" runs ~65px at Theme.SIZE.BODY
--- and UpdateHeaderRow appends a " ^"/" v" sort marker to whichever column is sorted,
--- which the 4px label inset pushes to ~81px. Below that the marker is the first thing
--- clipped -- so the one column you cannot widen loses the indicator telling you it is
--- the sorted one.
+-- 90 is set by the *header*, not the data: "Display IDs" runs ~65px at Theme.SIZE.BODY,
+-- which the 4px label inset plus the right-anchored sort arrow (shown on whichever
+-- column is sorted) push toward ~85px. Below that the arrow starts to overlap the
+-- label -- so the one column you cannot widen would obscure the indicator telling you
+-- it is the sorted one.
 local MIN_FLEX_WIDTH   = 90
 
 -- Width available to the columns themselves. Header and rows are both TABLE_INSET
@@ -187,6 +187,29 @@ local MIN_FLEX_WIDTH   = 90
 -- literal: this is what keeps the flex column inside the frame when the inset moves.
 local function TableWidth(panel)
     return panel.petsFrame:GetWidth() - (TABLE_INSET * 2) - (CELL_PAD * 2)
+end
+
+-- What the flex (Display IDs) column should get once every other column sits at its
+-- default width -- the point past which extra table width only inflates this one
+-- column. 150 is comfortably above the ~106px it holds today with every column shown
+-- (the COLUMNS comment) where "the longest real values still fit", without ballooning
+-- it for the default column set (which then gets ~250px).
+local FLEX_TARGET_WIDTH = 150
+
+-- The petsFrame width past which the NPC view has no more real estate to give: every
+-- non-flex column (including the optional ones) at its default `width`, every gap, the
+-- flex column at FLEX_TARGET_WIDTH, plus the insets petsFrame adds around the table.
+-- ModelsPanel caps the panel on this -- wider than this and the NPC view just pads
+-- Display IDs while the Models view just spaces its two columns further apart, dead
+-- space in both. Derived from COLUMNS so it tracks the column list.
+function PSM.NPCRow:NaturalPetsFrameWidth()
+    local nonFlex, count = 0, 0
+    for _, col in ipairs(self.COLUMNS) do
+        count = count + 1
+        if col.key ~= FLEX_COLUMN then nonFlex = nonFlex + col.width end
+    end
+    local tableWidth = nonFlex + COLUMN_GAP * math.max(0, count - 1) + FLEX_TARGET_WIDTH
+    return tableWidth + (TABLE_INSET * 2) + (CELL_PAD * 2)
 end
 
 local function VisibleColumns(self, panel)
@@ -302,17 +325,21 @@ end
 -- is an invisible ticker with no parent and nothing to draw, not a widget.
 local ResizeDriver = CreateFrame("Frame")
 
--- The handle's rule is always gold and varies only in opacity: invisible at rest,
--- half-lit on hover, solid while dragging. One place to say that, instead of four
--- copies of SetColorTexture(1, 0.82, 0, x).
+-- The handle's rule is white and varies only in opacity: a faint tick at rest so the
+-- draggable column boundary is discoverable at all, near-solid on hover, solid while
+-- dragging. White rather than gold -- the header band is itself dark gold
+-- (Config.TAB.ACTIVE_BG), so a gold rule blended into it and was invisible at any
+-- sane resting alpha. One place to say that, instead of four copies of
+-- SetColorTexture(...).
+local HANDLE_REST_ALPHA = 0.28
 local function SetHandleAlpha(handle, alpha)
-    local c = PSM.Theme.COLOR.GOLD
+    local c = PSM.Theme.COLOR.WHITE
     handle.tex:SetColorTexture(c[1], c[2], c[3], alpha)
 end
 
 local function StopResize(handle)
     ResizeDriver.active = nil
-    if handle.tex then SetHandleAlpha(handle, 0) end
+    if handle.tex then SetHandleAlpha(handle, HANDLE_REST_ALPHA) end
     local panel = PSM.state.modelsPanel
     if panel and panel.npcColumnWidths then
         PetStableManagementDB.settings.npcViewColumnWidths = PSM.Utils.DeepCopy(panel.npcColumnWidths)
@@ -385,11 +412,11 @@ local function CreateResizeHandle(header, columnKey)
             { "BOTTOM", handle, "BOTTOM", 0, 0 },
         },
     })
-    SetHandleAlpha(handle, 0)
+    SetHandleAlpha(handle, HANDLE_REST_ALPHA)
 
-    handle:SetScript("OnEnter", function(self) SetHandleAlpha(self, 0.6) end)
+    handle:SetScript("OnEnter", function(self) SetHandleAlpha(self, 0.9) end)
     handle:SetScript("OnLeave", function(self)
-        if ResizeDriver.active ~= self then SetHandleAlpha(self, 0) end
+        if ResizeDriver.active ~= self then SetHandleAlpha(self, HANDLE_REST_ALPHA) end
     end)
     handle:SetScript("OnMouseDown", function(self, button)
         if button ~= "LeftButton" then return end
@@ -440,6 +467,21 @@ function PSM.NPCRow:CreateHeaderRow(parent)
         })
         btn.columnKey = col.key
 
+        -- The sorted column carries a small arrow rather than a " ^"/" v" text
+        -- marker. Interface\Buttons\UI-SortArrow is Blizzard's own column-sort
+        -- glyph and points down at rest; UpdateHeaderRow flips it vertically for
+        -- the ascending direction and shows it only on the active sort column.
+        -- Tinted white -- the raw texture is a dim gold that disappears against
+        -- the header band.
+        btn.sortArrow = Widgets.Texture(btn, {
+            layer       = "OVERLAY",
+            texture     = "Interface\\Buttons\\UI-SortArrow",
+            size        = { 8, 8 },
+            point       = { "RIGHT", -3, 0 },
+            vertexColor = PSM.Theme.COLOR.WHITE,
+            hidden      = true,
+        })
+
         btn:SetScript("OnClick", function()
             local panel = PSM.state.modelsPanel
             if not panel then return end
@@ -480,11 +522,18 @@ function PSM.NPCRow:UpdateHeaderRow(panel)
             btn:ClearAllPoints()
             btn:SetPoint("TOPLEFT", header, "TOPLEFT", colLayout.x, 0)
             btn:SetSize(colLayout.width, HEADER_HEIGHT - 2)
-            local arrow = ""
+            btn.text:SetText(col.label)
             if panel.npcSortField == colLayout.key then
-                arrow = panel.npcSortAsc and " ^" or " v"
+                -- UI-SortArrow points down; flip it vertically for ascending.
+                if panel.npcSortAsc then
+                    btn.sortArrow:SetTexCoord(0, 1, 1, 0)
+                else
+                    btn.sortArrow:SetTexCoord(0, 1, 0, 1)
+                end
+                btn.sortArrow:Show()
+            else
+                btn.sortArrow:Hide()
             end
-            btn.text:SetText(col.label .. arrow)
             btn:Show()
 
             local handle = header.resizeHandles[colLayout.key]

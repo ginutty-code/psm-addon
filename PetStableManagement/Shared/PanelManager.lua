@@ -22,7 +22,7 @@ local function ApplyResizeBounds(panel, config)
     panel:SetResizeBounds(
         panel._minWidthOverride or config.minWidth or 400,
         config.minHeight or 300,
-        config.maxWidth  or (UIParent:GetWidth()  or 1920) - 16,
+        panel._maxWidthOverride or config.maxWidth or (UIParent:GetWidth()  or 1920) - 16,
         config.maxHeight or (UIParent:GetHeight() or 1080) - 16)
 end
 
@@ -34,6 +34,17 @@ end
 -- round-trip. Pass nil to clear it.
 function ns.PanelManager:SetMinWidth(panel, minWidth)
     panel._minWidthOverride = minWidth
+    if panel._resizeConfig then ApplyResizeBounds(panel, panel._resizeConfig) end
+end
+
+-- The maximum-width mirror of SetMinWidth. The Models Browser caps its width where the
+-- NPC table has every column at its natural size and the Models view has its two pet
+-- columns -- past that, extra width is dead space in both. Rail-aware for the same
+-- reason the minimum is: with the rail expanded the cap has to rise by the rail width,
+-- since the rail lives inside the panel's own width. Stored on the panel so it also
+-- survives a bounds re-derive. Pass nil to clear it.
+function ns.PanelManager:SetMaxWidth(panel, maxWidth)
+    panel._maxWidthOverride = maxWidth
     if panel._resizeConfig then ApplyResizeBounds(panel, panel._resizeConfig) end
 end
 
@@ -54,7 +65,8 @@ end
 -- edge and the panel's now-fixed edge narrows on its own.
 function ns.PanelManager:SetWidthAnchored(panel, width)
     local config = panel._resizeConfig
-    local maxWidth = config and (config.maxWidth or (UIParent:GetWidth() or 1920) - 16)
+    local maxWidth = panel._maxWidthOverride
+        or (config and (config.maxWidth or (UIParent:GetWidth() or 1920) - 16))
     if maxWidth then
         width = math.min(width, maxWidth)
     end
@@ -946,82 +958,113 @@ function ns.PanelManager:UpdatePanelBackgrounds()
     end
 end
 
--- No cache invalidation here, and no parameter for one: the width this handler changes is
--- `panelWidth`, a store slice, so the render selector sees the resize on its own via the
--- `renderCallback` below.
-function ns.PanelManager:CreateScrollPreservingResizeHandler(panel, scrollFrame, content, renderCallback)
-    if not panel or not scrollFrame or not content then return end
+-- The OnSizeChanged dispatch both resizable panels share (Owned Pets via
+-- CreateScrollPreservingResizeHandler below, the Models Browser directly). Owns the
+-- fiddly parts that used to be copy-pasted between them and drift:
+--
+--   * HookScript, not SetScript, so it composes with whatever CreateBasePanel already
+--     wired onto OnSizeChanged.
+--   * A trailing settle timer, always cancelled and rescheduled, that reads the panel's
+--     *final* GetWidth()/GetHeight() -- so the size laid out is the size the drag came
+--     to rest on, never up to `threshold` px stale.
+--   * A leading `threshold`-px early-out so the cheap `onLive` pass stays off most drag
+--     frames.
+--
+-- Callbacks:
+--   opts.onLive(width, height)    -- geometry only; runs every ~threshold px mid-drag
+--   opts.onSettle(width, height)  -- the full reflow; runs once, when the drag rests
+--   opts.threshold   (default 8 px)
+--   opts.settleDelay (default 0.12 s)
+--
+-- Both run through SafeCall: a frame-code error must not strand the timer or the hook.
+function ns.PanelManager:AttachResizeHandler(panel, opts)
+    if not panel or not panel.HookScript then return end
+    opts = opts or {}
+    local onLive, onSettle = opts.onLive, opts.onSettle
+    local threshold   = opts.threshold   or 8
+    local settleDelay = opts.settleDelay or 0.12
 
     panel._resizeLastWidth  = nil
     panel._resizeLastHeight = nil
 
-    local function Relayout(width, height)
-        panel._resizeLastWidth  = width
-        panel._resizeLastHeight = height
+    panel:HookScript("OnSizeChanged", function(_, width, height)
+        if panel._resizeSettleTimer then panel._resizeSettleTimer:Cancel() end
+        panel._resizeSettleTimer = ns.C_Timer.NewTimer(settleDelay, function()
+            panel._resizeSettleTimer = nil
+            local w, h = panel:GetWidth(), panel:GetHeight()
+            panel._resizeLastWidth, panel._resizeLastHeight = w, h
+            if onSettle then ns.Utils.SafeCall(onSettle, w, h) end
+        end)
 
-        -- Snapshot scroll position as a percentage
-        local scrollPercentage = 0
-        local scrollBar = scrollFrame.ScrollBar
-        if scrollBar then
-            local maxScroll = math.max(0, content:GetHeight() - scrollFrame:GetHeight())
-            if maxScroll > 0 then scrollPercentage = scrollBar:GetValue() / maxScroll end
+        if math.abs((panel._resizeLastWidth  or 0) - width)  >= threshold
+        or math.abs((panel._resizeLastHeight or 0) - height) >= threshold then
+            panel._resizeLastWidth, panel._resizeLastHeight = width, height
+            if onLive then ns.Utils.SafeCall(onLive, width, height) end
         end
+    end)
+end
 
-        scrollFrame:SetWidth(width - 40)
-        content:SetWidth(scrollFrame:GetWidth())
-        content:ClearAllPoints()
-        content:SetPoint("TOPLEFT")
-        content:SetPoint("TOPRIGHT")
+-- A scroll-frame panel's resize handler: the shared skeleton above, with a
+-- geometry-only live pass and a settle that re-renders and restores the scroll
+-- fraction (PSM.UI's Snapshot/RestoreScrollFraction).
+--
+-- `renderCallback` is optional and marks the panel's render model:
+--   * omitted  -> Owned Pets: renders synchronously via ns.UI:_RenderPanelImmediate,
+--                 so the settle can snapshot, render and restore in one pass.
+--   * provided -> the Teams panel passes RefreshTeamsList, which *defers*; the
+--                 restore then has to wait a frame behind it. That lag is the only
+--                 difference between the two.
+--
+-- No cache invalidation, and no parameter for one: the width this changes is
+-- `panelWidth`, a store slice, so the render selector picks the resize up on its own.
+function ns.PanelManager:CreateScrollPreservingResizeHandler(panel, scrollFrame, content, renderCallback)
+    if not panel or not scrollFrame or not content then return end
 
-        ns.C_Timer.After(0.05, function()
-            if renderCallback then renderCallback(true) end
-            if content and scrollFrame then
-                -- Restore the proportional position, then clamp. The old form was
-                -- `if maxScroll > 0 then SetValue(...) end`, which skipped the one case
-                -- that had to be handled: maxScroll == 0 means the content now fits, and
-                -- a frame still scrolled to its old position shows the empty region past
-                -- the last row. See PSM.UI:ClampScrollIntoRange.
-                local maxScroll = math.max(0, content:GetHeight() - scrollFrame:GetHeight())
-                local target    = math.min(maxScroll * scrollPercentage, maxScroll)
-                scrollFrame:SetVerticalScroll(target)
-                if scrollBar then scrollBar:SetValue(target) end
-                if ns.UI and ns.UI.ClampScrollIntoRange then
-                    ns.UI:ClampScrollIntoRange(scrollFrame, content)
-                end
-            end
+    self:AttachResizeHandler(panel, {
+        -- Mid-drag: the whole geometry job is pushing the scroll frame's current
+        -- (anchor-driven) width into the scroll child. scrollFrame is pinned on both
+        -- edges by its anchors, so it already has the right width -- the old
+        -- scrollFrame:SetWidth was a no-op, and re-anchoring `content` fought
+        -- ScrollFrame:SetScrollChild (which owns the child's TOPLEFT). No render here:
+        -- that would re-issue every row's SetDisplayInfo on every drag frame.
+        onLive = function()
+            content:SetWidth(scrollFrame:GetWidth())
+        end,
+
+        -- At rest: re-render against the final width so content height is current, then
+        -- put the scroll back to the same fraction of the way down the list. The old
+        -- path deferred the render behind two C_Timer chains and restored the scroll
+        -- *before* it landed, against a stale maxScroll -- that ordering was the
+        -- residual empty-panel case (psm-backlog#1).
+        onSettle = function()
+            local pct = ns.UI and ns.UI.SnapshotScrollFraction
+                and ns.UI:SnapshotScrollFraction(scrollFrame, content) or 0
+
+            content:SetWidth(scrollFrame:GetWidth())
 
             -- PlayerModel widgets can repaint blank after their clipped ancestor
-            -- (scrollFrame/content/row) is resized. A second, immediate
-            -- UpdateVisibleRows pass forces them to redraw, mirroring what a
-            -- manual scroll already does to "fix" the same symptom.
-            ns.C_Timer.After(0, function()
+            -- (scrollFrame/content/row) is resized; the deferred UpdateVisibleRows
+            -- forces the redraw, mirroring what a manual scroll already does to "fix"
+            -- the same symptom.
+            local function restore()
+                if ns.UI and ns.UI.RestoreScrollFraction then
+                    ns.UI:RestoreScrollFraction(scrollFrame, content, pct)
+                end
                 if ns.UI and ns.UI.UpdateVisibleRows then ns.UI:UpdateVisibleRows() end
-            end)
-        end)
-    end
+            end
 
-    panel:SetScript("OnSizeChanged", function(_, width, height)
-        -- A trailing pass, always scheduled and always against the *current* size.
-        --
-        -- The 10px early-out below keeps the expensive relayout off most drag frames,
-        -- but it is a leading filter with nothing behind it: whatever size the drag
-        -- comes to rest on can be up to 10px from the last size actually laid out. Nine
-        -- pixels is invisible until a column boundary falls inside them, and then the
-        -- panel keeps a column count its width no longer fits, with no further event
-        -- coming to correct it. That is a resize blind spot by construction, and no
-        -- amount of clamping downstream can see it — the layout is self-consistent, it
-        -- just describes a width the panel no longer has.
-        if panel._resizeSettleTimer then panel._resizeSettleTimer:Cancel() end
-        panel._resizeSettleTimer = ns.C_Timer.NewTimer(0.15, function()
-            panel._resizeSettleTimer = nil
-            Relayout(panel:GetWidth(), panel:GetHeight())
-        end)
-
-        if math.abs((panel._resizeLastWidth  or 0) - width)  < 10
-        and math.abs((panel._resizeLastHeight or 0) - height) < 10 then return end
-
-        Relayout(width, height)
-    end)
+            if renderCallback then
+                renderCallback()
+                ns.C_Timer.After(0.05, restore)  -- wait out the deferred render
+            else
+                if ns.UI and ns.UI._RenderPanelImmediate then
+                    ns.UI:_RenderPanelImmediate(true)  -- preserveScroll
+                end
+                restore()
+                ns.C_Timer.After(0, restore)  -- second PlayerModel repaint pass
+            end
+        end,
+    })
 end
 
 ns.PanelManager:Initialize()

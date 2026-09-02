@@ -529,6 +529,35 @@ function ns.UI:ClampScrollIntoRange(scrollFrame, content)
     return target
 end
 
+-- "How far down the list are we, as a fraction?" -- snapshot before a re-render that
+-- will change the content height, restore after. The pair keeps the eye on the same
+-- part of the list across a resize or a reorder, where an absolute pixel offset would
+-- jump (the row total changes with the column count). Two call sites: the resize
+-- settle (PanelManager) and the grouped reorder drop (DragDrop) -- both used to inline
+-- this same `value / maxScroll` ... `maxScroll * pct` maths.
+--
+-- 0 when the content already fits (maxScroll <= 0): nothing to preserve, go to top.
+function ns.UI:SnapshotScrollFraction(scrollFrame, content)
+    if not scrollFrame or not content then return 0 end
+    local scrollBar = scrollFrame.ScrollBar
+    if not scrollBar then return 0 end
+    local maxScroll = math.max(0, (content:GetHeight() or 0) - (scrollFrame:GetHeight() or 0))
+    if maxScroll <= 0 then return 0 end
+    return (scrollBar:GetValue() or 0) / maxScroll
+end
+
+-- Restore what SnapshotScrollFraction captured, against the *current* (post-render)
+-- content height, then clamp. Call after the re-render, never before -- the whole
+-- point is that maxScroll has changed in between.
+function ns.UI:RestoreScrollFraction(scrollFrame, content, pct)
+    if not scrollFrame or not content then return end
+    local maxScroll = math.max(0, (content:GetHeight() or 0) - (scrollFrame:GetHeight() or 0))
+    local target    = math.min(maxScroll * (pct or 0), maxScroll)
+    scrollFrame:SetVerticalScroll(target)
+    if scrollFrame.ScrollBar then scrollFrame.ScrollBar:SetValue(target) end
+    self:ClampScrollIntoRange(scrollFrame, content)
+end
+
 -- Which row sits at the top of the scroll window, derived from where the frame is
 -- *actually* scrolled to, then clamped to a list that may just have got shorter.
 --
