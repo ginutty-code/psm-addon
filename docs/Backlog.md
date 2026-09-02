@@ -290,13 +290,21 @@ Two separate causes, both fixed: the drag had no upper bound, and the shipped de
 were over budget *before anyone dragged*. `NPCRow:MaxWidthForColumn` bounds a drag by
 `max(cap, current)` — an over-budget layout can still be dragged smaller (the way out)
 but never larger; a bare `min()` snapped the grabbed column down on the first pixel.
-The panel is a fixed 1100 wide, so defaults are now sized against the known 815px
-table: Display IDs gets 106px with every column shown, 204px at the default set,
-against a floor of 90 (set by the header — `"Display IDs"` plus the `" ^"`/`" v"` sort
-marker runs ~81px, below which the marker clips first).
+At the time the panel was a fixed 1100 wide, so defaults were sized against the known
+815px table: Display IDs gets 106px with every column shown, 204px at the default set,
+against a floor of 90 (set by the header — `"Display IDs"` plus its sort marker). Two
+of those premises have since moved: the panel became width-resizable (2026-09-02, see
+below), and the `" ^"`/`" v"` text marker became a right-anchored `UI-SortArrow` icon
+([psm-backlog#13](https://github.com/ginutty-code/psm-backlog/issues/13), closed
+2026-09-02) — so `MIN_FLEX_WIDTH`'s 90 is now set by the arrow overlapping the label
+rather than clipping. The defaults themselves are unchanged; they are still the split
+`_npcColumnScale` starts from.
 
-**Still open:** stored column widths mask the new defaults for existing characters —
-no reset path. Tracked as [psm-backlog#4](https://github.com/ginutty-code/psm-backlog/issues/4).
+**Resolved by proportional scaling** ([psm-backlog#4](https://github.com/ginutty-code/psm-backlog/issues/4),
+closed 2026-09-02): stored column widths still mask the retuned defaults, but they no
+longer *overflow* — `_npcColumnScale` (below) shrinks whatever split a character has
+stored to fit the panel, so there is no broken state left for a reset path to fix. A
+"Reset column widths" entry would still be a minor convenience; not tracked.
 
 **Proportional column scaling was considered and declined** (2026-08-22), then
   **implemented** (2026-09-02) once the panel became width-resizable. The 2026-08-22
