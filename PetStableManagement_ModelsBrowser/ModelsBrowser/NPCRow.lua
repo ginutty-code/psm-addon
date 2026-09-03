@@ -596,7 +596,7 @@ function PSM.NPCRow:CreateHeaderRow(parent)
         btn.sortArrow = Widgets.Texture(btn, {
             layer       = "OVERLAY",
             texture     = "Interface\\Buttons\\ui-sortarrow",
-            size        = { 8, 8 },
+            size        = { 12, 12 },
             point       = { "RIGHT", 0, 0 },
             vertexColor = PSM.Theme.COLOR.WHITE,
             hidden      = true,
