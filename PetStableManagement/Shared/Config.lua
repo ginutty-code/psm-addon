@@ -129,10 +129,16 @@ ns.Config = {
     -- Open with Stable window
     DEFAULT_OPEN_WITH_STABLE = true,
 
-    -- Pets per column
-    DEFAULT_PETS_PER_COLUMN = 5,
-    MIN_PETS_PER_COLUMN     = 2,
-    MAX_PETS_PER_COLUMN     = 10,
+    -- Browser Model Size: a 1..5 slider stop. Maps onto the pets-per-column divisors the
+    -- old "Pets Per Column" dropdown used, so scale = 5/divisor is unchanged per stop:
+    -- stop 1 = X-Small card (0.5x) .. stop 5 = X-Large (2.5x); stop 3 = Medium (1.0x).
+    BROWSER_MODEL_SIZE_DIVISORS = { 10, 7, 5, 3, 2 },
+    DEFAULT_BROWSER_MODEL_SIZE  = 3,
+    MIN_BROWSER_MODEL_SIZE      = 1,
+    MAX_BROWSER_MODEL_SIZE      = 5,
+    -- Max card-rows a tall panel renders per column (also the model-row pool multiplier).
+    -- Was MAX_PETS_PER_COLUMN; its own constant now that size and row-count are decoupled.
+    MAX_BROWSER_CARD_ROWS       = 10,
 
     -- Background type
     DEFAULT_BACKGROUND_TYPE = "simple",

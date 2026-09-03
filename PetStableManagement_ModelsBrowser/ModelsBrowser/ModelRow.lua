@@ -11,10 +11,9 @@ PSM.ModelRow = PSM.ModelRow or {}
 -- misleading stack. That is the exact shape of the ModelRow.lua bug from the
 -- LoadOnDemand work. Read them inside the function that needs them.
 
--- Returns the current scaling factor based on petsPerColumn setting
+-- Returns the current scaling factor based on the Browser Model Size slider stop
 local function scalingFactor()
-    local ppc = PetStableManagementDB.settings.petsPerColumn or PSM.Config.DEFAULT_PETS_PER_COLUMN
-    return 5 / ppc
+    return 5 / PSM.ModelsPanel:ModelSizeDivisor()
 end
 
 -- Row geometry shared by CreateModelRow and LayoutText.
@@ -24,13 +23,19 @@ local NAME_GAP    = 15   -- name / NPC text LEFT gap from the model card's right
 local RIGHT_PAD   = 12   -- clearance kept from the column's right edge
 local MIN_TEXT_W  = 50   -- never let the text area collapse entirely
 
--- True at the smallest pets-per-column setting (2), where the model card is largest
+-- Exposed for ModelsPanel's geometry: UpdateModelsPanelLayout needs the same inset
+-- and right pad the row uses, so the X-Large fill-width card lands flush with the
+-- column edges -- one copy of the row paddings, not two.
+PSM.ModelRow.MODEL_INSET = MODEL_INSET
+PSM.ModelRow.RIGHT_PAD   = RIGHT_PAD
+
+-- True at the largest card size (stop 5, X-Large), where the model card is largest
 -- and the row shortest: the name / NPC lines are cramped and redundant with the row
 -- tooltip, so they are dropped entirely. LayoutText and UpdateItemRow both consult
 -- this so the live-drag geometry pass and the data render agree on what is shown.
 function PSM.ModelRow:TextSuppressed()
-    local ppc = PetStableManagementDB.settings.petsPerColumn or PSM.Config.DEFAULT_PETS_PER_COLUMN
-    return ppc <= PSM.Config.MIN_PETS_PER_COLUMN
+    return (PetStableManagementDB.settings.browserModelSize
+            or PSM.Config.DEFAULT_BROWSER_MODEL_SIZE) >= PSM.Config.MAX_BROWSER_MODEL_SIZE
 end
 
 -- Fit the name and NPC-description text to the row's current width -- or hide it
@@ -243,7 +248,7 @@ function PSM.ModelRow:UpdateItemRow(row, item, index)
     end
 
     -- LayoutText fits the text widths to the column, or hides the text frames
-    -- entirely when TextSuppressed() (petsPerColumn == 2). Skip the show/populate
+    -- entirely when TextSuppressed() (at the X-Large size). Skip the show/populate
     -- block in that case -- the row tooltip carries the same information.
     self:LayoutText(row)
     if not self:TextSuppressed() then
@@ -260,6 +265,9 @@ function PSM.ModelRow:UpdateItemRow(row, item, index)
         for i = 1, 4 do row.npcTexts[i]:Hide() end
 
         local totalNpcs = #npcs
+        local sf = scalingFactor()
+        local isXSSize = sf <= 0.55
+
         if npcs[1] then
             local first = row.npcTexts[1]
             first:SetText(_G.PSM._modelsDescriptionCache and _G.PSM._modelsDescriptionCache[npcs[1]])
@@ -267,7 +275,7 @@ function PSM.ModelRow:UpdateItemRow(row, item, index)
             first:SetPoint("TOPLEFT", row.nameText, "BOTTOMLEFT", 0, -5)
             first:Show()
 
-            if totalNpcs > 1 then
+            if totalNpcs > 1 and not isXSSize then
                 local more = row.npcTexts[2]
                 more:SetText(PSM.L("and %d more...", totalNpcs - 1))
                 more:ClearAllPoints()

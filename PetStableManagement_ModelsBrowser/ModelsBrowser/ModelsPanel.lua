@@ -31,7 +31,7 @@ local MODELS_CONFIG = {
     ROW_HEIGHT     = 120,
     MODEL_SIZE     = 100,
     PETS_PER_PAGE  = 10,
-    PETS_PER_COLUMN = 5,
+    SIZE_DIVISOR   = 5,
     NPC_PETS_PER_PAGE = 30, -- text-only rows are cheap, so the NPC view can page much larger
     NPC_MAX_ROWS      = 40,
 }
@@ -77,8 +77,47 @@ end
 -- Internal helpers
 -- ─────────────────────────────────────────────
 
--- Returns (petsPerColumn, petsPerPage). The first value is always the raw
--- petsPerColumn setting -- it drives the model scale in UpdateModelsPanelLayout, so
+-- The effective pets-per-column divisor for the current Browser Model Size stop.
+-- Every geometry formula consumes this one number exactly as it consumed the old
+-- petsPerColumn setting -- nothing about the math below changes, only its source.
+function PSM.ModelsPanel:ModelSizeDivisor()
+    local d = PSM.Config.BROWSER_MODEL_SIZE_DIVISORS
+    local stop = PetStableManagementDB.settings.browserModelSize
+                 or PSM.Config.DEFAULT_BROWSER_MODEL_SIZE
+    return d[stop] or d[PSM.Config.DEFAULT_BROWSER_MODEL_SIZE]
+end
+
+-- The square model card's edge and the vertical pitch between rows, for the
+-- current slider stop and the panel's current width. Every stop except X-Large
+-- keeps the classic scale-derived sizes (MODEL_SIZE = 100 * scale, ROW_HEIGHT =
+-- 120 * scale). At X-Large the card fills the column width instead: its text is
+-- suppressed, so a left-anchored card would leave a dead band across most of the
+-- column, and keeping the card square means growing the row pitch with it so the
+-- taller card fits. The row's own paddings (from ModelRow) make the fill land
+-- flush with the column edges.
+local function ComputeCardGeometry()
+    local ppc       = PSM.ModelsPanel:ModelSizeDivisor()
+    local scale     = 5 / ppc
+    local modelSize = 100 * scale
+    local rowHeight = 120 * scale
+    local panel     = PSM.state.modelsPanel
+    if panel and panel.petsFrame then
+        local columnWidth = (panel.petsFrame:GetWidth() - 30) / 2
+        if PSM.ModelRow and PSM.ModelRow.TextSuppressed and PSM.ModelRow:TextSuppressed() then
+            local fill = math.floor(columnWidth
+                - (PSM.ModelRow.MODEL_INSET or 4) - (PSM.ModelRow.RIGHT_PAD or 12))
+            if fill > modelSize then
+                modelSize = fill
+                rowHeight = fill + 8 -- a little breathing room beneath the card
+            end
+        end
+    end
+    return ppc, modelSize, rowHeight
+end
+
+-- Returns (petsPerColumn, petsPerPage), plus the card geometry it computed, so
+-- UpdateModelsPanelLayout and this function can never disagree. The first value
+-- is the Browser Model Size slider stop's divisor -- it drives the model scale, so
 -- it must not change with the panel size. The second, rows-per-page, tracks the
 -- panel's height in both views: the setting fixes the model *size*, the available
 -- height decides how many of that size fit.
@@ -100,17 +139,16 @@ local function GetPageLayout()
         return 1, math.min(fit, MODELS_CONFIG.NPC_MAX_ROWS)
     end
 
-    local ppc  = PetStableManagementDB.settings.petsPerColumn or PSM.Config.DEFAULT_PETS_PER_COLUMN
+    local ppc, modelSize, rowHeight = ComputeCardGeometry()
     local rows = ppc
     if panel and panel.petsFrame then
-        -- Same row-height formula UpdateModelsPanelLayout uses (120 * scale, scale =
-        -- 5/ppc); the 10px is its top pad. At the shipped 820 height this floors to
-        -- exactly `ppc` for every setting 2-10, so an unresized panel is unchanged.
-        local rowH = 120 * (5 / ppc)
-        rows = math.floor((panel.petsFrame:GetHeight() - 10) / rowH)
-        rows = math.max(1, math.min(rows, PSM.Config.MAX_PETS_PER_COLUMN))
+        -- The 10px is the top pad. At the shipped 820 height this floors to exactly
+        -- `ppc` for every setting 2-10 (the X-Large fill widens the pitch, so it
+        -- floors to fewer, larger cards), so an unresized panel is unchanged.
+        rows = math.floor((panel.petsFrame:GetHeight() - 10) / rowHeight)
+        rows = math.max(1, math.min(rows, PSM.Config.MAX_BROWSER_CARD_ROWS))
     end
-    return ppc, rows * 2
+    return ppc, rows * 2, modelSize, rowHeight
 end
 
 -- Returns the item list backing the currently active view.
@@ -190,18 +228,17 @@ function PSM.ModelsPanel:UpdateModelsPanelLayout(geometryOnly)
     local panel = PSM.state.modelsPanel
     if not panel then return end
 
-    local ppc, ppp = GetPageLayout()
-    local scale = 5 / ppc  -- base is 5 pets per column
+    local ppc, ppp, modelSize, rowHeight = GetPageLayout()
 
-    MODELS_CONFIG.PETS_PER_COLUMN = ppc
+    MODELS_CONFIG.SIZE_DIVISOR   = ppc
     MODELS_CONFIG.PETS_PER_PAGE   = ppp
-    MODELS_CONFIG.MODEL_SIZE      = 100 * scale
-    MODELS_CONFIG.ROW_HEIGHT      = 120 * scale
+    MODELS_CONFIG.MODEL_SIZE      = modelSize
+    MODELS_CONFIG.ROW_HEIGHT      = rowHeight
 
     if not panel.petsFrame then return end
 
     local columnWidth = (panel.petsFrame:GetWidth() - 30) / 2
-    local MAX_ROWS = PSM.Config.MAX_PETS_PER_COLUMN * 2
+    local MAX_ROWS = PSM.Config.MAX_BROWSER_CARD_ROWS * 2
 
     -- Position and size rows, show/hide based on current ppp
     for i = 1, MAX_ROWS do
@@ -263,11 +300,20 @@ function PSM.ModelsPanel:LoadSavedFilters()
 end
 
 function PSM.ModelsPanel:CreateModelsPanel()
+    -- Restore previously saved size and position
+    local savedSize  = PSM.Data:GetPanelSize("modelsBrowser")
+    local savedPos   = PSM.Data:GetPanelPosition("modelsBrowser")
     local panel = PSM.PanelManager:CreateBasePanel("modelsPanel", {
-        width              = MODELS_CONFIG.PANEL_WIDTH,
-        height             = MODELS_CONFIG.PANEL_HEIGHT,
+        width              = savedSize and savedSize.width  or MODELS_CONFIG.PANEL_WIDTH,
+        height             = savedSize and savedSize.height or MODELS_CONFIG.PANEL_HEIGHT,
         minWidth           = MODELS_CONFIG.MIN_WIDTH,
         minHeight          = MODELS_CONFIG.MIN_HEIGHT,
+        position           = savedPos or {
+            point         = "TOPLEFT",
+            relativeTo    = "UIParent",
+            relativePoint = "TOPLEFT",
+            x = 100, y = -100,
+        },
         -- Constructed expanded (PANEL_WIDTH is the expanded size), so the cap passed
         -- here is the expanded one; onShow / the rail's onToggle re-assert it rail-aware.
         maxWidth           = MaxPanelWidth(true),
@@ -337,11 +383,24 @@ function PSM.ModelsPanel:CreateModelsPanel()
 
         onHide = function(p)
             SaveCurrentPage(p.currentPage or PSM.state.modelsPanelCurrentPage or 1)
+            -- Save base width (with rail adjustment) so onShow can re-apply it
+            local w = p:GetWidth()
+            if p.rail and p.rail:IsCollapsed() then
+                w = w + p.rail.width
+            end
+            PSM.Data:SetPanelSize("modelsBrowser", w, p:GetHeight())
             PSM.PanelManager:CleanupPanel(p)
             PSM.state.wasOwnedPetsOpen = nil
             p._layoutDone = false
         end,
     })
+
+    -- Dragging the panel updates its saved position
+    panel:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local point, relativeTo, relativePoint, x, y = self:GetPoint(1)
+        PSM.Data:SetPanelPosition("modelsBrowser", point, relativeTo or "UIParent", relativePoint, x, y)
+    end)
 
     self:AddModelsBrowserElements(panel)
     self:RegisterZoneEventListeners()
@@ -673,13 +732,27 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     panel.currentPage = PSM.state.modelsPanelCurrentPage or 1
     _G.PSM_modelsPanelCurrentPage = panel.currentPage
 
-    -- Ensure petsPerColumn setting exists
-    if PetStableManagementDB.settings.petsPerColumn == nil then
-        PetStableManagementDB.settings.petsPerColumn = PSM.Config.DEFAULT_PETS_PER_COLUMN
+    -- Migrate the old "Pets Per Column" setting to the Browser Model Size slider:
+    -- snap the saved pets-per-column divisor to the nearest slider stop, then drop
+    -- the dead key.
+    if PetStableManagementDB.settings.browserModelSize == nil then
+        local old = PetStableManagementDB.settings.petsPerColumn
+        if type(old) == "number" then
+            local d, best, bestErr = PSM.Config.BROWSER_MODEL_SIZE_DIVISORS,
+                                      PSM.Config.DEFAULT_BROWSER_MODEL_SIZE, math.huge
+            for stop = 1, #d do
+                local err = math.abs(d[stop] - old)
+                if err < bestErr then best, bestErr = stop, err end
+            end
+            PetStableManagementDB.settings.browserModelSize = best
+        else
+            PetStableManagementDB.settings.browserModelSize = PSM.Config.DEFAULT_BROWSER_MODEL_SIZE
+        end
+        PetStableManagementDB.settings.petsPerColumn = nil
     end
 
     -- Build pooled model rows (max possible, hidden initially)
-    local MAX_ROWS = PSM.Config.MAX_PETS_PER_COLUMN * 2
+    local MAX_ROWS = PSM.Config.MAX_BROWSER_CARD_ROWS * 2
     for i = 1, MAX_ROWS do
         local petRow = PSM.ModelRow:CreateModelRow(petsFrame)
         petRow:Hide()
@@ -889,7 +962,15 @@ function PSM.ModelsPanel:AddModelsBrowserElements(panel)
     -- a scroll-fraction settle.
     PSM.PanelManager:AttachResizeHandler(panel, {
         onLive   = function() PSM.ModelsPanel:ReflowContentLive(panel) end,
-        onSettle = function() PSM.ModelsPanel:ReflowContent(panel) end,
+        onSettle = function()
+            -- Save base width (with rail adjustment) so onShow can re-apply it
+            local w = panel:GetWidth()
+            if panel.rail and panel.rail:IsCollapsed() then
+                w = w + panel.rail.width
+            end
+            PSM.Data:SetPanelSize("modelsBrowser", w, panel:GetHeight())
+            PSM.ModelsPanel:ReflowContent(panel)
+        end,
     })
 
     -- Now that pagination controls exist, position the NPC row pool if that's

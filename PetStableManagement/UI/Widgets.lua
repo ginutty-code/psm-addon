@@ -44,7 +44,7 @@ local OPTIONS = {
     Texture     = { layer = true, sublayer = true, allPoints = true, color = true, texture = true, atlas = true, texCoord = true, vertexColor = true },
     PetPortrait = { portraitSize = true, ringSize = true },
     CheckBox    = { name = true, template = true, checked = true, onClick = true, tooltip = true, label = true, labelFontObject = true, labelFontSize = true, labelColor = true },
-    Slider      = { name = true, template = true, min = true, max = true, step = true, value = true, lowLabel = true, highLabel = true, format = true, onChange = true },
+    Slider      = { name = true, template = true, min = true, max = true, step = true, value = true, lowLabel = true, highLabel = true, format = true, onChange = true, snap = true, ticks = true, tickLabels = true },
     -- No fontSize/fontObject/color: the label's type is the kit's, not the caller's
     -- (see Widgets.SectionHeader). Passing one now lands in Widgets.unknownOptions
     -- rather than silently reintroducing the drift this factory just removed.
@@ -179,8 +179,17 @@ function Widgets.Label(parent, opts)
         error("PSM.Widgets.Label: `fontObject` and `fontSize`/`outline` are mutually exclusive", 2)
     end
 
-    local fs = parent:CreateFontString(nil, opts.layer or "OVERLAY", opts.fontObject)
-    if not opts.fontObject then
+    -- `fontObject` is either a template name ("GameFontNormal", the common case)
+    -- or a FontObject instance (taken from an existing font string's
+    -- :GetFontObject()) when the caller wants a font that is byte-identical to
+    -- something already on screen. CreateFontString only accepts a *name*, so an
+    -- instance is applied afterwards with SetFontObject -- which is exact, unlike
+    -- re-spelling font/size/outline.
+    local templateName = type(opts.fontObject) == "string" and opts.fontObject or nil
+    local fs = parent:CreateFontString(nil, opts.layer or "OVERLAY", templateName)
+    if type(opts.fontObject) == "table" then
+        fs:SetFontObject(opts.fontObject)
+    elseif not opts.fontObject then
         fs:SetFont(ns.Theme.FONT, opts.fontSize or ns.Theme.SIZE.LABEL,
                    opts.outline and "OUTLINE" or "")
     end
@@ -859,6 +868,119 @@ function Widgets.Slider(parent, opts)
     local caption = _G[opts.name .. "Text"]
     _G[opts.name .. "Low"]:SetText(opts.lowLabel or "")
     _G[opts.name .. "High"]:SetText(opts.highLabel or "")
+
+    -- Discrete sliders (a stop is a state, not a position): snap the thumb to the
+    -- stops so OnValueChanged only fires when one actually changes. A free drag
+    -- between stops reflows the caller's panel for a value it has no discrete
+    -- state for -- that is the flicker -- so it is refused at the thumb.
+    if opts.snap then
+        s:SetObeyStepOnDrag(true)
+    end
+
+    -- Tick marks and per-stop labels. The stop positions depend on the thumb's
+    -- real size and where the template sits the caption baseline -- neither is
+    -- final until the frame has been laid out and (for ElvUI users) skinning has
+    -- run -- so they are created here but positioned from measured geometry on
+    -- show, retrying until the layout settles.
+    if opts.ticks and opts.ticks >= 2 then
+        local endLabel = _G[opts.name .. "Low"]
+        local endFont  = (endLabel and endLabel:GetFontObject()) or "GameFontNormalSmall"
+        local endColor = endLabel and { endLabel:GetTextColor() } or nil
+
+        -- The tick marks and labels live on their own named child frame, not as
+        -- direct regions of the slider: Blizzard's template regions are the only
+        -- regions a slider is expected to have, and third-party slider skins
+        -- (ElvUI's HandleSliderFrame) iterate every direct region assuming a name
+        -- -- an unnamed FontString lands in strfind(nil) mid-skin. A sub-frame's
+        -- regions are invisible to that loop. Mouse is disabled so the container
+        -- never swallows clicks meant for the track/thumb.
+        local tickLayer = Widgets.Frame(s, {
+            name      = opts.name .. "TickMarks",
+            allPoints = true,
+        })
+        tickLayer:EnableMouse(false)
+
+        local tickFrames = {}
+        s.tickFrames = tickFrames
+        for i = 1, opts.ticks do
+            local tex = Widgets.Texture(tickLayer, {
+                layer = "OVERLAY",
+                color = { 1, 1, 1, 0.35 },
+                size  = { 2, 12 },
+            })
+            local lab
+            local labelText = opts.tickLabels and opts.tickLabels[i]
+            if labelText and labelText ~= "" then
+                lab = Widgets.Label(tickLayer, {
+                    fontObject = endFont,
+                    color      = endColor,
+                    justify    = "CENTER",
+                    text       = labelText,
+                })
+            end
+            tickFrames[i] = { tex = tex, lab = lab }
+        end
+
+        -- Blizzard lays a slider's thumb with its centre at
+        --   tw/2 + (value - min) / (max - min) * (width - tw)
+        -- so a stop's x comes from that exact formula using the *measured* thumb
+        -- width -- a bootstrapped guess is what put S/L off their stops. Returns
+        -- false until the frame is actually laid out, so callers can retry.
+        local function PositionTicks()
+            local w  = s:GetWidth()
+            local th = s:GetThumbTexture()
+            local tw = th and th:GetWidth() or 0
+            if not (w and w > 0 and tw and tw > 0) then return false end
+
+            -- GetBottom()/GetTop() are 0 until the layout pass. Wait for a real one.
+            local bottom = s:GetBottom()
+            local thTop  = th:GetTop()
+            if not bottom or bottom == 0 or not thTop or thTop == 0 then return false end
+
+            local travel      = w - tw
+            local leftPointY  = bottom + s:GetHeight() / 2
+
+            -- Labels sit at the XS/XL caption's height so all five read as one row.
+            local capY = -s:GetHeight() / 2
+            if endLabel then
+                local top, bot = endLabel:GetTop(), endLabel:GetBottom()
+                if top and bot and (top ~= 0 or bot ~= 0) then
+                    capY = (top + bot) / 2 - leftPointY
+                end
+            end
+
+            -- Ticks ride centered on the slider track so they stay visible and
+            -- sit on the slider rather than under the low/high captions.
+            local tickY = 0
+
+            for i, entry in ipairs(tickFrames) do
+                local t = (i - 1) / (#tickFrames - 1)
+                local x = tw / 2 + t * travel
+                entry.tex:ClearAllPoints()
+                entry.tex:SetPoint("CENTER", tickLayer, "LEFT", x, tickY)
+                if entry.lab then
+                    entry.lab:ClearAllPoints()
+                    entry.lab:SetPoint("CENTER", tickLayer, "LEFT", x, capY)
+                end
+            end
+            return true
+        end
+        s.PositionTicks = PositionTicks
+
+        -- Reposition whenever the panel is shown; if the layout is not ready yet,
+        -- retry the next frames until it is. Skin/thumb changes are re-measured on
+        -- the next show.
+        local function StartRetry()
+            if s:GetScript("OnUpdate") then return end -- one retry loop at a time
+            s:SetScript("OnUpdate", function()
+                if PositionTicks() then s:SetScript("OnUpdate", nil) end
+            end)
+        end
+        s:HookScript("OnShow", function()
+            if not PositionTicks() then StartRetry() end
+        end)
+        if not PositionTicks() then StartRetry() end
+    end
 
     local formatValue = opts.format or tostring
     local silent      = false

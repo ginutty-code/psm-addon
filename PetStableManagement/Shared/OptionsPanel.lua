@@ -302,25 +302,34 @@ local function BuildOptions(cfg)
             apply     = ApplyModelReapply,
         },
         {
-            kind    = "dropdown",
-            name    = "PetsPerColumnDropdown",
-            key     = "petsPerColumn",
-            title   = ns.L("Pets Per Column in Browser:"),
-            default = cfg.DEFAULT_PETS_PER_COLUMN,
-            choices = (function()
-                local list = {}
-                for i = cfg.MIN_PETS_PER_COLUMN, cfg.MAX_PETS_PER_COLUMN do
-                    list[#list + 1] = { value = i, text = "  " .. i }
-                end
-                return list
-            end)(),
-            -- No displayText override: unified with backgroundType below, both now
-            -- show their list text (padded) as the current-selection text too.
-            apply = function()
-                -- Column count only affects the browser's grid; nothing else repaints.
+            kind      = "slider",
+            name      = "BrowserModelSizeSlider",
+            key       = "browserModelSize",
+            title     = ns.L("Browser Model Size:"),
+            default   = cfg.DEFAULT_BROWSER_MODEL_SIZE,
+            min       = cfg.MIN_BROWSER_MODEL_SIZE,
+            max       = cfg.MAX_BROWSER_MODEL_SIZE,
+            step      = 1,
+            round     = 0,
+            -- A stop is a state, not a position: snap the thumb to it and draw a
+            -- tick under each, so a drag between stops can't reflow the browser
+            -- for a size that doesn't exist. The middle stops carry one-letter
+            -- labels (S/M/L, same font as the XS/XL ends); X-Small/X-Large are
+            -- already named by those end captions.
+            snap      = true,
+            ticks     = #cfg.BROWSER_MODEL_SIZE_DIVISORS,
+            tickLabels = { [2] = ns.L("S"), [3] = ns.L("M"), [4] = ns.L("L") },
+            lowLabel  = ns.L("XS"),
+            highLabel = ns.L("XL"),
+            format    = function(v)
+                local names = { ns.L("X-Small"), ns.L("Small"), ns.L("Medium"),
+                                ns.L("Large"), ns.L("X-Large") }
+                local idx = math.floor(v + 0.5)
+                return ns.L("Model Size: %s", names[idx] or names[cfg.DEFAULT_BROWSER_MODEL_SIZE])
+            end,
+            apply     = function()
                 if ns.state.modelsPanel and ns.Browser.ModelsPanel then
-                    ns.Browser.ModelsPanel:UpdateModelsPanelLayout()
-                    ns.Browser.ModelsPanel:UpdateVisibleRows()
+                    ns.Browser.ModelsPanel:ReflowContent()   -- geometry + re-render + page clamp
                 end
             end,
         },
@@ -362,9 +371,7 @@ end
 
 -- A dropdown's display text for a given value, found by scanning its own `choices`
 -- -- the default, since `choices` already carries the labels and a second copy
--- would only be one more thing to keep in sync with it. `petsPerColumn` overrides
--- via `displayText` instead (see BuildOptions): its display text has never matched
--- its list text (no leading-space indent).
+-- would only be one more thing to keep in sync with it.
 local function TextForChoice(spec, value)
     for _, choice in ipairs(spec.choices) do
         if choice.value == value then return choice.text end
@@ -447,9 +454,17 @@ panel:SetScript("OnShow", function(self)
                 lowLabel  = spec.lowLabel,
                 highLabel = spec.highLabel,
                 format    = spec.format,
+                snap      = spec.snap,
+                ticks     = spec.ticks,
+                tickLabels = spec.tickLabels,
                 onChange  = function(value)
                     local scale = 10 ^ spec.round
-                    WriteOption(spec, math.floor(value * scale) / scale)
+                    local rounded = math.floor(value * scale + 0.5) / scale
+                    -- A drag can land back on the stop it left (or, without snap,
+                    -- jitter across it); only reflow when it actually changed.
+                    if rounded ~= OptionValue(spec) then
+                        WriteOption(spec, rounded)
+                    end
                 end,
             })
         elseif spec.kind == "dropdown" then
@@ -526,21 +541,16 @@ panel:SetScript("OnShow", function(self)
         anchorWidget = verticalPositionSlider, anchorOffset = SLIDER_SLIDER_SPACING,
     })
 
-    -- ── Pets-per-column dropdown ────────────────────────────────────────────
-    local petsPerColumnTitle = Widgets.Label(panel, {
-        fontObject = "GameFontNormal",
-        text       = byKey.petsPerColumn.title,
-        point      = { "TOPLEFT", horizontalPositionSlider, "BOTTOMLEFT", 0, SLIDER_SLIDER_SPACING },
-    })
-    BuildOption(byKey.petsPerColumn, {
-        point = { "TOPLEFT", petsPerColumnTitle, "BOTTOMLEFT", DROPDOWN_OFFSET_X, DROPDOWN_OFFSET_Y },
+    -- ── Browser Model Size slider ───────────────────────────────────────────
+    local browserModelSizeSlider = BuildOption(byKey.browserModelSize, {
+        anchorWidget = horizontalPositionSlider, anchorOffset = SLIDER_SLIDER_SPACING,
     })
 
     -- ── Background type dropdown ────────────────────────────────────────────
     local backgroundTypeTitle = Widgets.Label(panel, {
         fontObject = "GameFontNormal",
         text       = byKey.backgroundType.title,
-        point      = { "TOPLEFT", petsPerColumnTitle, "TOPRIGHT", 20, 0 },
+        point      = { "TOPLEFT", browserModelSizeSlider, "BOTTOMLEFT", 0, SLIDER_SLIDER_SPACING },
     })
     local backgroundTypeDropdown = BuildOption(byKey.backgroundType, {
         point = { "TOPLEFT", backgroundTypeTitle, "BOTTOMLEFT", DROPDOWN_OFFSET_X, DROPDOWN_OFFSET_Y },

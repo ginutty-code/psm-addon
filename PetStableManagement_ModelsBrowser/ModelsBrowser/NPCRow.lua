@@ -584,18 +584,19 @@ function PSM.NPCRow:CreateHeaderRow(parent)
         btn.text = Widgets.SectionHeaderLabel(btn, {
             point = { "LEFT", 4, 0 },
         })
+        btn.text:SetWordWrap(false)
         btn.columnKey = col.key
 
         -- The sorted column carries a small arrow rather than a " ^"/" v" text
-        -- marker. Interface\Buttons\arrow-down-down is Blizzard's own column-sort
+        -- marker. Interface\Buttons\ui-sortarrow is Blizzard's own column-sort
         -- glyph and points down at rest; UpdateHeaderRow flips it vertically for
         -- the ascending direction and shows it only on the active sort column.
         -- Tinted white -- the raw texture is a dim gold that disappears against
         -- the header band.
         btn.sortArrow = Widgets.Texture(btn, {
             layer       = "OVERLAY",
-            texture     = "Interface\\Buttons\\arrow-down-down",
-            size        = { 16, 16 },
+            texture     = "Interface\\Buttons\\ui-sortarrow",
+            size        = { 8, 8 },
             point       = { "RIGHT", 0, 0 },
             vertexColor = PSM.Theme.COLOR.WHITE,
             hidden      = true,
@@ -642,7 +643,8 @@ function PSM.NPCRow:UpdateHeaderRow(panel)
             btn:SetPoint("TOPLEFT", header, "TOPLEFT", colLayout.x, 0)
             btn:SetSize(colLayout.width, HEADER_HEIGHT - 2)
             btn.text:SetText(col.label)
-            if panel.npcSortField == colLayout.key then
+            local isSorted = (panel.npcSortField == colLayout.key)
+            if isSorted then
                 -- UI-SortArrow points down; flip it vertically for ascending.
                 if panel.npcSortAsc then
                     btn.sortArrow:SetTexCoord(0, 1, 1, 0)
@@ -653,6 +655,13 @@ function PSM.NPCRow:UpdateHeaderRow(panel)
             else
                 btn.sortArrow:Hide()
             end
+
+            -- Bound the text to the column width so it never overflows, truncating
+            -- with "..." if the column is too narrow. When sorted, reserve space on
+            -- the right so the label never overlaps the sort arrow.
+            local reservedRight = isSorted and 18 or 4
+            local availWidth = math.max(1, colLayout.width - 4 - reservedRight)
+            btn.text:SetWidth(availWidth)
             btn:Show()
 
             local handle = header.resizeHandles[colLayout.key]

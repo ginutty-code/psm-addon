@@ -244,6 +244,9 @@ function ns.Data:SaveSettings()
     db.characters[key] = char
     local savedPage = char.settings and char.settings.modelsPanelCurrentPage
 
+    -- Save existing custom settings before we overwrite char.settings below.
+    local oldSettings = char.settings or {}
+
     local aw = GetAccountWide()
     -- Don't overwrite favorites until they've actually been loaded this session.
     if ns.state.favoriteModelsLoaded then
@@ -269,7 +272,14 @@ function ns.Data:SaveSettings()
             -- PetStableManagementDB.settings.minimapButton (see Events.lua's
             -- ADDON_LOADED handler).
         }
-end
+        -- Merge in any custom settings (panel size/position, rail state, etc.)
+        -- that were set directly on char.settings before this replacement.
+        for k, v in pairs(oldSettings) do
+            if char.settings[k] == nil then
+                char.settings[k] = v
+            end
+        end
+    end
 
 function ns.Data:LoadPersistentDataForDisplay(preserveCurrentData)
     local db = PetStableManagementDB
@@ -1355,5 +1365,63 @@ function ns.Data:SetTeamsPanelPosition(point, relativeTo, relativePoint, x, y)
         point = point, relativeTo = relativeTo,
         relativePoint = relativePoint, x = x, y = y,
     }
+    self:SaveSettings()
+end
+
+-- ─── Generic per-panel settings (Owned Pets, Models Browser) ──────────────────
+--
+-- A panel's window state -- size, screen position, and the auxiliary flags
+-- (collapsed rail, etc.) -- is keyed by a stable per-panel identifier rather
+-- than the SavedVariables name, so the same code path serves any panel that
+-- opts in. The Teams panel predates this and still owns its own
+-- (TeamsPanel*) keys for historical reasons -- both write paths land in
+-- the same character-settings bucket.
+
+function ns.Data:GetPanelWidth(panelKey)
+    return GetCharacterSettings()["panelWidth_" .. panelKey]
+end
+
+function ns.Data:GetPanelHeight(panelKey)
+    return GetCharacterSettings()["panelHeight_" .. panelKey]
+end
+
+function ns.Data:GetPanelPosition(panelKey)
+    return GetCharacterSettings()["panelPosition_" .. panelKey]
+end
+
+function ns.Data:GetPanelSize(panelKey)
+    local s = GetCharacterSettings()
+    local w = s["panelWidth_" .. panelKey]
+    local h = s["panelHeight_" .. panelKey]
+    if w and h then return { width = w, height = h } end
+    return nil
+end
+
+function ns.Data:SetPanelSize(panelKey, width, height)
+    local s = GetCharacterSettings()
+    s["panelWidth_" .. panelKey]  = width
+    s["panelHeight_" .. panelKey] = height
+    self:SaveSettings()
+end
+
+function ns.Data:SetPanelPosition(panelKey, point, relativeTo, relativePoint, x, y)
+    -- Store relativeTo as a string name so it survives serialization; SetPoint
+    -- expects a frame object at call time, so CreateBasePanel resolves it back.
+    local relName = type(relativeTo) == "table" and relativeTo.GetName and relativeTo:GetName()
+        or (type(relativeTo) == "string" and relativeTo or "UIParent")
+    GetCharacterSettings()["panelPosition_" .. panelKey] = {
+        point = point, relativeTo = relName,
+        relativePoint = relativePoint, x = x, y = y,
+    }
+    self:SaveSettings()
+end
+
+-- Rail collapsed state persistence (per-panel key)
+function ns.Data:GetRailState(panelKey)
+    return GetCharacterSettings()["railCollapsed_" .. panelKey]
+end
+
+function ns.Data:SetRailState(panelKey, collapsed)
+    GetCharacterSettings()["railCollapsed_" .. panelKey] = collapsed
     self:SaveSettings()
 end

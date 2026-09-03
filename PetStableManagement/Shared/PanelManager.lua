@@ -127,11 +127,37 @@ function ns.PanelManager:CreateBasePanel(name, config)
     local Widgets = ns.Widgets
     local p = config.position
 
+    -- Resolve relativeTo: string names get looked up in _G; stale frame
+    -- tables (from before SavedVariables dropped real frame references)
+    -- fall back to UIParent.
+    local relFrame = p and p.relativeTo
+    local relPoint = p and p.relativePoint
+    local point    = p and p.point
+    local px       = p and p.x or 0
+    local py       = p and p.y or 0
+    if type(relFrame) == "string" then
+        local found = _G[relFrame]
+        if found then
+            relFrame = found
+        else
+            relFrame = UIParent
+            -- If docked beside an external frame (e.g. TOPLEFT to StableFrame's TOPRIGHT),
+            -- falling back to UIParent must not attach to UIParent's TOPRIGHT (off-screen).
+            if relPoint == "TOPRIGHT" and point == "TOPLEFT" then
+                relPoint = "TOPLEFT"
+                px = 100
+                py = -100
+            end
+        end
+    elseif type(relFrame) ~= "table" or not relFrame.GetName then
+        relFrame = UIParent
+    end
+
     local panel = Widgets.MovableFrame(UIParent, {
         name   = name,
         size   = { config.width  or ns.Config.DEFAULT_PANEL_WIDTH,
                    config.height or ns.Config.DEFAULT_PANEL_HEIGHT },
-        point  = p and { p.point, p.relativeTo, p.relativePoint, p.x or 0, p.y or 0 }
+        point  = p and { point, relFrame, relPoint, px, py }
                    or { "CENTER" },
         strata = config.strata    or "HIGH",
         level  = config.frameLevel or 50,

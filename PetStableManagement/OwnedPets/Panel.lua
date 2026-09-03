@@ -46,17 +46,21 @@ function ns.UI:BuildPanel()
 end
 
 function ns.UI:CreateOwnedPetsPanel()
+    -- Restore previously saved size; config.position still defaults to docked beside
+    -- the Stable frame for a first-run player.
+    local savedSize  = ns.Data:GetPanelSize("ownedPets")
+    local savedPos   = ns.Data:GetPanelPosition("ownedPets")
     local config = {
         -- The collapsed-rail width. An expanded rail adds its own width on the right
         -- (onShow / BuildFilters' onToggle), so the pet list keeps its size either way.
-        width        = ns.Config.DEFAULT_PANEL_WIDTH,
-        height       = ns.Config.DEFAULT_PANEL_HEIGHT,
+        width        = savedSize and savedSize.width  or ns.Config.DEFAULT_PANEL_WIDTH,
+        height       = savedSize and savedSize.height or ns.Config.DEFAULT_PANEL_HEIGHT,
         -- Width is pinned to the default (MIN_OWNED_PETS_WIDTH == DEFAULT_PANEL_WIDTH);
         -- a hand resize only grows it. Expanded, the floor rises by the rail width
         -- (SetMinWidth in onShow / onResize / BuildFilters' onToggle).
         minWidth     = ns.Config.MIN_OWNED_PETS_WIDTH,
         minHeight    = ns.Config.MIN_OWNED_PETS_HEIGHT,
-        position     = {
+        position     = savedPos or {
             point         = "TOPLEFT",
             relativeTo    = "StableFrame",
             relativePoint = "TOPRIGHT",
@@ -66,6 +70,14 @@ function ns.UI:CreateOwnedPetsPanel()
 
         onHide = function(panel)
             ns.PanelManager:CleanupPanel(panel)
+            -- Persist size for next session (only when not maximized)
+            if not panel.isMaximized then
+                local w = panel:GetWidth()
+                if panel.rail and not panel.rail:IsCollapsed() then
+                    w = w - panel.rail.width
+                end
+                ns.Data:SetPanelSize("ownedPets", w, panel:GetHeight())
+            end
             -- Stable-pet data is intentionally kept; other panels (e.g. Pet Groups) rely on it.
         end,
 
@@ -111,6 +123,14 @@ function ns.UI:CreateOwnedPetsPanel()
         end,
 
         onResize = function(panel)
+            -- Persist size changes — save base width without rail adjustment (only when not maximized)
+            if not panel.isMaximized then
+                local w = panel:GetWidth()
+                if panel.rail and not panel.rail:IsCollapsed() then
+                    w = w - panel.rail.width
+                end
+                ns.Data:SetPanelSize("ownedPets", w, panel:GetHeight())
+            end
             -- Maximize resets bounds from config; re-assert the rail-aware minimum so
             -- a restore of an expanded panel keeps the wider floor.
             if panel.rail then
@@ -125,6 +145,14 @@ function ns.UI:CreateOwnedPetsPanel()
 
     local panel = ns.PanelManager:CreateBasePanel("panel", config)
     self:AddOwnedPetsElements(panel)
+
+    -- Dragging the panel updates its saved position
+    panel:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local point, relativeTo, relativePoint, x, y = self:GetPoint(1)
+        ns.Data:SetPanelPosition("ownedPets", point, relativeTo or "UIParent", relativePoint, x, y)
+    end)
+
     return panel
 end
 

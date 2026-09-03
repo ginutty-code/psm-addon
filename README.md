@@ -69,7 +69,7 @@ A comprehensive browser for discovering all available pet models and planning yo
 - **Favorites System**: Mark and track your favorite pet models across all your hunters on the same account
 - **Reset All Filters**: Quickly clear all filters and return to default "show everything" state
 - **Pagination**: Efficient browsing with page navigation and jump-to-page
-- **Layout Customization**: Adjustable pets per column in model browser (from 2 to 10 pets * 2 columns)
+- **Layout Customization**: Resizable Models Browser with an adjustable pet-preview size (X-Small to X-Large)
 - **NPC View**: Toggle from the 3D model grid to a compact, sortable text table listing one row per NPC, letting you page through far more results at once. Click any column header to sort (ID, Name, Family, Classification, Name Keeper, Zone, Continent, Expansion, Faction, Note, Display IDs); use the Columns button to choose which optional columns are shown, and drag column edges to resize them. NPC names link to their Wowhead page, zones with known coordinates link to TomTom waypoints, and each NPC's Display IDs appear as clickable pills (shown in green if already owned) that open the Model Magnifier.
 - **Detailed NPC Information**: View comprehensive NPC data including classification (Elite, Rare, Rare Elite), location (with coordinates, where available), expansion, faction reaction, special notes from Petopia, and ability to add custom notes
 - **TomTom Integration**: Automatically generate waypoints for NPC locations when TomTom is installed. Click on Location in the Model Magnifier or Pet Roulette to see available coordinates and set your destination.
@@ -135,7 +135,7 @@ Access settings through the options panel (`/psm options`) or by modifying `PetS
 - **View Angle**: Set default rotation angle for models (-180° - 180°)
 - **Vertical Positioning**: Adjust model height on Z-axis (-100% - 100%)
 - **Horizontal Positioning**: Adjust model position on Y-axis (-100% - 100%)
-- **Pets Per Column**: Set number of pets per column in the model browser (2-10)
+- **Browser Model Size**: pet-preview size in the Models Browser (X-Small to X-Large)
 - **Pet Model Background**: Choose from simple, stable master, or custom backgrounds for 3D pet model display (applies to both Owned Pets and Models Browser panels)
 - **Stop Animations**: Disable pet model animations for performance
 - **Reset All Settings**: Restore all settings to defaults
