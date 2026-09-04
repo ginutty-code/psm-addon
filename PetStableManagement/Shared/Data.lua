@@ -654,12 +654,14 @@ function ns.Data:CollectStabledPets()
     local stabledPetList = stableFrame and stableFrame.StabledPetList
     local scrollBox = stabledPetList and stabledPetList.ScrollBox
     local dataProvider = scrollBox and scrollBox:GetDataProvider()
-    if not dataProvider then return end
 
-    -- `expectedCount` is internal and load-bearing despite not being returned: it decides
-    -- whether the C_StableInfo fallback runs below when ForEach under-collects.
+    -- No early-return when dataProvider is nil: the C_StableInfo sweep below is
+    -- the authoritative path and must run even before the ScrollBox has built
+    -- its data provider. The previous early-return was one way "only 1-2 pets
+    -- collected" happened -- the ScrollBox wasn't ready, ForEach never ran, and
+    -- the C_StableInfo fallback that was supposed to catch that case lived below
+    -- the return and was skipped.
     local collected, collectedKeys = {}, {}
-    local expectedCount = ns.Utils.SafeCall(dataProvider.GetSize, dataProvider, false) or 0
 
     local function processPet(petData)
         if not petData or not petData.icon then return end
@@ -717,24 +719,30 @@ function ns.Data:CollectStabledPets()
         if p.name then table.insert(collected, p) end
     end
 
-    -- Primary: ForEach. One SafeCall per node, so a single malformed record can't
-    -- take the rest of the stable down with it -- the boundary in CollectStablePets
-    -- only covers a total failure of this function, not a per-item one.
-    dataProvider:ForEach(function(node)
-        ns.Utils.SafeCall(processPet, node:GetData())
-    end, false)
+    -- Primary: ForEach on the data provider, if it's available. One SafeCall per
+    -- node so a single malformed record can't take the rest of the stable down
+    -- -- the boundary in CollectStablePets only covers a total failure of this
+    -- function, not a per-item one.
+    if dataProvider then
+        dataProvider:ForEach(function(node)
+            ns.Utils.SafeCall(processPet, node:GetData())
+        end, false)
+    end
 
-    -- Fallback: C_StableInfo API
-    if #collected == 0 or (expectedCount > 0 and #collected < expectedCount) then
-        if C_StableInfo and C_StableInfo.GetStablePetInfo then
-            for slot = 7, ns.Config.MAX_STABLE_SLOTS do
-                ns.Utils.SafeCall(function()
-                    local petInfo = C_StableInfo.GetStablePetInfo(slot)
-                    if petInfo and petInfo.name and petInfo.icon then
-                        processPet(petInfo)
-                    end
-                end)
-            end
+    -- Always sweep C_StableInfo as a completeness guarantee. The data provider
+    -- can be empty or partial while the stable is still loading, and the on-screen
+    -- counter is the only reliable signal -- so we always ask the authoritative
+    -- API for every slot 6..MAX_STABLE_SLOTS and let processPet dedupe against
+    -- what ForEach already found. This is the path that catches "only 1-2 pets
+    -- collected": the ScrollBox was empty when ForEach ran.
+    if C_StableInfo and C_StableInfo.GetStablePetInfo then
+        for slot = 6, ns.Config.MAX_STABLE_SLOTS do
+            ns.Utils.SafeCall(function()
+                local petInfo = C_StableInfo.GetStablePetInfo(slot)
+                if petInfo and petInfo.name and petInfo.icon then
+                    processPet(petInfo)
+                end
+            end)
         end
     end
 

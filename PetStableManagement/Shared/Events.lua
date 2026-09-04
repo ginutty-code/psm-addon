@@ -11,7 +11,7 @@ local addonName, ns = ...
 --------------------------------------------------------------------------------
 
 local updateTimer = nil
-local _lastScheduledCollectedCount = nil
+local COLLECT_MAX_RETRIES = 2  -- 1 initial + 2 retries = 3 total attempts
 
 -- Blizzard's on-screen "X/Y" pet-count label -- more reliable than
 -- dataProvider:GetSize(). Used as a fast-path signal below, with the
@@ -34,27 +34,29 @@ local function ParseListCounterCount(text)
     return n and tonumber(n)
 end
 
+-- Same completeness check as CollectAndRender: on-screen counter is the
+-- source of truth, cap is a fallback. No "consecutive identical" heuristic --
+-- a stuck API should surface, not be hidden.
 local function ScheduleUpdateWithRetry(retryCount)
     retryCount = retryCount or 0
 
     local collectedCount = ns.Data:CollectStablePets() or 0
     local listCounterCount = ParseListCounterCount(GetListCounterText())
 
-    -- The stable's own expected count isn't trustworthy (see CollectAndRender below); a
-    -- match against the on-screen counter is treated as immediate proof of
-    -- completeness, with two consecutive identical readings as the fallback.
-    local isAtCap = collectedCount >= ns.Config.MAX_STABLE_SLOTS
-    local matchesListCounter = listCounterCount ~= nil and collectedCount == listCounterCount
-    local isStable = isAtCap or matchesListCounter
-        or (retryCount > 0 and _lastScheduledCollectedCount == collectedCount)
-    _lastScheduledCollectedCount = collectedCount
+    local isComplete = (listCounterCount ~= nil and collectedCount == listCounterCount)
+                       or collectedCount >= ns.Config.MAX_STABLE_SLOTS
 
-    if not isStable and retryCount < 6 then
+    -- Retry only if the counter disagrees with what we collected; if the
+    -- counter can't be read but we have pets, trust the C_StableInfo sweep.
+    if not isComplete and retryCount < COLLECT_MAX_RETRIES
+        and not (listCounterCount == nil and collectedCount > 0) then
         ns.C_Timer.After(0.15, function() ScheduleUpdateWithRetry(retryCount + 1) end)
         return
     end
-    _lastScheduledCollectedCount = nil
 
+    -- No warning here: this path fires on every PET_STABLE_UPDATE, and a warning
+    -- on each would be noisy. The initial open (CollectAndRender) is where the
+    -- user needs to know.
     ns.UI:RenderPanel()
     ns.UI:UpdatePanelTitle()
     ns.UI:UpdateSortButtonTexts()
@@ -81,39 +83,34 @@ end
 -- PET_STABLE_SHOW: collect and render with retry
 --------------------------------------------------------------------------------
 
-local _lastShowCollectedCount = nil
-
 local function CollectAndRender(retryCount)
     retryCount = retryCount or 0
-
-    -- Check if data provider is ready (needed for stabled pets)
-    local stableFrame = ns.GetStableFrame()
-    local dataProviderReady = false
-    if stableFrame and stableFrame.StabledPetList and stableFrame.StabledPetList.ScrollBox then
-        local scrollBox = stableFrame.StabledPetList.ScrollBox
-        local dp = scrollBox:GetDataProvider()
-        dataProviderReady = dp and true or false
-    end
 
     local collectedCount = ns.Data:CollectStablePets() or 0
     local listCounterCount = ParseListCounterCount(GetListCounterText())
 
-    -- dataProvider:GetSize() is not trustworthy -- measured it stuck at a
-    -- wrong value across every retry, and separately reporting too-low right
-    -- after opening a large stable. A match against the on-screen counter is
-    -- treated as immediate proof of completeness; two consecutive identical
-    -- readings is the fallback, and hitting the pet cap is proof on its own.
-    local isAtCap = collectedCount >= ns.Config.MAX_STABLE_SLOTS
-    local matchesListCounter = listCounterCount ~= nil and collectedCount == listCounterCount
-    local isStable = isAtCap or matchesListCounter
-        or (retryCount > 0 and _lastShowCollectedCount == collectedCount)
-    _lastShowCollectedCount = collectedCount
+    -- The on-screen counter is the source of truth: if it says we should have N
+    -- pets and we have N, we're done. Hitting the cap is also proof of
+    -- completeness. No "consecutive identical" fallback -- if the API is stuck
+    -- returning 1-2 pets, we want to notice that, not paper over it.
+    local isComplete = (listCounterCount ~= nil and collectedCount == listCounterCount)
+                       or collectedCount >= ns.Config.MAX_STABLE_SLOTS
 
-    if (#ns.state.stablePets == 0 or not isStable or not dataProviderReady) and retryCount < 8 then
+    -- Retry only if the counter disagrees with what we collected; if the counter
+    -- can't be read but we have pets, trust the C_StableInfo sweep and proceed.
+    if not isComplete and retryCount < COLLECT_MAX_RETRIES
+        and not (listCounterCount == nil and collectedCount > 0) then
         ns.C_Timer.After(0.15, function() CollectAndRender(retryCount + 1) end)
         return
     end
-    _lastShowCollectedCount = nil
+
+    -- After all retries, if we still don't match the on-screen counter, warn in
+    -- chat rather than silently rendering a partial stable.
+    if listCounterCount and collectedCount < listCounterCount then
+        ns.Utils:Msg("WARNING", ns.L(
+            "Unsuccessful pet data collection: collected %d pets data instead of %d. The API was lazy this time - try talking to the Stable Master again.",
+            collectedCount, listCounterCount))
+    end
 
      if #ns.state.stablePets > 0 and ns.state.panel then
          ns.UI:ReinitializeTamerDropdown()
@@ -186,10 +183,29 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
 
         elseif event == "PET_STABLE_SHOW" then
             ns.state.isStableOpen = true
-            _lastShowCollectedCount = nil
 
             if not ns.state.panel then
                 ns.UI:BuildPanel()
+            end
+
+            -- Clear Blizzard's stable frame search box. A stale search string
+            -- from a previous session is the most likely cause of "only 1-2 pets
+            -- collected": it filters both the ScrollBox data provider AND the
+            -- on-screen counter, so the collection thinks it's complete against
+            -- a filtered total. PSM's own panel filters are separate and handled
+            -- by their own dropdowns.
+            local stableFrame = ns.GetStableFrame()
+            if stableFrame and stableFrame.StabledPetList then
+                local searchBox = stableFrame.StabledPetList.SearchBox
+                if searchBox then
+                    ns.Utils.SafeCall(function()
+                        if searchBox.SetText then
+                            searchBox:SetText("")
+                        elseif searchBox.EditBox and searchBox.EditBox.SetText then
+                            searchBox.EditBox:SetText("")
+                        end
+                    end)
+                end
             end
 
             ns.C_Timer.After(0.1, function() CollectAndRender(0) end)

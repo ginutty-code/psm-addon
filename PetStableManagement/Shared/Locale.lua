@@ -59,6 +59,11 @@ L.Register({
     ["Pet data snapshot created: %d pets saved."]     = "Pet data snapshot created: %d pets saved.",
     ["No snapshot available. Please visit a Stable Master to collect your owned pets data."] =
         "No snapshot available. Please visit a Stable Master to collect your owned pets data.",
+    -- Collection warning: fired from CollectAndRender when the on-screen counter
+    -- disagrees with what we collected after all retries. %d is collected,
+    -- %d is the on-screen counter.
+    ["Unsuccessful pet data collection: collected %d pets data instead of %d. The API was lazy this time - try talking to the Stable Master again."] =
+        "Unsuccessful pet data collection: collected %d pets data instead of %d. The API was lazy this time - try talking to the Stable Master again.",
     ["Loaded. Use /psm or /petstable or click the minimap button to toggle the panel."] =
         "Loaded. Use /psm or /petstable or click the minimap button to toggle the panel.",
 
