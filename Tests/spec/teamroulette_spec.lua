@@ -251,4 +251,20 @@ describe("TeamRoulette:RemoveSlot / SwapSlots -- manual editing", function()
         eq(s.slots[2].petNumber, 1, "pet moved into the empty slot")
         eq(s.slots[1], nil, "source is now empty")
     end)
+
+    it("SwapSlots swaps locked state by position", function()
+        local s = baseState()
+        local lockedStore = {}
+        s.locked[1] = s.slots[1]
+        s.locked[3] = "empty"
+        s.lockedStore = lockedStore
+        lockedStore[1] = 1
+        lockedStore[3] = "empty"
+
+        ns.TeamRoulette:SwapSlots(s, 1, 3)
+
+        eq(s.lockedStore[1], "empty", "locked store slot 1 is now empty")
+        eq(s.lockedStore[3], 1, "locked store slot 3 is now petNumber 1")
+        eq(s.locked[3].petNumber, 1, "locked state slot 3 has pet 1")
+    end)
 end)
