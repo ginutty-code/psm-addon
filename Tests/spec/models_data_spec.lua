@@ -48,8 +48,8 @@ describe("ModelsData structure", function()
     -- numbers before bumping them* -- tens is a normal Wowhead refresh, thousands is a
     -- generator regression. Nothing else here is allowed to churn, so this stays the
     -- single deliberate human checkpoint rather than one of a crowd of literals.
-    it("holds 7855 records", function()
-        eq(#M.NpcId, 7855, "#NpcId")
+    it("holds 7856 records", function()
+        eq(#M.NpcId, 7856, "#NpcId")
         -- Not compared against the literal too: "exact inverses" below proves Index and
         -- NpcId are a bijection, so a second literal would restate that, not test it.
         eq(count(M.Index), #M.NpcId, "Index entry count")
@@ -147,7 +147,7 @@ end)
 
 describe("ModelsData known records", function()
     -- `displayId` may be a single number or a list: roughly a quarter of records have
-    -- several display IDs (2149 of 7852 at the time of writing), and that has always
+    -- several display IDs (2149 of 7856 at the time of writing), and that has always
     -- been true -- every case here happened to be single-valued until the tail record
     -- changed, so the shape went uncovered. Written as a list, compared elementwise.
     local function eqDisplayIds(actual, expected, label)
