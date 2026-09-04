@@ -107,9 +107,7 @@ local function CollectAndRender(retryCount)
     -- After all retries, if we still don't match the on-screen counter, warn in
     -- chat rather than silently rendering a partial stable.
     if listCounterCount and collectedCount < listCounterCount then
-        ns.Utils:Msg("WARNING", ns.L(
-            "Unsuccessful pet data collection: collected %d pets data instead of %d. The API was lazy this time - try talking to the Stable Master again.",
-            collectedCount, listCounterCount))
+        ns.Utils:Msg("WARNING", ns.L("Unsuccessful pet data collection: collected %d pets data instead of %d. The API was lazy this time - try talking to the Stable Master again.", collectedCount, listCounterCount))
     end
 
      if #ns.state.stablePets > 0 and ns.state.panel then
