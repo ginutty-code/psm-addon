@@ -2,7 +2,7 @@
 ## Title: Pet Stable Management: |cffffffffModels Browser|r
 ## Notes: Optional module for browsing pet models and pet roulette
 ## Author: Ginutty
-## Version: 12.4.1
+## Version: 13.0.0
 ## IconTexture: 132253
 ## RequiredDeps: PetStableManagement
 ## LoadOnDemand: 1
