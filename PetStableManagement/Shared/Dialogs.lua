@@ -677,14 +677,17 @@ function ns.Dialogs:ShowTeamRouletteDialog(state)
         })
 
         -- Lock freezes the slot as it stands -- a pet or a deliberate empty; clicking
-        -- again frees it.
+        -- again frees it. Also persist the lock state to the database.
         cell.lock:SetScript("OnClick", function()
             if state.locked[slot] then
                 state.locked[slot] = nil
+                if state.lockedStore then state.lockedStore[slot] = nil end
             elseif state.slots and state.slots[slot] then
                 state.locked[slot] = state.slots[slot]
+                if state.lockedStore then state.lockedStore[slot] = state.slots[slot].petNumber end
             else
                 state.locked[slot] = "empty"
+                if state.lockedStore then state.lockedStore[slot] = "empty" end
             end
             if d._pickedSlot == slot then d._pickedSlot = nil end
             Refresh()

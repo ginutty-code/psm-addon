@@ -207,6 +207,43 @@ local function TemplateStore()
     return PetStableManagementDB.settings.teamRoulette.template
 end
 
+-- The persisted locked state (which slots are locked/empty), stored as petNumbers
+-- and "empty" strings to avoid serialization issues with full slot records.
+local function LockedStore()
+    PetStableManagementDB.settings = PetStableManagementDB.settings or {}
+    PetStableManagementDB.settings.teamRoulette =
+        PetStableManagementDB.settings.teamRoulette or { locked = {} }
+    PetStableManagementDB.settings.teamRoulette.locked =
+        PetStableManagementDB.settings.teamRoulette.locked or {}
+    return PetStableManagementDB.settings.teamRoulette.locked
+end
+
+-- Convert persisted locked state (petNumbers) back to runtime format (slot records)
+-- by looking them up in the current pool. If a locked pet isn't available, the lock
+-- is dropped.
+local function RestoreLockedState(lockedStore, pool)
+    if not lockedStore then return {} end
+
+    local locked = {}
+    local petsByNumber = {}
+    for _, pet in ipairs(pool or {}) do
+        if pet.petNumber then petsByNumber[pet.petNumber] = pet end
+    end
+
+    for slot, value in pairs(lockedStore) do
+        if value == "empty" then
+            locked[slot] = "empty"
+        elseif type(value) == "number" then
+            local pet = petsByNumber[value]
+            if pet then
+                locked[slot] = ns.Teams:SlotRecord(pet)
+            end
+        end
+    end
+
+    return locked
+end
+
 function TeamRoulette:Show()
     -- The current filter is renderData.filteredPets; make sure it exists (same
     -- EnsurePetData path every other entry point uses).
@@ -222,15 +259,19 @@ function TeamRoulette:Show()
 
     local slotCount = ns.Utils:HasAnimalCompanionTalent() and 6 or 5
     local template  = TemplateStore()
+    local lockedStore = LockedStore()
+    local locked = RestoreLockedState(lockedStore, pool)
 
     local state = {
         slotCount = slotCount,
         template  = template,
-        locked    = {},
+        locked    = locked,
+        lockedStore = lockedStore,
     }
     state.slots, state.report = TeamRoulette.Roll(pool, {
         slotCount = slotCount,
         template  = template,
+        locked    = locked,
     })
 
     ns.Dialogs:ShowTeamRouletteDialog(state)
@@ -326,6 +367,7 @@ end
 -- Move: swap the pets in two slots (feedback #3). The spec template belongs to the
 -- position, not the pet, so each moved pet is reconciled against its new slot's
 -- template in place -- coerced if it must be, never swapped out for a different pet.
+-- Locks are also swapped by position.
 function TeamRoulette:SwapSlots(state, a, b)
     if a == b then return state end
     state.slots  = state.slots or {}
@@ -345,6 +387,12 @@ function TeamRoulette:SwapSlots(state, a, b)
     state.slots[a], state.slots[b] = state.slots[b], state.slots[a]
     if cb then cb.slot = a; table.insert(state.report.coerced, cb) end
     if ca then ca.slot = b; table.insert(state.report.coerced, ca) end
+
+    -- Swap locked state by position, including in the persisted store
+    state.locked[a], state.locked[b] = state.locked[b], state.locked[a]
+    if state.lockedStore then
+        state.lockedStore[a], state.lockedStore[b] = state.lockedStore[b], state.lockedStore[a]
+    end
 
     self:RetuneSlot(state, a, true)
     self:RetuneSlot(state, b, true)
