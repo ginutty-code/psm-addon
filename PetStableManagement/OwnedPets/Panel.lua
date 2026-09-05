@@ -69,8 +69,12 @@ function ns.UI:CreateOwnedPetsPanel()
         title        = ns.L("Pet Stable Management"),
 
         onHide = function(panel)
-            ns.PanelManager:CleanupPanel(panel)
-            -- Persist size for next session (only when not maximized)
+            -- Persist size for next session (only when not maximized) BEFORE
+            -- CleanupPanel: SetPanelSize calls SaveSettings internally, and
+            -- CleanupPanel's own ClearMemory (below) wipes the filter selections
+            -- out of ns.state. Doing this after CleanupPanel meant SetPanelSize's
+            -- save ran against the already-wiped state and clobbered the filters
+            -- CleanupPanel had just saved correctly moments earlier.
             if not panel.isMaximized then
                 local w = panel:GetWidth()
                 if panel.rail and not panel.rail:IsCollapsed() then
@@ -78,6 +82,7 @@ function ns.UI:CreateOwnedPetsPanel()
                 end
                 ns.Data:SetPanelSize("ownedPets", w, panel:GetHeight())
             end
+            ns.PanelManager:CleanupPanel(panel)
             -- Stable-pet data is intentionally kept; other panels (e.g. Pet Groups) rely on it.
         end,
 

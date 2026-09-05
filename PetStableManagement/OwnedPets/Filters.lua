@@ -834,6 +834,7 @@ function ns.UI:BuildSortButtons(panel)
             ns.state.sortBy = nil
             UIDropDownMenu_SetText(panel.sortDrop, ns.L("Sort by"))
 
+            ns.Data:SaveSettings()
             ns.UI:UpdatePanel()
         end,
     })

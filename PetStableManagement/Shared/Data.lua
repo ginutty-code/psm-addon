@@ -257,9 +257,9 @@ function ns.Data:SaveSettings()
 
     char.settings = {
             sortBy                 = ns.state.sortBy or nil,
-            exoticFilter           = ns.state.exoticFilter or false,
-            duplicatesOnlyFilter   = ns.state.duplicatesOnlyFilter or false,
-            favoritesOnlyFilter    = ns.state.favoritesOnlyFilter or false,
+            exoticFilter           = ns.state.exoticFilter or nil,
+            duplicatesOnlyFilter   = ns.state.duplicatesOnlyFilter or nil,
+            favoritesOnlyFilter    = ns.state.favoritesOnlyFilter or nil,
             selectedSpecs          = DeepCopyIfNonEmpty(ns.state.selectedSpecs),
             selectedFamilies       = DeepCopyIfNonEmpty(ns.state.selectedFamilies),
             selectedTamers         = DeepCopyIfNonEmpty(ns.state.selectedTamers),
@@ -272,14 +272,21 @@ function ns.Data:SaveSettings()
             -- PetStableManagementDB.settings.minimapButton (see Events.lua's
             -- ADDON_LOADED handler).
         }
-        -- Merge in any custom settings (panel size/position, rail state, etc.)
-        -- that were set directly on char.settings before this replacement.
-        for k, v in pairs(oldSettings) do
-            if char.settings[k] == nil then
-                char.settings[k] = v
-            end
+
+    -- Merge in any custom settings (panel size/position, rail state, etc.)
+    -- that were set directly on char.settings before this replacement.
+    -- Don't restore ANY filter key (table-type or tri-state) here: every one of them
+    -- is already rebuilt fresh above from ns.state, so a nil at this point means the
+    -- filter is genuinely off/empty, not unset -- merging the old value back in would
+    -- undo a reset. This is why exoticFilter/duplicatesOnlyFilter/favoritesOnlyFilter
+    -- use `or nil` rather than `or false`: `false` would already have blocked the merge
+    -- (non-nil), but only by accident, and it doesn't cover sortBy either.
+    for k, v in pairs(oldSettings) do
+        if char.settings[k] == nil and not TABLE_FILTER_KEYS[k] and not NIL_FILTER_KEYS[k] then
+            char.settings[k] = v
         end
     end
+end
 
 function ns.Data:LoadPersistentDataForDisplay(preserveCurrentData)
     local db = PetStableManagementDB
@@ -296,7 +303,9 @@ function ns.Data:LoadPersistentDataForDisplay(preserveCurrentData)
 
     if not preserveCurrentData then
         ns.state.stablePets = {}
-        self:ClearMemory(false)
+        -- Always preserve filters when checking/loading pet data - filters are managed separately
+        -- via SaveSettings/LoadFilterSettings, so ClearMemory should not wipe them
+        self:ClearMemory(true)
 
         -- Always load current character first, then load from other characters
         local currentKey = GetCharacterKey()
