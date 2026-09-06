@@ -56,6 +56,25 @@ local handlers = {
                 f.Text:SetPoint("LEFT",  f,        "LEFT",  22, 2)
                 f.Text:SetPoint("RIGHT", f.Button, "LEFT",  -2, 2)
             end
+
+            -- The template's clickable button only spans the arrow, so clicking the
+            -- dropdown's body did nothing -- the pre-10.0 client made the whole frame
+            -- toggle. Grow the button's hit rect back over the VISIBLE box -- the
+            -- backdrop this handler just placed -- and not over the frame's raw rect:
+            -- the template carries invisible margins around the visible dropdown (the
+            -- backdrop itself is anchored 16px inside the frame's left edge), so
+            -- frame-exact insets swallowed clicks in the dead strip left of the body.
+            -- A hit-region change only, nothing moves visually; measured rather than
+            -- fixed, so the rect lands exactly on the box's edges however the template
+            -- or ElvUI anchored things, and clicks past its edges stay unclaimed.
+            local box = f.backdrop or f
+            local bl, br = f.Button:GetLeft(), f.Button:GetRight()
+            local bt, bb = f.Button:GetTop(),  f.Button:GetBottom()
+            local xl, xr = box:GetLeft(),      box:GetRight()
+            local xt, xb = box:GetTop(),       box:GetBottom()
+            if bl and br and bt and bb and xl and xr and xt and xb then
+                f.Button:SetHitRectInsets(xl - bl, br - xr, xt - bt, xb - bb)
+            end
         end)
     end,
     checkbox       = function(S, f) S:HandleCheckBox(f)    end,
