@@ -32,6 +32,35 @@ local function DropdownText(tbl, fallback, items, filterFn)
     return table.concat(t, ", ")
 end
 
+-- keepShownOnClick keeps a dropdown open but flips only the clicked row's own
+-- checkmark -- every other still-drawn row (the master included) would keep its
+-- pre-click visual until the menu is reopened. Repaint the open list's rows
+-- from the live state instead: item rows read the selection table, the "ALL"
+-- master row reads as IsAllSelected. Not-checkable rows (ability categories)
+-- have nothing for this to repaint; their colours go through
+-- RecolorCategoryRow as before. Same pooled-button access pattern that helper
+-- uses -- a re-Initialize here would instead hide the open list outright
+-- (UIDropDownMenu_InitializeHelper hides every level at and below the one
+-- being initialised).
+local function SyncOpenListChecks(level, stateTable, items, filterFn)
+    local list = _G["DropDownList" .. level]
+    if not list or not list:IsShown() then return end
+    for i = 1, list.numButtons or 0 do
+        local btn = _G[list:GetName() .. "Button" .. i]
+        if btn and btn.value then
+            local want
+            if btn.value == "ALL" then
+                want = IsAllSelected(stateTable, items, filterFn)
+            else
+                want = stateTable[btn.value] == true
+            end
+            btn.checked = want or false
+            local check = _G[btn:GetName() .. "Check"]
+            if check then check:SetShown(want) end
+        end
+    end
+end
+
 -- ─── Tri-state checkbox ────────────────────────────────────────────────────────
 
 -- The order the three filter states cycle in. The *rendering* of each is
@@ -81,6 +110,9 @@ local function InitMultiDropdown(getItems, getStateTable, dropdown, allLabel, fi
         -- every filterable item is individually ticked -- never in the resting
         -- empty state, so the first click from "All" visibly ticks everything.
         info.checked = IsAllSelected(stateTable, items, filterFn)
+        -- Same stay-open contract the item rows have: a master click is one
+        -- pick among several, not a commit.
+        info.keepShownOnClick = true
         info.func = function()
             local t = getStateTable()
             if IsAllSelected(t, items, filterFn) then
@@ -92,6 +124,7 @@ local function InitMultiDropdown(getItems, getStateTable, dropdown, allLabel, fi
                 end
             end
             UIDropDownMenu_SetText(dropdown, DropdownText(t, allLabel, items, filterFn))
+            SyncOpenListChecks(1, t, items, filterFn)
             ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
         end
         UIDropDownMenu_AddButton(info)
@@ -108,6 +141,7 @@ local function InitMultiDropdown(getItems, getStateTable, dropdown, allLabel, fi
                     local t = getStateTable()
                     t[item] = checked or nil
                     UIDropDownMenu_SetText(dropdown, DropdownText(t, allLabel, items, filterFn))
+                    SyncOpenListChecks(1, t, items, filterFn)
                     ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
                 end
                 UIDropDownMenu_AddButton(info)
@@ -220,6 +254,7 @@ local function InitAbilityDropdown(panel)
             -- checked only when every ability is individually ticked; a click
             -- ticks all or none, master included.
             info.checked = IsAllSelected(selected, ns.state.abilityList)
+            info.keepShownOnClick = true
             info.func = function()
                 if IsAllSelected(selected, ns.state.abilityList) then
                     ns.Utils:ClearTable(selected)    -- all ticked -> untick everything, master included
@@ -230,6 +265,11 @@ local function InitAbilityDropdown(panel)
                     end
                 end
                 UIDropDownMenu_SetText(dropdown, DropdownText(selected, allLabel, ns.state.abilityList))
+                SyncOpenListChecks(1, selected, ns.state.abilityList)
+                for _, category in ipairs(AbilityCategories(ns.state.abilityList)) do
+                    RecolorCategoryRow(category)
+                end
+                SyncOpenListChecks(2, selected, ns.state.abilityList)
                 ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
             end
             UIDropDownMenu_AddButton(info, level)
@@ -240,23 +280,27 @@ local function InitAbilityDropdown(panel)
                 info.value        = category
                 info.hasArrow     = true
                 info.notCheckable = true
+                info.keepShownOnClick = true
                 -- Clicking the row itself (not just opening its arrow submenu) selects
                 -- every ability in the category in one step -- ticking each individually
                 -- was the friction this category grouping exists to remove. Toggles: a
                 -- category already fully selected clicks back to none.
                 --
-                -- Deliberately NOT keepShownOnClick: this row's own colour is baked into
-                -- `info.text` above, computed once when level 1 was drawn, and closing
-                -- rather than staying open is what guarantees the next open recomputes it
-                -- (and, if a submenu is open, its checkmarks) from the real state instead
-                -- of leaving the just-clicked row showing its pre-click colour until
-                -- something else forces a redraw.
+                -- keepShownOnClick, same stay-open contract as the checkable rows. The
+                -- cost the old close-on-click avoided is paid directly below: this row's
+                -- colour is baked into `info.text` above, computed once when level 1 was
+                -- drawn, and its submenu's checkmarks go stale the same way, so the func
+                -- runs SyncOpenListChecks over the open level(s) and RecolorCategoryRow
+                -- re-derives this row's colour from truth instead of waiting for a reopen.
                 info.func = function()
                     local allOn = CategorySelectionState(category, selected)
                     for _, name in ipairs(AbilitiesInCategory(category)) do
                         selected[name] = (not allOn) or nil
                     end
                     UIDropDownMenu_SetText(dropdown, DropdownText(selected, allLabel, ns.state.abilityList))
+                    RecolorCategoryRow(category)
+                    SyncOpenListChecks(1, selected, ns.state.abilityList)
+                    SyncOpenListChecks(2, selected, ns.state.abilityList)
                     ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
                 end
                 UIDropDownMenu_AddButton(info, level)
@@ -299,6 +343,7 @@ local function InitAbilityDropdown(panel)
                     selected[name] = checked or nil
                     UIDropDownMenu_SetText(dropdown, DropdownText(selected, allLabel, ns.state.abilityList))
                     RecolorCategoryRow(category)
+                    SyncOpenListChecks(1, selected, ns.state.abilityList)
                     ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
                 end
                 UIDropDownMenu_AddButton(info, level)
@@ -706,6 +751,7 @@ function ns.UI:ReinitializeTamerDropdown()
             -- Same group-level toggle as Specs/Families/Abilities: checked only
             -- when every hunter is individually ticked; a click ticks all or none.
             info.checked = IsAllSelected(t, ns.state.tamerList)
+            info.keepShownOnClick = true
             info.func = function()
                 local st = getState()
                 if IsAllSelected(st, ns.state.tamerList) then
@@ -718,6 +764,7 @@ function ns.UI:ReinitializeTamerDropdown()
                 end
                 ns.state.tamerSelectionInitialized = true
                 UIDropDownMenu_SetText(dropdown, DropdownText(st, allLabel, ns.state.tamerList))
+                SyncOpenListChecks(1, st, ns.state.tamerList)
                 ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
             end
             UIDropDownMenu_AddButton(info)
@@ -735,6 +782,7 @@ function ns.UI:ReinitializeTamerDropdown()
                 st[tamer] = checked or nil
                 ns.state.tamerSelectionInitialized = true
                 UIDropDownMenu_SetText(dropdown, DropdownText(getState(), allLabel, ns.state.tamerList))
+                SyncOpenListChecks(1, getState(), ns.state.tamerList)
                 ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
             end
             UIDropDownMenu_AddButton(info)
