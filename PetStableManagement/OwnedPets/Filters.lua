@@ -7,9 +7,26 @@ local _, ns = ...
 
 local function IsFamilyExotic(name) return ns.Data.IsExoticFamily(name) end
 
+-- True when `tbl` is non-empty and holds every filterable item: the
+-- "everything individually ticked" state a group's master row represents and
+-- toggles against. The empty table is the resting "All" state (nothing ticked,
+-- nothing filtered) and deliberately reads as NOT all-selected, so the master's
+-- first click from it ticks everything instead of being a no-op.
+local function IsAllSelected(tbl, items, filterFn)
+    if not items or not next(tbl) then return false end
+    for _, item in ipairs(items) do
+        if (not filterFn or filterFn(item)) and not tbl[item] then return false end
+    end
+    return true
+end
+
 -- Returns the joined text for a key→bool table, or fallback if empty.
-local function DropdownText(tbl, fallback)
+-- With `items` (and `filterFn`), also returns the fallback when every filterable
+-- item is present -- "all individually ticked" reads like the empty-table "All"
+-- state, so a materialised select-all never renders as a giant comma list.
+local function DropdownText(tbl, fallback, items, filterFn)
     if not next(tbl) then return fallback end
+    if items and IsAllSelected(tbl, items, filterFn) then return fallback end
     local t = {}
     for k in pairs(tbl) do t[#t + 1] = k end
     return table.concat(t, ", ")
@@ -60,10 +77,21 @@ local function InitMultiDropdown(getItems, getStateTable, dropdown, allLabel, fi
         local info = UIDropDownMenu_CreateInfo()
         info.text    = "  " .. allLabel
         info.value   = "ALL"
-        info.checked = false
+        -- Group-level twin of the ability categories' toggle: checked only when
+        -- every filterable item is individually ticked -- never in the resting
+        -- empty state, so the first click from "All" visibly ticks everything.
+        info.checked = IsAllSelected(stateTable, items, filterFn)
         info.func = function()
-            ns.Utils:ClearTable(getStateTable())
-            UIDropDownMenu_SetText(dropdown, allLabel)
+            local t = getStateTable()
+            if IsAllSelected(t, items, filterFn) then
+                ns.Utils:ClearTable(t)      -- all ticked -> untick everything, master included
+            else
+                ns.Utils:ClearTable(t)      -- none or some -> tick every filterable item
+                for _, item in ipairs(items) do
+                    if not filterFn or filterFn(item) then t[item] = true end
+                end
+            end
+            UIDropDownMenu_SetText(dropdown, DropdownText(t, allLabel, items, filterFn))
             ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
         end
         UIDropDownMenu_AddButton(info)
@@ -79,14 +107,16 @@ local function InitMultiDropdown(getItems, getStateTable, dropdown, allLabel, fi
                 info.func = function(_, _, _, checked)
                     local t = getStateTable()
                     t[item] = checked or nil
-                    UIDropDownMenu_SetText(dropdown, DropdownText(t, allLabel))
+                    UIDropDownMenu_SetText(dropdown, DropdownText(t, allLabel, items, filterFn))
                     ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
                 end
                 UIDropDownMenu_AddButton(info)
             end
         end
     end)
-    UIDropDownMenu_SetText(dropdown, DropdownText(getStateTable(), allLabel))
+    -- Label right after build: a fresh read, same shape the callback re-reads on open.
+    local currentItems = type(getItems) == "function" and getItems() or getItems
+    UIDropDownMenu_SetText(dropdown, DropdownText(getStateTable(), allLabel, currentItems, filterFn))
 end
 
 -- ─── Ability dropdown (two-level: category, then abilities within it) ─────────
@@ -186,10 +216,20 @@ local function InitAbilityDropdown(panel)
             local info = UIDropDownMenu_CreateInfo()
             info.text    = "  " .. allLabel
             info.value   = "ALL"
-            info.checked = false
+            -- Same group-level toggle the category rows are, one level up:
+            -- checked only when every ability is individually ticked; a click
+            -- ticks all or none, master included.
+            info.checked = IsAllSelected(selected, ns.state.abilityList)
             info.func = function()
-                ns.Utils:ClearTable(selected)
-                UIDropDownMenu_SetText(dropdown, allLabel)
+                if IsAllSelected(selected, ns.state.abilityList) then
+                    ns.Utils:ClearTable(selected)    -- all ticked -> untick everything, master included
+                else
+                    ns.Utils:ClearTable(selected)    -- none or some -> tick every ability
+                    for _, name in ipairs(ns.state.abilityList) do
+                        selected[name] = true
+                    end
+                end
+                UIDropDownMenu_SetText(dropdown, DropdownText(selected, allLabel, ns.state.abilityList))
                 ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
             end
             UIDropDownMenu_AddButton(info, level)
@@ -216,7 +256,7 @@ local function InitAbilityDropdown(panel)
                     for _, name in ipairs(AbilitiesInCategory(category)) do
                         selected[name] = (not allOn) or nil
                     end
-                    UIDropDownMenu_SetText(dropdown, DropdownText(selected, allLabel))
+                    UIDropDownMenu_SetText(dropdown, DropdownText(selected, allLabel, ns.state.abilityList))
                     ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
                 end
                 UIDropDownMenu_AddButton(info, level)
@@ -257,7 +297,7 @@ local function InitAbilityDropdown(panel)
                 end
                 info.func = function(_, _, _, checked)
                     selected[name] = checked or nil
-                    UIDropDownMenu_SetText(dropdown, DropdownText(selected, allLabel))
+                    UIDropDownMenu_SetText(dropdown, DropdownText(selected, allLabel, ns.state.abilityList))
                     RecolorCategoryRow(category)
                     ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
                 end
@@ -297,7 +337,7 @@ local function InitAbilityDropdown(panel)
             end
         end
     end)
-    UIDropDownMenu_SetText(dropdown, DropdownText(ns.state.selectedAbilities, allLabel))
+    UIDropDownMenu_SetText(dropdown, DropdownText(ns.state.selectedAbilities, allLabel, ns.state.abilityList))
 end
 
 -- Returns the family dropdown's "all" label given the current exotic filter.
@@ -310,17 +350,21 @@ local function FamilyAllLabel()
     return ns.L("All Families")
 end
 
-local function InitFamilyDropdown(panel)
-    local label = FamilyAllLabel()
-    local filterFn
+-- The family dropdown's filterable set narrows with the exotic tri-state (its
+-- "all" label follows it -- see FamilyAllLabel). Extracted so InitFamilyDropdown,
+-- UpdateFilterUI and GenerateFilterSummary agree on "every family selected".
+local function FamilyFilterFn()
     if ns.state.exoticFilter == true then
-        filterFn = IsFamilyExotic
+        return IsFamilyExotic
     elseif ns.state.exoticFilter == "inverted" then
-        filterFn = function(f) return not IsFamilyExotic(f) end
+        return function(f) return not IsFamilyExotic(f) end
     end
+end
+
+local function InitFamilyDropdown(panel)
     InitMultiDropdown(function() return ns.state.familyList end,
                       function() return ns.state.selectedFamilies end,
-                      panel.familyDrop, label, filterFn)
+                      panel.familyDrop, FamilyAllLabel(), FamilyFilterFn())
 end
 
 -- ─── Sort dropdown ────────────────────────────────────────────────────────────
@@ -659,11 +703,21 @@ function ns.UI:ReinitializeTamerDropdown()
             local info   = UIDropDownMenu_CreateInfo()
             info.text    = "  " .. allLabel
             info.value   = "ALL"
-            info.checked = false
+            -- Same group-level toggle as Specs/Families/Abilities: checked only
+            -- when every hunter is individually ticked; a click ticks all or none.
+            info.checked = IsAllSelected(t, ns.state.tamerList)
             info.func = function()
-                ns.Utils:ClearTable(getState())
+                local st = getState()
+                if IsAllSelected(st, ns.state.tamerList) then
+                    ns.Utils:ClearTable(st)          -- all ticked -> untick everything, master included
+                else
+                    ns.Utils:ClearTable(st)          -- none or some -> tick every hunter
+                    for _, tamer in ipairs(ns.state.tamerList) do
+                        st[tamer] = true
+                    end
+                end
                 ns.state.tamerSelectionInitialized = true
-                UIDropDownMenu_SetText(dropdown, allLabel)
+                UIDropDownMenu_SetText(dropdown, DropdownText(st, allLabel, ns.state.tamerList))
                 ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
             end
             UIDropDownMenu_AddButton(info)
@@ -680,7 +734,7 @@ function ns.UI:ReinitializeTamerDropdown()
                 local st = getState()
                 st[tamer] = checked or nil
                 ns.state.tamerSelectionInitialized = true
-                UIDropDownMenu_SetText(dropdown, DropdownText(getState(), allLabel))
+                UIDropDownMenu_SetText(dropdown, DropdownText(getState(), allLabel, ns.state.tamerList))
                 ns.C_Timer.After(0.1, function() ns.UI:UpdatePanel() end)
             end
             UIDropDownMenu_AddButton(info)
@@ -688,7 +742,7 @@ function ns.UI:ReinitializeTamerDropdown()
     end)
 
     UIDropDownMenu_Initialize(dropdown, dropdown.initialize, nil, 1)
-    UIDropDownMenu_SetText(dropdown, DropdownText(getState(), allLabel))
+    UIDropDownMenu_SetText(dropdown, DropdownText(getState(), allLabel, ns.state.tamerList))
 end
 
 -- ─── Filter summary ──────────────────────────────────────────────────────────
@@ -712,17 +766,25 @@ function ns.UI:GenerateFilterSummary()
     -- Hunters. While the stable is open the tamer dropdown defaults to the current
     -- hunter (SetDefaultTamerSelection, and Reset keeps it there), so that one exact
     -- selection is not a filter the user chose -- only list it past the default.
+    -- A group holding every selectable item filters nothing, so it lists neither.
     local tamers = ns.state.selectedTamers
-    if next(tamers) then
+    if next(tamers) and not IsAllSelected(tamers, ns.state.tamerList) then
         local key = ns.GetCharacterKey()
         local isJustCurrentHunter = ns.state.isStableOpen and tamers[key] and CountKeys(tamers) == 1
         if not isJustCurrentHunter then parts[#parts + 1] = ns.L("Hunters") end
     end
 
-    -- Remaining multi-select dropdowns: active whenever anything is picked (empty = all).
-    if next(ns.state.selectedSpecs)     then parts[#parts + 1] = ns.L("Specs")     end
-    if next(ns.state.selectedFamilies)  then parts[#parts + 1] = ns.L("Families")  end
-    if next(ns.state.selectedAbilities) then parts[#parts + 1] = ns.L("Abilities") end
+    -- Remaining multi-select dropdowns: active on a proper subset only -- empty
+    -- means all, and so does every item individually ticked.
+    if next(ns.state.selectedSpecs) and not IsAllSelected(ns.state.selectedSpecs, ns.state.specList) then
+        parts[#parts + 1] = ns.L("Specs")
+    end
+    if next(ns.state.selectedFamilies) and not IsAllSelected(ns.state.selectedFamilies, ns.state.familyList, FamilyFilterFn()) then
+        parts[#parts + 1] = ns.L("Families")
+    end
+    if next(ns.state.selectedAbilities) and not IsAllSelected(ns.state.selectedAbilities, ns.state.abilityList) then
+        parts[#parts + 1] = ns.L("Abilities")
+    end
 
     -- Tri-state "Show Only" checkboxes: true = only, "inverted" = exclude.
     local function TriState(value, onLabel, notLabel)
@@ -757,10 +819,10 @@ function ns.UI:UpdateFilterUI()
     if panel.exoticCheck     then panel.exoticCheck:SetTriState(ns.state.exoticFilter)              end
     if panel.duplicatesCheck then panel.duplicatesCheck:SetTriState(ns.state.duplicatesOnlyFilter)  end
 
-    if panel.specDrop    then UIDropDownMenu_SetText(panel.specDrop,    DropdownText(ns.state.selectedSpecs,   ns.L("All Specs")))       end
-    if panel.familyDrop  then UIDropDownMenu_SetText(panel.familyDrop,  DropdownText(ns.state.selectedFamilies, FamilyAllLabel())) end
-    if panel.tamerDrop   then UIDropDownMenu_SetText(panel.tamerDrop,   DropdownText(ns.state.selectedTamers,  ns.L("All Hunters")))     end
-    if panel.abilityDrop then UIDropDownMenu_SetText(panel.abilityDrop, DropdownText(ns.state.selectedAbilities, ns.L("All Abilities"))) end
+    if panel.specDrop    then UIDropDownMenu_SetText(panel.specDrop,    DropdownText(ns.state.selectedSpecs, ns.L("All Specs"), ns.state.specList))       end
+    if panel.familyDrop  then UIDropDownMenu_SetText(panel.familyDrop,  DropdownText(ns.state.selectedFamilies, FamilyAllLabel(), ns.state.familyList, FamilyFilterFn())) end
+    if panel.tamerDrop   then UIDropDownMenu_SetText(panel.tamerDrop,   DropdownText(ns.state.selectedTamers, ns.L("All Hunters"), ns.state.tamerList))     end
+    if panel.abilityDrop then UIDropDownMenu_SetText(panel.abilityDrop, DropdownText(ns.state.selectedAbilities, ns.L("All Abilities"), ns.state.abilityList)) end
     if panel.sortDrop    then UIDropDownMenu_SetText(panel.sortDrop,    SortDropLabel())                                            end
 
     self:UpdateFilterSummary()
