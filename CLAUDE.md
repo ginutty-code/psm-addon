@@ -1,6 +1,6 @@
 # PetStableManagement (PSM)
 
-A World of Warcraft retail addon (Interface `120007` and `121000`) for hunter pet stable
+A World of Warcraft retail addon (Interface `120100` and `120105`) for hunter pet stable
 management. Two TOC-defined addons live in this one repo — and two is what the user
 sees and reasons about, so keep it that way:
 
