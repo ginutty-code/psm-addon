@@ -1,5 +1,5 @@
 -- WoW client Lua is 5.1-based.
-std = "lua51"
+std = "luajit"
 max_line_length = false
 
 -- Tests/ runs in a real Lua 5.1 interpreter, not the WoW client, so it legitimately
@@ -58,6 +58,7 @@ read_globals = {
     "Enum",
     "GameFontHighlightSmall",
     "GameTooltip",
+    "GetAddOnMemoryUsage",
     "GetCursorPosition",
     "GetMinimapShape",
     "GetMouseFoci",
@@ -92,6 +93,7 @@ read_globals = {
     "TooltipDataProcessor",
     "UIDROPDOWNMENU_MAXBUTTONS",
     "UIDROPDOWNMENU_MENU_VALUE",
+    "UpdateAddOnMemoryUsage",
     "UIDropDownMenu_AddButton",
     "UIDropDownMenu_CreateInfo",
     "UIDropDownMenu_Initialize",
