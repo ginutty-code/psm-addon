@@ -407,6 +407,7 @@ local function FamilyFilterFn()
 end
 
 local function InitFamilyDropdown(panel)
+    if not panel or not panel.familyDrop then return end
     InitMultiDropdown(function() return ns.state.familyList end,
                       function() return ns.state.selectedFamilies end,
                       panel.familyDrop, FamilyAllLabel(), FamilyFilterFn())
@@ -868,7 +869,7 @@ function ns.UI:UpdateFilterUI()
     if panel.duplicatesCheck then panel.duplicatesCheck:SetTriState(ns.state.duplicatesOnlyFilter)  end
 
     if panel.specDrop    then UIDropDownMenu_SetText(panel.specDrop,    DropdownText(ns.state.selectedSpecs, ns.L("All Specs"), ns.state.specList))       end
-    if panel.familyDrop  then UIDropDownMenu_SetText(panel.familyDrop,  DropdownText(ns.state.selectedFamilies, FamilyAllLabel(), ns.state.familyList, FamilyFilterFn())) end
+    if panel.familyDrop  then InitFamilyDropdown(panel)                                                                                             end
     if panel.tamerDrop   then UIDropDownMenu_SetText(panel.tamerDrop,   DropdownText(ns.state.selectedTamers, ns.L("All Hunters"), ns.state.tamerList))     end
     if panel.abilityDrop then UIDropDownMenu_SetText(panel.abilityDrop, DropdownText(ns.state.selectedAbilities, ns.L("All Abilities"), ns.state.abilityList)) end
     if panel.sortDrop    then UIDropDownMenu_SetText(panel.sortDrop,    SortDropLabel())                                            end
@@ -925,7 +926,6 @@ function ns.UI:BuildSortButtons(panel)
             ns.Utils:ClearTable(ns.state.selectedFamilies)
             ns.Utils:ClearTable(ns.state.selectedAbilities)
             UIDropDownMenu_SetText(panel.specDrop,    ns.L("All Specs"))
-            UIDropDownMenu_SetText(panel.familyDrop,  ns.L("All Families"))
             UIDropDownMenu_SetText(panel.abilityDrop, ns.L("All Abilities"))
 
             -- When stable is open, keep tamer locked to current hunter
@@ -940,6 +940,8 @@ function ns.UI:BuildSortButtons(panel)
             panel.favoritesCheck:SetTriState(nil)
             panel.exoticCheck:SetTriState(nil)
             panel.duplicatesCheck:SetTriState(nil)
+
+            InitFamilyDropdown(panel)
 
             ns.state.sortBy = nil
             UIDropDownMenu_SetText(panel.sortDrop, ns.L("Sort by"))
