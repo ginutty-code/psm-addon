@@ -96,21 +96,23 @@ describe("GetAbilityCategory", function()
 end)
 
 describe("GetAbilitySource", function()
-    it("returns the granting families, sorted and deduped", function()
+    it("returns granting families sorted+deduped, rank from the highest-precedence tier", function()
         _G.AbilitiesData = {
             [2] = { name = "Cat",  ranks = { ["Special Ability"] = {
                 [111] = { name = "Growl", category = "Threat" },
             } } },
             [1] = { name = "Wolf", ranks = {
-                ["Special Ability"] = { [111] = { name = "Growl" } },
-                ["Bonus Ability"]   = { [111] = { name = "Growl" } },  -- same family twice
+                ["Special Ability"] = { [111] = { name = "Growl", category = "Threat" } },
+                ["Bonus Ability"]   = { [222] = { name = "Growl", category = "Stolen" } },  -- same family twice
             } },
         }
         local Data = freshData()
         local families, specTier, rank = Data:GetAbilitySource("Growl")
         eq(table.concat(families, ","), "Cat,Wolf", "sorted, each family once")
         eq(specTier, nil, "not a spec ability")
-        eq(rank, "Special Ability", "first rank seen")
+        eq(rank, "Special Ability", "RANK_ORDER precedence, not pairs() visit order")
+        eq(Data:GetAbilitySpellId("Growl"), 111, "the winning tier's spell ID")
+        eq(Data:GetAbilityCategory("Growl"), "Threat", "the winning tier's category")
     end)
 
     it("reports the spec tier for a synthetic Spec-family ability", function()

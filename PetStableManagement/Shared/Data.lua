@@ -967,8 +967,9 @@ local function BuildAbilityIndex()
                     if name then
                         local detail = abilityDetailByName[name]
                         if not detail then
-                            -- category/spellId/rank come from the first entry seen
-                            -- for a name; families/specTier accumulate over every entry,
+                            -- category/spellId/rank come from the highest-precedence
+                            -- entry for a name -- RANK_ORDER decides, not pairs() visit
+                            -- order; families/specTier accumulate over every entry,
                             -- since one ability name can be granted by several families.
                             detail = {
                                 category = abilityData.category or "Other",
@@ -978,6 +979,15 @@ local function BuildAbilityIndex()
                             }
                             abilityDetailByName[name] = detail
                             familySeen[name] = {}
+                        elseif RankIndex(rankName) < RankIndex(detail.rank) then
+                            -- The same name under a higher-precedence tier than the one
+                            -- already recorded: re-point the detail at it, so the rank
+                            -- (and its spell/category) a tooltip reports is stable no
+                            -- matter which bucket pairs() visits first -- the same
+                            -- ordering AppendRankGroups displays rank labels in.
+                            detail.category = abilityData.category or "Other"
+                            detail.spellId  = spellId
+                            detail.rank     = rankName
                         end
                         if isNumeric then
                             if famName and not familySeen[name][famName] then
