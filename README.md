@@ -1,19 +1,19 @@
-# Pet Stable Management — WoW Hunter Pet Addon
+# Pet Stable Management — Your Hunter Pet Command Center
 Pet Stable Management is a World of Warcraft hunter pet addon designed to give Hunters full control over their pet collection. It provides a remote stable view, advanced owned‑pet management, content‑based pet team presets, and a complete browser of all tamable creatures, including rare models and special tames.
 
-This addon is built for Hunters who want a powerful, modern tool for organizing their stable, planning new tames, and managing pets across all types of content.
+This addon is built for Hunters who want a powerful, modern tool for organizing their stable, planning new tames, and managing pets across all types of content. Whether you're organizing your current pets or exploring thousands of potential tames, this addon gives you a complete overview of your collection and the entire hunter pet ecosystem.
 
 ## Modular Structure
 
 Pet Stable Management consists of two addons:
 
 ### Core Addon (Required)
-- **Pet Stable Management**: Base addon with Owned Pets panel, Pet Teams functionality, and core features
+- **Pet Stable Management**: Base addon with Owned Pets panel, Pet Teams panel, and core features
 
-### Optional Addon
-- **Pet Stable Management: Models Browser**: Browse all pet models with Pet Roulette feature (requires Core Addon)
+### Optional Addon (Load-on-Demand)
+- **Pet Stable Management: Models Browser**: Browse every tamable model and its NPCs, with the Pet Roulette feature (requires Core Addon)
 
-The optional addon can be enabled or disabled in the WoW addon list. When disabled, the pet models data, their coordinates and notes are not available.
+The optional addon can be enabled or disabled in the WoW addon list and loads on demand. When disabled, the pet models data, their coordinates and notes are not available.
 
 ## Features
 
@@ -23,7 +23,9 @@ The main panel for viewing and managing your hunter's pet collection.
 
 #### Default/List View
 - **Advanced Sorting**: Sort pets by: family, model (display ID), slot, spec, tamer (owner)
-- **Powerful Filtering**: Filter by exotic status, duplicates, specs, families, tamers, and abilities — ownership is tracked account-wide across all your hunters, but while the Blizzard Stable window is open, the tamer filter locks to the current hunter
+- **Powerful Filtering**: Filter by exotic status, duplicates, specs, families, tamers, and favorites — ownership is tracked account-wide across all your hunters, but while the Blizzard Stable window is open, the tamer filter locks to the current hunter
+- **Abilities Filters**: Filter your owned pets by their abilities
+- **Favorites**: Mark pets as favorites — integrated with the native Favorites system and shared with the Models Browser
 - **Search Functionality**: Quickly find specific pets with real-time search by various criteria
 - **Persistent Data Storage**: Your pet data is saved across sessions
 - **Export Options**: Export your pet collection data as CSV with selectable columns
@@ -36,7 +38,7 @@ The main panel for viewing and managing your hunter's pet collection.
 
 #### Grid View
 - Alternative grid layout displaying larger 3D pet models with detailed tooltips on mouseover
-- Easily toggle between list and grid views with a single click
+- Easily toggle between List, Grid, and Grouped views with a single click
 - Visual overview of your entire pet collection
 - **Pet Reordering**: Reorganize pets using drag-and-drop to change stable slots (only while the Blizzard Stable window is open)
 
@@ -51,8 +53,9 @@ The main panel for viewing and managing your hunter's pet collection.
 
 Save and manage pet team configurations for quick switching between different pet setups.
 
-- Create and save multiple pet team configurations
-- Assign pets to teams for specific purposes (soloing, dungeons, specific content or outfit)
+- Build content-based presets: create and save multiple pet team configurations, including each pet's spec assignment
+- Assign pets to teams for specific purposes (Mythic+, open world, PvP, soloing, dungeons, or utility builds)
+- At a Stable Master, choose a preset and click Apply to instantly swap pets and specs
 - Quick switching between different pet setups
 - Manage team compositions either at the stable or on the go
 - Drag-and-drop to rearrange pets within teams
@@ -63,10 +66,10 @@ Save and manage pet team configurations for quick switching between different pe
 A comprehensive browser for discovering all available pet models and planning your next taming adventure.
 
 - **Complete Pet Database**: Browse all available pet models in the game (according to Wowhead data)
-- **Advanced Searching and Filtering**: Search and filter pets by families, expansions, locations, name retention, and classification (Rare, Elite) with persistent selections
+- **Advanced Searching and Filtering**: Refine searches with **Show Only** filters (Favorites, Rares, Owned, Name Keepers, In My Zone) plus Family, Expansion, and Location filters, with persistent selections
 - **Hide Owned Toggle**: Filter out pets you already own in the Model Browser
 - **Zone-Based Discovery**: Show only pets available in your current zone
-- **Favorites System**: Mark and track your favorite pet models across all your hunters on the same account
+- **Favorites System**: Mark and track your favorite models across all your hunters on the same account — integrated with the native Favorites system and shared with the Owned Pets panel
 - **Reset All Filters**: Quickly clear all filters and return to default "show everything" state
 - **Pagination**: Efficient browsing with page navigation and jump-to-page
 - **Layout Customization**: Resizable Models Browser with an adjustable pet-preview size (X-Small to X-Large)
@@ -82,17 +85,20 @@ A comprehensive browser for discovering all available pet models and planning yo
 ### General Features
 
 - **Individual Model Controls**: Fine-tune zoom, view angle, vertical and horizontal positioning for each 3D model (left-click to rotate, right-click to reposition, scroll to zoom)
-- **Model Magnifier**: Click magnifying glass button on models to open resizable detail popup (available in both owned pets and model browser)
+- **Model Magnifier**: Click magnifying glass button on models to open resizable detail popup (available in both owned pets and model browser), with mouseover pet ability tooltips
 - **Floating Menu**: Optional floating menu for quick access to features
 - **Broker Support**: Integration with data broker addons for panel toggling
 - **Performance Optimized**: Efficient rendering, GPU-call deduplication, and memory management
 - **Minimap Integration**: Uses LibDBIcon when available, falling back to custom button
 - **ElvUI Support**: Optional skinning for ElvUI users
+- **Localization**: Community translations are welcome — scaffolding is in place for translators
+- **Collapsible Rail**: The Owned Pets and Models Browser panels both have a collapsible left rail to maximize viewing space
+- **Movable Windows**: All windows can be moved, even partially outside the screen
 - **Resizable Popups**: Pet Roulette and Magnifier windows can be resized with dynamic model scaling
 - **Selectable NPC Text**: Click NPC ID links to open a popup with the Wowhead URL for easy copying
 - **Coordinates and Map Integration**: Clickable location links in Pet Roulette and Model Magnifier windows that open the destination map for NPC coordinates (with TomTom waypoint generation if TomTom is available); only ~93% of NPCs have both a map ID and coordinates; data available if the Models Browser module is loaded
 - **Notes Feature**: View curated notes from Petopia and add your own custom notes for any NPC to keep track of taming strategies or personal reminders.
-- **Combat Protection**: Panels automatically closing when entering combat and cannot be opened during combat to prevent errors
+- **Combat Protection**: Centralized across all 9 windows — panels automatically close when entering combat and cannot be opened during combat to prevent errors
 
 ## Installation
 
@@ -116,13 +122,14 @@ In the WoW addon list (Esc → AddOns), you can enable/disable:
 
 ### Commands
 - `/psm` or `/petstable`: Toggle the main panel (owned pets panel)
-- `/psm models`: Toggle the pet model browser (requires Models Browser module)
-- `/psm roulette`: Start pet roulette (requires Models Browser module)
+- `/psm models`: Toggle the pet model browser (loads the Models Browser module on demand)
+- `/psm roulette`: Toggle the Pet Roulette popup (loads the Models Browser module on demand)
 - `/psm teams`: Toggle the Pet Teams panel
 - `/psm teamroulette`: Open Team Roulette for the current Owned Pets filter
 - `/psm options`: Toggle the options panel
 - `/psm menu`: Toggle the floating menu
 - `/psm show` / `/psm hide`: Show or hide the minimap button
+- `/psm debug`: Show recent errors
 - `/psm help`: List all available slash commands
 - `/petswap [slot1] [slot2]`: Swap pets between stable slots
 
@@ -145,6 +152,11 @@ Access settings through the options panel (`/psm options`) or by modifying `PetS
 
 ## Optional Dependencies
 - **Blizzard_StableUI**: Enhanced integration with default stable interface
+
+## Submit Feedback & Requests
+
+- **Pet Data Correction Form** (report wrong NPC data, missing coordinates, incorrect notes, etc.): [https://ginutty-code.github.io/psm-data/](https://ginutty-code.github.io/psm-data/)
+- **Feature Request Form** (suggest new tools, filters, UI improvements, or QoL ideas): [https://ginutty-code.github.io/psm-addon/](https://ginutty-code.github.io/psm-addon/)
 
 ## Credits
 - **Author**: Ginutty
