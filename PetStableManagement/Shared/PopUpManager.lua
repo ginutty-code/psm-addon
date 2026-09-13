@@ -736,11 +736,12 @@ function ns.PopUpManager:CreateModelPopup(config)
     popup.SetFavTexCoord = SetFavTexCoord
 
     -- Info row: "<family> (<spec>) - Display ID: <n>", centered. infoRow owns the
-    -- layout slot the single info label used to hold -- the taming frame and NPC list
-    -- anchor to it -- while infoCluster is a shrink-to-content frame centered inside
-    -- it, so the parts read as one centered line the way the old single label did.
-    -- The family name and the spec name are each their own mouse-enabled segment
-    -- (hover -> that family's / spec's abilities); the Display ID tail is plain.
+    -- layout slot (the taming frame and NPC list anchor to it); the text inside it is
+    -- ONE SimpleHTML paragraph, built the way CreateNPCRow's detail line is: family
+    -- and spec are inline hyperlinks, each carrying its own tooltip, but the whole
+    -- line is a single text flow. When the line is wider than the row it therefore
+    -- wraps word by word across the whole line -- the NPC-row behaviour -- instead
+    -- of each block wrapping inside its own box.
     popup.infoRow = Widgets.Frame(popup, {
         height = Theme.SIZE.LABEL + 4,
         point  = {
@@ -748,65 +749,109 @@ function ns.PopUpManager:CreateModelPopup(config)
             { "TOPRIGHT", popup, "TOPRIGHT",   -25, -20 },
         },
     })
-    popup.infoCluster = Widgets.Frame(popup.infoRow, {
-        height = Theme.SIZE.LABEL + 4,
-        point  = { "CENTER", popup.infoRow, "CENTER", 0, 0 },
+    popup.infoHTML = Widgets.Frame(popup.infoRow, {
+        frameType = "SimpleHTML",
+        point     = { "TOPLEFT", popup.infoRow, "TOPLEFT", 0, 0 },
     })
+    popup.infoHTML:SetFont("p", Theme.FONT, Theme.SIZE.LABEL, "")
+    popup.infoHTML:SetHyperlinksEnabled(true)
 
-    -- A frame sized to its own text, since Widgets.Label is a bare FontString and
-    -- cannot take OnEnter. :SetContent(text) resizes it (min 1px so a 0-width frame
-    -- can't break the anchor chain). Inter-part spacing lives in the text itself, so
-    -- an absent spec leaves no gap.
-    local function HoverSegment(anchor, textColor)
-        local seg = Widgets.Frame(popup.infoCluster, {
-            height = Theme.SIZE.LABEL + 4,
-            point  = anchor,
-        })
-        seg:EnableMouse(true)
-        seg.label = Widgets.Label(seg, {
-            fontSize = Theme.SIZE.LABEL,
-            color    = textColor,
-            point    = { "LEFT", seg, "LEFT", 0, 0 },
-        })
-        seg.baseColor = textColor
-        function seg:SetContent(text)
-            self.label:SetText(text or "")
-            self:SetWidth(math.max(1, self.label:GetStringWidth()))
+    -- The whole line as html. `hoverLink` recolours one block, standing in for the
+    -- old per-segment hover highlight: a SimpleHTML has no per-link hover state, so
+    -- the enter/leave scripts below rebuild the text with the colour swapped.
+    -- Colour wrapping goes through the shared Utils:FormatColorText, not a local copy.
+    local function BuildInfoHTML(hoverLink)
+        local family = popup.infoFamilyText or ""
+        local spec   = popup.infoSpecText   or ""
+        local tail   = popup.infoTailText   or ""
+        if family == "" and spec == "" and tail == "" then return "" end
+
+        local parts = {}
+        if family ~= "" then
+            local c = (hoverLink == "family") and Theme.COLOR.GOLD or Theme.COLOR.WHITE
+            parts[#parts + 1] = ("|Hpsminfo:family|h%s|h"):format(ns.Utils:FormatColorText(family, c))
         end
-        return seg
+        if spec ~= "" then
+            local c = (hoverLink == "spec") and Theme.COLOR.GOLD or Theme.COLOR.MUTED
+            parts[#parts + 1] = ("|Hpsminfo:spec|h%s|h"):format(ns.Utils:FormatColorText(spec, c))
+        end
+        if tail ~= "" then
+            parts[#parts + 1] = tail
+        end
+        return ("<html><body><p align='center'>%s</p></body></html>"):format(table.concat(parts))
     end
 
-    popup.familyLabel = HoverSegment({ "LEFT", popup.infoCluster, "LEFT",  0, 0 }, Theme.COLOR.WHITE)
-    popup.specLabel   = HoverSegment({ "LEFT", popup.familyLabel, "RIGHT", 0, 0 }, Theme.COLOR.MUTED)
-
-    popup.infoText = Widgets.Label(popup.infoCluster, {
-        fontSize = Theme.SIZE.LABEL,
-        point    = { "LEFT", popup.specLabel, "RIGHT", 0, 0 },
-    })
-
-    -- Re-centre after the three texts change: infoCluster is CENTER-anchored, so
-    -- sizing it to the content width is the whole job.
-    function popup.RelayoutInfoRow()
-        popup.infoCluster:SetWidth(math.max(1, popup.familyLabel:GetWidth()
-            + popup.specLabel:GetWidth() + popup.infoText:GetStringWidth()))
-    end
-
-    local function WireSegment(seg, kind, getSubject, hoverColor)
-        ns.Tooltip.Attach(seg, function()
-            local subject = getSubject()
-            if not subject then return nil end
-            return ns.Data:GetAbilityTooltip(kind, subject, {
-                noSpec   = (kind == "family"),   -- specLabel sits right beside it
+    -- Tooltip contents per link type, the same specs the old segments showed. A nil
+    -- return suppresses, the contract ns.Tooltip.Attach used on those segments.
+    local function InfoLinkTooltip(kind)
+        if kind == "family" and popup.hoverFamily then
+            return ns.Data:GetAbilityTooltip("family", popup.hoverFamily, {
+                noSpec   = true,          -- the spec block sits right beside it
                 toplevel = true,
                 anchor   = "ANCHOR_BOTTOM",
             })
-        end, {
-            onEnter = function() seg.label:SetTextColor(unpack(hoverColor)) end,
-            onLeave = function() seg.label:SetTextColor(unpack(seg.baseColor)) end,
-        })
+        end
+        if kind == "spec" and popup.hoverSpec then
+            return ns.Data:GetAbilityTooltip("spec", popup.hoverSpec, {
+                toplevel = true,
+                anchor   = "ANCHOR_BOTTOM",
+            })
+        end
+        return nil
     end
-    WireSegment(popup.familyLabel, "family", function() return popup.hoverFamily end, Theme.COLOR.GOLD)
-    WireSegment(popup.specLabel,   "spec",   function() return popup.hoverSpec   end, Theme.COLOR.WHITE)
+
+    popup.infoHTML:SetScript("OnHyperlinkEnter", function(_, link)
+        local kind = link:match("^psminfo:(.+)$")
+        if not kind then return end
+        local spec = InfoLinkTooltip(kind)
+        if spec then ns.Tooltip.Show(popup.infoHTML, spec) end
+        -- Recolour only on a change, so a re-fired enter for the same link after the
+        -- rebuild below (the cursor never left it) cannot loop.
+        if popup.infoHoverLink ~= kind then
+            popup.infoHoverLink = kind
+            popup.infoHTML:SetText(BuildInfoHTML(kind))
+        end
+    end)
+    popup.infoHTML:SetScript("OnHyperlinkLeave", function()
+        ns.Tooltip.Hide()
+        popup.infoHoverLink = nil
+        popup.infoHTML:SetText(BuildInfoHTML(nil))
+    end)
+
+    -- One entry point for all three texts. Content is stored and rendered by
+    -- RelayoutInfoRow, which is also what the resize path drives.
+    function popup.SetInfoContent(familyText, specText, tailText)
+        popup.infoFamilyText = familyText or ""
+        popup.infoSpecText   = specText   or ""
+        popup.infoTailText   = tailText   or ""
+        popup.infoHoverLink  = nil
+        popup.RelayoutInfoRow()
+    end
+
+    -- Render the stored content at the row's current width and grow the row to the
+    -- wrapped height. Mirrors CreateNPCRow / UpdateTamingLayout sizing: SimpleHTML
+    -- needs a beat between SetText and GetContentHeight, hence the timer. The
+    -- taming frame and NPC list anchor to infoRow's bottom edge, so they follow.
+    function popup.RelayoutInfoRow()
+        local infoHTML = popup.infoHTML
+        local w = popup.infoRow:GetWidth() or 0
+        if not infoHTML or w <= 0 then return end
+        local content = BuildInfoHTML(popup.infoHoverLink)
+        infoHTML:SetWidth(w)
+        if content == "" then
+            infoHTML:SetText("")
+            infoHTML:SetHeight(0)
+            popup.infoRow:SetHeight(Theme.SIZE.LABEL + 4)
+            return
+        end
+        infoHTML:SetText(content)
+        ns.C_Timer.After(0.01, function()
+            if not popup.infoHTML then return end
+            local dh = infoHTML:GetContentHeight() or 0
+            infoHTML:SetHeight(math.max(dh, 14))
+            popup.infoRow:SetHeight(math.max(dh, 14) + 4)
+        end)
+    end
 
     -- Taming requirements area
     local tf = Widgets.Frame(popup, {
@@ -960,6 +1005,9 @@ function ns.PopUpManager:CreateModelPopup(config)
             mf:SetSize(mw - 10, mh - 10)
             if popup.infoRow then
                 popup.infoRow:SetWidth(w - 50)
+                -- The row's width just changed, so the info line has to re-render
+                -- and re-wrap at the new width.
+                if popup.RelayoutInfoRow then popup.RelayoutInfoRow() end
             end
             if popup.tamingFrame then
                 UpdateTamingLayout(popup)
@@ -1004,10 +1052,7 @@ function ns.PopUpManager:CreateModelPopup(config)
         if config.cleanupFunction then
             config.cleanupFunction()
         else
-            if self.infoText then self.infoText:SetText("") end
-            if self.familyLabel then self.familyLabel:SetContent(nil) end
-            if self.specLabel   then self.specLabel:SetContent(nil)   end
-            if self.RelayoutInfoRow then self.RelayoutInfoRow() end
+            if self.SetInfoContent then self.SetInfoContent(nil, nil, nil) end
             self.hoverFamily, self.hoverSpec = nil, nil
             if self.npcRows then
                 for _, r in ipairs(self.npcRows) do r:Hide(); r:SetParent(nil) end
@@ -1516,10 +1561,7 @@ function ns.PopUpManager:PopulateModelPopup(popup, displayId, petData, npcs)
     end
     popup.hoverFamily = isKnownFamily and familyName or nil
     popup.hoverSpec   = specName
-    popup.familyLabel:SetContent(familyName)
-    popup.specLabel:SetContent(specText)
-    popup.infoText:SetText(" - " .. ns.L("Display ID: %d", displayId))
-    popup.RelayoutInfoRow()
+    popup.SetInfoContent(familyName, specText, " - " .. ns.L("Display ID: %d", displayId))
 
     -- Taming requirements
     local tamingData = nil
