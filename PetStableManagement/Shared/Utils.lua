@@ -161,7 +161,48 @@ function ns.Utils:GetSpellTextureCompat(spellID)
 end
 
 function ns.Utils:HasAnimalCompanionTalent()
-    return IsPlayerSpell(267116) == true
+    -- Animal Companion (spell 267116) is a passive talent flagged "Not In
+    -- Spellbook", so IsPlayerSpell alone can report false while the talent is
+    -- taken. The authoritative check is C_SpellBook.IsSpellKnown, which the wiki
+    -- documents as also returning true for spells outside the spellbook (and
+    -- which IsPlayerSpell itself migrated into); the remaining namespace lookup
+    -- is kept as a client-difference fallback. Everything is guarded because
+    -- namespaces vary between client generations.
+    if C_SpellBook and C_SpellBook.IsSpellKnown and C_SpellBook.IsSpellKnown(267116) == true then return true end
+    if C_Spell and C_Spell.IsSpellKnown and C_Spell.IsSpellKnown(267116) == true then return true end
+    return false
+end
+
+-- Whether this hunter's current specialization is Beast Mastery (spec ID 253).
+-- Unlike a talent/spell check this follows live spec switches, and it is what the
+-- Team Roulette fill order (active slots 1 and 6 first) keys off.
+function ns.Utils:IsBeastMastery()
+    local BM_SPEC_ID = 253
+    if C_SpecializationInfo and C_SpecializationInfo.GetSpecialization then
+        local index = C_SpecializationInfo.GetSpecialization()
+        if index and C_SpecializationInfo.GetSpecializationInfo then
+            return C_SpecializationInfo.GetSpecializationInfo(index) == BM_SPEC_ID
+        end
+    end
+    if GetSpecialization and GetSpecializationInfo then
+        local index = GetSpecialization()
+        if index then
+            return (select(1, GetSpecializationInfo(index))) == BM_SPEC_ID
+        end
+    end
+    return false
+end
+
+-- Whether this hunter may summon/tame exotic pet families. Exotic Beasts
+-- (spell 53270) is the Beast Mastery passive granted at level 10 and removed on
+-- any other spec; knowing it is the same live check the Models Browser's Special
+-- Tames "Exotic" rule evaluates (TamingChecker.lua's TamingRules table). The spec
+-- identity itself is the fallback, so a client that fails to expose the passive
+-- (a level < 10 hunter cannot have a spec yet, so the fallback stays level-safe).
+function ns.Utils:CanTameExotic()
+    if C_SpellBook and C_SpellBook.IsSpellKnown and C_SpellBook.IsSpellKnown(53270) == true then return true end
+    if C_Spell and C_Spell.IsSpellKnown and C_Spell.IsSpellKnown(53270) == true then return true end
+    return self:IsBeastMastery()
 end
 
 --------------------------------------------------------------------------------

@@ -23,20 +23,31 @@ TeamRoulette.SPECS = { "Ferocity", "Tenacity", "Cunning" }
 -- ns.TeamRoulette.Roll(pets, opts) -> slots, report
 --   pets   : array of processed PSM pets (already filtered, already this character's)
 --   opts   : { slotCount = 5|6,
---              template  = { [slot] = "Ferocity"|"Tenacity"|"Cunning"|nil },  -- nil = Any
+--              template  = { [slot] = "Ferocity" | "Tenacity" | "Cunning" | nil }, -- nil = Any
 --              locked    = { [slot] = slotRecord | "empty" },  -- kept across a re-roll
+--              slotOrder = { 1, 6, 2, 3, 4, 5 },  -- fill order; default 1..slotCount
+--              priority  = { 1, 6 },              -- these slots fill before any
+--                                                 -- non-priority templated slot
 --              random    = math.random }              -- injectable for the spec
 --   slots  : { [1..slotCount] = ns.Teams:SlotRecord(pet) }  (a slot may be nil if short)
 --   report : { filled = n, short = n, coerced = { { slot=, name=, from=, to= } } }
 --
--- Draw order is most-constrained-first, so a templated slot never loses its only
--- candidate to an "Any" slot:
---   Pass 1 (match)  -- templated slots take a pet that already has the required spec.
---   Pass 2 (coerce) -- templated slots still empty take any pet; its slot record's
---                      specName is overwritten with the requirement and a coerced entry
---                      is recorded. ns.Teams:ApplySlots' existing spec-restore path does
---                      the actual SetPetSpecialization.
---   Pass 3 (any)    -- untemplated slots take whatever is left.
+-- A spec assignment is a PREFERENCE applied during a roll, never a request to fill:
+-- a kept-empty lock always wins, and no pet is ever placed outside this function
+-- (see RetuneSlot). A draw serves slots in six phases, each walking `slotOrder`:
+--   1. priority + templated   : MATCH  -- take a pet that already has the spec.
+--   2. priority + untemplated : ANY    -- take any pet (the fighting slots win the run).
+--   3. priority + templated   : COERCE -- still empty: take any pet and overwrite its
+--                                        specName with the requirement; the coerced
+--                                        entry is recorded and ns.Teams:ApplySlots'
+--                                        spec-restore path does the actual
+--                                        SetPetSpecialization.
+--   4. the rest  + templated  : MATCH
+--   5. the rest  + templated  : COERCE
+--   6. the rest  + untemplated: ANY
+-- For a 6-slot (Beast Mastery + Animal Companion) hunter, Show passes
+-- priority = { 1, 6 } -- the active pet and the stabled companion -- so those two
+-- fighting slots win the pool in every case, templates on 2-5 be damned.
 function TeamRoulette.Roll(pets, opts)
     opts = opts or {}
     local slotCount = opts.slotCount or 5
@@ -44,27 +55,33 @@ function TeamRoulette.Roll(pets, opts)
     local locked    = opts.locked    or {}
     local random    = opts.random    or math.random
 
+    local slotOrder = opts.slotOrder
+    if not slotOrder then
+        slotOrder = {}
+        for slot = 1, slotCount do slotOrder[#slotOrder + 1] = slot end
+    end
+
+    local isPriority = {}
+    for _, slot in ipairs(opts.priority or {}) do isPriority[slot] = true end
+
     local slots  = {}
     local report = { filled = 0, short = 0, coerced = {} }
 
     -- `locked[slot]` is a slot record (keep this pet), the string "empty" (keep this
-    -- slot deliberately empty), or nil (free to redraw).
+    -- slot deliberately empty), or nil (free to redraw). A kept-empty lock is always
+    -- honoured: assigning a spec to a slot is a preference for the next roll, not a
+    -- reason to force a pet in here (which could rob the priority 1/6 slots of the pool).
     local function keptEmpty(slot) return locked[slot] == "empty" end
 
-    -- Locked slots are carried through untouched.
-    for slot = 1, slotCount do
-        if type(locked[slot]) == "table" then
-            slots[slot]   = locked[slot]
-            report.filled = report.filled + 1
-        end
-    end
-
-    -- Pool: dedupe by petNumber, drop anything sitting in a locked slot. A pet with no
-    -- petNumber can be neither deduped nor displaced by the apply path, so it is skipped.
+    -- Carried locked slots are kept untouched (and their pets excluded from the pool).
     local excluded = {}
     for slot = 1, slotCount do
-        local rec = slots[slot]
-        if type(rec) == "table" and rec.petNumber then excluded[rec.petNumber] = true end
+        local rec = locked[slot]
+        if type(rec) == "table" then
+            slots[slot]   = rec
+            report.filled = report.filled + 1
+            if rec.petNumber then excluded[rec.petNumber] = true end
+        end
     end
 
     local pool, seen = {}, {}
@@ -89,44 +106,46 @@ function TeamRoulette.Roll(pets, opts)
         return pick
     end
 
-    -- Pass 1 -- match
-    for slot = 1, slotCount do
-        if not slots[slot] and not keptEmpty(slot) and template[slot] then
-            local req = template[slot]
-            local pet = Take(function(p) return SpecOf(p) == req end)
-            if pet then
-                slots[slot]   = ns.Teams:SlotRecord(pet)
-                report.filled = report.filled + 1
+    -- Fill one slot. mode "match" takes a pet that already has the requirement,
+    -- "coerce" takes any pet and rewrites its specName, "any" just takes a pet.
+    local function Draw(slot, mode)
+        local req = template[slot]
+        local pet
+        if mode == "match" then
+            pet = Take(function(p) return SpecOf(p) == req end)
+        else
+            pet = Take(nil)
+        end
+        if not pet then return end
+        local rec = ns.Teams:SlotRecord(pet)
+        if mode == "coerce" then
+            local from = rec.specName
+            rec.specName   = req
+            report.coerced[#report.coerced + 1] = { slot = slot, name = rec.name, from = from, to = req }
+        end
+        slots[slot]   = rec
+        report.filled = report.filled + 1
+    end
+
+    -- One phase: slots selected by `wantPriority` / `wantTemplate`, filled by `mode`.
+    local function FillPass(wantPriority, wantTemplate, mode)
+        for _, slot in ipairs(slotOrder) do
+            if (isPriority[slot] == true) == wantPriority
+               and not slots[slot] and not keptEmpty(slot)
+               and (template[slot] ~= nil) == wantTemplate then
+                Draw(slot, mode)
             end
         end
     end
 
-    -- Pass 2 -- coerce
-    for slot = 1, slotCount do
-        if not slots[slot] and not keptEmpty(slot) and template[slot] then
-            local req = template[slot]
-            local pet = Take(nil)
-            if pet then
-                local rec  = ns.Teams:SlotRecord(pet)
-                local from = rec.specName
-                rec.specName   = req
-                slots[slot]    = rec
-                report.filled  = report.filled + 1
-                report.coerced[#report.coerced + 1] = { slot = slot, name = rec.name, from = from, to = req }
-            end
-        end
-    end
-
-    -- Pass 3 -- any
-    for slot = 1, slotCount do
-        if not slots[slot] and not keptEmpty(slot) and not template[slot] then
-            local pet = Take(nil)
-            if pet then
-                slots[slot]   = ns.Teams:SlotRecord(pet)
-                report.filled = report.filled + 1
-            end
-        end
-    end
+    -- The six phases: priority slots first (match, then any, then coerce), then the
+    -- rest (match, coerce, any). Matches still beat coercion inside each tier.
+    FillPass(true,  true,  "match")
+    FillPass(true,  false, "any")
+    FillPass(true,  true,  "coerce")
+    FillPass(false, true,  "match")
+    FillPass(false, true,  "coerce")
+    FillPass(false, false, "any")
 
     for slot = 1, slotCount do
         if not slots[slot] and not keptEmpty(slot) then report.short = report.short + 1 end
@@ -139,33 +158,31 @@ end
 -- LIVE POOL
 --------------------------------------------------------------------------------
 
-local function SpecOf(pet) return pet.specName or pet.specialization end
+-- Whether a pet belongs to an exotic family. Processed pets carry `isExotic`
+-- directly; the fallback mirrors ns.Data:GetPetExoticStatus for callers holding a
+-- bare pet table (the headless suite builds such pets).
+local function PetIsExotic(pet)
+    if pet.isExotic ~= nil then return pet.isExotic end
+    if ns.Data and ns.Data.IsExoticFamily then return ns.Data.IsExoticFamily(pet.familyName) end
+    return false
+end
 
 -- The current draw pool: the Owned Pets panel's live filtered list, restricted to
--- pets this hunter owns (a team can only be applied with pets you own). Read fresh on
--- every roll so changing a filter on the panel is reflected without reopening the
--- dialog.
+-- pets this hunter owns (a team can only be applied with pets you own), and -- when
+-- this hunter is not on Beast Mastery -- free of exotic-family pets, which a
+-- non-BM spec cannot summon (see ns.Utils:CanTameExotic). Read fresh on every roll
+-- so changing a filter on the panel is reflected without reopening the dialog.
 function TeamRoulette:CurrentPool()
     local rd = ns.state.currentRenderData
     local myKey = ns.GetCharacterKey()
+    local canExotic = ns.Utils:CanTameExotic()
     local pool = {}
     for _, pet in ipairs((rd and rd.filteredPets) or {}) do
-        if pet.tamer == myKey then pool[#pool + 1] = pet end
-    end
-    return pool
-end
-
--- petNumbers already placed in slots other than `exceptSlot`, so a per-slot redraw
--- doesn't pull in a pet that is already on the team.
-local function PlacedPetNumbers(state, exceptSlot)
-    local placed = {}
-    for s = 1, state.slotCount do
-        if s ~= exceptSlot then
-            local rec = state.slots and state.slots[s]
-            if rec and rec.petNumber then placed[rec.petNumber] = true end
+        if pet.tamer == myKey and (canExotic or not PetIsExotic(pet)) then
+            pool[#pool + 1] = pet
         end
     end
-    return placed
+    return pool
 end
 
 local function CoercedIndex(state, slot)
@@ -180,6 +197,8 @@ local function ClearCoerced(state, slot)
 end
 
 -- Recount filled/short after a per-slot edit, so the dialog's warning line stays right.
+-- A kept-empty lock suppresses the shortfall: assigning a spec to it is a preference
+-- applied on the next roll, not a demand to fill it.
 local function Recount(state)
     local filled, short = 0, 0
     for s = 1, state.slotCount do
@@ -257,13 +276,26 @@ function TeamRoulette:Show()
         return
     end
 
-    local slotCount = ns.Utils:HasAnimalCompanionTalent() and 6 or 5
+    -- A six-slot team needs BOTH: the Beast Mastery spec AND the Animal Companion
+    -- talent known (its spell is the live "can fight a companion" signal). Slot 6
+    -- itself is always a STABLE slot -- the companion is a stabled pet fighting
+    -- beside the active one -- and the team engine (GetCurrentSlots, ApplySlots)
+    -- treats slots 1-6 alike, so nothing here may ever classify slot 6 as active.
+    local sixSlots = ns.Utils:IsBeastMastery() and ns.Utils:HasAnimalCompanionTalent()
+    local slotCount = sixSlots and 6 or 5
+    -- With a companion slot, the two fighting slots -- the active pet (1) and the
+    -- stabled companion (6) -- MUST win the pool in every case, even against a spec
+    -- assigned to some stable-only slot 2-5. Roll fills the `priority` slots first.
+    local slotOrder = sixSlots and { 1, 6, 2, 3, 4, 5 } or nil
+    local priority  = sixSlots and { 1, 6 } or nil
     local template  = TemplateStore()
     local lockedStore = LockedStore()
     local locked = RestoreLockedState(lockedStore, pool)
 
     local state = {
         slotCount = slotCount,
+        slotOrder = slotOrder,
+        priority  = priority,
         template  = template,
         locked    = locked,
         lockedStore = lockedStore,
@@ -272,6 +304,8 @@ function TeamRoulette:Show()
         slotCount = slotCount,
         template  = template,
         locked    = locked,
+        slotOrder = slotOrder,
+        priority  = priority,
     })
 
     ns.Dialogs:ShowTeamRouletteDialog(state)
@@ -284,19 +318,21 @@ function TeamRoulette:Reroll(state)
         slotCount = state.slotCount,
         template  = state.template,
         locked    = state.locked,
+        slotOrder = state.slotOrder,
+        priority  = state.priority,
     })
     return state
 end
 
 -- Retune ONE slot against its spec template, without disturbing the rest of the team
--- (feedback #4). `keepPet` decides what happens on a mismatch:
---   keepPet = false (a spec-cycle click)  -- prefer a fresh pet that already has the
---             new spec; only if none is free, keep the current pet and coerce it, or
---             for an empty slot draw any pet and coerce.
---   keepPet = true  (a manual move)       -- never pull a different pet; coerce the
---             pet that is already in the slot, or leave it as-is / empty.
--- "Any" always drops the requirement and restores the pet's real spec.
-function TeamRoulette:RetuneSlot(state, slot, keepPet)
+-- (feedback #4). Cycle-clicking a slot's spec is a PREFERENCE, not an assignment:
+-- pets are only ever placed by a roll (Show/Reroll), so an empty slot stays empty
+-- until the next Re-roll -- never drawing, swapping or stealing a pet here, which
+-- could rob the priority 1/6 fighting slots of the pool. A pet already sitting in
+-- the slot is retuned in place (its record's specName is rewritten and a coerced
+-- entry recorded) so "Apply now" still reflects the chosen spec without waiting for
+-- a Re-roll. "Any" drops the requirement and restores the pet's real spec.
+function TeamRoulette:RetuneSlot(state, slot)
     state.report         = state.report or { coerced = {} }
     state.report.coerced = state.report.coerced or {}
 
@@ -312,41 +348,9 @@ function TeamRoulette:RetuneSlot(state, slot, keepPet)
         Recount(state); return state
     end
 
-    if rec and real == req then
-        rec.specName = req
-        Recount(state); return state
-    end
-
-    local placed = PlacedPetNumbers(state, slot)
-    local pool   = self:CurrentPool()
-
-    if not keepPet then
-        local matches = {}
-        for _, p in ipairs(pool) do
-            if p.petNumber and not placed[p.petNumber] and SpecOf(p) == req then
-                matches[#matches + 1] = p
-            end
-        end
-        if #matches > 0 then
-            state.slots[slot] = ns.Teams:SlotRecord(matches[math.random(1, #matches)])
-            Recount(state); return state
-        end
-    end
-
-    if rec then
+    if rec and real ~= req then
         rec.specName = req
         table.insert(state.report.coerced, { slot = slot, name = rec.name, from = real, to = req })
-    elseif not keepPet then
-        local any = {}
-        for _, p in ipairs(pool) do
-            if p.petNumber and not placed[p.petNumber] then any[#any + 1] = p end
-        end
-        if #any > 0 then
-            local r = ns.Teams:SlotRecord(any[math.random(1, #any)])
-            table.insert(state.report.coerced, { slot = slot, name = r.name, from = r.specName, to = req })
-            r.specName = req
-            state.slots[slot] = r
-        end
     end
 
     Recount(state)
@@ -394,7 +398,7 @@ function TeamRoulette:SwapSlots(state, a, b)
         state.lockedStore[a], state.lockedStore[b] = state.lockedStore[b], state.lockedStore[a]
     end
 
-    self:RetuneSlot(state, a, true)
-    self:RetuneSlot(state, b, true)
+    self:RetuneSlot(state, a)
+    self:RetuneSlot(state, b)
     return state
 end

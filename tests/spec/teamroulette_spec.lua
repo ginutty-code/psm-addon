@@ -166,16 +166,17 @@ describe("TeamRoulette:RetuneSlot -- per-slot spec change", function()
         }
     end
 
-    it("swaps in a matching pet for the changed slot and leaves the others alone", function()
+    it("retunes the slot's own pet in place -- assignment waits for the re-roll", function()
         setPool({ pet(1, "Ferocity"), pet(2, "Tenacity"), pet(3, "Cunning"), pet(4, "Cunning") })
         local s = baseState()
         s.template[1] = "Cunning"
         ns.TeamRoulette:RetuneSlot(s, 1)
-        eq(s.slots[1].specName, "Cunning", "slot 1 now Cunning")
-        eq(s.slots[1].petNumber, 4, "and it is the only unplaced Cunning pet")
+        eq(s.slots[1].petNumber, 1, "the slot's pet stays -- no fresh pet is drawn")
+        eq(s.slots[1].specName, "Cunning", "its spec is retuned in place")
         eq(s.slots[2].petNumber, 2, "slot 2 untouched")
         eq(s.slots[3].petNumber, 3, "slot 3 untouched")
-        eq(#s.report.coerced, 0, "a real match is not a coercion")
+        eq(#s.report.coerced, 1, "one coercion recorded")
+        eq(s.report.coerced[1].from, "Ferocity", "from the pet's real spec")
     end)
 
     it("keeps the slot's pet and coerces it when nothing in the pool matches", function()
@@ -266,5 +267,167 @@ describe("TeamRoulette:RemoveSlot / SwapSlots -- manual editing", function()
         eq(s.lockedStore[1], "empty", "locked store slot 1 is now empty")
         eq(s.lockedStore[3], 1, "locked store slot 3 is now petNumber 1")
         eq(s.locked[3].petNumber, 1, "locked state slot 3 has pet 1")
+    end)
+end)
+
+describe("TeamRoulette.Roll -- slotOrder (BM fills 1 then 6)", function()
+    it("keeps the default 1..slotCount order when no slotOrder is given", function()
+        local pets = { pet(1, "Ferocity"), pet(2, "Tenacity") }
+        local slots = Roll(pets, { slotCount = 6, random = firstPick })
+        truthy(slots[1] and slots[2], "slots 1 and 2 filled")
+        eq(slots[6], nil, "slot 6 untouched by the default order")
+    end)
+
+    it("fills the active slots 1 and 6 first for a six-slot (BM) hunter", function()
+        local pets = { pet(1, "Ferocity"), pet(2, "Tenacity") }
+        local slots, report = Roll(pets, {
+            slotCount = 6,
+            slotOrder = { 1, 6, 2, 3, 4, 5 },
+            random    = firstPick,
+        })
+        truthy(slots[1], "slot 1 filled")
+        truthy(slots[6], "slot 6 filled")
+        eq(slots[2], nil, "stable-only slot 2 left short")
+        eq(report.filled, 2, "both pets placed")
+    end)
+
+    it("walks the slotOrder in every pass, so templates key off it too", function()
+        -- A Ferocity pet placed into slot 6's template only happens if pass 1/2
+        -- visits slot 6 before the "Any" slots eat the pool.
+        local pets = { pet(1, "Cunning"), pet(2, "Ferocity") }
+        local slots = Roll(pets, {
+            slotCount = 6,
+            slotOrder = { 1, 6, 2, 3, 4, 5 },
+            template  = { [6] = "Ferocity" },
+            random    = firstPick,
+        })
+        eq(slots[6].petNumber, 2, "the Ferocity pet landed in templated slot 6")
+        eq(slots[6].specName, "Ferocity", "as its spec")
+        eq(slots[1].petNumber, 1, "slot 1 took the remaining pet")
+    end)
+
+    it("priority slots win a short draw even when a slot 2-5 has a spec assigned", function()
+        -- The conflict: a templated stable-only slot must not eat the pool before the
+        -- fighting slots 1 and 6 get their pets.
+        local pets = { pet(1, "Ferocity"), pet(2, "Tenacity") }
+        local slots, report = Roll(pets, {
+            slotCount = 6,
+            slotOrder = { 1, 6, 2, 3, 4, 5 },
+            priority  = { 1, 6 },
+            template  = { [2] = "Ferocity" },
+            random    = firstPick,
+        })
+        truthy(slots[1], "slot 1 filled first")
+        truthy(slots[6], "slot 6 filled second")
+        eq(slots[2], nil, "the templated slot 2 is left short, not the fighting slots")
+        eq(report.filled, 2, "both pets placed")
+    end)
+
+    it("a templated priority slot still coerce-fills in a short draw", function()
+        -- Inside the priority set the old rule holds: a BM's slot 1 wants Ferocity,
+        -- no pet has it, and the pool is tiny -- slot 1 gets its pet coerced anyway.
+        local pets = { pet(1, "Cunning"), pet(2, "Tenacity") }
+        local slots, report = Roll(pets, {
+            slotCount = 6,
+            slotOrder = { 1, 6, 2, 3, 4, 5 },
+            priority  = { 1, 6 },
+            template  = { [1] = "Ferocity" },
+            random    = firstPick,
+        })
+        truthy(slots[1], "slot 1 filled")
+        eq(slots[1].specName, "Ferocity", "coerced to the requirement")
+        truthy(slots[6], "slot 6 filled too")
+        local co
+        for _, c in ipairs(report.coerced) do if c.slot == 1 then co = c end end
+        truthy(co, "the slot 1 coercion is recorded")
+    end)
+end)
+
+describe("TeamRoulette.Roll -- template is a preference, not a filling request", function()
+    it("a kept-empty lock always wins, even when a spec is assigned to the slot", function()
+        local pets = { pet(1, "Cunning") }
+        local slots, report = Roll(pets, {
+            slotCount = 1,
+            locked    = { [1] = "empty" },
+            template  = { [1] = "Ferocity" },
+            random    = firstPick,
+        })
+        eq(slots[1], nil, "the empty lock is honoured -- no pet is forced in")
+        eq(report.short, 0, "a deliberate empty is not a shortfall")
+    end)
+end)
+
+describe("TeamRoulette:CurrentPool -- exotic filtering by hunter spec", function()
+    local originalCanTameExotic = ns.Utils.CanTameExotic
+
+    local function exoticPet(number, spec)
+        local p = pet(number, spec)
+        p.isExotic = true
+        p.familyName = "Clefthoof"
+        return p
+    end
+
+    it("drops exotic-family pets when this hunter cannot tame exotics", function()
+        ns.Utils.CanTameExotic = function() return false end
+        setPool({ exoticPet(1, "Ferocity"), pet(2, "Tenacity"), exoticPet(3, "Cunning") })
+        local pool = ns.TeamRoulette:CurrentPool()
+        eq(#pool, 1, "only the non-exotic pet survives")
+        eq(pool[1].petNumber, 2, "and it is pet 2")
+    end)
+
+    it("keeps exotic-family pets for a Beast Mastery hunter", function()
+        ns.Utils.CanTameExotic = function() return true end
+        setPool({ exoticPet(1, "Ferocity"), pet(2, "Tenacity") })
+        local pool = ns.TeamRoulette:CurrentPool()
+        eq(#pool, 2, "both pets survive")
+    end)
+
+    ns.Utils.CanTameExotic = originalCanTameExotic
+end)
+
+describe("TeamRoulette:RetuneSlot -- empty slots wait for the next roll", function()
+    local function dryState()
+        return {
+            slotCount = 3,
+            template  = {},
+            locked    = {},
+            slots     = {
+                -- slot 1 empty on purpose: the spec is assigned to an empty slot.
+                [2] = ns.Teams:SlotRecord(pet(2, "Tenacity")),
+                [3] = ns.Teams:SlotRecord(pet(3, "Cunning")),
+            },
+            report    = { filled = 2, short = 1, coerced = {} },
+        }
+    end
+
+    it("leaves an empty slot empty when a spec is assigned, pool pets untouched", function()
+        setPool({ pet(4, "Ferocity"), pet(5, "Cunning") })
+        local s = dryState()
+        s.template[1] = "Ferocity"
+        ns.TeamRoulette:RetuneSlot(s, 1)
+        eq(s.slots[1], nil, "the empty slot stays empty -- only a roll assigns pets")
+        eq(s.slots[2].petNumber, 2, "existing placements untouched")
+        eq(s.slots[3].petNumber, 3, "existing placements untouched")
+        eq(#s.report.coerced, 0, "no coercion")
+    end)
+
+    it("never steals from another slot when the pool is dry", function()
+        setPool({})
+        local s = dryState()
+        s.template[1] = "Ferocity"
+        ns.TeamRoulette:RetuneSlot(s, 1)
+        eq(s.slots[1], nil, "the empty slot stays empty")
+        eq(s.slots[2].petNumber, 2, "slot 2's pet is not stolen")
+        eq(s.slots[3].petNumber, 3, "slot 3's pet is not stolen")
+    end)
+
+    it("still coerces the pet already in the slot, so Apply reflects the choice", function()
+        setPool({})
+        local s = dryState()
+        s.template[2] = "Ferocity"
+        ns.TeamRoulette:RetuneSlot(s, 2)
+        eq(s.slots[2].petNumber, 2, "same pet in place")
+        eq(s.slots[2].specName, "Ferocity", "retuned in place")
+        eq(#s.report.coerced, 1, "one coercion recorded")
     end)
 end)
