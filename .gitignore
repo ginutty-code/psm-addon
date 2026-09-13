@@ -4,7 +4,7 @@
 venv/
 .venv/
 
-# ── Python (Tests/run.py bootstrap) ──────────────────────────────────────────
+# ── Python (tests/run.py bootstrap) ──────────────────────────────────────────
 __pycache__/
 *.py[cod]
 .pytest_cache/

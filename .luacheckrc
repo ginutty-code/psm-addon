@@ -2,18 +2,18 @@
 std = "luajit"
 max_line_length = false
 
--- Tests/ runs in a real Lua 5.1 interpreter, not the WoW client, so it legitimately
+-- tests/ runs in a real Lua 5.1 interpreter, not the WoW client, so it legitimately
 -- uses dofile/loadfile/os/io (absent or sandboxed in-game) and installs its own
 -- stand-ins for client globals. Scoping those here rather than widening the
 -- addon-wide lists keeps warning 113 doing its real job -- catching WoW API typos
 -- in addon code. This per-path form is the mechanism ARCHITECTURE_PLAN.md's A3
 -- generalises, to confine WoW API access to Core/Compat.lua.
-files["Tests/"] = {
+files["tests/"] = {
     globals = {
         "PSM",           -- specs reset the namespace to prove modules self-create it
         "ModelsData",    -- loaded by dofile from the data addon
         "PSM_DataSchemaVersion", -- set directly by schema_spec to test Schema.lua
-        -- installed by Tests/wow/stubs.lua
+        -- installed by tests/wow/stubs.lua
         "strtrim", "strsplit", "GetTime", "date", "time",
     },
 }

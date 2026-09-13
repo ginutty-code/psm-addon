@@ -120,9 +120,9 @@ Three rules follow, and they are enforced by tests rather than by memory:
 - **The browser is unconverted** and still uses `_G.PSM` throughout — it is the
   consumer side of the bridge, so that is correct, not leftover.
 
-`Tests/spec/boundary_spec.lua` enforces both directions statically (browser → core
+`tests/spec/boundary_spec.lua` enforces both directions statically (browser → core
 against `PUBLIC_API`, core → browser against `ns.Browser`), and
-`Tests/spec/publicapi_spec.lua` runs the real file to prove the trap raises on an
+`tests/spec/publicapi_spec.lua` runs the real file to prove the trap raises on an
 internal, stays quiet for an absent browser member, and lets writes through.
 
 Elsewhere in this document a module is named `PSM.Widgets`, `PSM.Skin`, `PSM.state` and
@@ -363,18 +363,18 @@ duplicating it in the README just makes it bulkier over time.
 ## Tests
 
 A headless suite runs the addon's frame-free code outside the game, in
-`Tests/` (repo root, listed in no `.toc`, so never shipped). Run from the repo root:
+`tests/` (repo root, listed in no `.toc`, so never shipped). Run from the repo root:
 
 ```bash
-lua.exe Tests/run.lua                        # preferred; any Lua 5.1 interpreter
-uv run --with lupa python Tests/run.py       # no-install fallback, same specs
+lua.exe tests/run.lua                        # preferred; any Lua 5.1 interpreter
+uv run --with lupa python tests/run.py       # no-install fallback, same specs
 ```
 
-Both execute `Tests/suite.lua`, the single source of truth, and exit non-zero on
+Both execute `tests/suite.lua`, the single source of truth, and exit non-zero on
 failure. The fallback uses lupa's bundled **Lua 5.1** — the client's own dialect,
 so results match; don't let it pick up a 5.4/5.5 runtime.
 
-- `Tests/spec/models_data_spec.lua` — golden tests for the generated `ModelsData`:
+- `tests/spec/models_data_spec.lua` — golden tests for the generated `ModelsData`:
   the record count, `Index`/`NpcId` inverse consistency, the distinct lookup counts,
   every ID resolving through its lookup table, and the T3 spot-check NPCs. **This is
   the guard against psm-data regenerating a shape the addon can't read** — the
@@ -392,12 +392,12 @@ so results match; don't let it pick up a 5.4/5.5 runtime.
   dense index an npcId resolves to — that index is a *position*, shifted by any earlier
   insertion, and pinning it produced five guaranteed failures per refresh that taught
   nothing except the habit of bumping numbers. The counts live in the spec, not here.
-- `Tests/spec/utils_spec.lua` — the pure helpers in `Shared/Utils.lua`.
+- `tests/spec/utils_spec.lua` — the pure helpers in `Shared/Utils.lua`.
 
-When adding a spec, append it to `SPECS` in `Tests/suite.lua` (explicit list: Lua has
+When adding a spec, append it to `SPECS` in `tests/suite.lua` (explicit list: Lua has
 no portable directory walk, and a visible diff per spec is a feature).
 
-`Tests/wow/stubs.lua` holds stand-ins for client APIs. **A stub must behave like the
+`tests/wow/stubs.lua` holds stand-ins for client APIs. **A stub must behave like the
 real API for the cases under test, or not exist.** A catch-all no-op frame that
 swallows every call turns real bugs into passing tests; leave such code untestable
 until the layering work separates it.
@@ -405,7 +405,7 @@ until the layering work separates it.
 ## CI
 
 `.github/workflows/ci.yml` runs on every push and PR, in two parallel jobs:
-`luacheck` and the test suite (via `lua5.1 Tests/run.lua`, the primary entry point,
+`luacheck` and the test suite (via `lua5.1 tests/run.lua`, the primary entry point,
 so it doesn't only ever exercise the lupa fallback).
 
 The lint job **gates on errors, not warnings**. luacheck exits 1 for warnings and
@@ -422,7 +422,7 @@ full path, or add its folder to PATH to run it as `luacheck`. The exact local
 path is in `CLAUDE.local.md` (untracked). Run from the repo root:
 
 ```bash
-luacheck PetStableManagement PetStableManagement_ModelsBrowser Tests
+luacheck PetStableManagement PetStableManagement_ModelsBrowser tests
 ```
 
 The current clean baseline is **9 warnings / 0 errors**. Treat any change in it as

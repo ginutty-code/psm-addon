@@ -4,7 +4,7 @@
 -- Every write goes through here so the store's version counters can be trusted: a
 -- mutation made through a helper's parameter is invisible to any search for the field
 -- name, so "did we catch them all?" cannot be answered by reading the code.
--- `Tests/spec/selections_spec.lua` fails the build on a direct assignment anywhere else.
+-- `tests/spec/selections_spec.lua` fails the build on a direct assignment anywhere else.
 --
 -- The values still live in `ns.state.selected*` and are read directly by ~100 sites.
 -- This owns writes only; reads cannot invalidate anything.

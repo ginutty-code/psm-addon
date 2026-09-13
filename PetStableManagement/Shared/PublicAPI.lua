@@ -7,7 +7,7 @@
 -- The two addons cannot share a namespace -- `local addonName, ns = ...` gives each
 -- *addon* its own private table -- so `_G.PSM` is the bridge between them, and this file
 -- decides how narrow it is. Of core's ~38 members these fifteen are the only ones the
--- browser may read; `Tests/spec/boundary_spec.lua` parses the list out of this file and
+-- browser may read; `tests/spec/boundary_spec.lua` parses the list out of this file and
 -- fails the build if a browser file reaches for anything outside it.
 --
 -- Adding a name is a real decision: it is one more thing that can never change without
