@@ -54,12 +54,16 @@ function ns.Utils:NormalizeSearchText(text)
     return strtrim(text):lower()
 end
 
+-- Channels round to the nearest byte (+0.5 before the implicit truncation
+-- string.format("%x", ...) does on a float -- Lua 5.1: a C-style (int) cast, not a
+-- rounding one). Without it, a channel like Theme.COLOR.GREY's 0.6 (not exactly
+-- representable in binary float) can land a shade off.
 function ns.Utils:FormatColorText(text, color)
     if not text or not color then return text or "" end
     return string.format("|cff%02x%02x%02x%s|r",
-        math.floor((color[1] or 1) * 255),
-        math.floor((color[2] or 1) * 255),
-        math.floor((color[3] or 1) * 255),
+        math.floor((color[1] or 1) * 255 + 0.5),
+        math.floor((color[2] or 1) * 255 + 0.5),
+        math.floor((color[3] or 1) * 255 + 0.5),
         text)
 end
 

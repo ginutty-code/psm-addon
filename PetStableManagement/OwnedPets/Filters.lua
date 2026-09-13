@@ -215,15 +215,11 @@ local function InitAbilityDropdown(panel)
         return ns.Theme.SelectionStateColor(allOn, not noneOn)
     end
 
-    -- `category` wrapped in the colour escape for its current selection state.
-    -- +0.5 before the implicit truncation string.format("%x", ...) does on a float
-    -- (Lua 5.1: a C-style (int) cast, not a rounding one) -- without it, a channel
-    -- like Theme.COLOR.GREY's 0.6 (not exactly representable in binary float) can
-    -- land a shade off.
+    -- `category` wrapped in the colour escape for its current selection state,
+    -- via the shared FormatColorText (whose rounding comment covers why 0.6
+    -- channels survive the trip to a two-hex-digit code unharmed).
     local function CategoryColorCode(category)
-        local r, g, b = unpack(CategoryColor(category))
-        return ("|cff%02x%02x%02x%s|r"):format(
-            math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5), category)
+        return ns.Utils:FormatColorText(category, CategoryColor(category))
     end
 
     -- Recolour the still-open level-1 category row after a submenu checkbox toggles.

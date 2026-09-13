@@ -101,7 +101,7 @@ local function FormatFaction(allianceReact, hordeReact)
     local function seg(v, letter)
         if not v then return "" end
         local color = v == -1 and {1,0,0} or v == 0 and {1,1,0} or {0,1,0}
-        return string.format("|cff%02x%02x%02x%s|r", color[1]*255, color[2]*255, color[3]*255, letter)
+        return PSM.Utils:FormatColorText(letter, color)
     end
     return seg(allianceReact, "A") .. seg(hordeReact, "H")
 end

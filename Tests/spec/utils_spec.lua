@@ -141,6 +141,10 @@ describe("Utils:FormatColorText", function()
     it("wraps text in a WoW colour escape", function()
         eq(U:FormatColorText("Rare", { 1, 0.82, 0 }), "|cffffd100Rare|r", "gold")
         eq(U:FormatColorText("x", { 0, 0, 0 }), "|cff000000x|r", "black")
+        -- Theme.COLOR.GREY's 0.6 is not exactly representable in binary float;
+        -- 0.6 * 255 lands just under 153, so truncation would give 0x98 where
+        -- nearest-byte rounding gives 0x99. See the rounding comment in Utils.lua.
+        eq(U:FormatColorText("g", { 0.6, 0.6, 0.6 }), "|cff999999g|r", "grey rounds to nearest")
     end)
 
     it("passes text through when colour is missing", function()
